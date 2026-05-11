@@ -1,0 +1,20 @@
+# Virtual Environment
+/Lib/
+/Include/
+/Scripts/
+/share/
+/etc/
+/pyvenv.cfg
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# Generated files
+/audio_files/
+
+# VS Code
+.vscode/
