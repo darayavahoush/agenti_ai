@@ -1,10 +1,17 @@
 # Virtual Environment
-/Lib/
-/Include/
-/Scripts/
-/share/
-/etc/
-/pyvenv.cfg
+speak_easy/Lib/
+speak_easy/Scripts/
+speak_easy/Include/
+speak_easy/share/
+speak_easy/etc/
+speak_easy/pyvenv.cfg
+
+etc/
+share/
+Lib/
+Scripts/
+Include/
+pyvenv.cfg
 
 # Python
 __pycache__/
@@ -14,7 +21,7 @@ __pycache__/
 .env
 
 # Generated files
-/audio_files/
+audio_files/
 
 # VS Code
 .vscode/

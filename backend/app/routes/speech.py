@@ -9,9 +9,13 @@ import soundfile as sf
 import whisper
 import torch
 
+from app.services.phoneme.data import PHONEME_DATA
 from fastapi import APIRouter, UploadFile, File, Form
 from rapidfuzz import fuzz
 from silero_vad import get_speech_timestamps, load_silero_vad
+from g2p_en import G2p
+
+g2p = G2p()
 
 router = APIRouter(prefix="/speech", tags=["Speech Therapy"])
 
@@ -87,7 +91,7 @@ def select_child_segment(y, sr):
 
     for audio in segments:
 
-        if len(audio) < 500:
+        if len(audio) < 200:
             continue
 
         # energy
@@ -101,7 +105,7 @@ def select_child_segment(y, sr):
         duration = len(audio) / sr
 
         # 🎯 CHILD HEURISTIC
-        score = (pitch * 0.6) - (energy * 100) - (duration * 2)
+        score = (pitch * 0.35) - (energy * 20) - (duration * 0.5)
 
         if score > best_score:
             best_score = score
@@ -128,11 +132,68 @@ def transcribe(y, sr):
 
     try:
         sf.write(tmp_path, y, sr)
-        result = whisper_model.transcribe(tmp_path)
-        return normalize_text(result["text"])
+        result = whisper_model.transcribe(tmp_path, language="en",fp16=False,temperature=0.0)
+        text = result["text"]
+        return normalize_text(text)
+    except Exception as e:
+        print("transcription error:", e)
+        return ""
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+# ---------------------------------------------------
+# BASIC PHONEME
+# ---------------------------------------------------
+
+def get_basic_phonemes(word):
+
+    phonemes = g2p(word)
+
+    clean = []
+
+    for p in phonemes:
+
+        p = p.replace("0", "").replace("1", "").replace("2", "")
+
+        if p.isalpha():
+            clean.append(p)
+
+    return clean
+
+# ---------------------------------------------------
+# compare phoneme
+# ---------------------------------------------------
+def compare_phonemes(expected, spoken):
+
+    matches = []
+
+    correct = 0
+
+    total = max(len(expected), 1)
+
+    for i in range(len(expected)):
+
+        exp = expected[i]
+
+        got = spoken[i] if i < len(spoken) else None
+
+        is_correct = exp == got
+
+        if is_correct:
+            correct += 1
+
+        matches.append({
+            "expected": exp,
+            "detected": got,
+            "correct": is_correct
+        })
+
+    accuracy = int((correct / total) * 100)
+
+    return {
+        "matches": matches,
+        "accuracy": accuracy
+    }
 
 # ---------------------------------------------------
 # BEST WORD MATCH
@@ -235,52 +296,186 @@ def extract_features(y, sr):
 
 # ---------------------------------------------------
 # MAIN API
-# ---------------------------------------------------
+def extract_first_sound(text):
+
+    if text == "":
+        return ""
+
+    words = text.split()
+
+    if len(words) == 0:
+        return ""
+
+    first_word = words[0]
+
+    return first_word[0]
+
 @router.post("/therapy")
 async def therapy(
     file: UploadFile = File(...),
     patient_name: str = Form(...),
-    target_word: str = Form(...)
+    target_word: str = Form(...),
+    therapy_mode: str = Form(...)
 ):
     try:
+
+        # -------------------
+        # SAVE AUDIO
+        # -------------------
         path = save_audio(file)
 
-        y, sr = librosa.load(path, sr=16000)
+        y, sr = librosa.load(
+            path,
+            sr=16000
+        )
 
-        # 🎯 Lightweight child selection
+        # normalize audio
+        y = librosa.util.normalize(y)
+
+        # trim silence
+        y, _ = librosa.effects.trim(
+            y,
+            top_db=10
+        )
+
+        # -------------------
+        # LIGHTWEIGHT CHILD SELECTION
+        # -------------------
         y_child = select_child_segment(y, sr)
 
         # fallback safety
-        if y_child is None or len(y_child) < 1000:
+        if y_child is None or len(y_child) < 300:
+            print("⚠ Using full audio fallback")
             y_child = y
 
         # -------------------
-        # ANALYSIS
+        # TRANSCRIPTION
         # -------------------
-        transcript = transcribe(y_child, sr)
+        transcript = transcribe(
+            y_child,
+            sr
+        )
 
-        target = normalize_text(target_word)
-        spoken = extract_spoken_part(transcript, target)
-        spoken = normalize_text(spoken)
-        score = compute_score(target, spoken)
-        feedback, stars = generate_feedback(score, target, spoken)
+        # second fallback
+        if transcript == "":
+            print("⚠ Empty transcript → retrying full audio")
 
-        metrics = extract_features(y_child, sr)
+            transcript = transcribe(
+                y,
+                sr
+            )
 
-        os.remove(path)
+        # -------------------
+        # TEXT NORMALIZATION
+        # -------------------
+        target = normalize_text(
+            target_word
+        )
 
+        if therapy_mode == "First Letter Match":
+
+            spoken = extract_first_sound(
+                transcript
+            )
+
+        else:
+
+            spoken = transcript
+
+        spoken = normalize_text(
+            spoken
+        )
+
+        # -------------------
+        # PHONEME ANALYSIS
+        # -------------------
+
+        expected_phonemes = get_basic_phonemes(
+            target
+        )
+
+        spoken_phonemes = get_basic_phonemes(
+            spoken
+        )
+
+        phoneme_result = compare_phonemes(
+            expected_phonemes,
+            spoken_phonemes
+        )
+        
+        # -------------------
+        # SCORING
+        # -------------------
+        score = compute_score(
+            target,
+            spoken
+        )
+
+        # -------------------
+        # FEEDBACK
+        # -------------------
+        feedback, stars = generate_feedback(
+            score,
+            target,
+            spoken
+        )
+
+        # -------------------
+        # FEATURES
+        # -------------------
+        metrics = extract_features(
+            y_child,
+            sr
+        )
+
+        # -------------------
+        # CLEANUP
+        # -------------------
+        if os.path.exists(path):
+            os.remove(path)
+
+        # -------------------
+        # RESPONSE
+        # -------------------
         return {
+
             "child_name": patient_name,
+
             "target_word": target_word,
-            "spoken_word": spoken if spoken else "No speech detected",
+
+            "spoken_word": (
+                spoken
+                if spoken
+                else "No speech detected"
+            ),
+
             "full_transcript": transcript,
+
             "accuracy": score,
+
+            "phoneme_accuracy": phoneme_result["accuracy"],
+
+            "phoneme_matches": phoneme_result["matches"],
+
+            "expected_phonemes": expected_phonemes,
+
+            "spoken_phonemes": spoken_phonemes,
+
             "duration": metrics["duration"],
+
             "loudness": metrics["loudness"],
+
             "pitch": metrics["pitch"],
+
             "feedback": feedback,
+
             "stars": stars
         }
 
     except Exception as e:
-        return {"error": str(e)}
+
+        print("THERAPY ERROR:", e)
+
+        return {
+            "error": str(e)
+        }

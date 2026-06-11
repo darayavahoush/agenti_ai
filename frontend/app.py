@@ -65,11 +65,30 @@ elif page == "🎤 Live Therapy":
 
     st.title("🎤 Live AI Therapy")
 
-    name = st.text_input("👶 Child Name")
-    target_word = st.text_input("🎯 Target Word", value="Ball")
+    if "child_name" not in st.session_state:
+        st.session_state.child_name = ""
 
-    st.subheader(f"Say this word: {target_word}")
+    name = st.text_input(
+        "👶 Child Name",
+        key="child_name"
+    )
+    if "therapy_target" not in st.session_state:
+        st.session_state.therapy_target = ""
 
+    target_word = st.text_input(
+        "🎯 Target Word",
+        key="therapy_target"
+    )
+    therapy_mode = st.selectbox(
+    "🧠 Therapy Mode",
+    [
+        "Full Word Match",
+        "First Letter Match"
+    ]
+    )
+    st.subheader(
+    f"Say this word: {st.session_state.therapy_target}"
+)
     audio = mic_recorder(
         start_prompt="🎤 Start Recording",
         stop_prompt="⏹ Stop Recording",
@@ -92,9 +111,10 @@ elif page == "🎤 Live Therapy":
             }
 
             data = {
-                "patient_name": name,
-                "target_word": target_word
-            }
+            "patient_name": st.session_state.child_name,
+            "target_word": st.session_state.therapy_target,
+            "therapy_mode": therapy_mode
+        }
 
             res = requests.post(
                 f"{API}/speech/therapy",
@@ -117,7 +137,8 @@ elif page == "🎤 Live Therapy":
 
         else:
             st.success("AI Analysis Completed 🧠")
-
+            st.write(f"### 🧠 Mode: {therapy_mode}")
+            
             c1, c2, c3 = st.columns(3)
 
             c1.metric("🎯 Target", result["target_word"])
@@ -137,6 +158,71 @@ elif page == "🎤 Live Therapy":
 
             st.subheader("⭐ Reward")
             st.write("⭐" * result["stars"])
+
+            # --------------------------------------------------
+            # PHONEME ANALYSIS
+            # --------------------------------------------------
+            st.write("## 🧩 Phoneme Analysis")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.write("### Expected")
+                st.write(
+                    " → ".join(
+                        result.get(
+                            "expected_phonemes",
+                            []
+                        )
+                    )
+                )
+
+            with col2:
+                st.write("### Detected")
+                st.write(
+                    " → ".join(
+                        result.get(
+                            "spoken_phonemes",
+                            []
+                        )
+                    )
+                )
+
+            # --------------------------------------------------
+            # PHONEME ACCURACY
+            # --------------------------------------------------
+            st.metric(
+                "🧩 Phoneme Accuracy",
+                f"{result.get('phoneme_accuracy', 0)}%"
+            )
+
+            # --------------------------------------------------
+            # PHONEME MATCHING
+            # --------------------------------------------------
+            st.write("### 🎯 Phoneme Matching")
+
+            matches = result.get(
+                "phoneme_matches",
+                []
+            )
+
+            for match in matches:
+
+                expected = match.get("expected", "")
+                detected = match.get("detected", "")
+                correct = match.get("correct", False)
+
+                if correct:
+
+                    st.success(
+                        f"✅ {expected}"
+                    )
+
+                else:
+
+                    st.error(
+                        f"❌ Expected: {expected} | Got: {detected}"
+                    )    
 
 
 # --------------------------------------------------

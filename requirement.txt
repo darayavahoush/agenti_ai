@@ -23,3 +23,8 @@ requests
 streamlit-mic-recorder
 
 aiofiles
+
+torch
+silero-vad
+g2p_en
+nltk

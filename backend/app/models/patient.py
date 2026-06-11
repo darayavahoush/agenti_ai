@@ -24,4 +24,4 @@ class Patient(Base):
 
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
-    sessions = relationship("Session", back_populates="patient")
+    # sessions = relationship("Session", back_populates="patient")
