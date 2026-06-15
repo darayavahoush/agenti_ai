@@ -40,12 +40,32 @@ except Exception as e:
 # ---------------------------------------------------
 # SAVE AUDIO
 # ---------------------------------------------------
+# def save_audio(file: UploadFile):
+#     path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.wav")
+#     with open(path, "wb") as f:
+#         f.write(file.file.read())
+#     return path
 def save_audio(file: UploadFile):
-    path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.wav")
+
+    print("Filename:", file.filename)
+    print("Content-Type:", file.content_type)
+
+    ext = os.path.splitext(file.filename)[1]
+
+    if not ext:
+        ext = ".wav"
+
+    path = os.path.join(
+        tempfile.gettempdir(),
+        f"{uuid.uuid4()}{ext}"
+    )
+
     with open(path, "wb") as f:
         f.write(file.file.read())
-    return path
 
+    print("Saved as:", path)
+
+    return path
 
 # ---------------------------------------------------
 # NORMALIZE TEXT
@@ -91,7 +111,7 @@ def select_child_segment(y, sr):
 
     for audio in segments:
 
-        if len(audio) < 200:
+        if len(audio) < 1600:
             continue
 
         # energy
@@ -105,7 +125,8 @@ def select_child_segment(y, sr):
         duration = len(audio) / sr
 
         # 🎯 CHILD HEURISTIC
-        score = (pitch * 0.35) - (energy * 20) - (duration * 0.5)
+        # Prefer strong, voiced segments and avoid tiny noise bursts.
+        score = (energy * 100) + (pitch * 0.35) - (duration * 0.5)
 
         if score > best_score:
             best_score = score
@@ -122,7 +143,7 @@ def select_child_segment(y, sr):
 # ---------------------------------------------------
 # TRANSCRIPTION
 # ---------------------------------------------------
-def transcribe(y, sr):
+def transcribe(y, sr, prompt=None):
     if whisper_model is None:
         return ""
 
@@ -132,15 +153,23 @@ def transcribe(y, sr):
 
     try:
         sf.write(tmp_path, y, sr)
-        result = whisper_model.transcribe(tmp_path, language="en",fp16=False,temperature=0.0)
+        print("Transcribing file:", tmp_path)
+        result = whisper_model.transcribe(
+            tmp_path,
+            language="en",
+            fp16=False,
+            temperature=0.0,
+            initial_prompt=prompt
+        )
         text = result["text"]
         return normalize_text(text)
     except Exception as e:
         print("transcription error:", e)
         return ""
     finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        # if os.path.exists(tmp_path):
+            # os.remove(tmp_path)
+        pass
 # ---------------------------------------------------
 # BASIC PHONEME
 # ---------------------------------------------------
@@ -324,6 +353,12 @@ async def therapy(
         # -------------------
         path = save_audio(file)
 
+        try:
+            info = sf.info(path)
+            print("AUDIO INFO:", info)
+        except Exception as e:
+            print("SOUNDFILE ERROR:", e)
+
         y, sr = librosa.load(
             path,
             sr=16000
@@ -343,6 +378,8 @@ async def therapy(
         # -------------------
         y_child = select_child_segment(y, sr)
 
+        print("Full audio duration:", len(y) / sr)
+        print("Selected audio duration:", len(y_child) / sr)
         # fallback safety
         if y_child is None or len(y_child) < 300:
             print("⚠ Using full audio fallback")
@@ -351,26 +388,51 @@ async def therapy(
         # -------------------
         # TRANSCRIPTION
         # -------------------
-        transcript = transcribe(
+        transcript_child = transcribe(
             y_child,
-            sr
+            sr,
+            prompt=target_word
         )
 
-        # second fallback
-        if transcript == "":
-            print("⚠ Empty transcript → retrying full audio")
+        transcript_full = transcribe(
+            y,
+            sr,
+            prompt=target_word
+        )
 
-            transcript = transcribe(
-                y,
-                sr
-            )
-
-        # -------------------
-        # TEXT NORMALIZATION
-        # -------------------
         target = normalize_text(
             target_word
         )
+
+        def match_score(text):
+            if therapy_mode == "First Letter Match":
+                return fuzz.ratio(
+                    extract_first_sound(text),
+                    extract_first_sound(target)
+                )
+            return fuzz.ratio(text, target)
+
+        score_child = match_score(transcript_child)
+        score_full = match_score(transcript_full)
+
+        if transcript_child == "":
+            transcript = transcript_full
+            print("⚠ Child segment transcript empty → using full audio transcript")
+        elif transcript_full == "":
+            transcript = transcript_child
+            print("⚠ Full audio transcript empty → using child segment transcript")
+        elif score_full > score_child + 5:
+            transcript = transcript_full
+            print("⚠ Using full audio transcript as better match:", score_full, "vs", score_child)
+        else:
+            transcript = transcript_child
+            print("✅ Using selected child segment transcript:", score_child, "vs", score_full)
+
+        print("TRANSCRIPT:", transcript)
+        # -------------------
+        # TEXT NORMALIZATION
+        # -------------------
+        target = target
 
         if therapy_mode == "First Letter Match":
 
