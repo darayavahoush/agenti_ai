@@ -1,4 +1,12 @@
-in the terminal type python and then one by one download all ..
+1. Clone the project
+2. create virtual env
+   python -m venv venv
+   venv/Scripts/activate - powershell
+   venv/Scripts/activate.bat - cmd
+3. pip install -r requirement.txt
+   
+
+4. in the terminal type python and then one by one download all ..
 
 # import nltk
 
@@ -7,8 +15,8 @@ in the terminal type python and then one by one download all ..
 # nltk.download('cmudict')
 # nltk.download('punkt')
 
-2. create a .env file in the backend and ask for the credentials
+5. create a .env file in the backend and ask for the credentials
 
-3. to execute the backend.. activate the virtual environment load the requirements.txt and execute >cd backend -> uvicorn app.main:app --reload
+6. to execute the backend.. activate the virtual environment load the requirements.txt and execute >cd backend -> uvicorn app.main:app --reload
 
-4. to execute the frontend... cd frontend -> streamlit run app.py     
+7. to execute the frontend... cd frontend -> streamlit run app.py     
