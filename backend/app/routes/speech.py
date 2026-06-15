@@ -15,6 +15,8 @@ from rapidfuzz import fuzz
 from silero_vad import get_speech_timestamps, load_silero_vad
 from g2p_en import G2p
 from faster_whisper import WhisperModel
+
+from app.services.phoneme.scoring import score_phonemes
 g2p = G2p()
 
 router = APIRouter(prefix="/speech", tags=["Speech Therapy"])
@@ -469,7 +471,7 @@ async def therapy(
             spoken
         )
 
-        phoneme_result = compare_phonemes(
+        phoneme_result = score_phonemes(
             expected_phonemes,
             spoken_phonemes
         )
