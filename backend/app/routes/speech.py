@@ -14,7 +14,7 @@ from fastapi import APIRouter, UploadFile, File, Form
 from rapidfuzz import fuzz
 from silero_vad import get_speech_timestamps, load_silero_vad
 from g2p_en import G2p
-
+from faster_whisper import WhisperModel
 g2p = G2p()
 
 router = APIRouter(prefix="/speech", tags=["Speech Therapy"])
@@ -22,12 +22,19 @@ router = APIRouter(prefix="/speech", tags=["Speech Therapy"])
 # ---------------------------------------------------
 # LOAD MODELS
 # ---------------------------------------------------
+
 try:
-    whisper_model = whisper.load_model("base.en")
-    print("✅ Whisper loaded")
+    whisper_model = WhisperModel(
+        "base.en",
+        device="cpu",
+        compute_type="int8"
+    )
+
+    print("✅ Faster-Whisper loaded")
+
 except Exception as e:
     whisper_model = None
-    print("❌ Whisper error:", e)
+    print("❌ Faster-Whisper error:", e)
 
 try:
     vad_model = load_silero_vad()
@@ -154,14 +161,16 @@ def transcribe(y, sr, prompt=None):
     try:
         sf.write(tmp_path, y, sr)
         print("Transcribing file:", tmp_path)
-        result = whisper_model.transcribe(
+        segments, info = whisper_model.transcribe(
             tmp_path,
             language="en",
-            fp16=False,
-            temperature=0.0,
-            initial_prompt=prompt
+            beam_size=5
         )
-        text = result["text"]
+
+        text = " ".join(
+            segment.text
+            for segment in segments
+        )
         return normalize_text(text)
     except Exception as e:
         print("transcription error:", e)
