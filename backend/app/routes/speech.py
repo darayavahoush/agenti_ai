@@ -83,6 +83,124 @@ def normalize_text(text):
     return re.sub(r'[^a-z ]', '', text.lower()).strip()
 
 
+WORD_MAPPER_DISPLAY_MAP = {
+    "AA": "a",
+    "AE": "Ai",
+    "AH": "u",
+    "AO": "aw",
+    "AW": "au",
+    "AY": "Ai",
+    "B": "b",
+    "CH": "ch",
+    "D": "d",
+    "DH": "th",
+    "EH": "e",
+    "ER": "er",
+    "EY": "ay",
+    "F": "f",
+    "G": "g",
+    "HH": "h",
+    "IH": "i",
+    "IY": "ee",
+    "JH": "j",
+    "K": "k",
+    "L": "l",
+    "M": "m",
+    "N": "n",
+    "NG": "ng",
+    "OW": "o",
+    "OY": "oy",
+    "P": "p",
+    "R": "r",
+    "SH": "sh",
+    "S": "s",
+    "T": "t",
+    "TH": "th",
+    "UH": "oo",
+    "UW": "oo",
+    "V": "v",
+    "W": "w",
+    "Y": "y",
+    "Z": "z",
+    "ZH": "zh",
+}
+
+COMMON_WORD_MAPPER_OVERRIDES = {
+    "apple": ["Ai", "p", "p", "l"],
+    "ball": ["b", "aw", "l"],
+    "teacher": ["t", "ee", "ch", "er"],
+    "umbrella": ["u", "m", "b", "r", "e", "l", "u"],
+    "cat": ["k", "a", "t"],
+    "dog": ["d", "o", "g"],
+    "sun": ["s", "u", "n"],
+    "ship": ["sh", "i", "p"],
+    "boat": ["b", "oa", "t"],
+}
+
+
+def get_display_phoneme_label(token):
+    return WORD_MAPPER_DISPLAY_MAP.get(token.upper(), token.upper())
+
+
+def get_word_mapper_display(word, tokens):
+    normalized = word.lower().strip()
+
+    if normalized in COMMON_WORD_MAPPER_OVERRIDES:
+        return COMMON_WORD_MAPPER_OVERRIDES[normalized]
+
+    labels = []
+    i = 0
+
+    while i < len(tokens):
+        token = tokens[i].upper()
+
+        if token == "AH" and i + 1 < len(tokens) and tokens[i + 1].upper() == "L":
+            labels.append("ul")
+            i += 2
+            continue
+
+        if token == "AH" and i + 1 < len(tokens) and tokens[i + 1].upper() == "R":
+            labels.append("ur")
+            i += 2
+            continue
+
+        if token == "AE" and i + 1 < len(tokens) and tokens[i + 1].upper() == "L":
+            labels.append("al")
+            i += 2
+            continue
+
+        if token in {"EY", "AY", "AI"}:
+            labels.append("Ai")
+            i += 1
+            continue
+
+        if token in {"OW", "OE", "OH"}:
+            labels.append("o")
+            i += 1
+            continue
+
+        if token in {"IY", "EE"}:
+            labels.append("ee")
+            i += 1
+            continue
+
+        if token in {"UW", "UH", "OO"}:
+            labels.append("oo")
+            i += 1
+            continue
+
+        labels.append(get_display_phoneme_label(token))
+        i += 1
+
+    return labels
+
+
+def get_display_phoneme_list(tokens, word=None):
+    if word is not None:
+        return get_word_mapper_display(word, tokens)
+    return [get_display_phoneme_label(t) for t in tokens]
+
+
 # ---------------------------------------------------
 # VAD SPLIT (Silero)
 # ---------------------------------------------------
@@ -510,6 +628,15 @@ async def therapy(
         # -------------------
         # RESPONSE
         # -------------------
+        expected_display = get_display_phoneme_list(
+            expected_phonemes,
+            word=target_word
+        )
+        spoken_display = get_display_phoneme_list(
+            spoken_phonemes,
+            word=spoken
+        )
+
         return {
 
             "child_name": patient_name,
@@ -534,6 +661,10 @@ async def therapy(
 
             "spoken_phonemes": spoken_phonemes,
 
+            "expected_phonemes_display": expected_display,
+
+            "spoken_phonemes_display": spoken_display,
+
             "duration": metrics["duration"],
 
             "loudness": metrics["loudness"],
@@ -552,3 +683,128 @@ async def therapy(
         return {
             "error": str(e)
         }
+    
+@router.post("/phonemes/preview")
+async def preview_phonemes(
+    word: str = Form(...)
+):
+
+    return {
+        "success": True,
+        "data": {
+            "phonemes": get_basic_phonemes(word)
+        }
+    }
+    
+@router.post("/phonemes")
+async def get_phonemes(
+    word: str = Form(...)
+):
+
+    return {
+        "success": True,
+        "data": {
+            "word": word,
+            "phonemes": get_basic_phonemes(word)
+        }
+    }
+
+    phonemes = get_basic_phonemes(word)
+
+    return {
+        "word": word,
+        "phonemes": phonemes
+    }
+
+@router.post("/compare")
+async def compare_word(
+    file: UploadFile = File(...),
+    target_word: str = Form(...)
+):
+
+    result = await therapy(
+        file=file,
+        patient_name="Demo",
+        target_word=target_word,
+        therapy_mode="Full Word Match"
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "target_word": result["target_word"],
+            "transcript": result["spoken_word"],
+            "accuracy": result["accuracy"],
+            "feedback": result["feedback"],
+            "expected_phonemes": result["expected_phonemes"],
+            "spoken_phonemes": result["spoken_phonemes"],
+            "matches": result["phoneme_matches"]
+        }
+    }
+
+@router.post("/compare_phoneme")
+async def compare_phoneme(
+    file: UploadFile = File(...),
+    target_phoneme: str = Form(...)
+):
+    try:
+
+        # Save audio
+        path = save_audio(file)
+
+        # Load audio
+        y, sr = librosa.load(
+            path,
+            sr=16000
+        )
+
+        y = librosa.util.normalize(y)
+
+        y, _ = librosa.effects.trim(
+            y,
+            top_db=10
+        )
+
+        # Use same child-segment logic
+        y_child = select_child_segment(y, sr)
+
+        # Transcribe
+        spoken_word = transcribe(
+            y_child,
+            sr
+        )
+
+        # Convert transcript → phonemes
+        spoken_phonemes = get_basic_phonemes(
+            spoken_word
+        )
+
+        correct = (
+            target_phoneme in spoken_phonemes
+        )
+
+        # cleanup
+        if os.path.exists(path):
+            os.remove(path)
+
+        return {
+            "success": True,
+            "data": {
+                "correct": correct,
+                "transcript": spoken_word,
+                "detected_phonemes": spoken_phonemes,
+                "feedback": (
+                    "Great Job!"
+                    if correct
+                    else f"Try emphasizing /{target_phoneme}/"
+                )
+            }
+        }
+
+    except Exception as e:
+
+        return {
+            "success": False,
+            "error": str(e)
+        }
+

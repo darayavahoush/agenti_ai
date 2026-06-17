@@ -434,6 +434,7 @@ def get_image_for_phrase(phrase: str) -> dict:
             _, buf = cv2.imencode(".png", img)
             images.append({
                 "label": match["word"],
+                "path": match["path"],
                 "image_bytes": buf.tobytes(),
                 "match_type": match["match_type"]
             })
@@ -449,5 +450,6 @@ def get_image_for_phrase(phrase: str) -> dict:
         "matched_word": primary["label"],
         "match_type": primary["match_type"],
         "image_bytes": primary["image_bytes"],
+        "path": primary["path"],
         "images": images,  # all images for multi-display
     }
