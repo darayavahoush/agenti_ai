@@ -1,9 +1,12 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.patient import Patient
-from app.schemas.patient import PatientCreate
+from app.models.session import Session as SessionModel
+from app.schemas.patient import PatientCreate, PatientOut
+from app.schemas.session import SessionOut
 
 router = APIRouter(
     prefix="/patients",
@@ -23,7 +26,7 @@ def get_db():
 # -----------------------------------
 # Create Patient
 # -----------------------------------
-@router.post("/")
+@router.post("/", response_model=PatientOut)
 def create_patient(
     data: PatientCreate,
     db: Session = Depends(get_db)
@@ -47,16 +50,16 @@ def create_patient(
 # -----------------------------------
 # Get All Patients
 # -----------------------------------
-@router.get("/")
+@router.get("/", response_model=List[PatientOut])
 def get_all_patients(
     db: Session = Depends(get_db)
 ):
-    return db.query(Patient).all()
+    return db.query(Patient).order_by(Patient.created_at.desc()).all()
 
 # -----------------------------------
 # Get Single Patient
 # -----------------------------------
-@router.get("/{patient_id}")
+@router.get("/{patient_id}", response_model=PatientOut)
 def get_patient(
     patient_id: str,
     db: Session = Depends(get_db)
@@ -73,10 +76,26 @@ def get_patient(
 
     return patient
 
+@router.get("/{patient_id}/sessions", response_model=List[SessionOut])
+def get_patient_sessions(
+    patient_id: str,
+    db: Session = Depends(get_db)
+):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    return (
+        db.query(SessionModel)
+        .filter(SessionModel.patient_id == patient_id)
+        .order_by(SessionModel.created_at.desc())
+        .all()
+    )
+
 # -----------------------------------
 # Search By Name
 # -----------------------------------
-@router.get("/search/{name}")
+@router.get("/search/{name}", response_model=List[PatientOut])
 def search_patient(
     name: str,
     db: Session = Depends(get_db)
