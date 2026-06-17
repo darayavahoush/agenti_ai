@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = (
-    f"postgresql://{os.getenv('PGUSER')}:"
+    f"postgresql://{os.getenv('PGUSER_')}:"
     f"{os.getenv('PGPASSWORD')}@"
     f"{os.getenv('PGHOST')}:"
     f"{os.getenv('PGPORT')}/"
