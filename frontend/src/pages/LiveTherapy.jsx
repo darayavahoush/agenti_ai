@@ -2,8 +2,8 @@ import { useState, useRef } from "react";
 
 const cardStyle = {
   background: "linear-gradient(180deg, #fffaf0 0%, #f7f3ff 100%)",
-  borderRadius: "18px",
-  padding: "18px",
+  borderRadius: "16px",
+  padding: "14px",
   boxShadow: "0 8px 22px rgba(132, 94, 194, 0.12)",
 };
 
@@ -121,10 +121,10 @@ export default function LiveTherapy() {
   return (
     <div
       style={{
-        padding: "24px",
+        padding: "0 24px 16px",
         background:
           "linear-gradient(180deg, #fffaf2 0%, #f7f3ff 52%, #eefbff 100%)",
-        minHeight: "100vh",
+        minHeight: "calc(100vh - 80px)",
       }}
     >
       <style>{`
@@ -161,7 +161,7 @@ export default function LiveTherapy() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: "12px",
-            marginBottom: "18px",
+            marginBottom: "10px",
           }}
         >
           <div>
@@ -176,12 +176,12 @@ export default function LiveTherapy() {
                 fontSize: "14px",
                 fontWeight: 800,
                 color: "#ea580c",
-                marginBottom: "10px",
+                marginBottom: "6px",
               }}
             >
               🎮 Speech Game Studio
             </div>
-            <h1 style={{ margin: 0, fontSize: "2rem", color: "#5b21b6" }}>
+            <h1 style={{ margin: 0, fontSize: "1.75rem", color: "#5b21b6" }}>
               🌈 Let’s Practice Your Word!
             </h1>
           </div>
@@ -219,9 +219,9 @@ export default function LiveTherapy() {
 
         <div
           style={{
-            marginTop: "18px",
+            marginTop: "10px",
             display: "grid",
-            gap: "16px",
+            gap: "10px",
           }}
         >
           <section
@@ -240,8 +240,8 @@ export default function LiveTherapy() {
               placeholder="Enter your name"
               style={{
                 width: "100%",
-                padding: "14px 16px",
-                borderRadius: "14px",
+                padding: "10px 14px",
+                borderRadius: "12px",
                 border: "2px solid #e9d5ff",
                 fontSize: "16px",
                 outline: "none",
@@ -269,8 +269,8 @@ export default function LiveTherapy() {
               max="18"
               style={{
                 width: "100%",
-                padding: "14px 16px",
-                borderRadius: "14px",
+                padding: "10px 14px",
+                borderRadius: "12px",
                 border: "2px solid #d9f99d",
                 fontSize: "16px",
                 outline: "none",
@@ -295,8 +295,8 @@ export default function LiveTherapy() {
               placeholder="banana"
               style={{
                 width: "100%",
-                padding: "14px 16px",
-                borderRadius: "14px",
+                padding: "10px 14px",
+                borderRadius: "12px",
                 border: "2px solid #bfdbfe",
                 fontSize: "16px",
                 outline: "none",
@@ -331,7 +331,7 @@ export default function LiveTherapy() {
                       key={option.value}
                       onClick={() => setTherapyMode(option.value)}
                       style={{
-                        padding: "10px 14px",
+                        padding: "8px 12px",
                         borderRadius: "999px",
                         border: isActive
                           ? "2px solid #7c3aed"
