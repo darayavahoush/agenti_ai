@@ -12,7 +12,7 @@ from app.routes.image import router as image_router
 # APP
 # -----------------------------------
 app = FastAPI(
-    title="VaakSiddhi AI Backend",
+    title="VaakSuddhi AI Backend",
     version="1.0.0"
 )
 
@@ -45,5 +45,5 @@ app.include_router(image_router)
 @app.get("/")
 def home():
     return {
-        "message": "VaakSiddhi V1 Running 🚀"
+        "message": "VaakSuddhi V1 Running 🚀"
     }

@@ -70,7 +70,7 @@ export function DashboardLayout({ children, currentTab, setTab }) {
         <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={() => setTab("practice")} className="clickable">
           <BunnyMascot size={40} mood="happy" style={{ animation: "none" }} />
           <h2 style={{ fontFamily: "'Nunito', sans-serif", fontSize: "28px", fontWeight: 900, color: T.primary, margin: 0, letterSpacing: "-0.5px" }}>
-            VaakSiddhi
+            VaakSuddhi
           </h2>
         </div>
 
