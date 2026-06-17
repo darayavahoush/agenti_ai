@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.database import Base, engine
+from app.models import patient, session
 
 # Routes
 from app.routes.patient import router as patient_router
@@ -31,6 +33,38 @@ app.add_middleware(
 # CREATE TABLES
 # -----------------------------------
 Base.metadata.create_all(bind=engine)
+
+
+def ensure_database_schema():
+    statements = [
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender VARCHAR",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS diagnosis VARCHAR",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS therapist_name VARCHAR",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS parent_contact VARCHAR",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS f0_mean FLOAT",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS mpt FLOAT",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS jitter FLOAT",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS shimmer FLOAT",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS hnr FLOAT",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_word VARCHAR",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS spoken_word VARCHAR",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS accuracy INTEGER",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS feedback VARCHAR",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS stars INTEGER",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS audio_file VARCHAR",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_type VARCHAR",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS trs_score INTEGER",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
+    ]
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+ensure_database_schema()
 
 # -----------------------------------
 # INCLUDE ROUTES
