@@ -6,20 +6,30 @@ import re
 import numpy as np
 import librosa
 import soundfile as sf
-import whisper
 import torch
 
-from app.services.phoneme.data import PHONEME_DATA
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from rapidfuzz import fuzz
 from silero_vad import get_speech_timestamps, load_silero_vad
 from g2p_en import G2p
 from faster_whisper import WhisperModel
+from sqlalchemy.orm import Session
 
+from app.database import SessionLocal
+from app.models.patient import Patient
+from app.models.session import Session as SessionModel
 from app.services.phoneme.scoring import score_phonemes
+
 g2p = G2p()
 
 router = APIRouter(prefix="/speech", tags=["Speech Therapy"])
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # ---------------------------------------------------
 # LOAD MODELS
@@ -473,7 +483,8 @@ async def therapy(
     file: UploadFile = File(...),
     patient_name: str = Form(...),
     target_word: str = Form(...),
-    therapy_mode: str = Form(...)
+    therapy_mode: str = Form(...),
+    db: Session = Depends(get_db)
 ):
     try:
 
@@ -626,6 +637,37 @@ async def therapy(
             os.remove(path)
 
         # -------------------
+        # SAVE SESSION TO DB
+        # -------------------
+        clean_patient_name = patient_name.strip()
+        patient = db.query(Patient).filter(
+            Patient.name.ilike(clean_patient_name)
+        ).first()
+
+        if patient is None:
+            patient = Patient(
+                name=clean_patient_name,
+                age=None,
+                language=None
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+
+        session_record = SessionModel(
+            patient_id=patient.id,
+            target_word=target_word,
+            spoken_word=spoken if spoken else "No speech detected",
+            accuracy=int(round(score)),
+            feedback=feedback,
+            stars=stars,
+            session_type="word_practice"
+        )
+        db.add(session_record)
+        db.commit()
+        db.refresh(session_record)
+
+        # -------------------
         # RESPONSE
         # -------------------
         expected_display = get_display_phoneme_list(
@@ -638,41 +680,27 @@ async def therapy(
         )
 
         return {
-
             "child_name": patient_name,
-
+            "patient_id": str(patient.id),
+            "session_id": str(session_record.id),
             "target_word": target_word,
-
             "spoken_word": (
                 spoken
                 if spoken
                 else "No speech detected"
             ),
-
             "full_transcript": transcript,
-
             "accuracy": score,
-
             "phoneme_accuracy": phoneme_result["accuracy"],
-
             "phoneme_matches": phoneme_result["matches"],
-
             "expected_phonemes": expected_phonemes,
-
             "spoken_phonemes": spoken_phonemes,
-
             "expected_phonemes_display": expected_display,
-
             "spoken_phonemes_display": spoken_display,
-
             "duration": metrics["duration"],
-
             "loudness": metrics["loudness"],
-
             "pitch": metrics["pitch"],
-
             "feedback": feedback,
-
             "stars": stars
         }
 
@@ -807,4 +835,3 @@ async def compare_phoneme(
             "success": False,
             "error": str(e)
         }
-
