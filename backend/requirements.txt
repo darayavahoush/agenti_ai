@@ -27,7 +27,7 @@ streamlit-mic-recorder
 aiofiles
 imageio-ffmpeg
 opencv-python
-parselmouth
+# parselmouth
 noisereduce
 
 torch
