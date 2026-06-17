@@ -16,8 +16,8 @@ export function Profile({ childId, activeSessionId, onResetSession }) {
     ],
     therapist: {
       name: "Dr. Ananya Malhotra, SLP",
-      clinic: "VaakSiddhi Speech & Phonology Center",
-      email: "contact@vaaksiddhi.in"
+      clinic: "VaakSuddhi Speech & Phonology Center",
+      email: "contact@VaakSuddhi.in"
     }
   });
 

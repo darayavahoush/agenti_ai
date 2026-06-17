@@ -3,6 +3,7 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 python-dotenv
+pydantic
 
 faster-whisper
 passlib
@@ -24,8 +25,13 @@ requests
 streamlit-mic-recorder
 
 aiofiles
+imageio-ffmpeg
+opencv-python
+parselmouth
+noisereduce
 
 torch
 silero-vad
 g2p_en
 nltk
+kokoro-onnx
