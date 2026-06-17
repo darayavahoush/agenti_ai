@@ -86,7 +86,7 @@ export default function LiveTherapy() {
       formData.append("target_word", word);
       formData.append("therapy_mode", therapyMode);
 
-      const response = await fetch("http://localhost:8000/speech/therapy", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/speech/therapy`, {
         method: "POST",
         body: formData,
       });
