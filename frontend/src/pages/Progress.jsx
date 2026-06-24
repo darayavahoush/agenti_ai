@@ -1,68 +1,71 @@
 import { useEffect, useState } from "react";
-import { getProgress } from "../services/api";
+
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function Progress() {
+  const [patients, setPatients] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getProgress()
-      .then(setSessions)
-      .catch((err) => console.error("Failed to load progress", err))
-      .finally(() => setLoading(false));
+    const fetchData = async () => {
+      try {
+        const [patientsRes, sessionsRes] = await Promise.all([
+          fetch(`${API}/patients/`),
+          fetch(`${API}/patients/sessions/all`),
+        ]);
+
+        const patientsData = await patientsRes.json();
+        const sessionsData = await sessionsRes.json();
+
+        setPatients(Array.isArray(patientsData) ? patientsData : []);
+        setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
+  const avgAccuracy =
+    sessions.length > 0
+      ? Math.round(
+        sessions.reduce((sum, s) => sum + (Number(s.accuracy) || 0), 0) /
+        sessions.length
+      )
+      : 0;
+
+  const bestSession = sessions.reduce(
+    (best, cur) => ((Number(cur.accuracy) || 0) > (Number(best.accuracy) || 0) ? cur : best),
+    {}
+  );
+
   return (
-    <div>
-      <h1>Progress</h1>
+    <div style={{ padding: "24px" }}>
+      <h1 style={{ margin: 0 }}>📈 Progress</h1>
 
       {loading ? (
-        <p style={{ marginTop: "20px" }}>Loading progress...</p>
-      ) : sessions.length === 0 ? (
-        <p style={{ marginTop: "20px" }}>No therapy sessions yet.</p>
+        <p>Loading progress...</p>
       ) : (
-        <div style={{ marginTop: "22px", display: "grid", gap: "12px" }}>
-          {sessions.map((session) => (
-            <div
-              key={session.id}
-              style={{
-                background: "#fff",
-                borderRadius: "14px",
-                padding: "18px",
-                boxShadow: "0 8px 22px rgba(91, 61, 177, 0.1)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <h3 style={{ marginBottom: "4px" }}>{session.child_name}</h3>
-                  <p style={{ color: "#6b7280" }}>Age: {session.child_age || "Not added"}</p>
-                </div>
-                <strong style={{ fontSize: "24px", color: "#16a34a" }}>
-                  {session.accuracy}%
-                </strong>
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                  gap: "12px",
-                  marginTop: "14px",
-                }}
-              >
-                <p><strong>Target:</strong> {session.target_word}</p>
-                <p><strong>Spoken:</strong> {session.spoken_word}</p>
-                <p><strong>Mode:</strong> {session.session_type}</p>
-              </div>
-              <p style={{ marginTop: "10px", color: "#6b7280" }}>{session.feedback}</p>
-            </div>
-          ))}
+        <div style={{ display: "grid", gap: "16px", marginTop: "18px" }}>
+          <div className="card">
+            <h3>Average Accuracy</h3>
+            <h2>{avgAccuracy}%</h2>
+          </div>
+
+          <div className="card">
+            <h3>Best Attempt</h3>
+            <h2>{bestSession.target_word || "—"}</h2>
+            <p>{bestSession.accuracy ?? 0}%</p>
+          </div>
+
+          <div className="card">
+            <h3>Patients</h3>
+            <h2>{patients.length}</h2>
+          </div>
         </div>
       )}
     </div>
