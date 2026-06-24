@@ -11,7 +11,7 @@
   background: linear-gradient(180deg, #7b61ff 0%, #ff7cb3 48%, #ffd86a 100%);
   color: #fff;
   padding: 28px 18px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
@@ -29,10 +29,12 @@
 
 .sidebar-decorations {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 8px;
+  right: 20px;
+  z-index: 3;
   display: flex;
   gap: 6px;
+  pointer-events: none;
 }
 
 .sidebar-sparkle {

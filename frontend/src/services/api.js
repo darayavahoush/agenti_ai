@@ -1,4 +1,4 @@
-const API = "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export async function teachWord(word) {
   const response = await fetch(`${API}/image/teach`, {
@@ -16,6 +16,21 @@ export async function teachWord(word) {
 
 export async function getPatients() {
   const response = await fetch(`${API}/patients/`);
+  return response.json();
+}
+
+export async function getPatientSummary() {
+  const response = await fetch(`${API}/patients/summary`);
+  return response.json();
+}
+
+export async function getDashboardStats() {
+  const response = await fetch(`${API}/patients/stats`);
+  return response.json();
+}
+
+export async function getProgress() {
+  const response = await fetch(`${API}/patients/progress`);
   return response.json();
 }
 
