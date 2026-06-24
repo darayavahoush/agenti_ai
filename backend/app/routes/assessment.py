@@ -42,7 +42,7 @@ def add_word(payload: AssessmentWordCreate, db: Session = Depends(get_db)):
     if len(word) > 120:
         raise HTTPException(status_code=422, detail="Word must be 120 characters or fewer")
 
-    image_prompt = str(payload.get("image_prompt", "")).strip() or None
+    image_prompt = payload.image_prompt.strip() if payload.image_prompt else None
     item = AssessmentWord(word=word, image_prompt=image_prompt)
     db.add(item)
     try:
