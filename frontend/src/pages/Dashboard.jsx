@@ -1,52 +1,74 @@
 import { useEffect, useState } from "react";
-import { getDashboardStats } from "../services/api";
 
-const statStyle = {
-  background: "#ffffff",
-  borderRadius: "14px",
-  padding: "20px",
-  minWidth: "180px",
-  boxShadow: "0 8px 22px rgba(91, 61, 177, 0.1)",
-};
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ patients: 0, sessions: 0, accuracy: 0 });
+  const [patients, setPatients] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getDashboardStats()
-      .then(setStats)
-      .catch((err) => console.error("Failed to load dashboard stats", err))
-      .finally(() => setLoading(false));
+    const fetchData = async () => {
+      try {
+        const [patientsRes, sessionsRes] = await Promise.all([
+          fetch(`${API}/patients/`),
+          fetch(`${API}/patients/sessions/all`),
+        ]);
+
+        const patientsData = await patientsRes.json();
+        const sessionsData = await sessionsRes.json();
+
+        setPatients(Array.isArray(patientsData) ? patientsData : []);
+        setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
+  const avgAccuracy =
+    sessions.length > 0
+      ? Math.round(
+        sessions.reduce((sum, s) => sum + (Number(s.accuracy) || 0), 0) /
+        sessions.length
+      )
+      : 0;
+
   return (
-    <div>
-      <h1>VaakSuddhi Dashboard</h1>
+    <div style={{ padding: "24px" }}>
+      <h1 style={{ margin: 0 }}>🏠 VaakSuddhi Dashboard</h1>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "20px",
-          marginTop: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div className="card" style={statStyle}>
-          <h3>Patients</h3>
-          <h2>{loading ? "..." : stats.patients}</h2>
-        </div>
+      {loading ? (
+        <p>Loading dashboard...</p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "20px",
+            marginTop: "20px",
+          }}
+        >
+          <div className="card">
+            <h3>👶 Patients</h3>
+            <h2>{patients.length}</h2>
+          </div>
 
-        <div className="card" style={statStyle}>
-          <h3>Sessions</h3>
-          <h2>{loading ? "..." : stats.sessions}</h2>
-        </div>
+          <div className="card">
+            <h3>🎤 Sessions</h3>
+            <h2>{sessions.length}</h2>
+          </div>
 
-        <div className="card" style={statStyle}>
-          <h3>Accuracy</h3>
-          <h2>{loading ? "..." : `${stats.accuracy}%`}</h2>
+          <div className="card">
+            <h3>⭐ Accuracy</h3>
+            <h2>{avgAccuracy}%</h2>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,11 +1,12 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.patient import Patient
-from app.models.session import Session as TherapySession
-from app.schemas.patient import PatientCreate
+from app.models.session import Session as SessionModel
+from app.schemas.patient import PatientCreate, PatientOut
+from app.schemas.session import SessionOut
 
 router = APIRouter(
     prefix="/patients",
@@ -25,7 +26,7 @@ def get_db():
 # -----------------------------------
 # Create Patient
 # -----------------------------------
-@router.post("/")
+@router.post("/", response_model=PatientOut)
 def create_patient(
     data: PatientCreate,
     db: Session = Depends(get_db)
@@ -49,84 +50,16 @@ def create_patient(
 # -----------------------------------
 # Get All Patients
 # -----------------------------------
-@router.get("/")
+@router.get("/", response_model=List[PatientOut])
 def get_all_patients(
     db: Session = Depends(get_db)
 ):
-    return db.query(Patient).all()
-
-
-@router.get("/summary")
-def get_patient_summary(
-    db: Session = Depends(get_db)
-):
-    rows = db.query(
-        Patient,
-        func.count(TherapySession.id).label("session_count"),
-        func.avg(TherapySession.accuracy).label("average_accuracy"),
-        func.max(TherapySession.created_at).label("last_session_at")
-    ).outerjoin(TherapySession).group_by(Patient.id).order_by(Patient.created_at.desc()).all()
-
-    return [
-        {
-            "id": patient.id,
-            "name": patient.name,
-            "age": patient.age,
-            "language": patient.language,
-            "session_count": session_count,
-            "average_accuracy": round(float(average_accuracy or 0), 1),
-            "last_session_at": last_session_at,
-        }
-        for patient, session_count, average_accuracy, last_session_at in rows
-    ]
-
-
-@router.get("/stats")
-def get_patient_stats(
-    db: Session = Depends(get_db)
-):
-    patient_count = db.query(func.count(Patient.id)).scalar() or 0
-    session_count = db.query(func.count(TherapySession.id)).scalar() or 0
-    average_accuracy = db.query(func.avg(TherapySession.accuracy)).scalar() or 0
-
-    return {
-        "patients": patient_count,
-        "sessions": session_count,
-        "accuracy": round(float(average_accuracy), 1),
-    }
-
-
-@router.get("/progress")
-def get_progress(
-    db: Session = Depends(get_db)
-):
-    rows = db.query(
-        TherapySession,
-        Patient.name,
-        Patient.age
-    ).join(Patient).order_by(TherapySession.created_at.desc()).all()
-
-    return [
-        {
-            "id": session.id,
-            "patient_id": session.patient_id,
-            "child_name": name,
-            "child_age": age,
-            "target_word": session.target_word,
-            "spoken_word": session.spoken_word,
-            "accuracy": session.accuracy,
-            "feedback": session.feedback,
-            "stars": session.stars,
-            "session_type": session.session_type,
-            "created_at": session.created_at,
-        }
-        for session, name, age in rows
-    ]
+    return db.query(Patient).order_by(Patient.created_at.desc()).all()
 
 # -----------------------------------
 # Get Single Patient
 # -----------------------------------
-@router.get("/{patient_id}")
+@router.get("/{patient_id}", response_model=PatientOut)
 def get_patient(
     patient_id: str,
     db: Session = Depends(get_db)
@@ -143,10 +76,26 @@ def get_patient(
 
     return patient
 
+@router.get("/{patient_id}/sessions", response_model=List[SessionOut])
+def get_patient_sessions(
+    patient_id: str,
+    db: Session = Depends(get_db)
+):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    return (
+        db.query(SessionModel)
+        .filter(SessionModel.patient_id == patient_id)
+        .order_by(SessionModel.created_at.desc())
+        .all()
+    )
+
 # -----------------------------------
 # Search By Name
 # -----------------------------------
-@router.get("/search/{name}")
+@router.get("/search/{name}", response_model=List[PatientOut])
 def search_patient(
     name: str,
     db: Session = Depends(get_db)

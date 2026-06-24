@@ -6,26 +6,23 @@ import re
 import numpy as np
 import librosa
 import soundfile as sf
-import whisper
 import torch
 
-from app.services.phoneme.data import PHONEME_DATA
-from fastapi import APIRouter, UploadFile, File, Form, Depends
-from sqlalchemy import func
-from sqlalchemy.orm import Session as DbSession
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from rapidfuzz import fuzz
 from silero_vad import get_speech_timestamps, load_silero_vad
 from g2p_en import G2p
 from faster_whisper import WhisperModel
+from sqlalchemy.orm import Session
 
-from app.services.phoneme.scoring import score_phonemes
 from app.database import SessionLocal
 from app.models.patient import Patient
-from app.models.session import Session as TherapySession
+from app.models.session import Session as SessionModel
+from app.services.phoneme.scoring import score_phonemes
+
 g2p = G2p()
 
 router = APIRouter(prefix="/speech", tags=["Speech Therapy"])
-
 
 def get_db():
     db = SessionLocal()
@@ -485,10 +482,9 @@ def extract_first_sound(text):
 async def therapy(
     file: UploadFile = File(...),
     patient_name: str = Form(...),
-    patient_age: int | None = Form(None),
     target_word: str = Form(...),
     therapy_mode: str = Form(...),
-    db: DbSession = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
     try:
 
@@ -635,6 +631,43 @@ async def therapy(
         )
 
         # -------------------
+        # CLEANUP
+        # -------------------
+        if os.path.exists(path):
+            os.remove(path)
+
+        # -------------------
+        # SAVE SESSION TO DB
+        # -------------------
+        clean_patient_name = patient_name.strip()
+        patient = db.query(Patient).filter(
+            Patient.name.ilike(clean_patient_name)
+        ).first()
+
+        if patient is None:
+            patient = Patient(
+                name=clean_patient_name,
+                age=None,
+                language=None
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+
+        session_record = SessionModel(
+            patient_id=patient.id,
+            target_word=target_word,
+            spoken_word=spoken if spoken else "No speech detected",
+            accuracy=int(round(score)),
+            feedback=feedback,
+            stars=stars,
+            session_type="word_practice"
+        )
+        db.add(session_record)
+        db.commit()
+        db.refresh(session_record)
+
+        # -------------------
         # RESPONSE
         # -------------------
         expected_display = get_display_phoneme_list(
@@ -646,94 +679,30 @@ async def therapy(
             word=spoken
         )
 
-        result = {
-
+        return {
             "child_name": patient_name,
-
+            "patient_id": str(patient.id),
+            "session_id": str(session_record.id),
             "target_word": target_word,
-
             "spoken_word": (
                 spoken
                 if spoken
                 else "No speech detected"
             ),
-
             "full_transcript": transcript,
-
             "accuracy": score,
-
             "phoneme_accuracy": phoneme_result["accuracy"],
-
             "phoneme_matches": phoneme_result["matches"],
-
             "expected_phonemes": expected_phonemes,
-
             "spoken_phonemes": spoken_phonemes,
-
             "expected_phonemes_display": expected_display,
-
             "spoken_phonemes_display": spoken_display,
-
             "duration": metrics["duration"],
-
             "loudness": metrics["loudness"],
-
             "pitch": metrics["pitch"],
-
             "feedback": feedback,
-
             "stars": stars
         }
-
-        normalized_patient_name = (patient_name or "Child").strip() or "Child"
-        patient = db.query(Patient).filter(
-            func.lower(Patient.name) == normalized_patient_name.lower()
-        ).first()
-
-        if patient is None:
-            patient = Patient(
-                name=normalized_patient_name,
-                age=patient_age,
-                language="English"
-            )
-            db.add(patient)
-            db.flush()
-        elif patient_age is not None:
-            patient.age = patient_age
-
-        session = TherapySession(
-            patient_id=patient.id,
-            target_word=target_word,
-            spoken_word=result["spoken_word"],
-            accuracy=score,
-            feedback=feedback,
-            stars=stars,
-            session_type=therapy_mode,
-            audio_file=file.filename
-        )
-        db.add(session)
-        db.commit()
-        db.refresh(patient)
-        db.refresh(session)
-
-        progress = db.query(
-            func.count(TherapySession.id),
-            func.avg(TherapySession.accuracy)
-        ).filter(TherapySession.patient_id == patient.id).one()
-
-        result["patient_id"] = str(patient.id)
-        result["session_id"] = str(session.id)
-        result["child_age"] = patient.age
-        result["total_sessions"] = progress[0] or 0
-        result["average_accuracy"] = round(float(progress[1] or 0), 1)
-
-        # -------------------
-        # CLEANUP
-        # -------------------
-        if os.path.exists(path):
-            os.remove(path)
-
-        return result
 
     except Exception as e:
 
@@ -756,13 +725,23 @@ async def preview_phonemes(
     }
     
 @router.post("/phonemes")
-async def get_phonemes(word: str = Form(...)):
+async def get_phonemes(
+    word: str = Form(...)
+):
+
     return {
         "success": True,
         "data": {
             "word": word,
             "phonemes": get_basic_phonemes(word)
         }
+    }
+
+    phonemes = get_basic_phonemes(word)
+
+    return {
+        "word": word,
+        "phonemes": phonemes
     }
 
 @router.post("/compare")
@@ -856,4 +835,3 @@ async def compare_phoneme(
             "success": False,
             "error": str(e)
         }
-

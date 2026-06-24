@@ -5,8 +5,8 @@ from uuid import UUID
 # Create Patient
 class PatientCreate(BaseModel):
     name: str
-    age: int
-    language: str
+    age: Optional[int] = None
+    language: Optional[str] = None
 
     gender: Optional[str] = None
     diagnosis: Optional[str] = None
@@ -18,8 +18,8 @@ class PatientCreate(BaseModel):
 class PatientOut(BaseModel):
     id: UUID
     name: str
-    age: int
-    language: str
+    age: Optional[int] = None
+    language: Optional[str] = None
 
     class Config:
         from_attributes = True
