@@ -6,6 +6,7 @@ from app.database import Base, engine
 # Routes
 from app.routes.patient import router as patient_router
 from app.routes.speech import router as speech_router
+from app.routes.assessment import router as assessment_router
 # from app.routes.image import router as image_router
 
 # -----------------------------------
@@ -37,6 +38,7 @@ Base.metadata.create_all(bind=engine)
 # -----------------------------------
 app.include_router(patient_router)
 app.include_router(speech_router)
+app.include_router(assessment_router)
 # app.include_router(image_router)
 
 # -----------------------------------

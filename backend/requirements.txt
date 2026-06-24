@@ -27,7 +27,7 @@ streamlit-mic-recorder
 aiofiles
 imageio-ffmpeg
 opencv-python
-# parselmouth
+praat-parselmouth
 noisereduce
 
 torch
@@ -35,3 +35,6 @@ silero-vad
 g2p_en
 nltk
 kokoro-onnx
+scikit-learn
+sentence-transformers
+ddgs

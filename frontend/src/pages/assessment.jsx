@@ -1,7 +1,6 @@
 import { useState } from "react";
-
 import { MouthDiagram } from "../MouthDiagram";
-import { ALPHABET_SOUNDS, KEYBOARD_ROWS } from "../alphabetData";
+import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
 import "./Assessment.css";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
