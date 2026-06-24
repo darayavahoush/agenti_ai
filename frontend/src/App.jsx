@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import LiveTherapy from "./pages/LiveTherapy";
 import Patients from "./pages/Patients";
 import Progress from "./pages/Progress";
+import Assessment from "./pages/Assessment";
 
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";
@@ -27,6 +28,8 @@ export default function App() {
         {page === "patients" && <Patients />}
 
         {page === "progress" && <Progress />}
+
+        {page === "assessment" && <Assessment />}
       </div>
     </div>
   );
