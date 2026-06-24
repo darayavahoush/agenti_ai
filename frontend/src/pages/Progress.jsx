@@ -33,9 +33,9 @@ export default function Progress() {
   const avgAccuracy =
     sessions.length > 0
       ? Math.round(
-          sessions.reduce((sum, s) => sum + (Number(s.accuracy) || 0), 0) /
-            sessions.length
-        )
+        sessions.reduce((sum, s) => sum + (Number(s.accuracy) || 0), 0) /
+        sessions.length
+      )
       : 0;
 
   const bestSession = sessions.reduce(
