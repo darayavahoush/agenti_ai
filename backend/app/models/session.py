@@ -38,3 +38,27 @@ class Session(Base):
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
     patient = relationship("Patient", back_populates="sessions")
+
+    @property
+    def pitch(self):
+        return self.f0_mean
+
+    @pitch.setter
+    def pitch(self, value):
+        self.f0_mean = value
+
+    @property
+    def duration(self):
+        return self.mpt
+
+    @duration.setter
+    def duration(self, value):
+        self.mpt = value
+
+    @property
+    def loudness(self):
+        return self.hnr
+
+    @loudness.setter
+    def loudness(self, value):
+        self.hnr = value

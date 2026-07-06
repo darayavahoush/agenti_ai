@@ -8,13 +8,12 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    DATABASE_URL = (
-        f"postgresql://{os.getenv('PGUSER')}:"
-        f"{os.getenv('PGPASSWORD')}@"
-        f"{os.getenv('PGHOST')}:"
-        f"{os.getenv('PGPORT')}/"
-        f"{os.getenv('PGDATABASE')}"
-    )
+    pg_user = os.getenv("PGUSER") or "postgres"
+    pg_password = os.getenv("PGPASSWORD") or ""
+    pg_host = os.getenv("PGHOST") or "localhost"
+    pg_port = os.getenv("PGPORT") or "5432"
+    pg_database = os.getenv("PGDATABASE") or "postgres"
+    DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
 
 engine = create_engine(
     DATABASE_URL,

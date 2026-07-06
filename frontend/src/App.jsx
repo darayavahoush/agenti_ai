@@ -4,7 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import LiveTherapy from "./pages/LiveTherapy";
 import Patients from "./pages/Patients";
 import Progress from "./pages/Progress";
-import Assessment from "./pages/Assessment";
+import Assessment from "./pages/assessment";
 
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";

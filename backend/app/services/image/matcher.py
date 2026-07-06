@@ -20,8 +20,20 @@ def load_index():
     global _index
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if INDEX_PATH.exists():
-        with open(INDEX_PATH) as f:
-            _index = json.load(f)
+        try:
+            with open(INDEX_PATH) as f:
+                _index = json.load(f)
+        except Exception:
+            _index = {}
+    else:
+        _index = {}
+
+    # Scan directory and dynamically index all pre-downloaded images
+    for path in DATA_DIR.iterdir():
+        if path.is_file() and path.suffix.lower() in [".png", ".jpg", ".jpeg", ".webp"]:
+            word_key = path.stem.lower().strip()
+            if word_key not in _index:
+                _index[word_key] = path.name
 
 
 def save_index():
@@ -182,40 +194,28 @@ def find_image(word: str) -> dict:
         load_index()
 
     word = word.lower().strip()
+    if word not in _index:
+        load_index()
+        
     words_in_index = list(_index.keys())
 
-    # 1. Exact match
+    # 1. Exact match in the dynamically scanned directory index
     if word in _index:
         return {"path": str(DATA_DIR / _index[word]), "word": word, "confidence": 100, "match_type": "exact"}
 
-    # 2. Fuzzy match — only trust high confidence (>=90) to avoid donkey→monkey style errors
+    # 2. Fuzzy match from existing index (highly confident)
     if words_in_index:
         result = process.extractOne(word, words_in_index, scorer=fuzz.token_sort_ratio)
-        if result and result[1] >= 90:
+        if result and result[1] >= 85:
             matched_word = result[0]
             return {"path": str(DATA_DIR / _index[matched_word]), "word": matched_word, "confidence": result[1], "match_type": "fuzzy"}
 
-    # 3. Live ARASAAC API fetch
-    filename = fetch_from_arasaac(word)
-    if filename:
-        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 95, "match_type": "arasaac"}
-
-    # 4. Web scrape fallback (DuckDuckGo)
-    filename = fetch_from_web(word)
-    if filename:
-        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 85, "match_type": "web"}
-
-    # 5. Semantic match from existing index
+    # 3. Semantic match fallback (from existing index)
     matched = semantic_match(word)
     if matched:
         return {"path": str(DATA_DIR / _index[matched]), "word": matched, "confidence": 70, "match_type": "semantic"}
 
-    # 6. Pixabay fallback
-    filename = fetch_from_pixabay(word)
-    if filename:
-        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 80, "match_type": "pixabay"}
-
-    # Final fallback: generate a simple text image
+    # Final fallback: generate a simple text image locally
     img = _make_text_image(word)
     if img is not None:
         filename = f"{word}_text.png"
@@ -422,22 +422,29 @@ def get_image_for_phrase(phrase: str) -> dict:
     # Main object image
     match = find_image(object_str)
     if match["path"]:
-        if attrs["color"]:
-            img = apply_color(match["path"], attrs["color"])
-        elif attrs["size"]:
-            img = apply_size(match["path"], attrs["size"])
-        else:
-            img = cv2.imread(match["path"])
+        try:
+            if match["match_type"] == "generated":
+                img = cv2.imread(match["path"])
+                if img is not None:
+                    img = make_transparent(img)
+                    _, buf = cv2.imencode(".png", img)
+                    img_bytes = buf.tobytes()
+                else:
+                    img_bytes = b""
+            else:
+                # Read local downloaded file directly to preserve its rich colorful background & letters
+                with open(match["path"], "rb") as f:
+                    img_bytes = f.read()
 
-        if img is not None:
-            img = make_transparent(img)
-            _, buf = cv2.imencode(".png", img)
-            images.append({
-                "label": match["word"],
-                "path": match["path"],
-                "image_bytes": buf.tobytes(),
-                "match_type": match["match_type"]
-            })
+            if img_bytes:
+                images.append({
+                    "label": match["word"],
+                    "path": match["path"],
+                    "image_bytes": img_bytes,
+                    "match_type": match["match_type"]
+                })
+        except Exception as e:
+            print(f"Error serving raw image {match['path']}: {e}")
 
     if not images:
         return {"found": False, "phrase": phrase, "match_type": "none", "image_bytes": None, "images": []}

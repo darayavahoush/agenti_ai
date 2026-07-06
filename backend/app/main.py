@@ -33,6 +33,51 @@ app.add_middleware(
 # -----------------------------------
 Base.metadata.create_all(bind=engine)
 
+
+def sync_local_images_to_db():
+    from app.database import SessionLocal
+    from app.models.assessment_word import AssessmentWord
+    from pathlib import Path
+    
+    db = SessionLocal()
+    try:
+        # Get all words already in database (lowercase to prevent duplicates)
+        existing_words = {w.word.lower().strip() for w in db.query(AssessmentWord).all()}
+        
+        # Path to local downloaded images folder
+        DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "images"
+        
+        if DATA_DIR.exists():
+            imported_count = 0
+            for path in DATA_DIR.iterdir():
+                if path.is_file() and path.suffix.lower() in [".png", ".jpg", ".jpeg", ".webp"]:
+                    filename_stem = path.stem.strip()
+                    word_key = filename_stem.lower().strip()
+                    
+                    # Skip config index files, system indicators, or CV2 text fallbacks
+                    if word_key in ["index", "string", "placeholder"] or word_key.endswith("_text"):
+                        continue
+                    
+                    if word_key not in existing_words:
+                        new_word = AssessmentWord(
+                            word=filename_stem, # Retain original name casing (e.g. "Zebra")
+                            display_order=0,
+                            is_active=True
+                        )
+                        db.add(new_word)
+                        existing_words.add(word_key)
+                        imported_count += 1
+                        
+            if imported_count > 0:
+                db.commit()
+                print(f"🎉 Automatically imported {imported_count} pre-downloaded words into the database!")
+    except Exception as e:
+        print(f"⚠️ Error during local image auto-sync: {e}")
+    finally:
+        db.close()
+
+sync_local_images_to_db()
+
 # -----------------------------------
 # INCLUDE ROUTES
 # -----------------------------------

@@ -57,6 +57,15 @@ def get_all_patients(
     return db.query(Patient).order_by(Patient.created_at.desc()).all()
 
 # -----------------------------------
+# Get All Sessions
+# -----------------------------------
+@router.get("/sessions/all", response_model=List[SessionOut])
+def get_all_sessions(
+    db: Session = Depends(get_db)
+):
+    return db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
+
+# -----------------------------------
 # Get Single Patient
 # -----------------------------------
 @router.get("/{patient_id}", response_model=PatientOut)
