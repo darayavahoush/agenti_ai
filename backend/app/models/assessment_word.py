@@ -13,3 +13,8 @@ class AssessmentWord(Base):
     image_prompt = Column(String(240), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    
+    animation_prompt = Column(String(500), nullable=True)
+    animation_filename = Column(String(240), nullable=True)
+    display_order = Column(Integer, default=0, nullable=False)
+    media_filename = Column(String(240), nullable=True)

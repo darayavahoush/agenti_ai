@@ -471,6 +471,83 @@ export default function LiveTherapy() {
                 <p style={{ margin: 0 }}><b>Stars:</b> {"⭐".repeat(result.stars || 0)}</p>
               </div>
 
+              {/* 🧙‍♂️ Wizard's Magic Speech Board */}
+              <div 
+                style={{
+                  marginTop: "24px",
+                  padding: "20px",
+                  borderRadius: "20px",
+                  background: "linear-gradient(135deg, #fffbeb 0%, #fff1f2 100%)",
+                  border: "3px dashed #f472b6",
+                  boxShadow: "0 10px 25px rgba(244, 114, 182, 0.15)",
+                  position: "relative"
+                }}
+              >
+                <h3 style={{ margin: "0 0 16px 0", color: "#db2777", display: "flex", alignItems: "center", gap: "8px", fontSize: "1.35rem", fontWeight: 900 }}>
+                  🪄 Wizard's Magic Speech Board! ✨
+                </h3>
+
+                {result.reasoning && (
+                  <div style={{ marginBottom: "16px", padding: "12px 16px", background: "#ffffff", borderRadius: "14px", border: "2px solid #c084fc", boxShadow: "0 4px 6px rgba(0,0,0,0.03)" }}>
+                    <div style={{ fontSize: "13px", color: "#a855f7", fontWeight: 800, textTransform: "uppercase", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      🗣️ Voice Helper's Advice
+                    </div>
+                    <p style={{ margin: 0, fontSize: "15px", color: "#374151", fontWeight: 600 }}>
+                      {result.reasoning}
+                    </p>
+                  </div>
+                )}
+
+                {result.intensive_practice_triggered && result.intensive_practice_message && (
+                  <div style={{ marginBottom: "16px", padding: "12px 16px", background: "#fff5f5", borderRadius: "14px", border: "2.5px dashed #ef4444", animation: "sparkle 2s infinite" }}>
+                    <div style={{ fontSize: "13px", color: "#dc2626", fontWeight: 900, textTransform: "uppercase", marginBottom: "4px" }}>
+                      🚨 Magic Power-Up Practice Activated!
+                    </div>
+                    <p style={{ margin: 0, fontSize: "15px", color: "#991b1b", fontWeight: 700 }}>
+                      {result.intensive_practice_message}
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+                  {result.therapist_observations && (
+                    <div style={{ padding: "12px", background: "#faf5ff", borderRadius: "14px", borderTop: "5px solid #c084fc", boxShadow: "0 4px 6px rgba(0,0,0,0.02)" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 800, color: "#7e22ce", display: "inline-flex", alignItems: "center", gap: "4px" }}>🧚‍♀️ Fairy Observations</span>
+                      <p style={{ margin: "6px 0 0 0", fontSize: "13.5px", color: "#4b5563", fontWeight: 500, lineHeight: 1.4 }}>{result.therapist_observations}</p>
+                    </div>
+                  )}
+
+                  {result.progress_report && (
+                    <div style={{ padding: "12px", background: "#f0fdf4", borderRadius: "14px", borderTop: "5px solid #4ade80", boxShadow: "0 4px 6px rgba(0,0,0,0.02)" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 800, color: "#15803d", display: "inline-flex", alignItems: "center", gap: "4px" }}>📈 Your Progress Tracker</span>
+                      <p style={{ margin: "6px 0 0 0", fontSize: "13.5px", color: "#4b5563", fontWeight: 500, lineHeight: 1.4 }}>{result.progress_report}</p>
+                    </div>
+                  )}
+
+                  {result.next_word && (
+                    <div style={{ padding: "12px", background: "#f0f9ff", borderRadius: "14px", borderTop: "5px solid #38bdf8", boxShadow: "0 4px 6px rgba(0,0,0,0.02)" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 800, color: "#0369a1", display: "inline-flex", alignItems: "center", gap: "4px" }}>🏆 Next Practice Quest</span>
+                      <p style={{ margin: "6px 0 0 0", fontSize: "13.5px", color: "#4b5563", fontWeight: 500, lineHeight: 1.4 }}>
+                        <b>Target Word:</b> <span style={{ color: "#0284c7", fontWeight: 800 }}>{result.next_word}</span> <br />
+                        <b>Word Level:</b> {result.session_difficulty || "Word Level"} <br />
+                        <b>Quest Task:</b> {result.next_exercise || "Standard Word Practice"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {result.suggested_exercises && result.suggested_exercises.length > 0 && (
+                  <div style={{ marginTop: "16px", padding: "12px", background: "#ffffff", borderRadius: "14px", border: "1px dashed #f472b6" }}>
+                    <span style={{ fontSize: "14px", fontWeight: 800, color: "#db2777" }}>🧩 Fun Games to Play Next:</span>
+                    <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px", fontSize: "13.5px", color: "#4b5563", fontWeight: 500, lineHeight: 1.5 }}>
+                      {result.suggested_exercises.map((ex, i) => (
+                        <li key={`ex-${i}`} style={{ marginBottom: "4px" }}>{ex}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
               <div style={{ marginTop: "18px", display: "grid", gap: "12px" }}>
                 <div>
                   <h3 style={{ margin: "0 0 8px", color: "#7c3aed" }}>Expected Phonemes</h3>
