@@ -1,15 +1,13 @@
-from pathlib import Path
-
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 
 from app.database import SessionLocal
-from app.schemas.audio import AudioResponse
-from app.services.audio_service import AudioService
-from app.utils.word_utils import normalize_word_key
+from app.services.audio_service import AudioService, CoquiTTSEngine
 
-router = APIRouter(prefix="/audio", tags=["Audio"])
+logger = logging.getLogger("uvicorn.error")
 
+router = APIRouter(prefix="/api", tags=["Audio Service"])
 
 def get_db():
     db = SessionLocal()
@@ -18,85 +16,72 @@ def get_db():
     finally:
         db.close()
 
+# Shared singleton/instantiated engines
+tts_engine = CoquiTTSEngine()
 
-@router.get("/words/{word_key}", response_model=AudioResponse)
-def get_word_audio(
-    word_key: str,
-    language: str = Query("en-IN", description="Language code like en-IN, hi-IN, ta-IN, te-IN, bn-IN, mr-IN"),
-    db: Session = Depends(get_db),
-):
-    normalized_key = normalize_word_key(word_key)
-    if not normalized_key:
-        raise HTTPException(status_code=400, detail="Invalid word_key.")
-
-    audio_service = AudioService()
-    audio_path, generated, localized_word = audio_service.get_or_create_translated_word_audio(
-        db=db,
-        word_key=normalized_key,
-        language=language,
-    )
-
+@router.get("/audio/{word_key}")
+def get_audio(word_key: str, language: str = "en", db: Session = Depends(get_db)):
+    """
+    Get the pronunciation audio URL for a therapy word.
+    If the audio is not already cached, it is generated on the fly.
+    """
+    if not word_key or not word_key.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Word key is required"
+        )
+        
+    audio_service = AudioService(tts_engine, db)
     try:
-        relative_path = audio_path.relative_to(audio_service.ASSETS_DIR).as_posix()
-    except Exception:
-        relative_path = audio_path.name
+        audio_path, generated = audio_service.generate_audio(word_key, language)
+        
+        # Construct the response URL
+        # e.g. /assets/audio/te/apple.wav
+        # If fallback occurred, audio_path will point to /assets/audio/en/apple.wav
+        # Let's ensure the path is returned in web format (using forward slashes)
+        web_path = "/" + str(audio_path).replace("\\", "/")
+        
+        return {
+            "audio_url": web_path,
+            "generated": generated
+        }
+    except ValueError as ve:
+        logger.error(f"Validation error generating audio for '{word_key}' in '{language}': {ve}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        logger.error(f"Server error generating audio for '{word_key}' in '{language}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate pronunciation: {str(e)}"
+        )
 
-    return AudioResponse(
-        audio_url=f"/assets/{relative_path}",
-        generated=generated,
-        localized_word=localized_word,
-    )
-
-
-@router.get("/words/{word_key}/exists")
-def audio_exists(
-    word_key: str,
-    language: str = Query("en-IN", description="Language code like en-IN, hi-IN, ta-IN, te-IN, bn-IN, mr-IN"),
-):
-    normalized_key = normalize_word_key(word_key)
-    if not normalized_key:
-        raise HTTPException(status_code=400, detail="Invalid word_key.")
-
-    audio_service = AudioService()
-    audio_path = audio_service.get_existing_audio_path(normalized_key, language)
-    if audio_path is None:
-        return {"exists": False, "audio_url": None}
-
-    try:
-        relative_path = audio_path.relative_to(audio_service.ASSETS_DIR).as_posix()
-    except Exception:
-        relative_path = audio_path.name
-
-    return {"exists": True, "audio_url": f"/assets/{relative_path}"}
-
-
-@router.post("/words/{word_key}", status_code=status.HTTP_201_CREATED)
-async def save_uploaded_word_audio(
-    word_key: str,
-    file: UploadFile = File(...),
-    language: str = Query("en-IN", description="Language code like en-IN, hi-IN, ta-IN, te-IN, bn-IN, mr-IN"),
-):
-    normalized_key = normalize_word_key(word_key)
-    if not normalized_key:
-        raise HTTPException(status_code=400, detail="Invalid word_key.")
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Audio file is required.")
-
-    audio_service = AudioService()
-    file_bytes = await file.read()
-    extension = Path(file.filename).suffix.lower() or ".webm"
-    if extension not in {".wav", ".webm", ".mp3", ".m4a", ".ogg", ".oga", ".mp4"}:
-        extension = ".webm"
-
-    audio_path = audio_service.save_uploaded_audio(normalized_key, language, file_bytes, extension=extension)
-
-    try:
-        relative_path = audio_path.relative_to(audio_service.ASSETS_DIR).as_posix()
-    except Exception:
-        relative_path = audio_path.name
-
+@router.get("/words/{word_key}")
+def get_localized_word(word_key: str, language: str = "en", db: Session = Depends(get_db)):
+    """
+    Get the localized translation of a therapy word from the database.
+    If the translation is missing, it falls back to the English translation.
+    """
+    if not word_key or not word_key.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Word key is required"
+        )
+        
+    audio_service = AudioService(tts_engine, db)
+    localized_word = audio_service.lookup_translation(word_key, language)
+    
+    # If not found, fallback to English
+    if not localized_word:
+        logger.warning(f"Localized word translation missing for '{word_key}' in '{language}'. Falling back to English.")
+        localized_word = audio_service.lookup_translation(word_key, "en")
+        if not localized_word:
+            localized_word = word_key # Default to the key itself
+            
     return {
-        "audio_url": f"/assets/{relative_path}",
-        "generated": False,
-        "localized_word": None,
+        "word_key": word_key.lower().strip(),
+        "language": language.lower().strip(),
+        "localized_word": localized_word
     }

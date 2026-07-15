@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models.patient import Patient
@@ -22,6 +23,56 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# -----------------------------------
+# Dashboard Summary
+# -----------------------------------
+@router.get("/dashboard/summary")
+def get_dashboard_summary(
+    db: Session = Depends(get_db)
+):
+    patients = db.query(Patient).all()
+    patient_ids = [p.id for p in patients]
+    
+    # Get overall sessions and accuracy
+    overall_stats = db.query(
+        func.count(SessionModel.id).label("total_sessions"),
+        func.avg(SessionModel.accuracy).label("avg_accuracy"),
+        func.avg(SessionModel.stars).label("avg_stars"),
+    ).filter(
+        SessionModel.patient_id.in_(patient_ids)
+    ).first()
+    
+    # Build patient detail list
+    patient_details = []
+    for p in patients:
+        stats = db.query(
+            func.count(SessionModel.id).label("total"),
+            func.sum(SessionModel.stars).label("stars"),
+            func.avg(SessionModel.accuracy).label("avg_accuracy"),
+            func.max(SessionModel.created_at).label("last"),
+        ).filter(SessionModel.patient_id == p.id).first()
+        
+        patient_details.append({
+            "id": str(p.id),
+            "name": p.name,
+            "age": p.age,
+            "is_active": p.is_active,
+            "created_at": p.created_at,
+            "diagnosis": p.diagnosis,
+            "total_sessions": stats.total or 0,
+            "total_stars": int(stats.stars or 0),
+            "last_session_at": stats.last,
+            "avg_accuracy": float(stats.avg_accuracy) if stats.avg_accuracy else None
+        })
+    
+    return {
+        "total_patients": len(patients),
+        "total_sessions": overall_stats.total_sessions or 0,
+        "avg_accuracy": round(float(overall_stats.avg_accuracy), 2) if overall_stats.avg_accuracy else None,
+        "avg_stars": round(float(overall_stats.avg_stars), 2) if overall_stats.avg_stars else None,
+        "patients": patient_details
+    }
 
 # -----------------------------------
 # Create Patient

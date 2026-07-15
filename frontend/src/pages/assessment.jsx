@@ -1,10 +1,20 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MouthDiagram } from "../MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
-import { generateVoice } from "../services/api";
 import "./Assessment.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+
+const INDIAN_LANGUAGES = [
+  { code: "en-IN", name: "English (India)", voiceLang: "en-IN", translationKey: "english", listenText: "Listen", slowText: "Say it slowly" },
+  { code: "hi-IN", name: "Hindi", voiceLang: "hi-IN", translationKey: "hindi", listenText: "सुनो", slowText: "धीरे बोलो" },
+  { code: "ta-IN", name: "Tamil", voiceLang: "ta-IN", translationKey: "tamil", listenText: "கேளுங்கள்", slowText: "மெதுவாகச் சொல்லுங்கள்" },
+  { code: "te-IN", name: "Telugu", voiceLang: "te-IN", translationKey: "telugu", listenText: "వినండి", slowText: "నెమ్మదిగా చెప్పండి" },
+  { code: "kn-IN", name: "Kannada", voiceLang: "kn-IN", translationKey: "kannada", listenText: "ಕೇಳಿ", slowText: "ನಿಧಾನವಾಗಿ ಹೇಳಿ" },
+  { code: "ml-IN", name: "Malayalam", voiceLang: "ml-IN", translationKey: "malayalam", listenText: "കേൾക്കുക", slowText: "പതുക്കെ പറയുക" },
+  { code: "bn-IN", name: "Bengali", voiceLang: "bn-IN", translationKey: "bengali", listenText: "শুনুন", slowText: "আস্তে বলুন" },
+  { code: "mr-IN", name: "Marathi", voiceLang: "mr-IN", translationKey: "marathi", listenText: "ऐका", slowText: "संथ बोला" },
+];
 
 function speakIndianEnglish(text, slow = false, language = "en-IN") {
   if (!("speechSynthesis" in window)) return;
@@ -15,7 +25,7 @@ function speakIndianEnglish(text, slow = false, language = "en-IN") {
   utterance.pitch = 1;
 
   const voices = window.speechSynthesis.getVoices();
-  const indianVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("en-in"));
+  const indianVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith(language.toLowerCase()));
   const hindiVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("hi-in"));
   const englishVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("en"));
   utterance.voice = indianVoice || hindiVoice || englishVoice || null;
@@ -60,11 +70,7 @@ export default function Assessment() {
   const [imageLoading, setImageLoading] = useState(false);
   const [error, setError] = useState("");
   const [letter, setLetter] = useState("A");
-  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
-  const [cachedAudioUrl, setCachedAudioUrl] = useState(null);
-  const [audioChecking, setAudioChecking] = useState(false);
-  const [pronunciationRecording, setPronunciationRecording] = useState(false);
-  const [audioSaving, setAudioSaving] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
 
   // Audio Recording & Analysis States
   const [recording, setRecording] = useState(false);
@@ -73,18 +79,22 @@ export default function Assessment() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Custom Audio Recording for Word Pronunciation
+  const [customRecording, setCustomRecording] = useState(false);
+  const [customAudioBlob, setCustomAudioBlob] = useState(null);
+  const [customAudioUrl, setCustomAudioUrl] = useState(null);
+  const [audioExists, setAudioExists] = useState(false);
+  const [checkingAudio, setCheckingAudio] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [playingAudio, setPlayingAudio] = useState(false);
+
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
-  const pronunciationRecorderRef = useRef(null);
-  const pronunciationChunksRef = useRef([]);
+  const customMediaRecorderRef = useRef(null);
+  const customChunksRef = useRef([]);
 
   const selectedSound = ALPHABET_SOUNDS[letter];
   const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
-
-
-  useEffect(() => { if (!word) { setCachedAudioUrl(null); return; } setAudioChecking(true); fetch(API_URL + '/api/audio/words/' + encodeURIComponent(word.word_key || word.word) + '/exists?language=' + encodeURIComponent(voiceLanguage)).then(r=>r.json()).then(d=>setCachedAudioUrl(d.exists ? d.audio_url : null)).catch(()=>setCachedAudioUrl(null)).finally(()=>setAudioChecking(false)); }, [word, voiceLanguage]);
-  const startPronunciationRecording = async () => { try { const stream=await navigator.mediaDevices.getUserMedia({audio:true}); const recorder=new MediaRecorder(stream); pronunciationChunksRef.current=[]; recorder.ondataavailable=e=>{if(e.data.size)pronunciationChunksRef.current.push(e.data)}; recorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop()); const form=new FormData();form.append('file',new Blob(pronunciationChunksRef.current,{type:'audio/webm'}),'pronunciation.webm');setAudioSaving(true);try{const r=await fetch(API_URL+'/api/audio/words/'+encodeURIComponent(word.word_key||word.word)+'?language='+encodeURIComponent(voiceLanguage),{method:'POST',body:form});const d=await r.json();if(!r.ok)throw new Error(d.detail);setCachedAudioUrl(d.audio_url)}catch(e){setError(e.message)}finally{setAudioSaving(false)}}; pronunciationRecorderRef.current=recorder;recorder.start();setPronunciationRecording(true) } catch { setError('Microphone access is required to record pronunciation.') } };
-  const stopPronunciationRecording=()=>{pronunciationRecorderRef.current?.stop();setPronunciationRecording(false)};
 
   async function loadRandomWord() {
     setSection("word");
@@ -94,6 +104,9 @@ export default function Assessment() {
     setAudioBlob(null);
     setAudioUrl(null);
     setAnalysisResult(null);
+    setCustomAudioBlob(null);
+    setCustomAudioUrl(null);
+    setAudioExists(false);
 
     try {
       const response = await fetch(`${API_URL}/assessment/words/random`);
@@ -108,6 +121,148 @@ export default function Assessment() {
       setWordLoading(false);
     }
   }
+
+  // Check if audio exists for current word and language
+  const checkAudioExistence = async (wordKey, languageCode) => {
+    if (!wordKey || !languageCode) return;
+    
+    setCheckingAudio(true);
+    try {
+      const langCode = languageCode.split('-')[0]; // Extract 'en' from 'en-IN'
+      const response = await fetch(`${API_URL}/assessment/audio/${wordKey}/${langCode}/exists`);
+      const data = await response.json();
+      if (response.ok) {
+        setAudioExists(data.exists);
+      }
+    } catch (err) {
+      console.error("Failed to check audio existence:", err);
+      setAudioExists(false);
+    } finally {
+      setCheckingAudio(false);
+    }
+  };
+
+  // Check audio when word or language changes
+  useEffect(() => {
+    if (word && selectedLanguage) {
+      const langCode = selectedLanguage.split('-')[0];
+      checkAudioExistence(word.word, langCode);
+    }
+  }, [word, selectedLanguage]);
+
+  // Custom audio recording functions
+  const startCustomRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      customChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          customChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(customChunksRef.current, { type: "audio/webm" });
+        setCustomAudioBlob(blob);
+        setCustomAudioUrl(URL.createObjectURL(blob));
+      };
+
+      customMediaRecorderRef.current = recorder;
+      recorder.start();
+      setCustomRecording(true);
+    } catch (err) {
+      console.error(err);
+      alert("Microphone access denied");
+    }
+  };
+
+  const stopCustomRecording = () => {
+    if (!customMediaRecorderRef.current) return;
+    customMediaRecorderRef.current.stop();
+    setCustomRecording(false);
+  };
+
+  // Auto-upload when recording stops
+  useEffect(() => {
+    if (customAudioBlob && !customRecording) {
+      uploadCustomAudio();
+    }
+  }, [customAudioBlob, customRecording]);
+
+  const uploadCustomAudio = async () => {
+    if (!customAudioBlob || !word) {
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const langCode = selectedLanguage.split('-')[0];
+      const formData = new FormData();
+      formData.append("file", customAudioBlob, `${word.word}_${langCode}.webm`);
+
+      const response = await fetch(`${API_URL}/assessment/audio/${word.word}/${langCode}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Upload failed");
+
+      setCustomAudioBlob(null);
+      setCustomAudioUrl(null);
+      setAudioExists(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const playCachedAudio = async (slow = false) => {
+    if (!word || !selectedLanguage) return;
+    
+    const langCode = selectedLanguage.split('-')[0];
+    
+    if (!audioExists) {
+      alert(`No audio found for ${word.word} in ${INDIAN_LANGUAGES.find(l => l.code === selectedLanguage)?.name}. Please record it first.`);
+      return;
+    }
+
+    setPlayingAudio(true);
+    try {
+      const response = await fetch(`${API_URL}/assessment/audio/${word.word}/${langCode}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch audio");
+      }
+      
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      
+      if (slow) {
+        audio.playbackRate = 0.7;
+      }
+      
+      audio.onended = () => {
+        setPlayingAudio(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.onerror = () => {
+        setPlayingAudio(false);
+        URL.revokeObjectURL(audioUrl);
+        alert("Failed to play audio");
+      };
+      
+      audio.play();
+    } catch (err) {
+      console.error(err);
+      setPlayingAudio(false);
+      alert("Failed to play audio: " + err.message);
+    }
+  };
 
   function openAlphabet() {
     setSection("alphabet");
@@ -233,7 +388,7 @@ export default function Assessment() {
       )}
 
       {section === "word" && (
-        <section className="word-assessment-card" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <section className="word-assessment-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {wordLoading && <div className="assessment-loader">Picking a word for you…</div>}
 
           {!wordLoading && error && (
@@ -255,88 +410,198 @@ export default function Assessment() {
                     src={`${API_URL}${word.image_url}`}
                     alt={`Illustration of ${word.word}`}
                     className={imageLoading ? "loading" : ""}
+                    style={{ width: "100%", height: "auto", maxHeight: "350px", objectFit: "contain" }}
                     onLoad={() => setImageLoading(false)}
                     onError={() => setImageLoading(false)}
                   />
                 </div>
-                <div className="word-practice-panel" style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: "12px", padding: "10px" }}>
+                <div className="word-practice-panel" style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: "10px", padding: "12px" }}>
                   <span className="word-label">Your word is</span>
                   <h2 style={{ fontSize: "2rem", margin: 0, color: "#5b21b6" }}>{word.word}</h2>
-                  <p style={{ margin: 0 }}>Listen carefully, then try saying the word yourself.</p>
+                  <p style={{ margin: 0, fontSize: "14px" }}>Listen carefully, then try saying the word yourself.</p>
                   
-                  <div className="listen-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                    <select aria-label="Listening language" value={voiceLanguage} onChange={(event) => setVoiceLanguage(event.target.value)} style={{ padding: "10px", borderRadius: "12px", border: "1px solid #c4b5fd" }}><option value="en-IN">English</option><option value="hi-IN">Hindi</option><option value="ta-IN">Tamil</option><option value="te-IN">Telugu</option><option value="kn-IN">Kannada</option><option value="bn-IN">Bengali</option><option value="mr-IN">Marathi</option></select>
-                    <button 
-                      onClick={() => speakIndianEnglish(word.word, false, voiceLanguage)} 
-                      style={{ 
-                        padding: "10px 18px", 
-                        borderRadius: "14px", 
-                        border: "2px solid #a855f7", 
-                        background: "#faf5ff", 
-                        color: "#6d28d9", 
-                        fontWeight: 800, 
-                        fontSize: "14.5px",
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                    <label style={{ fontSize: "14px", fontWeight: 700, color: "#6d28d9", whiteSpace: "nowrap" }}>🌐</label>
+                    <select
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: "2px solid #a855f7",
+                        background: "#faf5ff",
+                        color: "#6d28d9",
+                        fontWeight: 600,
+                        fontSize: "14px",
                         cursor: "pointer",
-                        boxShadow: "0 4px 6px rgba(168,85,247,0.1)",
-                        transition: "all 0.2s ease"
+                        minWidth: "160px"
                       }}
                     >
-                      🔊 Listen
-                    </button>
-                    <button 
-                      className="slow" 
-                      onClick={() => speakIndianEnglish(word.word, true, voiceLanguage)} 
-                      style={{ 
-                        padding: "10px 18px", 
-                        borderRadius: "14px", 
-                        border: "2px solid #fbbf24", 
-                        background: "#fefbeb", 
-                        color: "#b45309", 
-                        fontWeight: 800, 
-                        fontSize: "14.5px",
-                        cursor: "pointer",
-                        boxShadow: "0 4px 6px rgba(251,191,36,0.1)",
-                        transition: "all 0.2s ease"
-                      }}
-                    >
-                      🐢 Say it slowly
-                    </button>
+                      {INDIAN_LANGUAGES.map((lang) => (
+                        <option key={lang.code} value={lang.code}>
+                          {lang.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {customRecording ? (
+                      <button
+                        onClick={stopCustomRecording}
+                        style={{
+                          padding: "10px",
+                          border: "2px solid #a855f7",
+                          borderRadius: "50%",
+                          background: "#faf5ff",
+                          color: "#6d28d9",
+                          cursor: "pointer",
+                          boxShadow: "0 4px 6px rgba(168,85,247,0.1)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "48px",
+                          height: "48px"
+                        }}
+                        title="Stop Recording"
+                      >
+                        ⏹
+                      </button>
+                    ) : (
+                      <>
+                        {!audioExists && (
+                          <button
+                            onClick={startCustomRecording}
+                            disabled={uploading}
+                            style={{
+                              padding: "10px",
+                              border: "2px solid #a855f7",
+                              borderRadius: "50%",
+                              background: uploading ? "#e9d5ff" : "#faf5ff",
+                              color: "#6d28d9",
+                              cursor: uploading ? "not-allowed" : "pointer",
+                              boxShadow: "0 4px 6px rgba(168,85,247,0.1)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "48px",
+                              height: "48px",
+                              opacity: uploading ? 0.6 : 1
+                            }}
+                            title="Record Pronunciation"
+                          >
+                            🎤
+                          </button>
+                        )}
+
+                        {audioExists && (
+                          <>
+                            <button
+                              onClick={startCustomRecording}
+                              disabled={uploading}
+                              style={{
+                                padding: "10px",
+                                border: "2px solid #a855f7",
+                                borderRadius: "50%",
+                                background: uploading ? "#e9d5ff" : "#faf5ff",
+                                color: "#6d28d9",
+                                cursor: uploading ? "not-allowed" : "pointer",
+                                boxShadow: "0 4px 6px rgba(168,85,247,0.1)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "48px",
+                                height: "48px",
+                                opacity: uploading ? 0.6 : 1
+                              }}
+                              title="Edit Pronunciation"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => playCachedAudio(false)}
+                              disabled={playingAudio || checkingAudio}
+                              style={{
+                                padding: "10px",
+                                border: "2px solid #a855f7",
+                                borderRadius: "50%",
+                                background: (playingAudio || checkingAudio) ? "#e9d5ff" : "#faf5ff",
+                                color: "#6d28d9",
+                                cursor: (playingAudio || checkingAudio) ? "not-allowed" : "pointer",
+                                boxShadow: "0 4px 6px rgba(168,85,247,0.1)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "48px",
+                                height: "48px",
+                                opacity: (playingAudio || checkingAudio) ? 0.6 : 1
+                              }}
+                              title="Play Audio"
+                            >
+                                {playingAudio ? "⏳" : "▶️"}
+                            </button>
+                            <button
+                              onClick={() => playCachedAudio(true)}
+                              disabled={playingAudio || checkingAudio}
+                              style={{
+                                padding: "10px",
+                                border: "2px solid #a855f7",
+                                borderRadius: "50%",
+                                background: (playingAudio || checkingAudio) ? "#e9d5ff" : "#faf5ff",
+                                color: "#6d28d9",
+                                cursor: (playingAudio || checkingAudio) ? "not-allowed" : "pointer",
+                                boxShadow: "0 4px 6px rgba(168,85,247,0.1)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "48px",
+                                height: "48px",
+                                opacity: (playingAudio || checkingAudio) ? 0.6 : 1
+                              }}
+                              title="Play Slow"
+                            >
+                                🐢
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
 
-                  <div style={{ borderTop: "1px solid #eee", marginTop: "10px", paddingTop: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <h4 style={{ margin: 0, color: "#6d28d9" }}>🎙️ Try Pronouncing It:</h4>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <div style={{ borderTop: "1px solid #eee", marginTop: "12px", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <h4 style={{ margin: 0, color: "#6d28d9", fontSize: "15px" }}>🎙️ Try Pronouncing It:</h4>
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                       {!recording ? (
                         <button
                           onClick={startRecording}
                           style={{
-                            padding: "10px 16px",
+                            padding: "10px 18px",
                             border: "none",
                             borderRadius: "999px",
                             background: "linear-gradient(90deg, #f97316, #fb7185)",
                             color: "#fff",
-                            fontWeight: 800,
+                            fontWeight: 700,
+                            fontSize: "14px",
                             cursor: "pointer",
                             boxShadow: "0 4px 10px rgba(249,115,22,0.2)"
                           }}
                         >
-                          🎤 Start Recording
+                          🎤 Record
                         </button>
                       ) : (
                         <button
                           onClick={stopRecording}
                           style={{
-                            padding: "10px 16px",
+                            padding: "10px 18px",
                             border: "none",
                             borderRadius: "999px",
                             background: "linear-gradient(90deg, #ef4444, #f97316)",
                             color: "#fff",
-                            fontWeight: 800,
+                            fontWeight: 700,
+                            fontSize: "14px",
                             cursor: "pointer",
                             boxShadow: "0 4px 10px rgba(239,68,68,0.2)"
                           }}
                         >
-                          ⏹ Stop Recording
+                          ⏹ Stop
                         </button>
                       )}
 
@@ -344,7 +609,7 @@ export default function Assessment() {
                         onClick={analyzeSpeech}
                         disabled={loading || !audioBlob}
                         style={{
-                          padding: "10px 16px",
+                          padding: "10px 18px",
                           border: "none",
                           borderRadius: "999px",
                           background: loading
@@ -353,80 +618,81 @@ export default function Assessment() {
                             ? "#e2e8f0"
                             : "linear-gradient(90deg, #22c55e, #06b6d4)",
                           color: loading || !audioBlob ? "#94a3b8" : "#fff",
-                          fontWeight: 800,
+                          fontWeight: 700,
+                          fontSize: "14px",
                           cursor: loading || !audioBlob ? "not-allowed" : "pointer",
                           boxShadow: !audioBlob ? "none" : "0 4px 10px rgba(34,197,94,0.2)"
                         }}
                       >
-                        {loading ? "Analyzing..." : "🚀 Analyze Speech"}
+                        {loading ? "Analyzing..." : "🚀 Analyze"}
                       </button>
                     </div>
                   </div>
 
                   {audioUrl && (
                     <div style={{ marginTop: "10px" }}>
-                      <audio controls src={audioUrl} style={{ width: "100%" }} />
+                      <audio controls src={audioUrl} style={{ width: "100%", height: "36px" }} />
                     </div>
                   )}
 
-                  <button className="next-word" onClick={loadRandomWord} style={{ marginTop: "auto", alignSelf: "flex-start", padding: "10px 18px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 800, cursor: "pointer" }}>Next word →</button>
+                  <button className="next-word" onClick={loadRandomWord} style={{ marginTop: "auto", alignSelf: "flex-start", padding: "10px 20px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>Next word →</button>
                 </div>
               </div>
 
               {/* 🧙‍♂️ Wizard's Magic Speech Board */}
               {analysisResult && (
-                <div 
+                <div
                   style={{
-                    padding: "20px",
-                    borderRadius: "20px",
+                    padding: "14px",
+                    borderRadius: "14px",
                     background: "linear-gradient(135deg, #fffbeb 0%, #fff1f2 100%)",
                     border: "3px dashed #f472b6",
                     boxShadow: "0 10px 25px rgba(244, 114, 182, 0.15)",
                     width: "100%"
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                    <h3 style={{ margin: 0, color: "#db2777", display: "flex", alignItems: "center", gap: "8px", fontSize: "1.25rem", fontWeight: 900 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+                    <h3 style={{ margin: 0, color: "#db2777", display: "flex", alignItems: "center", gap: "8px", fontSize: "1.1rem", fontWeight: 900 }}>
                       🪄 Wizard's Speech Magic! ✨
                     </h3>
-                    <div style={{ fontSize: "24px", fontWeight: 900, color: "#16a34a" }}>
+                    <div style={{ fontSize: "20px", fontWeight: 900, color: "#16a34a" }}>
                       {analysisResult.accuracy ?? 0}% Match
                     </div>
                   </div>
 
                   {analysisResult.reasoning && (
-                    <div style={{ marginBottom: "16px", padding: "12px 16px", background: "#ffffff", borderRadius: "14px", border: "2px solid #c084fc" }}>
-                      <div style={{ fontSize: "12px", color: "#a855f7", fontWeight: 800, textTransform: "uppercase", marginBottom: "4px" }}>
+                    <div style={{ marginBottom: "10px", padding: "10px 12px", background: "#ffffff", borderRadius: "10px", border: "2px solid #c084fc" }}>
+                      <div style={{ fontSize: "11px", color: "#a855f7", fontWeight: 800, textTransform: "uppercase", marginBottom: "4px" }}>
                         🗣️ Voice Helper's Advice
                       </div>
-                      <p style={{ margin: 0, fontSize: "14.5px", color: "#374151", fontWeight: 600 }}>
+                      <p style={{ margin: 0, fontSize: "13px", color: "#374151", fontWeight: 600 }}>
                         {analysisResult.reasoning}
                       </p>
                     </div>
                   )}
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
                     {analysisResult.diagnostic_report && (
-                      <div style={{ padding: "12px", background: "#faf5ff", borderRadius: "14px", borderTop: "5px solid #c084fc" }}>
-                        <span style={{ fontSize: "14px", fontWeight: 800, color: "#7e22ce" }}>🩺 Clinician Diagnostic Report</span>
-                        <p style={{ margin: "6px 0 0 0", fontSize: "13.5px", color: "#4b5563", fontWeight: 500, lineHeight: 1.4 }}>{analysisResult.diagnostic_report}</p>
+                      <div style={{ padding: "10px", background: "#faf5ff", borderRadius: "10px", borderTop: "4px solid #c084fc" }}>
+                        <span style={{ fontSize: "13px", fontWeight: 800, color: "#7e22ce" }}>🩺 Clinician Diagnostic Report</span>
+                        <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#4b5563", fontWeight: 500, lineHeight: 1.3 }}>{analysisResult.diagnostic_report}</p>
                       </div>
                     )}
 
-                    <div style={{ padding: "12px", background: "#f0fdf4", borderRadius: "14px", borderTop: "5px solid #4ade80" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 800, color: "#15803d" }}>📊 Articulation Diagnostics</span>
-                      <p style={{ margin: "6px 0 0 0", fontSize: "13.5px", color: "#4b5563", fontWeight: 500, lineHeight: 1.4 }}>
+                    <div style={{ padding: "10px", background: "#f0fdf4", borderRadius: "10px", borderTop: "4px solid #4ade80" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 800, color: "#15803d" }}>📊 Articulation Diagnostics</span>
+                      <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#4b5563", fontWeight: 500, lineHeight: 1.3 }}>
                         <b>Status:</b> {analysisResult.severity_score || "Normal"} <br />
-                        <b>Patterns:</b> {analysisResult.error_patterns && analysisResult.error_patterns.length > 0 
-                          ? analysisResult.error_patterns.join(", ") 
+                        <b>Patterns:</b> {analysisResult.error_patterns && analysisResult.error_patterns.length > 0
+                          ? analysisResult.error_patterns.join(", ")
                           : "No phonological errors detected."}
                       </p>
                     </div>
 
                     {analysisResult.recommendations && analysisResult.recommendations.length > 0 && (
-                      <div style={{ padding: "12px", background: "#f0f9ff", borderRadius: "14px", borderTop: "5px solid #38bdf8" }}>
-                        <span style={{ fontSize: "14px", fontWeight: 800, color: "#0369a1" }}>💨 Acoustic cord check</span>
-                        <ul style={{ margin: "6px 0 0 0", paddingLeft: "16px", fontSize: "13px", color: "#4b5563", fontWeight: 500 }}>
+                      <div style={{ padding: "10px", background: "#f0f9ff", borderRadius: "10px", borderTop: "4px solid #38bdf8" }}>
+                        <span style={{ fontSize: "13px", fontWeight: 800, color: "#0369a1" }}>💨 Acoustic cord check</span>
+                        <ul style={{ margin: "4px 0 0 0", paddingLeft: "14px", fontSize: "12px", color: "#4b5563", fontWeight: 500 }}>
                           {analysisResult.recommendations.map((metric, i) => (
                             <li key={i}>{metric}</li>
                           ))}
@@ -436,9 +702,9 @@ export default function Assessment() {
                   </div>
 
                   {linkableLetters.length > 0 && (
-                    <div style={{ marginTop: "16px", padding: "14px", background: "#f0f9ff", borderRadius: "14px", border: "2px solid #0ea5e9" }}>
-                      <h4 style={{ margin: "0 0 6px 0", color: "#0369a1", fontSize: "14px", fontWeight: 800 }}>✨ Listen & Learn Practice Board:</h4>
-                      <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#0284c7", fontWeight: 500 }}>
+                    <div style={{ marginTop: "12px", padding: "10px 12px", background: "#f0f9ff", borderRadius: "10px", border: "2px solid #0ea5e9" }}>
+                      <h4 style={{ margin: "0 0 6px 0", color: "#0369a1", fontSize: "13px", fontWeight: 800 }}>✨ Listen & Learn Practice Board:</h4>
+                      <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#0284c7", fontWeight: 500 }}>
                         We found some sounds to practice. Click any button below to open the interactive keyboard and see how to position your mouth!
                       </p>
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -450,13 +716,13 @@ export default function Assessment() {
                               setSection("alphabet");
                             }}
                             style={{
-                              padding: "8px 14px",
+                              padding: "6px 12px",
                               borderRadius: "999px",
                               border: "none",
                               background: "#0284c7",
                               color: "#fff",
-                              fontWeight: 800,
-                              fontSize: "13px",
+                              fontWeight: 700,
+                              fontSize: "12px",
                               cursor: "pointer",
                               boxShadow: "0 4px 8px rgba(2, 132, 199, 0.25)",
                               transition: "all 0.2s ease"
@@ -485,6 +751,30 @@ export default function Assessment() {
               </div>
               <div className="selected-letter-mini">{letter}</div>
             </div>
+            <div style={{ padding: "0 20px 20px 20px" }}>
+              <label style={{ fontSize: "13px", fontWeight: 700, color: "#6d28d9" }}>🌐 Select Language:</label>
+              <select 
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: "2px solid #a855f7",
+                  background: "#faf5ff",
+                  color: "#6d28d9",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  marginTop: "8px"
+                }}
+              >
+                {INDIAN_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="alphabet-keyboard">
               {KEYBOARD_ROWS.map((row, rowIndex) => (
                 <div className={`keyboard-row row-${rowIndex + 1}`} key={row.join("")}>
@@ -511,7 +801,7 @@ export default function Assessment() {
                 <h2>{selectedSound.ipa}</h2>
                 <p>say <strong>“{selectedSound.spoken}”</strong></p>
               </div>
-              <button onClick={() => speakIndianEnglish(selectedSound.spoken, false, voiceLanguage)} aria-label={`Hear the letter ${letter}`}>
+              <button onClick={() => speakIndianEnglish(selectedSound.spoken, false, selectedLanguage)} aria-label={`Hear the letter ${letter}`}>
                 🔊
               </button>
             </div>

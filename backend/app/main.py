@@ -1,17 +1,21 @@
-from pathlib import Path
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine, ensure_database_schema
+from app.database import Base, engine
 
 # Routes
 from app.routes.patient import router as patient_router
 from app.routes.speech import router as speech_router
 from app.routes.assessment import router as assessment_router
 from app.routers.audio import router as audio_router
-import app.models
-# from app.routes.image import router as image_router
+
+# BreathQuest routes
+from app.routers.breathquest.auth import router as breathquest_auth_router
+from app.routers.breathquest.patients import router as breathquest_patients_router
+from app.routers.breathquest.sessions import router as breathquest_sessions_router
+from app.routers.breathquest.dashboard import router as breathquest_dashboard_router
 
 # -----------------------------------
 # APP
@@ -33,13 +37,13 @@ app.add_middleware(
 )
 
 # -----------------------------------
-# CREATE TABLES
+# CREATE TABLES & RUN MIGRATIONS
 # -----------------------------------
 Base.metadata.create_all(bind=engine)
-ensure_database_schema()
 
-ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
-ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+# Dynamically ensure database schema columns and seed translation entries
+from app.utils.db_setup import ensure_db_schema_and_translations
+ensure_db_schema_and_translations()
 
 
 def sync_local_images_to_db():
@@ -78,24 +82,35 @@ def sync_local_images_to_db():
                         
             if imported_count > 0:
                 db.commit()
-                print(f"🎉 Automatically imported {imported_count} pre-downloaded words into the database!")
+                print(f"ðŸŽ‰ Automatically imported {imported_count} pre-downloaded words into the database!")
     except Exception as e:
-        print(f"⚠️ Error during local image auto-sync: {e}")
+        print(f"âš ï¸ Error during local image auto-sync: {e}")
     finally:
         db.close()
 
 sync_local_images_to_db()
 
 # -----------------------------------
+# MOUNT STATIC ASSETS
+# -----------------------------------
+# Ensure the assets/audio directories are created
+os.makedirs(os.path.join("assets", "audio"), exist_ok=True)
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+
+# -----------------------------------
 # INCLUDE ROUTES
 # -----------------------------------
-app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
-
+# Original patient routes
 app.include_router(patient_router)
 app.include_router(speech_router)
 app.include_router(assessment_router)
-app.include_router(audio_router, prefix="/api")
-# app.include_router(image_router)
+app.include_router(audio_router)
+
+# BreathQuest routes with prefix
+app.include_router(breathquest_auth_router, prefix="/api/v1/breathquest")
+app.include_router(breathquest_patients_router, prefix="/api/v1/breathquest")
+app.include_router(breathquest_sessions_router, prefix="/api/v1/breathquest")
+app.include_router(breathquest_dashboard_router, prefix="/api/v1/breathquest")
 
 # -----------------------------------
 # ROOT
@@ -103,6 +118,5 @@ app.include_router(audio_router, prefix="/api")
 @app.get("/")
 def home():
     return {
-        "message": "VaakSuddhi V1 Running 🚀"
+        "message": "VaakSuddhi V1 Running ðŸš€"
     }
-

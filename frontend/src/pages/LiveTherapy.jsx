@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 const cardStyle = {
   background: "linear-gradient(180deg, #fffaf0 0%, #f7f3ff 100%)",
@@ -7,9 +8,10 @@ const cardStyle = {
   boxShadow: "0 8px 22px rgba(132, 94, 194, 0.12)",
 };
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
-export default function LiveTherapy() {
+export default function LiveTherapy({ setPage }) {
+  const navigate = useNavigate();
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("");
   const [word, setWord] = useState("");
@@ -410,6 +412,22 @@ export default function LiveTherapy() {
                 }}
               >
                 {loading ? "Analyzing..." : "🚀 Analyze Speech"}
+              </button>
+
+              <button
+                onClick={() => navigate('/breathquest')}
+                style={{
+                  padding: "14px 18px",
+                  border: "none",
+                  borderRadius: "999px",
+                  background: "linear-gradient(90deg, #8b5cf6, #ec4899)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 8px 18px rgba(139, 92, 246, 0.28)",
+                }}
+              >
+                🎮 BreathQuest
               </button>
             </div>
           </section>

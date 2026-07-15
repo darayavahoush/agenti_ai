@@ -35,7 +35,7 @@ class Session(Base):
 
     trs_score = Column(Integer)
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     patient = relationship("Patient", back_populates="sessions")
 

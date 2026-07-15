@@ -1,25 +1,17 @@
 import { useEffect, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
 export default function Dashboard() {
-  const [patients, setPatients] = useState([]);
-  const [sessions, setSessions] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [patientsRes, sessionsRes] = await Promise.all([
-          fetch(`${API}/patients/`),
-          fetch(`${API}/patients/sessions/all`),
-        ]);
-
-        const patientsData = await patientsRes.json();
-        const sessionsData = await sessionsRes.json();
-
-        setPatients(Array.isArray(patientsData) ? patientsData : []);
-        setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+        const res = await fetch(`${API}/patients/dashboard/summary`);
+        const data = await res.json();
+        setSummary(data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -29,14 +21,6 @@ export default function Dashboard() {
 
     fetchData();
   }, []);
-
-  const avgAccuracy =
-    sessions.length > 0
-      ? Math.round(
-        sessions.reduce((sum, s) => sum + (Number(s.accuracy) || 0), 0) /
-        sessions.length
-      )
-      : 0;
 
   return (
     <div style={{ padding: "24px" }}>
@@ -54,18 +38,18 @@ export default function Dashboard() {
           }}
         >
           <div className="card">
-            <h3>👶 Patients</h3>
-            <h2>{patients.length}</h2>
+            <h3>👶 Total Patients</h3>
+            <h2>{summary?.total_patients || 0}</h2>
           </div>
 
           <div className="card">
-            <h3>🎤 Sessions</h3>
-            <h2>{sessions.length}</h2>
+            <h3>🎤 Total Sessions</h3>
+            <h2>{summary?.total_sessions || 0}</h2>
           </div>
 
           <div className="card">
-            <h3>⭐ Accuracy</h3>
-            <h2>{avgAccuracy}%</h2>
+            <h3>⭐ Avg Accuracy</h3>
+            <h2>{summary?.avg_accuracy ? `${summary.avg_accuracy.toFixed(1)}%` : '—'}</h2>
           </div>
         </div>
       )}
