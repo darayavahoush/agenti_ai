@@ -1,1 +1,1 @@
-DATABASE_URL = "postgresql://postgres:password@localhost:5432/vaaksiddhi"
+DATABASE_URL = "postgresql://postgres:Lavanya123@localhost:5432/vaaksudhi"

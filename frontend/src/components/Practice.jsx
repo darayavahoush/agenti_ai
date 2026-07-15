@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { T, RAINBOW, BACKEND, MODE_WORD, MODE_PHONEME } from "../constants";
 import { normalizeAudio, encodeWav, playPhonemeAudio } from "../audio";
-import { generateVoice } from "../services/api";
 import { PHONEME_INFO, getPhonemeInfo } from "../phonemeData";
 import { Particle, RainbowArc, PhonemeChip, RecordButton, CelebrationOverlay } from "../components";
 import { MouthDiagram } from "../MouthDiagram";
