@@ -54,3 +54,9 @@ export async function analyzeSpeech(formData) {
 
   return response.json();
 }
+
+export async function generateVoice(therapistId, text, language = "en-IN") {
+  const response = await fetch(`${API}/api/audio/words/${encodeURIComponent(text)}?language=${encodeURIComponent(language)}`);
+  if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || "Speech generation failed."); }
+  return response.json();
+}

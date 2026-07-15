@@ -1,15 +1,16 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { MouthDiagram } from "../MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
+import { generateVoice } from "../services/api";
 import "./Assessment.css";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
-function speakIndianEnglish(text, slow = false) {
+function speakIndianEnglish(text, slow = false, language = "en-IN") {
   if (!("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-IN";
+  utterance.lang = language;
   utterance.rate = slow ? 0.62 : 0.9;
   utterance.pitch = 1;
 
@@ -59,6 +60,11 @@ export default function Assessment() {
   const [imageLoading, setImageLoading] = useState(false);
   const [error, setError] = useState("");
   const [letter, setLetter] = useState("A");
+  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
+  const [cachedAudioUrl, setCachedAudioUrl] = useState(null);
+  const [audioChecking, setAudioChecking] = useState(false);
+  const [pronunciationRecording, setPronunciationRecording] = useState(false);
+  const [audioSaving, setAudioSaving] = useState(false);
 
   // Audio Recording & Analysis States
   const [recording, setRecording] = useState(false);
@@ -69,9 +75,16 @@ export default function Assessment() {
 
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const pronunciationRecorderRef = useRef(null);
+  const pronunciationChunksRef = useRef([]);
 
   const selectedSound = ALPHABET_SOUNDS[letter];
   const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
+
+
+  useEffect(() => { if (!word) { setCachedAudioUrl(null); return; } setAudioChecking(true); fetch(API_URL + '/api/audio/words/' + encodeURIComponent(word.word_key || word.word) + '/exists?language=' + encodeURIComponent(voiceLanguage)).then(r=>r.json()).then(d=>setCachedAudioUrl(d.exists ? d.audio_url : null)).catch(()=>setCachedAudioUrl(null)).finally(()=>setAudioChecking(false)); }, [word, voiceLanguage]);
+  const startPronunciationRecording = async () => { try { const stream=await navigator.mediaDevices.getUserMedia({audio:true}); const recorder=new MediaRecorder(stream); pronunciationChunksRef.current=[]; recorder.ondataavailable=e=>{if(e.data.size)pronunciationChunksRef.current.push(e.data)}; recorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop()); const form=new FormData();form.append('file',new Blob(pronunciationChunksRef.current,{type:'audio/webm'}),'pronunciation.webm');setAudioSaving(true);try{const r=await fetch(API_URL+'/api/audio/words/'+encodeURIComponent(word.word_key||word.word)+'?language='+encodeURIComponent(voiceLanguage),{method:'POST',body:form});const d=await r.json();if(!r.ok)throw new Error(d.detail);setCachedAudioUrl(d.audio_url)}catch(e){setError(e.message)}finally{setAudioSaving(false)}}; pronunciationRecorderRef.current=recorder;recorder.start();setPronunciationRecording(true) } catch { setError('Microphone access is required to record pronunciation.') } };
+  const stopPronunciationRecording=()=>{pronunciationRecorderRef.current?.stop();setPronunciationRecording(false)};
 
   async function loadRandomWord() {
     setSection("word");
@@ -251,9 +264,10 @@ export default function Assessment() {
                   <h2 style={{ fontSize: "2rem", margin: 0, color: "#5b21b6" }}>{word.word}</h2>
                   <p style={{ margin: 0 }}>Listen carefully, then try saying the word yourself.</p>
                   
-                  <div className="listen-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <div className="listen-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                    <select aria-label="Listening language" value={voiceLanguage} onChange={(event) => setVoiceLanguage(event.target.value)} style={{ padding: "10px", borderRadius: "12px", border: "1px solid #c4b5fd" }}><option value="en-IN">English</option><option value="hi-IN">Hindi</option><option value="ta-IN">Tamil</option><option value="te-IN">Telugu</option><option value="kn-IN">Kannada</option><option value="bn-IN">Bengali</option><option value="mr-IN">Marathi</option></select>
                     <button 
-                      onClick={() => speakIndianEnglish(word.word)} 
+                      onClick={() => speakIndianEnglish(word.word, false, voiceLanguage)} 
                       style={{ 
                         padding: "10px 18px", 
                         borderRadius: "14px", 
@@ -271,7 +285,7 @@ export default function Assessment() {
                     </button>
                     <button 
                       className="slow" 
-                      onClick={() => speakIndianEnglish(word.word, true)} 
+                      onClick={() => speakIndianEnglish(word.word, true, voiceLanguage)} 
                       style={{ 
                         padding: "10px 18px", 
                         borderRadius: "14px", 
@@ -497,7 +511,7 @@ export default function Assessment() {
                 <h2>{selectedSound.ipa}</h2>
                 <p>say <strong>“{selectedSound.spoken}”</strong></p>
               </div>
-              <button onClick={() => speakIndianEnglish(selectedSound.spoken)} aria-label={`Hear the letter ${letter}`}>
+              <button onClick={() => speakIndianEnglish(selectedSound.spoken, false, voiceLanguage)} aria-label={`Hear the letter ${letter}`}>
                 🔊
               </button>
             </div>
