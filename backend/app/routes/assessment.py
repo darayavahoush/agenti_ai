@@ -9,6 +9,7 @@ from app.services.image.matcher import get_image_for_phrase
 from app.tools.audio_tool import save_audio, delete_audio
 from app.state.assessment_state import AssessmentState
 from app.graph.assessment_graph import assessment_graph
+from app.utils.word_utils import normalize_word_key
 
 
 router = APIRouter(prefix="/assessment", tags=["Assessment"])
@@ -54,6 +55,7 @@ def add_word(payload: AssessmentWordCreate, db: Session = Depends(get_db)):
 
     item = AssessmentWord(
         word=word,
+        word_key=normalize_word_key(word),
         image_prompt=image_prompt,
         display_order=payload.display_order or 0,
         animation_prompt=animation_prompt

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { T, RAINBOW, BACKEND, MODE_WORD, MODE_PHONEME } from "../constants";
 import { normalizeAudio, encodeWav, playPhonemeAudio } from "../audio";
+import { generateVoice } from "../services/api";
 import { PHONEME_INFO, getPhonemeInfo } from "../phonemeData";
 import { Particle, RainbowArc, PhonemeChip, RecordButton, CelebrationOverlay } from "../components";
 import { MouthDiagram } from "../MouthDiagram";
@@ -216,7 +217,7 @@ export function Practice({ sessionId }) {
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = language === "hindi" ? "hi-IN" : "en-US";
+    utterance.lang = language === "hindi" ? "hi-IN" : "en-IN";
     
     // For English, macOS distorts heavily below 0.6. Hindi handles 0.5 fine.
     utterance.rate = slow ? (language === "hindi" ? 0.5 : 0.6) : 0.95; 
@@ -225,19 +226,23 @@ export function Practice({ sessionId }) {
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
       const preferred = voices.find(v => {
-        if (language === "hindi") return v.lang.includes("hi") && (v.name.includes("Female") || v.name.includes("Google"));
-        
         const name = v.name.toLowerCase();
-        // The most premium, natural female English voices on Mac and Chrome
-        return name === "google us english" || name === "samantha" || name === "victoria" || name === "karen";
+        if (name.includes("nova")) return true;
+        
+        if (language === "hindi") return v.lang.toLowerCase().includes("hi") && (v.name.includes("Female") || v.name.includes("Google"));
+        
+        // Prefer Indian English voice
+        return v.lang.toLowerCase().startsWith("en-in") || name.includes("veena") || name.includes("heera") || name.includes("google en-in");
       });
       
-      const fallback = voices.find(v => v.lang.startsWith("en-US") && v.name.toLowerCase().includes("female"));
-      const fallback2 = voices.find(v => v.lang.startsWith("en"));
+      const fallback = voices.find(v => v.lang.toLowerCase().startsWith("en-in"));
+      const fallback2 = voices.find(v => v.lang.toLowerCase().startsWith("hi-in"));
+      const fallback3 = voices.find(v => v.lang.toLowerCase().startsWith("en"));
       
       if (preferred) utterance.voice = preferred;
       else if (fallback) utterance.voice = fallback;
       else if (fallback2) utterance.voice = fallback2;
+      else if (fallback3) utterance.voice = fallback3;
     }
     
     window.speechSynthesis.speak(utterance);

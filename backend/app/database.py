@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
@@ -27,3 +27,14 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+def ensure_database_schema() -> None:
+    Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    if not inspector.has_table("assessment_words"):
+        return
+    columns = {column["name"] for column in inspector.get_columns("assessment_words")}
+    if "word_key" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE assessment_words ADD COLUMN word_key VARCHAR(120)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_assessment_words_word_key ON assessment_words (word_key)"))

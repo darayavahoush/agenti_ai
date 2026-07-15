@@ -38,3 +38,5 @@ kokoro-onnx
 scikit-learn
 sentence-transformers
 ddgs
+coqui-tts
+transformers<5

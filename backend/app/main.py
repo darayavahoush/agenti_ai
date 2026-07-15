@@ -1,12 +1,16 @@
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine
+from app.database import Base, engine, ensure_database_schema
 
 # Routes
 from app.routes.patient import router as patient_router
 from app.routes.speech import router as speech_router
 from app.routes.assessment import router as assessment_router
+from app.routers.audio import router as audio_router
+import app.models
 # from app.routes.image import router as image_router
 
 # -----------------------------------
@@ -32,6 +36,10 @@ app.add_middleware(
 # CREATE TABLES
 # -----------------------------------
 Base.metadata.create_all(bind=engine)
+ensure_database_schema()
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def sync_local_images_to_db():
@@ -81,9 +89,12 @@ sync_local_images_to_db()
 # -----------------------------------
 # INCLUDE ROUTES
 # -----------------------------------
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
 app.include_router(patient_router)
 app.include_router(speech_router)
 app.include_router(assessment_router)
+app.include_router(audio_router, prefix="/api")
 # app.include_router(image_router)
 
 # -----------------------------------
@@ -94,3 +105,4 @@ def home():
     return {
         "message": "VaakSuddhi V1 Running 🚀"
     }
+
