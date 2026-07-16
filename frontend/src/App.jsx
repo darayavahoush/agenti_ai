@@ -52,21 +52,47 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <BreathQuestAuthProvider>
-        <Routes>
-          {/* Main VaakSuddhi routes */}
-          <Route path="/*" element={<AppContent />} />
-          
-          {/* BreathQuest routes - render outside main app structure */}
-          <Route path="/breathquest" element={<BreathQuestLanding />} />
-          <Route path="/breathquest/play" element={<BreathQuestKidPlay />} />
-          <Route path="/breathquest/play/levels" element={<BreathQuestLevelSelect />} />
-          <Route path="/breathquest/play/game/:levelId" element={<BreathQuestGamePage />} />
-          <Route path="/breathquest/therapist/login" element={<BreathQuestTherapistLogin />} />
-          <Route path="/breathquest/therapist/dashboard" element={<BreathQuestTherapistDashboard />} />
-          <Route path="/breathquest/therapist/patients/:id" element={<BreathQuestPatientDetail />} />
-        </Routes>
-      </BreathQuestAuthProvider>
+      <Routes>
+        {/* BreathQuest routes - completely separate from main app */}
+        <Route path="/breathquest" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestLanding />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/play" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestKidPlay />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/play/levels" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestLevelSelect />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/play/game/:levelId" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestGamePage />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/therapist/login" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestTherapistLogin />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/therapist/dashboard" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestTherapistDashboard />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/therapist/patients/:id" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestPatientDetail />
+          </BreathQuestAuthProvider>
+        } />
+        
+        {/* Main VaakSuddhi routes */}
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
     </BrowserRouter>
   );
 }
