@@ -1,23 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 
-export default function BreathQuestLanding() {
+export default function Landing() {
   const navigate = useNavigate()
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"
-         style={{ 
-           background: 'radial-gradient(ellipse at 50% 0%, #1D3A6A 0%, #12122A 60%)',
-           color: 'white',
-           fontFamily: 'Inter, sans-serif',
-           width: '100%',
-           maxWidth: '100vw',
-           overflowX: 'hidden',
-           position: 'relative'
-         }}>
+         style={{ background: 'radial-gradient(ellipse at 50% 0%, #1D3A6A 0%, #12122A 60%)' }}>
 
       {/* Floating orbs */}
-      <div className="absolute top-20 left-20 w-64 h-64 bg-brand-green/10 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute bottom-20 right-20 w-64 h-64 bg-brand-purple/10 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-20 left-20 w-64 h-64 bg-brand-green/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-20 right-20 w-64 h-64 bg-brand-purple/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Logo */}
       <div className="text-center mb-16 animate-float">
@@ -33,7 +25,7 @@ export default function BreathQuestLanding() {
 
         {/* Kid portal */}
         <button
-          onClick={() => navigate('/breathquest/play')}
+          onClick={() => navigate('/play')}
           className="flex-1 group relative overflow-hidden rounded-3xl p-8 text-center
                      bg-gradient-to-br from-brand-amber/20 to-brand-coral/20
                      border-2 border-brand-amber/30 hover:border-brand-amber/60
@@ -49,7 +41,7 @@ export default function BreathQuestLanding() {
 
         {/* Therapist portal */}
         <button
-          onClick={() => navigate('/breathquest/therapist/login')}
+          onClick={() => navigate('/therapist/login')}
           className="flex-1 group relative overflow-hidden rounded-3xl p-8 text-center
                      bg-gradient-to-br from-brand-green/20 to-brand-teal/20
                      border-2 border-brand-green/30 hover:border-brand-green/60

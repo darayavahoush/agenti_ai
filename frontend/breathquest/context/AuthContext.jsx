@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authAPI } from '../api/breathquestClient'
+import { authAPI } from '../api/client'
 
 const AuthContext = createContext(null)
 
@@ -77,4 +77,3 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext)
-export const BreathQuestAuthProvider = AuthProvider
