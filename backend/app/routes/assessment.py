@@ -319,11 +319,268 @@ async def analyze_assessment_pronunciation(
     file: UploadFile = File(...),
     patient_name: str = Form(...),
     patient_age: int | None = Form(None),
-    target_word: str = Form(...)
+    target_word: str = Form(...),
+    language: str = Form(default="en")
 ):
     """
     Run diagnostic Multi-Agent Assessment Graph on child voice recording.
     """
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    logger.info("🎯 Assessment analyze request received")
+    logger.info(f"👤 Patient: {patient_name}")
+    logger.info(f"🎯 Target word: {target_word}")
+    logger.info(f"🌐 Language: {language}")
+    
+    # Common word mappings for Indian languages (fallback when database translations are missing)
+    COMMON_WORD_MAPPINGS = {
+        "te": {  # Telugu
+            # Animals
+            "dog": "కుక్క",
+            "cat": "పిల్లి", 
+            "bird": "పక్షి",
+            "cow": "ఆవు",
+            "horse": "గుర్రం",
+            # Objects
+            "ball": "బంతి",
+            "book": "పుస్తకం",
+            "car": "కారు",
+            "house": "ఇల్లు",
+            "tree": "చెట్టు",
+            # Nature
+            "water": "నీరు",
+            "food": "ఆహారం",
+            "sun": "సూర్యుడు",
+            "moon": "చంద్రుడు",
+            "star": "నక్షత్రం",
+            "flower": "పూవు",
+            "fruit": "పండు",
+            # Family
+            "mother": "తల్లి",
+            "father": "తండ్రి",
+            "child": "పిల్ల",
+            "brother": "తమ్ముడు",
+            "sister": "చెల్లి",
+            # Education
+            "school": "పాఠశాల",
+            "teacher": "ఉపాధ్యాయుడు",
+            # Numbers
+            "one": "ఒకటి",
+            "two": "రెండు",
+            "three": "మూడు",
+            "four": "నాలుగు",
+            "five": "ఐదు",
+            "six": "ఆరు",
+            "seven": "ఏడు",
+            "eight": "ఎనిమిది",
+            "nine": "తొమ్మిది",
+            "ten": "పది",
+            # Body parts
+            "head": "తల",
+            "eye": "కన్ను",
+            "ear": "చెవి",
+            "nose": "ముక్కు",
+            "mouth": "నోరు",
+            "hand": "చేయి",
+            "leg": "కాలు",
+            "heart": "గుండె",
+            # Emotions
+            "happy": "సంతోషం",
+            "sad": "బాధ",
+            "angry": "కోపం",
+            "love": "ప్రేమ",
+            "fear": "భయం",
+            # Colors
+            "red": "ఎరుపు",
+            "blue": "నీలం",
+            "green": "ఆకుపచ్చ",
+            "yellow": "పసుపు",
+            "white": "తెలుపు",
+            "black": "నలుపు"
+        },
+        "kn": {  # Kannada
+            # Animals
+            "dog": "ನಾಯಿ",
+            "cat": "ಬೆಕ್ಕು",
+            "bird": "ಹಕ್ಕಿ", 
+            "cow": "ಹಸು",
+            "horse": "ಕುದುರೆ",
+            # Objects
+            "ball": "ಚೆಂಡು",
+            "book": "ಪುಸ್ತಕ",
+            "car": "ಕಾರ್",
+            "house": "ಮನೆ",
+            "tree": "ಮರ",
+            # Nature
+            "water": "ನೀರು",
+            "food": "ಆಹಾರ",
+            "sun": "ಸೂರ್ಯ",
+            "moon": "ಚಂದ್ರ",
+            "star": "ನಕ್ಷತ್ರ",
+            "flower": "ಹೂವು",
+            "fruit": "ಹಣ್ಣು",
+            # Family
+            "mother": "ತಾಯಿ",
+            "father": "ತಂದೆ",
+            "child": "ಮಗು",
+            "brother": "ಸಹೋದರ",
+            "sister": "ಸಹೋದರಿ",
+            # Education
+            "school": "ಶಾಲೆ",
+            "teacher": "ಶಿಕ್ಷಕ",
+            # Numbers
+            "one": "ಒಂದು",
+            "two": "ಎರಡು",
+            "three": "ಮೂರು",
+            "four": "ನಾಲ್ಕು",
+            "five": "ಐದು",
+            "six": "ಆರು",
+            "seven": "ಏಳು",
+            "eight": "ಎಂಟು",
+            "nine": "ಒಂಬತ್ತು",
+            "ten": "ಹತ್ತು",
+            # Body parts
+            "head": "ತಲೆ",
+            "eye": "ಕಣ್ಣು",
+            "ear": "ಕಿವಿ",
+            "nose": "ಮೂಗು",
+            "mouth": "ಬಾಯಿ",
+            "hand": "ಕೈ",
+            "leg": "ಕಾಲು",
+            "heart": "ಹೃದಯ",
+            # Emotions
+            "happy": "ಸಂತೋಷ",
+            "sad": "ದುಃಖ",
+            "angry": "ಕೋಪ",
+            "love": "ಪ್ರೀತಿ",
+            "fear": "ಭಯ",
+            # Colors
+            "red": "ಕೆಂಪು",
+            "blue": "ನೀಲಿ",
+            "green": "ಹಸಿರು",
+            "yellow": "ಹಳದಿ",
+            "white": "ಬಿಳಿ",
+            "black": "ಕಪ್ಪು"
+        },
+        "hi": {  # Hindi
+            # Animals
+            "dog": "कुत्ता",
+            "cat": "बिल्ली",
+            "bird": "पक्षी",
+            "cow": "गाय",
+            "horse": "घोड़ा",
+            # Objects
+            "ball": "गेंद",
+            "book": "किताब",
+            "car": "गाड़ी",
+            "house": "घर",
+            "tree": "पेड़",
+            # Nature
+            "water": "पानी",
+            "food": "खाना",
+            "sun": "सूरज",
+            "moon": "चाँद",
+            "star": "तारा",
+            "flower": "फूल",
+            "fruit": "फल",
+            # Family
+            "mother": "माँ",
+            "father": "पिता",
+            "child": "बच्चा",
+            "brother": "भाई",
+            "sister": "बहन",
+            # Education
+            "school": "स्कूल",
+            "teacher": "शिक्षक",
+            # Numbers
+            "one": "एक",
+            "two": "दो",
+            "three": "तीन",
+            "four": "चार",
+            "five": "पाँच",
+            "six": "छह",
+            "seven": "सात",
+            "eight": "आठ",
+            "nine": "नौ",
+            "ten": "दस",
+            # Body parts
+            "head": "सिर",
+            "eye": "आँख",
+            "ear": "कान",
+            "nose": "नाक",
+            "mouth": "मुँह",
+            "hand": "हाथ",
+            "leg": "पैर",
+            "heart": "दिल",
+            # Emotions
+            "happy": "खुशी",
+            "sad": "दुख",
+            "angry": "गुस्सा",
+            "love": "प्यार",
+            "fear": "डर",
+            # Colors
+            "red": "लाल",
+            "blue": "नीला",
+            "green": "हरा",
+            "yellow": "पीला",
+            "white": "सफेद",
+            "black": "काला"
+        }
+    }
+    
+    # For Indian languages, try to get translated target word from database or common mappings
+    indian_languages = ["hi", "te", "kn", "ta", "ml", "bn", "mr"]
+    
+    if language in indian_languages:
+        # First try database
+        db = SessionLocal()
+        try:
+            word_record = db.query(AssessmentWord).filter(
+                AssessmentWord.word == target_word
+            ).first()
+            
+            if word_record:
+                # Map language codes to database columns
+                lang_column_map = {
+                    "hi": "hindi",
+                    "te": "telugu", 
+                    "kn": "kannada",
+                    "ta": "tamil",
+                    "ml": "malayalam",
+                    "bn": "bengali",
+                    "mr": "marathi",
+                    "en": "english"
+                }
+                
+                column_name = lang_column_map.get(language, "english")
+                translated_word = getattr(word_record, column_name, None)
+                
+                if translated_word and translated_word.strip():
+                    logger.info(f"🌐 Using translated word from database: {target_word} -> {translated_word}")
+                    target_word = translated_word
+                else:
+                    logger.info(f"⚠️ No database translation for {language}, checking common word mappings")
+                    # Try common word mappings
+                    if language in COMMON_WORD_MAPPINGS and target_word.lower() in COMMON_WORD_MAPPINGS[language]:
+                        mapped_word = COMMON_WORD_MAPPINGS[language][target_word.lower()]
+                        logger.info(f"📖 Using common word mapping: {target_word} -> {mapped_word}")
+                        target_word = mapped_word
+                    else:
+                        logger.info(f"⚠️ No mapping found for {target_word}, using original English word")
+            else:
+                logger.info(f"⚠️ Word record not found for: {target_word}, checking common word mappings")
+                # Try common word mappings
+                if language in COMMON_WORD_MAPPINGS and target_word.lower() in COMMON_WORD_MAPPINGS[language]:
+                    mapped_word = COMMON_WORD_MAPPINGS[language][target_word.lower()]
+                    logger.info(f"📖 Using common word mapping: {target_word} -> {mapped_word}")
+                    target_word = mapped_word
+                else:
+                    logger.info(f"⚠️ No mapping found for {target_word}, using original English word")
+        finally:
+            db.close()
+    
     # 1. Save audio file locally
     path = save_audio(file)
 
@@ -333,6 +590,7 @@ async def analyze_assessment_pronunciation(
             patient_name=patient_name,
             age=patient_age,
             target_word=target_word,
+            language=language,
             audio_path=path,
             sample_rate=None,
             audio=None,
@@ -367,6 +625,11 @@ async def analyze_assessment_pronunciation(
             raise Exception(result_state["error"])
 
         # 4. Return results payload
+        logger.info("✅ Assessment analysis completed successfully")
+        logger.info(f"📊 Final accuracy: {result_state['accuracy']}")
+        logger.info(f"🗣️ Spoken word: {result_state['spoken_word']}")
+        logger.info(f"🔊 Phoneme accuracy: {result_state['phoneme_accuracy']}")
+        
         return {
             "patient_name": patient_name,
             "target_word": target_word,
@@ -388,7 +651,7 @@ async def analyze_assessment_pronunciation(
         }
 
     except Exception as e:
-        print("DIAGNOSTIC ASSESSMENT ERROR:", e)
+        logger.error(f"DIAGNOSTIC ASSESSMENT ERROR: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Diagnostic check failed: {str(e)}"

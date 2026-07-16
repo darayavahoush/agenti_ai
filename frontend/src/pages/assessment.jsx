@@ -316,6 +316,10 @@ export default function Assessment() {
       formData.append("file", audioBlob, "recording.webm");
       formData.append("patient_name", "Student");
       formData.append("target_word", word.word);
+      // Add language parameter
+      const langCode = selectedLanguage.split('-')[0];
+      formData.append("language", langCode);
+      
       const response = await fetch(`${API_URL}/assessment/analyze`, {
         method: "POST",
         body: formData,
@@ -660,6 +664,18 @@ export default function Assessment() {
                     </div>
                   </div>
 
+                  {/* Text Transcript Display */}
+                  <div style={{ marginBottom: "10px", padding: "10px 12px", background: "#ffffff", borderRadius: "10px", border: "2px solid #22c55e" }}>
+                    <div style={{ fontSize: "11px", color: "#16a34a", fontWeight: 800, textTransform: "uppercase", marginBottom: "4px" }}>
+                      📝 Speech Transcript
+                    </div>
+                    <p style={{ margin: 0, fontSize: "14px", color: "#374151", fontWeight: 600 }}>
+                      <span style={{ color: "#6b7280" }}>Target:</span> <span style={{ color: "#059669", fontWeight: 800 }}>{word.translations?.[selectedLanguage.split('-')[0]] || word.word}</span>
+                      {" | "}
+                      <span style={{ color: "#6b7280" }}>You said:</span> <span style={{ color: "#dc2626", fontWeight: 800 }}>{analysisResult.spoken_word || "No speech detected"}</span>
+                    </p>
+                  </div>
+
                   {analysisResult.reasoning && (
                     <div style={{ marginBottom: "10px", padding: "10px 12px", background: "#ffffff", borderRadius: "10px", border: "2px solid #c084fc" }}>
                       <div style={{ fontSize: "11px", color: "#a855f7", fontWeight: 800, textTransform: "uppercase", marginBottom: "4px" }}>
@@ -734,6 +750,63 @@ export default function Assessment() {
                       </div>
                     </div>
                   )}
+
+                  {/* Phoneme Comparison Display */}
+                  <div style={{ marginTop: "12px", padding: "12px", background: "#fef3c7", borderRadius: "10px", border: "2px solid #f59e0b" }}>
+                    <h4 style={{ margin: "0 0 8px 0", color: "#d97706", fontSize: "13px", fontWeight: 800 }}>🔊 Phonic Level Comparison</h4>
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      <div>
+                        <h5 style={{ margin: "0 0 6px 0", color: "#7c3aed", fontSize: "12px", fontWeight: 700 }}>Expected Phonemes</h5>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          {(analysisResult.expected_phonemes_display || analysisResult.expected_phonemes || []).map((p, i) => (
+                            <span
+                              key={`expected-${i}`}
+                              style={{
+                                background: "#ede9fe",
+                                color: "#5b21b6",
+                                padding: "4px 8px",
+                                borderRadius: "999px",
+                                fontWeight: 700,
+                                fontSize: selectedLanguage !== "en-IN" ? "16px" : "12px",
+                                fontFamily: selectedLanguage !== "en-IN" ? "'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans Kannada', sans-serif" : "inherit"
+                              }}
+                            >
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h5 style={{ margin: "0 0 6px 0", color: "#166534", fontSize: "12px", fontWeight: 700 }}>Detected Phonemes</h5>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          {(analysisResult.spoken_phonemes_display || analysisResult.spoken_phonemes || []).map((p, i) => (
+                            <span
+                              key={`spoken-${i}`}
+                              style={{
+                                background: "#dcfce7",
+                                color: "#166534",
+                                padding: "4px 8px",
+                                borderRadius: "999px",
+                                fontWeight: 700,
+                                fontSize: selectedLanguage !== "en-IN" ? "16px" : "12px",
+                                fontFamily: selectedLanguage !== "en-IN" ? "'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans Kannada', sans-serif" : "inherit"
+                              }}
+                            >
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {analysisResult.phoneme_accuracy && (
+                        <div style={{ padding: "8px", background: "#ffffff", borderRadius: "8px", textAlign: "center" }}>
+                          <span style={{ fontSize: "12px", color: "#6b7280", fontWeight: 600 }}>Phoneme Accuracy: </span>
+                          <span style={{ fontSize: "14px", color: "#059669", fontWeight: 800 }}>{analysisResult.phoneme_accuracy}%</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </>

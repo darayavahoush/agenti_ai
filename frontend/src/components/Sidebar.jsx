@@ -2,7 +2,6 @@ export default function Sidebar({ setPage, page }) {
   const items = [
     { key: "dashboard", label: "Dashboard", icon: "🏠" },
     { key: "therapy", label: "Live Therapy", icon: "🎤" },
-    { key: "patients", label: "Patients", icon: "👶" },
     { key: "progress", label: "Progress", icon: "📈" },
     { key: "assessment", label: "Assessment", icon: "🧩" },
   ];

@@ -5,6 +5,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
 
+# Auto-setup Vosk models directory
+from app.tools.vosk_tool import setup_vosk_models_directory
+setup_vosk_models_directory()
+
 # Routes
 from app.routes.patient import router as patient_router
 from app.routes.speech import router as speech_router

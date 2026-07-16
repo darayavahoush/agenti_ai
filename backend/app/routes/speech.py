@@ -50,6 +50,7 @@ async def therapy(
     patient_name: str = Form(...),
     target_word: str = Form(...),
     therapy_mode: str = Form(...),
+    language: str = Form(default="en"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -71,6 +72,7 @@ async def therapy(
                 patient_name=patient_name,
                 target_word=target_word,
                 therapy_mode=therapy_mode,
+                language=language,
                 audio_path=path,
                 sample_rate=None,
                 audio=None,

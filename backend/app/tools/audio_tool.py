@@ -24,8 +24,9 @@ except Exception as e:
 # SAVE AUDIO
 # ---------------------------------------------------
 def save_audio(file: UploadFile) -> str:
-    print("Filename:", file.filename)
-    print("Content-Type:", file.content_type)
+    print("📁 Filename:", file.filename)
+    print("📋 Content-Type:", file.content_type)
+    print("📊 File size:", file.file.getbuffer().nbytes if hasattr(file.file, 'getbuffer') else "unknown")
 
     ext = os.path.splitext(file.filename)[1]
     if not ext:
@@ -39,7 +40,8 @@ def save_audio(file: UploadFile) -> str:
     with open(path, "wb") as f:
         f.write(file.file.read())
 
-    print("Saved as:", path)
+    print("💾 Saved as:", path)
+    print("📏 Saved file size:", os.path.getsize(path), "bytes")
     return path
 
 
@@ -50,7 +52,10 @@ def load_audio(
     path: str,
     sr: int = 16000
 ) -> Tuple[np.ndarray, int]:
-    return librosa.load(path, sr=sr)
+    print("🔊 Loading audio from:", path, "with sample rate:", sr)
+    y, loaded_sr = librosa.load(path, sr=sr)
+    print("📊 Loaded audio shape:", y.shape, "actual sample rate:", loaded_sr)
+    return y, loaded_sr
 
 
 # ---------------------------------------------------
