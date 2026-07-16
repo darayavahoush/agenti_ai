@@ -68,7 +68,7 @@ export default function PatientDetail() {
     <div className="min-h-screen bg-brand-dark">
       {/* Nav */}
       <nav className="border-b border-white/10 px-6 py-4 flex items-center gap-4 sticky top-0 bg-brand-dark/95 backdrop-blur z-10">
-        <button onClick={() => navigate('/therapist/dashboard')}
+        <button onClick={() => navigate('/breathquest/therapist/dashboard')}
                 className="text-white/40 hover:text-white text-sm transition-colors">← Dashboard</button>
         <span className="text-white/20">/</span>
         <span className="text-white font-semibold">{data.first_name}</span>

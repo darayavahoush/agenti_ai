@@ -191,7 +191,7 @@ export default function GamePage() {
     <div className="min-h-screen flex flex-col bg-brand-dark">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
-        <button onClick={() => { cleanup(); navigate('/play/levels') }}
+        <button onClick={() => { cleanup(); navigate('/breathquest/play/levels') }}
                 className="text-white/40 hover:text-white/70 text-sm transition-colors">
           ← Levels
         </button>
@@ -226,7 +226,7 @@ export default function GamePage() {
                 <div className="mt-6 text-center">
                   <div className="text-5xl mb-3">🔒</div>
                   <p className="text-white/50">Complete the previous level first!</p>
-                  <button onClick={() => navigate('/play/levels')}
+                  <button onClick={() => navigate('/breathquest/play/levels')}
                     className="mt-4 px-6 py-2 rounded-xl border border-white/20 text-white/60 hover:bg-white/10 text-sm">
                     Back to levels
                   </button>
@@ -322,13 +322,13 @@ export default function GamePage() {
                   Play Again
                 </button>
                 {nextId && (
-                  <button onClick={() => { cleanup(); navigate(`/play/game/${nextId}`) }}
+                  <button onClick={() => { cleanup(); navigate(`/breathquest/play/game/${nextId}`) }}
                     className="px-8 py-3 rounded-xl font-display font-black text-brand-dark transition-all active:scale-95 text-sm"
                     style={{ background: meta.color }}>
                     Next Level →
                   </button>
                 )}
-                <button onClick={() => { cleanup(); navigate('/play/levels') }}
+                <button onClick={() => { cleanup(); navigate('/breathquest/play/levels') }}
                   className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition-all font-semibold text-sm">
                   All Levels
                 </button>
