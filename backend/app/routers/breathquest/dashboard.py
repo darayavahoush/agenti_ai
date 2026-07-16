@@ -72,15 +72,16 @@ def get_dashboard_summary(
             func.max(SessionModel.created_at).label("last"),
         ).filter(SessionModel.patient_id == p.id).first()
         
-        # Map old patient fields to expected schema
+        # Map patient fields to expected schema
+        # Use new fields if available, fall back to legacy fields
         patient_details.append(PatientDetailOut(
             id=str(p.id),
             first_name=p.name,
-            avatar="chick",  # Default avatar
+            avatar="chick",  # Default avatar (could use photo_data in future)
             age=p.age,
             is_active=p.is_active,
             created_at=p.created_at,
-            diagnosis_notes=p.diagnosis,
+            diagnosis_notes=p.diagnosis_details or p.diagnosis,  # Use new field first
             total_sessions=stats.total or 0,
             total_stars=int(stats.stars or 0),
             last_session_at=stats.last,
