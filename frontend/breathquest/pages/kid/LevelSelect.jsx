@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/BreathQuestAuth'
-import { Avatar } from '../../components/BreathQuestUI'
+import { useAuth } from '../../context/AuthContext'
+import { Avatar } from '../../components/ui'
 import { loadScores, isUnlocked, LEVEL_ORDER, DIFFICULTY } from '../../game/scoring/index.js'
 
 const LEVELS = [
@@ -76,7 +76,7 @@ export default function LevelSelect() {
 
             return (
               <button key={level.id}
-                onClick={() => unlocked && navigate(`/breathquest/play/game/${level.id}`)}
+                onClick={() => unlocked && navigate(`/play/game/${level.id}`)}
                 onMouseEnter={() => setHovering(level.id)}
                 onMouseLeave={() => setHovering(null)}
                 disabled={!unlocked}

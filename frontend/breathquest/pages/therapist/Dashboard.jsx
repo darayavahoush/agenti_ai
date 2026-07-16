@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/BreathQuestAuth'
-import { dashboardAPI, patientsAPI } from '../../api/breathquestClient'
-import { Button, Card, Badge, Avatar, StarRating, Spinner, PageLoader } from '../../components/BreathQuestUI'
-import AddPatientModal from '../../components/BreathQuestUI/therapist/AddPatientModal'
+import { useAuth } from '../../context/AuthContext'
+import { dashboardAPI, patientsAPI } from '../../api/client'
+import { Button, Card, Badge, Avatar, StarRating, Spinner, PageLoader } from '../../components/ui'
+import AddPatientModal from '../../components/therapist/AddPatientModal'
 
 export default function TherapistDashboard() {
   const { therapist, logout } = useAuth()
@@ -96,7 +96,7 @@ export default function TherapistDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {patients.map(p => (
               <PatientCard key={p.id} patient={p}
-                           onClick={() => navigate(`/breathquest/therapist/patients/${p.id}`)} />
+                           onClick={() => navigate(`/therapist/patients/${p.id}`)} />
             ))}
           </div>
         )}

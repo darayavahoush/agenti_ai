@@ -27,4 +27,4 @@ audio_files/
 .vscode/
 
 # External repositories
-breathquest/
+backend/breathquest/
