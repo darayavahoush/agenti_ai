@@ -7,10 +7,13 @@ import Patients from "./pages/Patients";
 import Assessment from "./pages/assessment";
 
 // BreathQuest pages
-import BreathQuestLandingNew from "./pages/BreathQuestLandingNew";
-import BreathQuestKidPlay from "./pages/BreathQuestKidPlay";
-import BreathQuestLevelSelect from "./pages/BreathQuestLevelSelect";
-import BreathQuestGamePage from "./pages/BreathQuestGamePage";
+import BreathQuestLanding from "./pages/BreathQuestLanding";
+import BreathQuestKidPlay from "./pages/kid/Play";
+import BreathQuestLevelSelect from "./pages/kid/LevelSelect";
+import BreathQuestGamePage from "./pages/kid/GamePage";
+import BreathQuestTherapistLogin from "./pages/therapist/Login";
+import BreathQuestTherapistDashboard from "./pages/therapist/Dashboard";
+import BreathQuestPatientDetail from "./pages/therapist/PatientDetail";
 
 import { BreathQuestAuthProvider } from "./context/BreathQuestAuth";
 
@@ -55,10 +58,13 @@ export default function App() {
           <Route path="/*" element={<AppContent />} />
           
           {/* BreathQuest routes */}
-          <Route path="/breathquest" element={<BreathQuestLandingNew />} />
+          <Route path="/breathquest" element={<BreathQuestLanding />} />
           <Route path="/breathquest/play" element={<BreathQuestKidPlay />} />
           <Route path="/breathquest/play/levels" element={<BreathQuestLevelSelect />} />
           <Route path="/breathquest/play/game/:levelId" element={<BreathQuestGamePage />} />
+          <Route path="/breathquest/therapist/login" element={<BreathQuestTherapistLogin />} />
+          <Route path="/breathquest/therapist/dashboard" element={<BreathQuestTherapistDashboard />} />
+          <Route path="/breathquest/therapist/patients/:id" element={<BreathQuestPatientDetail />} />
         </Routes>
       </BreathQuestAuthProvider>
     </BrowserRouter>

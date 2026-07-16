@@ -3,7 +3,7 @@ import { authAPI } from '../api/breathquestClient'
 
 const AuthContext = createContext(null)
 
-export function BreathQuestAuthProvider({ children }) {
+export function AuthProvider({ children }) {
   const [therapist, setTherapist] = useState(null)
   const [patient,   setPatient]   = useState(null)
   const [loading,   setLoading]   = useState(true)
@@ -76,4 +76,4 @@ export function BreathQuestAuthProvider({ children }) {
   )
 }
 
-export const useBreathQuestAuth = () => useContext(AuthContext)
+export const useAuth = () => useContext(AuthContext)

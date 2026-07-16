@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { sessionsAPI } from '../../api/client'
+import { sessionsAPI } from '../../api/breathquestClient'
 import { BreathEngine } from '../../game/engine/BreathEngine.js'
 import { LEVEL_FACTORIES, LEVEL_META } from '../../game/index.js'
 import { calcStars, saveScore, loadScores, isUnlocked, LEVEL_ORDER } from '../../game/scoring/index.js'
@@ -20,6 +20,7 @@ export default function GamePage() {
   const breathLog   = useRef([])
   const eventBatch  = useRef([])
   const flushTimer  = useRef(null)
+  const flushingRef = useRef(false)
   const lastTime    = useRef(null)
   const metricsRef  = useRef({ timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 })
   const startTime   = useRef(null)
@@ -31,6 +32,7 @@ export default function GamePage() {
   const [earnedStars, setEarnedStars] = useState(0)
   const [starAnim,    setStarAnim]    = useState(0)
   const [debug,       setDebug]       = useState({ raw: 0, floor: 0, above: 0, breath: 0 })
+  const [logStatus,   setLogStatus]   = useState('Waiting for gameplay')
 
   // Check unlock
   const scores   = loadScores()
@@ -42,7 +44,10 @@ export default function GamePage() {
     try {
       const { data } = await sessionsAPI.start({ level_id: levelId })
       sessionRef.current = data.id
-    } catch {}
+      setLogStatus('Session logging connected')
+    } catch {
+      setLogStatus('Session logging unavailable')
+    }
 
     const engine = new BreathEngine()
     engineRef.current = engine
@@ -145,9 +150,19 @@ export default function GamePage() {
   }, [levelId])
 
   const flushEvents = async () => {
-    const batch = eventBatch.current.splice(0)
-    if (batch.length && sessionRef.current) {
-      try { await sessionsAPI.logEvents(sessionRef.current, batch) } catch {}
+    if (flushingRef.current || !eventBatch.current.length || !sessionRef.current) return
+
+    flushingRef.current = true
+    const batch = eventBatch.current.slice()
+    try {
+      await sessionsAPI.logEvents(sessionRef.current, batch)
+      eventBatch.current.splice(0, batch.length)
+      setLogStatus(`Live logs synced (${breathLog.current.length} samples)`)
+    } catch {
+      // Keep the batch for the next attempt instead of losing live breath data.
+      setLogStatus('Log sync retrying?')
+    } finally {
+      flushingRef.current = false
     }
   }
 
@@ -161,7 +176,7 @@ export default function GamePage() {
     cleanup()
     breathLog.current = []; eventBatch.current = []
     metricsRef.current = { timeSeconds:0, mistakes:0, targetHits:0, puffs:0, progress:0 }
-    setPhase('ready'); setResult(null); setBreathVal(0); setStarAnim(0)
+    setPhase('ready'); setResult(null); setBreathVal(0); setStarAnim(0); setLogStatus('Waiting for gameplay')
   }
 
   useEffect(() => () => cleanup(), [])
@@ -176,7 +191,7 @@ export default function GamePage() {
     <div className="min-h-screen flex flex-col bg-brand-dark">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
-        <button onClick={() => { cleanup(); navigate('/play/levels') }}
+        <button onClick={() => { cleanup(); navigate('/breathquest/play/levels') }}
                 className="text-white/40 hover:text-white/70 text-sm transition-colors">
           ← Levels
         </button>
@@ -211,7 +226,7 @@ export default function GamePage() {
                 <div className="mt-6 text-center">
                   <div className="text-5xl mb-3">🔒</div>
                   <p className="text-white/50">Complete the previous level first!</p>
-                  <button onClick={() => navigate('/play/levels')}
+                  <button onClick={() => navigate('/breathquest/play/levels')}
                     className="mt-4 px-6 py-2 rounded-xl border border-white/20 text-white/60 hover:bg-white/10 text-sm">
                     Back to levels
                   </button>
@@ -307,13 +322,13 @@ export default function GamePage() {
                   Play Again
                 </button>
                 {nextId && (
-                  <button onClick={() => { cleanup(); navigate(`/play/game/${nextId}`) }}
+                  <button onClick={() => { cleanup(); navigate(`/breathquest/play/game/${nextId}`) }}
                     className="px-8 py-3 rounded-xl font-display font-black text-brand-dark transition-all active:scale-95 text-sm"
                     style={{ background: meta.color }}>
                     Next Level →
                   </button>
                 )}
-                <button onClick={() => { cleanup(); navigate('/play/levels') }}
+                <button onClick={() => { cleanup(); navigate('/breathquest/play/levels') }}
                   className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition-all font-semibold text-sm">
                   All Levels
                 </button>
@@ -338,7 +353,8 @@ export default function GamePage() {
 
           {/* Debug panel */}
           {phase === 'playing' && (
-            <div className="mt-2 bg-black/50 border border-white/10 rounded-xl p-2.5 font-mono text-xs flex gap-4 flex-wrap">
+            <div className="absolute bottom-3 left-3 right-3 bg-black/75 border border-white/10 rounded-xl p-2.5 font-mono text-xs flex gap-4 flex-wrap shadow-lg">
+              <span className="w-full text-white/70">Logs: {logStatus}</span>
               <span>🎤 Raw:<span className={debug.raw > debug.floor ? ' text-green-400' : ' text-red-400'}> {debug.raw}</span></span>
               <span>〰 Base:<span className="text-yellow-400"> {debug.floor}</span></span>
               <span>📊 Above:<span className={debug.above > 0.028 ? ' text-green-400' : ' text-white/30'}> {debug.above}</span></span>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { Button, Input, Card } from '../../components/ui'
+import { useAuth } from '../../context/BreathQuestAuth'
+import { Button, Input, Card } from '../../components/BreathQuestUI'
 
 export default function TherapistLogin() {
   const [mode, setMode]     = useState('login')   // 'login' | 'register'
@@ -23,7 +23,7 @@ export default function TherapistLogin() {
       } else {
         await registerTherapist(form)
       }
-      navigate('/therapist/dashboard')
+      navigate('/breathquest/therapist/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Something went wrong')
     } finally {
@@ -36,7 +36,7 @@ export default function TherapistLogin() {
          style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a3a2a 0%, #12122A 60%)' }}>
 
       <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2 text-white/40 hover:text-white/70
+        <Link to="/breathquest" className="flex items-center gap-2 text-white/40 hover:text-white/70
                                 transition-colors mb-8 text-sm">
           ← Back
         </Link>

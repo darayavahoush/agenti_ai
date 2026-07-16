@@ -25,3 +25,6 @@ audio_files/
 
 # VS Code
 .vscode/
+
+# External repositories
+breathquest/

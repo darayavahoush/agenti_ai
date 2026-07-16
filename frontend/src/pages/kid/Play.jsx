@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { Button } from '../../components/ui'
+import { useAuth } from '../../context/BreathQuestAuth'
+import { Button } from '../../components/BreathQuestUI'
 
 const AVATARS = ['chick', 'dragon', 'cloud', 'star', 'rocket', 'fish']
 const AVATAR_EMOJIS = { chick:'🐥', dragon:'🐉', cloud:'☁️', star:'⭐', rocket:'🚀', fish:'🐠' }
@@ -42,7 +42,7 @@ export default function KidPlay() {
     setError(''); setLoading(true)
     try {
       await loginKid(playerCode.trim().toUpperCase(), pin)
-      navigate('/play/levels')
+      navigate('/breathquest/play/levels')
     } catch {
       setError('Wrong code or PIN — try again!')
       setPin('')
@@ -54,7 +54,7 @@ export default function KidPlay() {
   // ---- Show player code after register ----
   if (registered) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+      <div className="h-[100dvh] overflow-hidden flex flex-col items-center justify-center p-3 sm:p-6 text-center"
            style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a3a2a 0%, #12122A 60%)' }}>
         <div className="text-7xl mb-4 animate-bounce">{AVATAR_EMOJIS[avatar]}</div>
         <h1 className="font-display text-4xl font-black text-white mb-2">You're in! 🎉</h1>
@@ -70,15 +70,15 @@ export default function KidPlay() {
           </p>
         </div>
         <p className="text-white/30 text-xs mb-8">Show this to your therapist too!</p>
-        <Button size="lg" onClick={() => navigate('/play/levels')}>Let's Play! 🚀</Button>
+        <Button size="lg" onClick={() => navigate('/breathquest/play/levels')}>Let's Play! 🚀</Button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6"
+    <div className="h-[100dvh] overflow-hidden flex flex-col items-center justify-center p-3 sm:p-6"
          style={{ background: 'radial-gradient(ellipse at 50% 0%, #2a1a4a 0%, #12122A 60%)' }}>
-      <Link to="/" className="absolute top-6 left-6 text-white/30 hover:text-white/60 text-sm">← Back</Link>
+      <Link to="/breathquest" className="absolute top-6 left-6 text-white/30 hover:text-white/60 text-sm">← Back</Link>
 
       {/* Mode chooser */}
       {mode === 'choose' && (
