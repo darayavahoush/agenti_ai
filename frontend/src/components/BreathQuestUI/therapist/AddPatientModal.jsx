@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { patientsAPI } from '../../api/breathquestClient'
+import { patientsAPI } from '../../../api/breathquestClient'
 import { Button, Input, Avatar } from '../index'
 
 const AVATARS = ['chick', 'dragon', 'cloud', 'star', 'rocket', 'fish']

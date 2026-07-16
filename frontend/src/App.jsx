@@ -54,9 +54,6 @@ export default function App() {
     <BrowserRouter>
       <BreathQuestAuthProvider>
         <Routes>
-          {/* Main VaakSuddhi routes */}
-          <Route path="/*" element={<AppContent />} />
-          
           {/* BreathQuest routes */}
           <Route path="/breathquest" element={<BreathQuestLanding />} />
           <Route path="/breathquest/play" element={<BreathQuestKidPlay />} />
@@ -65,6 +62,9 @@ export default function App() {
           <Route path="/breathquest/therapist/login" element={<BreathQuestTherapistLogin />} />
           <Route path="/breathquest/therapist/dashboard" element={<BreathQuestTherapistDashboard />} />
           <Route path="/breathquest/therapist/patients/:id" element={<BreathQuestPatientDetail />} />
+          
+          {/* Main VaakSuddhi routes */}
+          <Route path="/*" element={<AppContent />} />
         </Routes>
       </BreathQuestAuthProvider>
     </BrowserRouter>

@@ -1,11 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 
-export default function Landing() {
+export default function BreathQuestLanding() {
   const navigate = useNavigate()
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"
-         style={{ background: 'radial-gradient(ellipse at 50% 0%, #1D3A6A 0%, #12122A 60%)' }}>
+         style={{ 
+           background: 'radial-gradient(ellipse at 50% 0%, #1D3A6A 0%, #12122A 60%)',
+           color: 'white',
+           fontFamily: 'Inter, sans-serif'
+         }}>
 
       {/* Floating orbs */}
       <div className="absolute top-20 left-20 w-64 h-64 bg-brand-green/10 rounded-full blur-3xl pointer-events-none" />
