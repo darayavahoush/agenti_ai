@@ -33,6 +33,17 @@ body.breathquest {
   color: white !important;
 }
 
+/* Ensure BreathQuest routes take full viewport */
+body.breathquest #root {
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+body.breathquest .app {
+  display: none !important;
+}
+
 #root {
   width: 100%;
   min-height: 100vh;

@@ -12,6 +12,11 @@ export default function GamePage() {
   const navigate    = useNavigate()
   const meta        = LEVEL_META[levelId]
 
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
+
   const canvasRef   = useRef(null)
   const engineRef   = useRef(null)
   const levelRef    = useRef(null)

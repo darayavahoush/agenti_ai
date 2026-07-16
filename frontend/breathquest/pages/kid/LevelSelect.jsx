@@ -28,6 +28,11 @@ export default function LevelSelect() {
   const [scores, setScores] = useState({})
   const [hovering, setHovering] = useState(null)
 
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
+
   useEffect(() => { setScores(loadScores()) }, [])
 
   const totalStars = LEVEL_ORDER.reduce((sum, id) => sum + (scores[id]?.stars || 0), 0)
