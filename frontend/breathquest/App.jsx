@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { PageLoader } from './components/ui'
 
@@ -53,18 +53,14 @@ function AppRoutes() {
       <Route path="/play/game/:levelId" element={
         <ProtectedKid><GamePage /></ProtectedKid>
       } />
-
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }
