@@ -4,13 +4,15 @@ export default function BreathQuestLanding() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 overflow-hidden"
+    <div className="min-h-screen flex flex-col items-center justify-center p-6"
          style={{ 
            background: 'radial-gradient(ellipse at 50% 0%, #1D3A6A 0%, #12122A 60%)',
            color: 'white',
            fontFamily: 'Inter, sans-serif',
-           width: '100vw',
-           maxWidth: '100%'
+           width: '100%',
+           maxWidth: '100vw',
+           overflowX: 'hidden',
+           position: 'relative'
          }}>
 
       {/* Floating orbs */}
