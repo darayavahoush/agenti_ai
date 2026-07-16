@@ -22,6 +22,26 @@ import Sidebar from "./components/Sidebar";
 
 import "./App.css";
 
+// Wrapper to completely isolate BreathQuest pages from main app styles
+function BreathQuestLayout({ children }) {
+  return (
+    <div style={{
+      width: '100vw',
+      maxWidth: '100vw',
+      overflowX: 'hidden',
+      margin: 0,
+      padding: 0,
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0
+    }}>
+      {children}
+    </div>
+  );
+}
+
 // Wrapper component to handle page state for non-BreathQuest routes
 function AppContent() {
   const [page, setPage] = useState("landing");
@@ -55,39 +75,53 @@ export default function App() {
       <Routes>
         {/* BreathQuest routes - completely separate from main app */}
         <Route path="/breathquest" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestLanding />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestLanding />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         <Route path="/breathquest/play" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestKidPlay />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestKidPlay />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         <Route path="/breathquest/play/levels" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestLevelSelect />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestLevelSelect />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         <Route path="/breathquest/play/game/:levelId" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestGamePage />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestGamePage />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         <Route path="/breathquest/therapist/login" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestTherapistLogin />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestTherapistLogin />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         <Route path="/breathquest/therapist/dashboard" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestTherapistDashboard />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestTherapistDashboard />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         <Route path="/breathquest/therapist/patients/:id" element={
-          <BreathQuestAuthProvider>
-            <BreathQuestPatientDetail />
-          </BreathQuestAuthProvider>
+          <BreathQuestLayout>
+            <BreathQuestAuthProvider>
+              <BreathQuestPatientDetail />
+            </BreathQuestAuthProvider>
+          </BreathQuestLayout>
         } />
         
         {/* Main VaakSuddhi routes */}
