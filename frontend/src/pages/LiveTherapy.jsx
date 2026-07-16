@@ -10,12 +10,24 @@ const cardStyle = {
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
+const INDIAN_LANGUAGES = [
+  { code: "en-IN", name: "English (India)", voiceLang: "en-IN" },
+  { code: "hi-IN", name: "Hindi", voiceLang: "hi-IN" },
+  { code: "te-IN", name: "Telugu", voiceLang: "te-IN" },
+  { code: "kn-IN", name: "Kannada", voiceLang: "kn-IN" },
+  { code: "ta-IN", name: "Tamil", voiceLang: "ta-IN" },
+  { code: "ml-IN", name: "Malayalam", voiceLang: "ml-IN" },
+  { code: "bn-IN", name: "Bengali", voiceLang: "bn-IN" },
+  { code: "mr-IN", name: "Marathi", voiceLang: "mr-IN" },
+];
+
 export default function LiveTherapy({ setPage }) {
   const navigate = useNavigate();
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("");
   const [word, setWord] = useState("");
   const [therapyMode, setTherapyMode] = useState("Full Word Match");
+  const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
   const [recording, setRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -96,6 +108,9 @@ export default function LiveTherapy({ setPage }) {
       }
       formData.append("target_word", trimmedWord);
       formData.append("therapy_mode", therapyMode);
+      // Add language parameter
+      const langCode = selectedLanguage.split('-')[0];
+      formData.append("language", langCode);
 
       const response = await fetch(`${API_URL}/speech/therapy`, {
         method: "POST",
@@ -305,6 +320,38 @@ export default function LiveTherapy({ setPage }) {
                 background: "#fff",
               }}
             />
+          </section>
+
+          <section
+            style={{
+              ...cardStyle,
+              background: "linear-gradient(90deg, #fffaf0 0%, #fff7ff 100%)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+              <span style={{ fontSize: "22px" }}>🌐</span>
+              <h2 style={{ margin: 0, color: "#7c3aed" }}>Language</h2>
+            </div>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "12px",
+                border: "2px solid #ddd6fe",
+                fontSize: "16px",
+                outline: "none",
+                background: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              {INDIAN_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
           </section>
 
           <section

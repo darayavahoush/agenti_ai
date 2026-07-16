@@ -14,6 +14,7 @@ class AssessmentState(TypedDict):
     patient_name: str
     age: Optional[int]
     target_word: str
+    language: Optional[str]
 
     # -------------------------
     # Audio & Speech

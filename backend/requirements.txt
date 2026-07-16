@@ -44,3 +44,6 @@ sentence-transformers
 ddgs
 coqui-tts
 transformers<5
+
+vosk
+pyaudio
