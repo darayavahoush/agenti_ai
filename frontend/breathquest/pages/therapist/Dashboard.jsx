@@ -96,7 +96,7 @@ export default function TherapistDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {patients.map(p => (
               <PatientCard key={p.id} patient={p}
-                           onClick={() => navigate(`/therapist/patients/${p.id}`)} />
+                           onClick={() => navigate(`/breathquest/therapist/patients/${p.id}`)} />
             ))}
           </div>
         )}

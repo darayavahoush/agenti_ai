@@ -25,7 +25,7 @@ export default function Landing() {
 
         {/* Kid portal */}
         <button
-          onClick={() => navigate('/play')}
+          onClick={() => navigate('/breathquest/play')}
           className="flex-1 group relative overflow-hidden rounded-3xl p-8 text-center
                      bg-gradient-to-br from-brand-amber/20 to-brand-coral/20
                      border-2 border-brand-amber/30 hover:border-brand-amber/60
@@ -41,7 +41,7 @@ export default function Landing() {
 
         {/* Therapist portal */}
         <button
-          onClick={() => navigate('/therapist/login')}
+          onClick={() => navigate('/breathquest/therapist/login')}
           className="flex-1 group relative overflow-hidden rounded-3xl p-8 text-center
                      bg-gradient-to-br from-brand-green/20 to-brand-teal/20
                      border-2 border-brand-green/30 hover:border-brand-green/60

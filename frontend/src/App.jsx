@@ -6,8 +6,16 @@ import LiveTherapy from "./pages/LiveTherapy";
 import Patients from "./pages/Patients";
 import Assessment from "./pages/assessment";
 
-// BreathQuest App - completely isolated
-import BreathQuestApp from "../breathquest/App";
+// BreathQuest pages
+import BreathQuestLanding from "../breathquest/pages/Landing";
+import BreathQuestKidPlay from "../breathquest/pages/kid/Play";
+import BreathQuestLevelSelect from "../breathquest/pages/kid/LevelSelect";
+import BreathQuestGamePage from "../breathquest/pages/kid/GamePage";
+import BreathQuestTherapistLogin from "../breathquest/pages/therapist/Login";
+import BreathQuestTherapistDashboard from "../breathquest/pages/therapist/Dashboard";
+import BreathQuestPatientDetail from "../breathquest/pages/therapist/PatientDetail";
+
+import { BreathQuestAuthProvider } from "../breathquest/context/AuthContext";
 
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";
@@ -22,20 +30,23 @@ function AppContent() {
   // Check if current route is a BreathQuest route
   const isBreathQuestRoute = location.pathname.startsWith('/breathquest');
 
+  // Return null for BreathQuest routes to let them take full viewport
+  if (isBreathQuestRoute) {
+    return null;
+  }
+
   return (
     <div className="app">
-      {!isBreathQuestRoute && page !== "landing" && <Sidebar setPage={setPage} page={page} />}
+      {page !== "landing" && <Sidebar setPage={setPage} page={page} />}
 
       <div className="content">
-        {!isBreathQuestRoute && (
-          <>
-            {page === "landing" && <Landing onStart={() => setPage("therapy")} />}
-            {page === "dashboard" && <Dashboard />}
-            {page === "therapy" && <LiveTherapy setPage={setPage} />}
-            {page === "patients" && <Patients />}
-            {page === "assessment" && <Assessment />}
-          </>
-        )}
+        <>
+          {page === "landing" && <Landing onStart={() => setPage("therapy")} />}
+          {page === "dashboard" && <Dashboard />}
+          {page === "therapy" && <LiveTherapy setPage={setPage} />}
+          {page === "patients" && <Patients />}
+          {page === "assessment" && <Assessment />}
+        </>
       </div>
     </div>
   );
@@ -45,11 +56,45 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* BreathQuest routes */}
+        <Route path="/breathquest" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestLanding />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/play" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestKidPlay />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/play/levels" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestLevelSelect />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/play/game/:levelId" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestGamePage />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/therapist/login" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestTherapistLogin />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/therapist/dashboard" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestTherapistDashboard />
+          </BreathQuestAuthProvider>
+        } />
+        <Route path="/breathquest/therapist/patients/:id" element={
+          <BreathQuestAuthProvider>
+            <BreathQuestPatientDetail />
+          </BreathQuestAuthProvider>
+        } />
+        
         {/* Main VaakSuddhi routes */}
         <Route path="/*" element={<AppContent />} />
-        
-        {/* BreathQuest route - completely isolated app */}
-        <Route path="/breathquest/*" element={<BreathQuestApp />} />
       </Routes>
     </BrowserRouter>
   );
