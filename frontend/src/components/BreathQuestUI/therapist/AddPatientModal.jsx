@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { patientsAPI } from '../../api/client'
-import { Button, Input, Avatar } from '../ui'
+import { patientsAPI } from '../../api/breathquestClient'
+import { Button, Input, Avatar } from '../index'
 
 const AVATARS = ['chick', 'dragon', 'cloud', 'star', 'rocket', 'fish']
 const AVATAR_EMOJIS = { chick:'🐥', dragon:'🐉', cloud:'☁️', star:'⭐', rocket:'🚀', fish:'🐠' }

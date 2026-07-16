@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1/breathquest'
+const BASE_URL = import.meta.env.VITE_BREATHQUEST_API_URL || 'http://localhost:8000/api/v1'
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -14,8 +14,8 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// ------------------------------------------------------------------ #
-//  Auth                                                                #
+// ------------------------------------------------------------------ //
+//  Auth                                                                //
 // ------------------------------------------------------------------ //
 
 export const authAPI = {
@@ -25,8 +25,8 @@ export const authAPI = {
   kidLogin:    (data) => api.post('/auth/kid-login', data),
 }
 
-// ------------------------------------------------------------------ #
-//  Patients                                                            #
+// ------------------------------------------------------------------ //
+//  Patients                                                            //
 // ------------------------------------------------------------------ //
 
 export const patientsAPI = {
@@ -37,7 +37,7 @@ export const patientsAPI = {
   delete: (id)         => api.delete(`/patients/${id}`),
 }
 
-// ------------------------------------------------------------------ #
+// ------------------------------------------------------------------ //
 //  Sessions                                                            //
 // ------------------------------------------------------------------ //
 
@@ -48,8 +48,8 @@ export const sessionsAPI = {
   get:       (id)                => api.get(`/sessions/${id}`),
 }
 
-// ------------------------------------------------------------------ #
-//  Dashboard                                                           #
+// ------------------------------------------------------------------ //
+//  Dashboard                                                           //
 // ------------------------------------------------------------------ //
 
 export const dashboardAPI = {
