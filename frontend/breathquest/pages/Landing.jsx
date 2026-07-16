@@ -1,7 +1,13 @@
 import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 
 export default function Landing() {
   const navigate = useNavigate()
+
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"

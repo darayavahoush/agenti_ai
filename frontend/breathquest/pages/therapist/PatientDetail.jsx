@@ -16,6 +16,11 @@ export default function PatientDetail() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab]         = useState('progress')   // progress | sessions | notes
+
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
   const [noteText, setNoteText] = useState('')
   const [notes, setNotes]       = useState([])
   const [savingNote, setSavingNote] = useState(false)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { Button } from '../../components/ui'
@@ -18,6 +18,11 @@ export default function KidPlay() {
   const [registered, setRegistered] = useState(null)  // {player_code, first_name}
   const { loginKid, registerKid } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
 
   const handlePin = (digit) => { if (pin.length < 4) setPin(p => p + digit) }
   const deletePin = () => setPin(p => p.slice(0, -1))

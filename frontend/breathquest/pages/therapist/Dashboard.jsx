@@ -13,6 +13,11 @@ export default function TherapistDashboard() {
   const [showAdd, setShowAdd]       = useState(false)
   const [search,  setSearch]        = useState('')
 
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
+
   const load = async () => {
     try {
       const { data } = await dashboardAPI.summary()

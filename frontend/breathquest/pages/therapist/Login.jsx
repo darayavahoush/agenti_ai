@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { Button, Input, Card } from '../../components/ui'
@@ -10,6 +10,11 @@ export default function TherapistLogin() {
   const [loading, setLoading] = useState(false)
   const { loginTherapist, registerTherapist } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    document.body.classList.add('breathquest')
+    return () => document.body.classList.remove('breathquest')
+  }, [])
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
