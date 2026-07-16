@@ -1,37 +1,32 @@
-import os
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func
+from pydantic import BaseModel
+from typing import Optional
+from uuid import UUID
+import os
+from pathlib import Path
 
-from app.database import Base, engine
+from app.database import Base, engine, SessionLocal
+from app.models.patient import Patient
+from app.models.session import Session as SessionModel
+from app.models.assessment_word import AssessmentWord
 
-# Auto-setup Vosk models directory
-from app.tools.vosk_tool import setup_vosk_models_directory
-setup_vosk_models_directory()
+class PatientCreate(BaseModel):
+    name: str
+    age: Optional[int] = None
+    language: Optional[str] = None
+    gender: Optional[str] = None
+    diagnosis: Optional[str] = None
+    therapist_name: Optional[str] = None
+    parent_contact: Optional[str] = None
 
-# Routes
-from app.routes.patient import router as patient_router
-from app.routes.speech import router as speech_router
-from app.routes.assessment import router as assessment_router
-from app.routers.audio import router as audio_router
+class PatientLogin(BaseModel):
+    name: str
+    date_of_birth: str
 
-# BreathQuest routes
-from app.routers.breathquest.auth import router as breathquest_auth_router
-from app.routers.breathquest.patients import router as breathquest_patients_router
-from app.routers.breathquest.sessions import router as breathquest_sessions_router
-from app.routers.breathquest.dashboard import router as breathquest_dashboard_router
+app = FastAPI()
 
-# -----------------------------------
-# APP
-# -----------------------------------
-app = FastAPI(
-    title="VaakSuddhi AI Backend",
-    version="1.0.0"
-)
-
-# -----------------------------------
-# CORS
-# -----------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,87 +35,217 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------------
-# CREATE TABLES & RUN MIGRATIONS
-# -----------------------------------
+# Ensure assets/audio directory exists
+AUDIO_DIR = Path("assets/audio")
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
 Base.metadata.create_all(bind=engine)
 
-# Dynamically ensure database schema columns and seed translation entries
-from app.utils.db_setup import ensure_db_schema_and_translations
-ensure_db_schema_and_translations()
+@app.get("/")
+def home():
+    return {"message": "VaakSuddhi V1 Running"}
 
-
-def sync_local_images_to_db():
-    from app.database import SessionLocal
-    from app.models.assessment_word import AssessmentWord
-    from pathlib import Path
-    
+@app.get("/patients/dashboard/summary")
+def dashboard_summary():
     db = SessionLocal()
     try:
-        # Get all words already in database (lowercase to prevent duplicates)
-        existing_words = {w.word.lower().strip() for w in db.query(AssessmentWord).all()}
+        patients = db.query(Patient).all()
+        total_patients = len(patients)
+        total_sessions = db.query(func.count(SessionModel.id)).scalar() or 0
+        avg_accuracy = db.query(func.avg(SessionModel.accuracy)).scalar()
         
-        # Path to local downloaded images folder
-        DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "images"
-        
-        if DATA_DIR.exists():
-            imported_count = 0
-            for path in DATA_DIR.iterdir():
-                if path.is_file() and path.suffix.lower() in [".png", ".jpg", ".jpeg", ".webp"]:
-                    filename_stem = path.stem.strip()
-                    word_key = filename_stem.lower().strip()
-                    
-                    # Skip config index files, system indicators, or CV2 text fallbacks
-                    if word_key in ["index", "string", "placeholder"] or word_key.endswith("_text"):
-                        continue
-                    
-                    if word_key not in existing_words:
-                        new_word = AssessmentWord(
-                            word=filename_stem, # Retain original name casing (e.g. "Zebra")
-                            display_order=0,
-                            is_active=True
-                        )
-                        db.add(new_word)
-                        existing_words.add(word_key)
-                        imported_count += 1
-                        
-            if imported_count > 0:
-                db.commit()
-                print(f"ðŸŽ‰ Automatically imported {imported_count} pre-downloaded words into the database!")
-    except Exception as e:
-        print(f"âš ï¸ Error during local image auto-sync: {e}")
+        return {
+            "total_patients": total_patients,
+            "total_sessions": total_sessions,
+            "avg_accuracy": round(float(avg_accuracy), 2) if avg_accuracy else None,
+            "patients": []
+        }
     finally:
         db.close()
 
-sync_local_images_to_db()
+@app.get("/patients/")
+def get_all_patients():
+    db = SessionLocal()
+    try:
+        patients = db.query(Patient).all()
+        return [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "age": p.age,
+                "language": p.language,
+                "gender": p.gender,
+                "diagnosis": p.diagnosis,
+                "therapist_name": p.therapist_name,
+                "parent_contact": p.parent_contact,
+                "is_active": p.is_active,
+                "created_at": p.created_at
+            }
+            for p in patients
+        ]
+    finally:
+        db.close()
+
+@app.post("/patients/")
+def create_patient(data: PatientCreate):
+    db = SessionLocal()
+    try:
+        patient = Patient(
+            name=data.name,
+            age=data.age,
+            language=data.language,
+            gender=data.gender,
+            diagnosis=data.diagnosis,
+            therapist_name=data.therapist_name,
+            parent_contact=data.parent_contact
+        )
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+        return {
+            "id": str(patient.id),
+            "name": patient.name,
+            "age": patient.age,
+            "language": patient.language,
+            "gender": patient.gender,
+            "diagnosis": patient.diagnosis,
+            "therapist_name": patient.therapist_name,
+            "parent_contact": patient.parent_contact,
+            "is_active": patient.is_active,
+            "created_at": patient.created_at
+        }
+    finally:
+        db.close()
+
+@app.post("/patients/login")
+def login_patient(data: PatientLogin):
+    db = SessionLocal()
+    try:
+        # Search for patient by name and date of birth
+        # Since we don't have date_of_birth in the model, we'll search by name only
+        # and return the first matching patient
+        patient = db.query(Patient).filter(Patient.name == data.name).first()
+        
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        return {
+            "id": str(patient.id),
+            "name": patient.name,
+            "age": patient.age,
+            "language": patient.language,
+            "gender": patient.gender,
+            "diagnosis": patient.diagnosis,
+            "therapist_name": patient.therapist_name,
+            "parent_contact": patient.parent_contact,
+            "is_active": patient.is_active,
+            "created_at": patient.created_at
+        }
+    finally:
+        db.close()
+
+@app.get("/patients/sessions/all")
+def get_all_sessions():
+    db = SessionLocal()
+    try:
+        sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
+        return [
+            {
+                "id": str(s.id),
+                "patient_id": str(s.patient_id),
+                "target_word": s.target_word,
+                "spoken_word": s.spoken_word,
+                "accuracy": s.accuracy,
+                "feedback": s.feedback,
+                "stars": s.stars,
+                "pitch": s.pitch,
+                "loudness": s.loudness,
+                "duration": s.duration,
+                "created_at": s.created_at
+            }
+            for s in sessions
+        ]
+    finally:
+        db.close()
 
 # -----------------------------------
-# MOUNT STATIC ASSETS
+# Assessment Endpoints (Minimal)
 # -----------------------------------
-# Ensure the assets/audio directories are created
-os.makedirs(os.path.join("assets", "audio"), exist_ok=True)
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
-
-# -----------------------------------
-# INCLUDE ROUTES
-# -----------------------------------
-# Original patient routes
-app.include_router(patient_router)
-app.include_router(speech_router)
-app.include_router(assessment_router)
-app.include_router(audio_router)
-
-# BreathQuest routes with prefix
-app.include_router(breathquest_auth_router, prefix="/api/v1/breathquest")
-app.include_router(breathquest_patients_router, prefix="/api/v1/breathquest")
-app.include_router(breathquest_sessions_router, prefix="/api/v1/breathquest")
-app.include_router(breathquest_dashboard_router, prefix="/api/v1/breathquest")
-
-# -----------------------------------
-# ROOT
-# -----------------------------------
-@app.get("/")
-def home():
+def serialize_word(item: AssessmentWord) -> dict:
     return {
-        "message": "VaakSuddhi V1 Running ðŸš€"
+        "id": item.id,
+        "word": item.word,
+        "image_prompt": item.image_prompt,
+        "image_url": f"/assessment/words/image/{item.word}",
+        "translations": {
+            "english": item.english,
+            "telugu": item.telugu,
+            "hindi": item.hindi,
+            "tamil": item.tamil,
+            "kannada": item.kannada,
+            "malayalam": item.malayalam,
+            "bengali": item.bengali,
+            "marathi": item.marathi,
+        }
     }
+
+@app.get("/assessment/words/random")
+def random_word():
+    db = SessionLocal()
+    try:
+        item = (
+            db.query(AssessmentWord)
+            .filter(AssessmentWord.is_active.is_(True))
+            .order_by(func.random())
+            .first()
+        )
+        if not item:
+            return {"error": "No words available"}
+        return serialize_word(item)
+    finally:
+        db.close()
+
+@app.get("/assessment/words/image/{word}")
+def get_word_image(word: str):
+    # Simple fallback - check data/images directory
+    data_dir = Path(__file__).parent.parent.parent / "data" / "images"
+    image_extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
+    
+    for ext in image_extensions:
+        image_path = data_dir / f"{word}{ext}"
+        if image_path.exists():
+            from fastapi.responses import FileResponse
+            return FileResponse(image_path)
+    
+    # Try with different casing
+    for ext in image_extensions:
+        image_path = data_dir / f"{word.lower()}{ext}"
+        if image_path.exists():
+            from fastapi.responses import FileResponse
+            return FileResponse(image_path)
+    
+    return {"error": "Image not found"}
+
+@app.get("/assessment/audio/{word_key}/{language}/exists")
+def check_audio_exists(word_key: str, language: str):
+    audio_path = AUDIO_DIR / f"{word_key}_{language}.webm"
+    return {"exists": audio_path.exists()}
+
+@app.post("/assessment/audio/{word_key}/{language}/upload")
+def upload_audio(word_key: str, language: str, file: UploadFile):
+    audio_path = AUDIO_DIR / f"{word_key}_{language}.webm"
+    try:
+        with open(audio_path, "wb") as buffer:
+            buffer.write(file.file.read())
+        return {"success": True, "path": str(audio_path)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/assessment/audio/{word_key}/{language}")
+def get_audio(word_key: str, language: str):
+    audio_path = AUDIO_DIR / f"{word_key}_{language}.webm"
+    if audio_path.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(audio_path, media_type="audio/webm")
+    else:
+        return {"error": "Audio not found"}

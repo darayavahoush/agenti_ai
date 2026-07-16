@@ -4,7 +4,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import Dashboard from "./pages/Dashboard";
 import LiveTherapy from "./pages/LiveTherapy";
 import Patients from "./pages/Patients";
-import Progress from "./pages/Progress";
 import Assessment from "./pages/assessment";
 
 // BreathQuest pages
@@ -39,7 +38,6 @@ function AppContent() {
             {page === "dashboard" && <Dashboard />}
             {page === "therapy" && <LiveTherapy setPage={setPage} />}
             {page === "patients" && <Patients />}
-            {page === "progress" && <Progress />}
             {page === "assessment" && <Assessment />}
           </>
         )}
