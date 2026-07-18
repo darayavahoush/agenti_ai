@@ -31,7 +31,7 @@ export function Practice({ sessionId }) {
     genTimer.current = setTimeout(() => fetchPhonemes(word.trim()), 480);
   }, [word, language]);
 
-  async function fetchPhonemes(w) {
+   async function fetchPhonemes(w) {
   setGenerating(true);
 
   try {
@@ -43,7 +43,8 @@ export function Practice({ sessionId }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          word: w,
+               word: w,
+               language: language === "hindi" ? "hi" : "en",
         }),
       }
     );
@@ -139,6 +140,8 @@ export function Practice({ sessionId }) {
     "therapy_mode",
     "Full Word Match"
   );
+   // Include short language code for backend (en, hi, etc.)
+   fd.append("language", language === "hindi" ? "hi" : "en");
 
   try {
 
@@ -181,11 +184,13 @@ export function Practice({ sessionId }) {
   }
 }
 
-  async function sendPhoneme(blob) {
-    const fd = new FormData();
-    fd.append("file", blob, "recording.wav");
-    fd.append("target_phoneme", focusPhoneme);
-    fd.append("language", language);
+   async function sendPhoneme(blob) {
+      const fd = new FormData();
+      fd.append("file", blob, "recording.wav");
+      fd.append("target_phoneme", focusPhoneme);
+      // Backend expects short language codes (en, hi, te, kn, etc.)
+      const langCode = language === "hindi" ? "hi" : "en";
+      fd.append("language", langCode);
     try {
       const res = await fetch(`${BACKEND}/api/phonemes/compare-phoneme`, { method:"POST", body:fd });
       const data = await res.json();
@@ -254,6 +259,8 @@ export function Practice({ sessionId }) {
     return m.correct ? "correct" : "wrong";
   });
   const correctCount = chipStatuses.filter(s => s === "correct").length;
+   const expectedDisplay = wordResult?.expected_phonemes_display || expectedList;
+   const spokenDisplay = wordResult?.spoken_phonemes_display || wordResult?.spoken_phonemes || [];
   
   const canRecord = mode === MODE_WORD
     ? (genPhonemes.length > 0 && !loading && !generating)
@@ -482,6 +489,16 @@ export function Practice({ sessionId }) {
                            <PhonemeChip key={i} phoneme={ph} status={chipStatuses[i]} onClick={() => drillPhoneme(ph)} />
                         ))}
                      </div>
+                        {expectedDisplay && expectedDisplay.length > 0 && (
+                           <div style={{ marginTop: "12px", fontSize: "13px", color: T.textMuted }}>
+                              Expected (native): <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{expectedDisplay.join(' ')}</strong>
+                           </div>
+                        )}
+                        {spokenDisplay && spokenDisplay.length > 0 && (
+                           <div style={{ marginTop: "6px", fontSize: "13px", color: T.textMuted }}>
+                              Detected (native): <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{spokenDisplay.join(' ')}</strong>
+                           </div>
+                        )}
                   </div>
 
                   <div style={{ background: "#FFF5EF", padding: "24px", borderRadius: "20px" }}>
@@ -571,6 +588,11 @@ export function Practice({ sessionId }) {
                         <div style={{ color: T.text, fontSize: "16px", marginBottom: "16px", opacity: 0.8 }}>
                            We heard: <strong>"{phonemeResult.transcript || "..."}"</strong>
                         </div>
+                        {phonemeResult.detected_phonemes_display && (
+                           <div style={{ color: T.textMuted, fontSize: "14px", marginBottom: "12px" }}>
+                              Detected phoneme(s): <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{phonemeResult.detected_phonemes_display.join(' ')}</strong>
+                           </div>
+                        )}
                         {!phonemeResult.correct && (
                            <div style={{ background: "rgba(255,255,255,0.7)", padding: "16px", borderRadius: "12px", fontSize: "15px", lineHeight: 1.6, textAlign: "left" }}>
                               <strong>Tip:</strong> {phonemeResult.feedback}
