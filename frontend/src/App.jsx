@@ -8,12 +8,12 @@ import Assessment from "./pages/assessment";
 
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";
+import BreathQuestRouter from "./components/BreathQuestRouter";
 
 import "./App.css";
 
 // Wrapper component to handle page state
-function AppContent() {
-  const [page, setPage] = useState("landing");
+function AppContent({ page, setPage }) {
 
   return (
     <div className="app">
@@ -33,10 +33,13 @@ function AppContent() {
 }
 
 export default function App() {
+  const [page, setPage] = useState("landing");
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/*" element={<AppContent />} />
+        <Route path="/breathquest/*" element={<BreathQuestRouter />} />
+        <Route path="/*" element={<AppContent page={page} setPage={setPage} />} />
       </Routes>
     </BrowserRouter>
   );

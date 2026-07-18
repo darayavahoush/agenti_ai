@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/v1'
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -9,8 +9,13 @@ const api = axios.create({
 
 // Attach token automatically
 api.interceptors.request.use((config) => {
+  config.headers = config.headers || {}
   const token = localStorage.getItem('bq_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  } else {
+    delete config.headers.Authorization
+  }
   return config
 })
 

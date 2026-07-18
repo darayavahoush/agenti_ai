@@ -13,6 +13,6 @@ if exist ".venv\Scripts\activate.bat" (
 )
 
 REM Start server with full logging
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --log-level debug --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug --reload
 
 pause

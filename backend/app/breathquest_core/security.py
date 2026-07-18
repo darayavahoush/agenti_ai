@@ -18,11 +18,27 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ------------------------------------------------------------------ #
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Use SHA-256 for password hashing to avoid bcrypt limitations
+    # Add salt for security
+    salt = secrets.token_hex(16)
+    salted_password = password + salt
+    hashed = hashlib.sha256(salted_password.encode()).hexdigest()
+    return f"{salt}${hashed}"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    # Verify SHA-256 hashed password with salt
+    try:
+        salt, stored_hash = hashed.split('$')
+        salted_password = plain + salt
+        computed_hash = hashlib.sha256(salted_password.encode()).hexdigest()
+        return computed_hash == stored_hash
+    except:
+        # Fallback to bcrypt for existing passwords
+        try:
+            return pwd_context.verify(plain, hashed)
+        except:
+            return False
 
 
 # ------------------------------------------------------------------ #

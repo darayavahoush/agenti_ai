@@ -24,6 +24,10 @@ const INDIAN_LANGUAGES = [
 export default function LiveTherapy({ setPage }) {
   const navigate = useNavigate();
 
+  const handleBreathQuest = () => {
+    navigate("/breathquest");
+  };
+
   return (
     <div
       style={{
@@ -51,22 +55,24 @@ export default function LiveTherapy({ setPage }) {
         <h1 style={{ margin: "0 0 20px 0", fontSize: "1.75rem", color: "#5b21b6" }}>
           🌈 Live Therapy
         </h1>
-        <button
-          onClick={() => navigate('/assessment')}
-          style={{
-            padding: "16px 32px",
-            border: "none",
-            borderRadius: "999px",
-            background: "linear-gradient(90deg, #8b5cf6, #ec4899)",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: "18px",
-            cursor: "pointer",
-            boxShadow: "0 8px 18px rgba(139, 92, 246, 0.28)",
-          }}
-        >
-          🎮 Assessment
-        </button>
+        <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={handleBreathQuest}
+            style={{
+              padding: "16px 32px",
+              border: "none",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #10b981, #14b8a6)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "18px",
+              cursor: "pointer",
+              boxShadow: "0 8px 18px rgba(16, 185, 129, 0.28)",
+            }}
+          >
+            💨 BreathQuest
+          </button>
+        </div>
       </div>
     </div>
   );
