@@ -36,7 +36,7 @@ export default function GamePage() {
   const [sessionError, setSessionError] = useState('')
 
   // Check unlock
-  const scores   = loadScores()
+  const scores   = loadScores(patient?.player_code)
   const unlocked = isUnlocked(levelId, scores)
   const bestStars = scores[levelId]?.stars || 0
 
@@ -47,10 +47,11 @@ export default function GamePage() {
     try {
       const { data } = await sessionsAPI.start({ level_id: levelId })
       sessionRef.current = data.id
-    } catch (err) {
-      const message = err.response?.data?.detail || err.message || 'Unable to start session'
-      setSessionError(message)
-      return
+    } catch {
+      // Session tracking is optional for play. Keep the game available when
+      // the analytics service is temporarily unavailable; local scores still
+      // save as usual and API logging resumes on the next successful session.
+      setSessionError('Connection issue — your game will still play and save on this device.')
     }
 
     const engine = new BreathEngine()
