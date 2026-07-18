@@ -81,6 +81,7 @@ export default function Assessment() {
   const [patientName, setPatientName] = useState("");
   const [patientDOB, setPatientDOB] = useState("");
   const [parentName, setParentName] = useState("");
+  const [therapistName, setTherapistName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [isDiagnosed, setIsDiagnosed] = useState("");
@@ -184,7 +185,7 @@ export default function Assessment() {
         language: selectedLanguage.split('-')[0],
         gender: "other",
         diagnosis: isDiagnosed === "yes" ? diagnosisDetails : "General Speech",
-        therapist_name: null,
+        therapist_name: therapistName.trim() || null,
         parent_name: parentName,
         parent_contact: contactNumber,
         email: emailAddress
@@ -956,6 +957,20 @@ export default function Assessment() {
             />
           </section>
 
+          {/* Therapist Name - Full Width */}
+          <section style={{ background: "linear-gradient(90deg, #eefbff 0%, #f7fbff 100%)", borderRadius: "16px", padding: "10px", boxShadow: "0 8px 22px rgba(59, 130, 246, 0.12)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <span style={{ fontSize: "18px" }}>Therapist</span>
+              <h2 style={{ margin: 0, color: "#7c3aed", fontSize: "16px" }}>Therapist Name</h2>
+            </div>
+            <input
+              type="text"
+              value={therapistName}
+              onChange={(e) => setTherapistName(e.target.value)}
+              placeholder="Enter therapist's name"
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "2px solid #bfdbfe", fontSize: "14px", outline: "none", background: "#fff", fontWeight: 600 }}
+            />
+          </section>
           {/* Mobile and Email - Two Columns */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <section style={{ background: "linear-gradient(90deg, #f7fee7 0%, #f7fbff 100%)", borderRadius: "16px", padding: "10px", boxShadow: "0 8px 22px rgba(132, 94, 194, 0.12)" }}>

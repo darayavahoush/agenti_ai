@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const cardStyle = {
@@ -23,6 +23,20 @@ const INDIAN_LANGUAGES = [
 
 export default function LiveTherapy({ setPage }) {
   const navigate = useNavigate();
+  const [patients, setPatients] = useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+
+  useEffect(() => {
+    fetch(`${API_URL}/patients/`)
+      .then((response) => response.ok ? response.json() : [])
+      .then((data) => {
+        setPatients(data);
+        if (data[0]) setSelectedPatientId(data[0].id);
+      })
+      .catch(() => setPatients([]));
+  }, []);
+
+  const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
 
   const handleBreathQuest = () => {
     navigate("/breathquest");
@@ -73,6 +87,18 @@ export default function LiveTherapy({ setPage }) {
             💨 BreathQuest
           </button>
         </div>
+        <section style={{ marginTop: "22px", padding: "18px", borderRadius: "14px", background: "#f5f3ff", textAlign: "left" }}>
+          <label style={{ display: "block", color: "#5b21b6", fontWeight: 800, marginBottom: "8px" }}>Child for this session</label>
+          <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid #c4b5fd", background: "#fff" }}>
+            <option value="">Select a registered child</option>
+            {patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
+          </select>
+          {selectedPatient && (
+            <p style={{ margin: "12px 0 0", color: "#475569", fontWeight: 700 }}>
+              Child: {selectedPatient.name} · Therapist: {selectedPatient.therapist_name || "Not assigned"}
+            </p>
+          )}
+        </section>
       </div>
     </div>
   );
