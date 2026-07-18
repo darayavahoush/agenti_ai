@@ -7,9 +7,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.breathquest_models import Therapist, BreathQuestPatient
+from app.models.patient import Patient
 from app.schemas.breathquest_schemas import (
     TherapistRegister, TherapistLogin, TokenResponse,
     KidLoginRequest, KidTokenResponse, KidRegisterRequest,
@@ -29,10 +31,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(Therapist).where(Therapist.email == data.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
-
     therapist = Therapist(
         email=data.email,
         hashed_password=hash_password(data.password),
@@ -40,12 +38,13 @@ async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends
         clinic_name=data.clinic_name,
     )
     db.add(therapist)
-    await db.flush()
+    await db.commit()
+    await db.refresh(therapist)
 
     token = create_access_token(therapist.id)
     return TokenResponse(
         access_token=token,
-        therapist_id=therapist.id,
+        therapist_id=str(therapist.id),
         full_name=therapist.full_name,
     )
 
@@ -66,7 +65,7 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
     token = create_access_token(therapist.id)
     return TokenResponse(
         access_token=token,
-        therapist_id=therapist.id,
+        therapist_id=str(therapist.id),
         full_name=therapist.full_name,
     )
 
@@ -92,12 +91,31 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
         player_code=code,
     )
     db.add(patient)
-    await db.flush()
+    await db.commit()
+    await db.refresh(patient)
+
+    # Also create a record in the main Patient table for dashboard visibility
+    try:
+        sync_db = SessionLocal()
+        main_patient = Patient(
+            name=data.first_name,
+            age=data.age if hasattr(data, 'age') else None,
+            language="en",
+            gender="other",
+            diagnosis="General Speech",
+            is_active=True
+        )
+        sync_db.add(main_patient)
+        sync_db.commit()
+        sync_db.close()
+    except Exception as e:
+        # Log error but don't fail the registration
+        print(f"Failed to create main Patient record: {e}")
 
     token = create_kid_token(patient.id)
     return KidTokenResponse(
         access_token=token,
-        patient_id=patient.id,
+        patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
         player_code=code,
@@ -125,9 +143,10 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Incorrect PIN")
 
     token = create_kid_token(patient.id)
+    await db.commit()
     return KidTokenResponse(
         access_token=token,
-        patient_id=patient.id,
+        patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
         player_code=patient.player_code,

@@ -11,7 +11,12 @@ from app.database import Base, engine, SessionLocal
 from app.models.patient import Patient
 from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
+from app.models import breathquest_models
 from app.routes.assessment import router as assessment_router
+from app.routers.breathquest import auth as breathquest_auth_router
+from app.routers.breathquest import patients as breathquest_patients_router
+from app.routers.breathquest import sessions as breathquest_sessions_router
+from app.routers.breathquest import dashboard as breathquest_dashboard_router
 
 class PatientCreate(BaseModel):
     name: str
@@ -33,7 +38,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,6 +46,10 @@ app.add_middleware(
 
 # Include assessment router for speech analysis
 app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
+app.include_router(breathquest_auth_router.router, prefix="/api/v1")
+app.include_router(breathquest_patients_router.router, prefix="/api/v1")
+app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
+app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
 
 # Ensure assets/audio directory exists
 AUDIO_DIR = Path("assets/audio")

@@ -227,7 +227,7 @@ export default function Assessment() {
   // Function to load patient details
   const loadPatientDetails = async (patientId) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
+      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
       const response = await fetch(`${API_URL}/patients/${patientId}`);
       
       if (!response.ok) {
