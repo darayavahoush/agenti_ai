@@ -6,7 +6,7 @@ from sqlalchemy import func
 from app.database import SessionLocal
 from app.models.patient import Patient
 from app.models.session import Session as SessionModel
-from app.schemas.patient import PatientCreate, PatientOut
+from app.schemas.patient import PatientCreate, PatientOut, PatientLogin
 from app.schemas.session import SessionOut
 
 router = APIRouter(
@@ -37,6 +37,27 @@ def get_dashboard_summary():
     }
 
 # -----------------------------------
+# Login Patient
+# -----------------------------------
+@router.post("/login", response_model=PatientOut)
+def login_patient(
+    data: PatientLogin,
+    db: Session = Depends(get_db)
+):
+    patient = db.query(Patient).filter(
+        Patient.name == data.name,
+        Patient.date_of_birth == data.date_of_birth
+    ).first()
+
+    if not patient:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found"
+        )
+
+    return patient
+
+# -----------------------------------
 # Create Patient
 # -----------------------------------
 @router.post("/", response_model=PatientOut)
@@ -44,19 +65,26 @@ def create_patient(
     data: PatientCreate,
     db: Session = Depends(get_db)
 ):
-    patient = Patient(
-        name=data.name,
-        age=data.age,
-        language=data.language,
-        gender=data.gender,
-        diagnosis=data.diagnosis,
-        therapist_name=data.therapist_name,
-        parent_contact=data.parent_contact
-    )
-    db.add(patient)
-    db.commit()
-    db.refresh(patient)
-    return patient
+    try:
+        patient = Patient(
+            name=data.name,
+            age=data.age,
+            date_of_birth=data.date_of_birth,
+            language=data.language,
+            gender=data.gender,
+            diagnosis=data.diagnosis,
+            therapist_name=data.therapist_name,
+            parent_name=data.parent_name,
+            parent_contact=data.parent_contact,
+            email=data.email
+        )
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+        return patient
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 # -----------------------------------
 # Get All Patients

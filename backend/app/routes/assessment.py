@@ -13,7 +13,7 @@ from app.graph.assessment_graph import assessment_graph
 from app.services.audio_service import AudioService, CoquiTTSEngine
 
 
-router = APIRouter(prefix="/assessment", tags=["Assessment"])
+router = APIRouter(tags=["Assessment"])
 
 class AssessmentWordCreate(BaseModel):
     word: str = Field(min_length=1, max_length=120)

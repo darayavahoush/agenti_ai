@@ -1,9 +1,8 @@
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
-from uuid import UUID
 import os
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from app.database import Base, engine, SessionLocal
 from app.models.patient import Patient
 from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
-from app.routes.assessment import router as assessment_router
 
 class PatientCreate(BaseModel):
     name: str
@@ -39,10 +37,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include assessment router for speech analysis
-app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
-
-# Ensure assets/audio directory exists
 AUDIO_DIR = Path("assets/audio")
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -135,7 +129,6 @@ def create_patient(data: PatientCreate):
 def login_patient(data: PatientLogin):
     db = SessionLocal()
     try:
-        # Search for patient by name and date of birth
         patient = db.query(Patient).filter(
             Patient.name == data.name,
             Patient.date_of_birth == data.date_of_birth
@@ -186,27 +179,6 @@ def get_all_sessions():
     finally:
         db.close()
 
-# -----------------------------------
-# Assessment Endpoints (Minimal)
-# -----------------------------------
-def serialize_word(item: AssessmentWord) -> dict:
-    return {
-        "id": item.id,
-        "word": item.word,
-        "image_prompt": item.image_prompt,
-        "image_url": f"/assessment/words/image/{item.word}",
-        "translations": {
-            "english": item.english,
-            "telugu": item.telugu,
-            "hindi": item.hindi,
-            "tamil": item.tamil,
-            "kannada": item.kannada,
-            "malayalam": item.malayalam,
-            "bengali": item.bengali,
-            "marathi": item.marathi,
-        }
-    }
-
 @app.get("/assessment/words/random")
 def random_word():
     db = SessionLocal()
@@ -219,13 +191,27 @@ def random_word():
         )
         if not item:
             return {"error": "No words available"}
-        return serialize_word(item)
+        return {
+            "id": item.id,
+            "word": item.word,
+            "image_prompt": item.image_prompt,
+            "image_url": f"/assessment/words/image/{item.word}",
+            "translations": {
+                "english": item.english,
+                "telugu": item.telugu,
+                "hindi": item.hindi,
+                "tamil": item.tamil,
+                "kannada": item.kannada,
+                "malayalam": item.malayalam,
+                "bengali": item.bengali,
+                "marathi": item.marathi,
+            }
+        }
     finally:
         db.close()
 
 @app.get("/assessment/words/image/{word}")
 def get_word_image(word: str):
-    # Simple fallback - check data/images directory
     data_dir = Path(__file__).parent.parent.parent / "data" / "images"
     image_extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
     
@@ -235,7 +221,6 @@ def get_word_image(word: str):
             from fastapi.responses import FileResponse
             return FileResponse(image_path)
     
-    # Try with different casing
     for ext in image_extensions:
         image_path = data_dir / f"{word.lower()}{ext}"
         if image_path.exists():
