@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
 // Function to calculate age in years and months from date of birth
 function calculateAge(dateOfBirth) {
@@ -57,7 +57,7 @@ export default function Dashboard() {
           setSelectedPatientId(loadedPatients[0].id);
         }
       } catch (err) {
-        console.error('Error fetching dashboard data:', err);
+        console.error('Error fetching dashboard data from PostgreSQL:', err);
         setSummary({ total_patients: 0, total_sessions: 0, avg_accuracy: null });
       } finally {
         setLoading(false);

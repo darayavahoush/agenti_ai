@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
 export default function Progress() {
   const [patients, setPatients] = useState([]);
@@ -27,7 +27,7 @@ export default function Progress() {
           setSelectedPatientId(loadedPatients[0].id);
         }
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching progress data from PostgreSQL:', err);
       } finally {
         setLoading(false);
       }
