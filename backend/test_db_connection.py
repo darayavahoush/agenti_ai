@@ -6,7 +6,7 @@ configs = [
     {
         "name": "vaaksiddhi (password)",
         "host": "localhost",
-        "port": 5432,
+        "port": 5433,
         "user": "postgres",
         "password": "password",
         "database": "vaaksiddhi"
@@ -14,7 +14,7 @@ configs = [
     {
         "name": "vaaksudhi (Lavanya123)",
         "host": "localhost",
-        "port": 5432,
+        "port": 5433,
         "user": "postgres",
         "password": "Lavanya123",
         "database": "vaaksudhi"
@@ -22,7 +22,7 @@ configs = [
     {
         "name": "postgres (password)",
         "host": "localhost",
-        "port": 5432,
+        "port": 5433,
         "user": "postgres",
         "password": "password",
         "database": "postgres"

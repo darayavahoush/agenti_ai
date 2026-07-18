@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from pathlib import Path
 from app.database import SessionLocal
 from app.models.assessment_word import AssessmentWord
+from app.models.patient import Patient
+from app.models.session import Session as SessionModel
 from app.services.image.matcher import get_image_for_phrase
 from app.tools.audio_tool import save_audio, delete_audio
 from app.state.assessment_state import AssessmentState
@@ -319,6 +321,7 @@ async def analyze_assessment_pronunciation(
     file: UploadFile = File(...),
     patient_name: str = Form(...),
     patient_age: int | None = Form(None),
+    patient_id: str | None = Form(None),
     target_word: str = Form(...),
     language: str = Form(default="en")
 ):
@@ -624,7 +627,56 @@ async def analyze_assessment_pronunciation(
         if result_state.get("error"):
             raise Exception(result_state["error"])
 
-        # 4. Return results payload
+        # 4. Save session to database if patient_id is provided
+        logger.info(f"🔍 Checking patient_id: {patient_id}, type: {type(patient_id)}")
+        if patient_id and patient_id.strip() and patient_id != "":
+            try:
+                db = SessionLocal()
+                # Verify patient exists
+                patient = db.query(Patient).filter(Patient.id == patient_id).first()
+                logger.info(f"🔍 Patient lookup result: {patient}")
+                if patient:
+                    # Calculate stars based on accuracy
+                    accuracy = result_state.get("accuracy", 0)
+                    if accuracy >= 90:
+                        stars = 5
+                    elif accuracy >= 75:
+                        stars = 4
+                    elif accuracy >= 60:
+                        stars = 3
+                    elif accuracy >= 45:
+                        stars = 2
+                    else:
+                        stars = 1
+
+                    # Create session record
+                    session = SessionModel(
+                        patient_id=patient_id,
+                        target_word=target_word,
+                        spoken_word=result_state.get("spoken_word", ""),
+                        accuracy=int(accuracy) if accuracy else 0,
+                        feedback=result_state.get("reasoning", "")[:500],  # Limit feedback length
+                        stars=stars,
+                        f0_mean=result_state.get("pitch"),
+                        mpt=result_state.get("duration"),
+                        hnr=result_state.get("loudness"),
+                        session_type="word_practice"
+                    )
+                    db.add(session)
+                    db.commit()
+                    logger.info(f"✅ Session saved for patient {patient_id}")
+                else:
+                    logger.warning(f"⚠️ Patient {patient_id} not found, session not saved")
+                db.close()
+            except Exception as e:
+                logger.error(f"❌ Failed to save session: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # Don't raise error, continue to return results
+        else:
+            logger.warning(f"⚠️ No valid patient_id provided, skipping session save")
+
+        # 5. Return results payload
         logger.info("✅ Assessment analysis completed successfully")
         logger.info(f"📊 Final accuracy: {result_state['accuracy']}")
         logger.info(f"🗣️ Spoken word: {result_state['spoken_word']}")

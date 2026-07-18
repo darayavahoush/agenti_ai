@@ -8,7 +8,7 @@ const cardStyle = {
   boxShadow: "0 8px 22px rgba(132, 94, 194, 0.12)",
 };
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const INDIAN_LANGUAGES = [
   { code: "en-IN", name: "English (India)", voiceLang: "en-IN" },
@@ -52,7 +52,7 @@ export default function LiveTherapy({ setPage }) {
           🌈 Live Therapy
         </h1>
         <button
-          onClick={() => navigate('/breathquest')}
+          onClick={() => navigate('/assessment')}
           style={{
             padding: "16px 32px",
             border: "none",
@@ -65,7 +65,7 @@ export default function LiveTherapy({ setPage }) {
             boxShadow: "0 8px 18px rgba(139, 92, 246, 0.28)",
           }}
         >
-          🎮 BreathQuest
+          🎮 Assessment
         </button>
       </div>
     </div>
