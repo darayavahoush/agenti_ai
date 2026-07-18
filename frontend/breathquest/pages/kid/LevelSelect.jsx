@@ -81,7 +81,7 @@ export default function LevelSelect() {
 
             return (
               <button key={level.id}
-                onClick={() => unlocked && navigate(`/breathquest/play/game/${level.id}`)}
+                onClick={() => unlocked && navigate(`/play/game/${level.id}`)}
                 onMouseEnter={() => setHovering(level.id)}
                 onMouseLeave={() => setHovering(null)}
                 disabled={!unlocked}

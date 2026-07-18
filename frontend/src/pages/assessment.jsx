@@ -3,7 +3,7 @@ import { MouthDiagram } from "../MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
 import "./Assessment.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8002").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 const INDIAN_LANGUAGES = [
   { code: "en-IN", name: "English (India)", voiceLang: "en-IN", translationKey: "english", listenText: "Listen", slowText: "Say it slowly" },
@@ -129,6 +129,7 @@ export default function Assessment() {
   // Function to login existing patient
   const loginPatient = async () => {
     try {
+      console.log("Attempting login with:", { loginName, loginDOB, API_URL });
       setLoginError("");
       const response = await fetch(`${API_URL}/patients/login`, {
         method: 'POST',
@@ -141,18 +142,23 @@ export default function Assessment() {
         })
       });
 
+      console.log("Login response status:", response.status);
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Login failed:", errorData);
         throw new Error(errorData.detail || 'Login failed');
       }
 
       const result = await response.json();
+      console.log("Login successful:", result);
       setCurrentPatientId(result.id);
       setPatientName(result.name);
       setPatientDOB(result.date_of_birth ? result.date_of_birth.split('T')[0] : "");
-      setParentName(result.therapist_name || "");
+      setParentName(result.parent_name || "");
       setContactNumber(result.parent_contact || "");
-      setSection("word");
+      setEmailAddress(result.email || "");
+      setSection("home");
+      console.log("Redirected to home section");
       return result;
     } catch (error) {
       console.error('Error logging in patient:', error);
@@ -164,14 +170,18 @@ export default function Assessment() {
   // Function to save patient details
   const savePatientDetails = async () => {
     try {
+      console.log("Saving patient details...", { patientName, patientDOB, parentName, contactNumber, emailAddress });
       const patientData = {
         name: patientName,
         age: patientDOB ? new Date().getFullYear() - new Date(patientDOB).getFullYear() : null,
+        date_of_birth: patientDOB || null,
         language: selectedLanguage.split('-')[0],
         gender: "other",
         diagnosis: isDiagnosed === "yes" ? diagnosisDetails : "General Speech",
-        therapist_name: parentName,
-        parent_contact: contactNumber
+        therapist_name: null,
+        parent_name: parentName,
+        parent_contact: contactNumber,
+        email: emailAddress
       };
 
       let response;
@@ -181,6 +191,7 @@ export default function Assessment() {
         return { id: currentPatientId };
       } else {
         // Create new patient
+        console.log("Creating new patient with API:", API_URL);
         response = await fetch(`${API_URL}/patients/`, {
           method: 'POST',
           headers: {
@@ -190,11 +201,15 @@ export default function Assessment() {
         });
       }
 
+      console.log("Response status:", response.status);
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to save patient details:", errorText);
         throw new Error('Failed to save patient details');
       }
 
       const result = await response.json();
+      console.log("Patient saved successfully:", result);
       setCurrentPatientId(result.id);
       return result;
     } catch (error) {
@@ -219,11 +234,11 @@ export default function Assessment() {
       setPatientName(patient.name || "");
       setPatientDOB(patient.date_of_birth ? patient.date_of_birth.split('T')[0] : "");
       setParentName(patient.parent_name || "");
-      setContactNumber(patient.contact_number || "");
-      setEmailAddress(patient.email_address || "");
-      setIsDiagnosed(patient.is_diagnosed ? "yes" : "no");
-      setDiagnosisDetails(patient.diagnosis_details || "");
-      setOtherInfo(patient.other_info || "");
+      setContactNumber(patient.parent_contact || "");
+      setEmailAddress(patient.email || "");
+      setIsDiagnosed(patient.diagnosis ? "yes" : "no");
+      setDiagnosisDetails(patient.diagnosis || "");
+      setOtherInfo("");
       setCurrentPatientId(patient.id);
       
       // Handle photo
@@ -262,6 +277,7 @@ export default function Assessment() {
   const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
 
   async function loadRandomWord() {
+    console.log("Loading random word...");
     setSection("word");
     setWordLoading(true);
     setImageLoading(true);
@@ -274,11 +290,15 @@ export default function Assessment() {
     setAudioExists(false);
 
     try {
+      console.log("Fetching random word from:", `${API_URL}/assessment/words/random`);
       const response = await fetch(`${API_URL}/assessment/words/random`);
+      console.log("Random word response status:", response.status);
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Could not load a word");
+      console.log("Random word loaded:", data);
       setWord(data);
     } catch (requestError) {
+      console.error("Error loading random word:", requestError);
       setWord(null);
       setImageLoading(false);
       setError(requestError.message);
@@ -329,7 +349,7 @@ export default function Assessment() {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(customChunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(customChunksRef.current, { type: "audio/wav" });
         setCustomAudioBlob(blob);
         setCustomAudioUrl(URL.createObjectURL(blob));
       };
@@ -365,7 +385,7 @@ export default function Assessment() {
     try {
       const langCode = selectedLanguage.split('-')[0];
       const formData = new FormData();
-      formData.append("file", customAudioBlob, `${word.word}_${langCode}.webm`);
+      formData.append("file", customAudioBlob, `${word.word}_${langCode}.wav`);
 
       const response = await fetch(`${API_URL}/assessment/audio/${word.word}/${langCode}/upload`, {
         method: "POST",
@@ -447,7 +467,7 @@ export default function Assessment() {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: "audio/wav" });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
       };
@@ -478,7 +498,7 @@ export default function Assessment() {
 
     try {
       const formData = new FormData();
-      formData.append("file", audioBlob, "recording.webm");
+      formData.append("file", audioBlob, "recording.wav");
       formData.append("patient_name", "Student");
       formData.append("target_word", word.word);
       // Add language parameter
@@ -1135,7 +1155,7 @@ export default function Assessment() {
             >
               🚀 Next →
             </button>
-            <button
+            {/* <button
               onClick={() => {
                 // Cancel doesn't save, just goes back
                 setSection("home");
@@ -1163,7 +1183,7 @@ export default function Assessment() {
               }}
             >
               ❌ Cancel
-            </button>
+            </button> */}
           </div>
         </div>
       )}

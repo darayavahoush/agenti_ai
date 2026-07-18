@@ -47,7 +47,7 @@ export default function KidPlay() {
     setError(''); setLoading(true)
     try {
       await loginKid(playerCode.trim().toUpperCase(), pin)
-      navigate('/breathquest/play/levels')
+      navigate('/play/levels')
     } catch {
       setError('Wrong code or PIN — try again!')
       setPin('')
@@ -75,7 +75,7 @@ export default function KidPlay() {
           </p>
         </div>
         <p className="text-white/30 text-xs mb-8">Show this to your therapist too!</p>
-        <Button size="lg" onClick={() => navigate('/breathquest/play/levels')}>Let's Play! 🚀</Button>
+        <Button size="lg" onClick={() => navigate('/play/levels')}>Let's Play! 🚀</Button>
       </div>
     )
   }

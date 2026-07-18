@@ -1,6 +1,32 @@
 import { useEffect, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8002";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
+// Function to calculate age in years and months from date of birth
+function calculateAge(dateOfBirth) {
+  if (!dateOfBirth) return null;
+  
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  
+  if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+    years--;
+    months += 12;
+  }
+  
+  // Adjust months if current day is less than birth day
+  if (today.getDate() < birthDate.getDate()) {
+    months--;
+    if (months < 0) {
+      months = 11;
+    }
+  }
+  
+  return { years, months };
+}
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -104,33 +130,59 @@ export default function Dashboard() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               
-              {/* Child Selector */}
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "white", padding: "16px", borderRadius: "16px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-                <span style={{ fontSize: "20px" }}>👶</span>
-                <label style={{ fontWeight: 800, color: "#475569" }}>Select Child:</label>
-                <select
-                  value={selectedPatientId}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "12px",
-                    border: "2px solid #e2e8f0",
-                    background: "#f8fafc",
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    color: "#1e293b",
-                    outline: "none",
-                    cursor: "pointer"
-                  }}
-                >
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+              {/* Child Selector with Patient Information */}
+              <div style={{ background: "white", padding: "20px", borderRadius: "16px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                  <span style={{ fontSize: "20px" }}>👶</span>
+                  <label style={{ fontWeight: 800, color: "#475569" }}>Select Child:</label>
+                  <select
+                    value={selectedPatientId}
+                    onChange={(e) => setSelectedPatientId(e.target.value)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "12px",
+                      border: "2px solid #e2e8f0",
+                      background: "#f8fafc",
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      color: "#1e293b",
+                      outline: "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {patients.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
                 {selectedPatient && (
-                  <span style={{ fontSize: "14px", color: "#64748b", marginLeft: "auto" }}>
-                    <b>Age:</b> {selectedPatient.age || "Not specified"} | <b>Diagnosis:</b> {selectedPatient.diagnosis || "General Speech"}
-                  </span>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", paddingTop: "12px", borderTop: "1px solid #e2e8f0" }}>
+                    <div>
+                      <p style={{ margin: "0 0 4px 0", fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Age</p>
+                      <p style={{ margin: 0, fontSize: "15px", color: "#1e293b", fontWeight: 600 }}>
+                        {(() => {
+                          const age = calculateAge(selectedPatient.date_of_birth);
+                          if (age) {
+                            return `${age.years}yrs ${age.months}mnths`;
+                          }
+                          return selectedPatient.age ? `${selectedPatient.age}yrs` : "Not specified";
+                        })()}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ margin: "0 0 4px 0", fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Contact</p>
+                      <p style={{ margin: 0, fontSize: "15px", color: "#1e293b", fontWeight: 600 }}>{selectedPatient.parent_contact || "Not provided"}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: "0 0 4px 0", fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Email</p>
+                      <p style={{ margin: 0, fontSize: "15px", color: "#1e293b", fontWeight: 600 }}>{selectedPatient.email || "Not provided"}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: "0 0 4px 0", fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Diagnosis</p>
+                      <p style={{ margin: 0, fontSize: "15px", color: "#1e293b", fontWeight: 600 }}>{selectedPatient.diagnosis || "General Speech"}</p>
+                    </div>
+                  </div>
                 )}
               </div>
 

@@ -28,7 +28,7 @@ export default function TherapistLogin() {
       } else {
         await registerTherapist(form)
       }
-      navigate('/breathquest/therapist/dashboard')
+      navigate('/therapist/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Something went wrong')
     } finally {
