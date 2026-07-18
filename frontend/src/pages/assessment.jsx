@@ -3,7 +3,7 @@ import { MouthDiagram } from "../MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
 import "./Assessment.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
 const INDIAN_LANGUAGES = [
   { code: "en-IN", name: "English (India)", voiceLang: "en-IN", translationKey: "english", listenText: "Listen", slowText: "Say it slowly" },
