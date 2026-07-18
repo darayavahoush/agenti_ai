@@ -87,7 +87,7 @@ export default function LiveTherapy({ setPage }) {
             💨 BreathQuest
           </button>
         </div>
-        <section style={{ marginTop: "22px", padding: "18px", borderRadius: "14px", background: "#f5f3ff", textAlign: "left" }}>
+        {/* <section style={{ marginTop: "22px", padding: "18px", borderRadius: "14px", background: "#f5f3ff", textAlign: "left" }}>
           <label style={{ display: "block", color: "#5b21b6", fontWeight: 800, marginBottom: "8px" }}>Child for this session</label>
           <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid #c4b5fd", background: "#fff" }}>
             <option value="">Select a registered child</option>
@@ -98,7 +98,7 @@ export default function LiveTherapy({ setPage }) {
               Child: {selectedPatient.name} · Therapist: {selectedPatient.therapist_name || "Not assigned"}
             </p>
           )}
-        </section>
+        </section> */}
       </div>
     </div>
   );
