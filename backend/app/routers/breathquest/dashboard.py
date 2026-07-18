@@ -81,7 +81,7 @@ def get_dashboard_summary(
             age=p.age,
             is_active=p.is_active,
             created_at=p.created_at,
-            diagnosis_notes=p.diagnosis_details or p.diagnosis,  # Use new field first
+            diagnosis_notes=getattr(p, "diagnosis_details", None) or p.diagnosis,
             total_sessions=stats.total or 0,
             total_stars=int(stats.stars or 0),
             last_session_at=stats.last,
