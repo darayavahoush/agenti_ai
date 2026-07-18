@@ -85,10 +85,11 @@ def get_all_patients():
                 "gender": p.gender,
                 "diagnosis": p.diagnosis,
                 "therapist_name": p.therapist_name,
+                "parent_name": p.parent_name,
                 "parent_contact": p.parent_contact,
                 "email": p.email,
                 "is_active": p.is_active,
-                "created_at": p.created_at
+                "created_at": p.created_at,
             }
             for p in patients
         ]

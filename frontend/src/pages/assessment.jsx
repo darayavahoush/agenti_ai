@@ -3,7 +3,7 @@ import { MouthDiagram } from "../MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
 import "./Assessment.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 const INDIAN_LANGUAGES = [
   { code: "en-IN", name: "English (India)", voiceLang: "en-IN", translationKey: "english", listenText: "Listen", slowText: "Say it slowly" },
@@ -131,6 +131,12 @@ export default function Assessment() {
     try {
       console.log("Attempting login with:", { loginName, loginDOB, API_URL });
       setLoginError("");
+      
+      if (!loginName || !loginDOB) {
+        setLoginError("Please enter both name and date of birth");
+        return;
+      }
+      
       const response = await fetch(`${API_URL}/patients/login`, {
         method: 'POST',
         headers: {
@@ -221,7 +227,7 @@ export default function Assessment() {
   // Function to load patient details
   const loadPatientDetails = async (patientId) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
       const response = await fetch(`${API_URL}/patients/${patientId}`);
       
       if (!response.ok) {
@@ -499,11 +505,19 @@ export default function Assessment() {
     try {
       const formData = new FormData();
       formData.append("file", audioBlob, "recording.wav");
-      formData.append("patient_name", "Student");
+      formData.append("patient_name", patientName || "Student");
+      formData.append("patient_id", currentPatientId || "");
       formData.append("target_word", word.word);
       // Add language parameter
       const langCode = selectedLanguage.split('-')[0];
       formData.append("language", langCode);
+      
+      console.log("Sending assessment request with:", {
+        patient_name: patientName || "Student",
+        patient_id: currentPatientId || "",
+        target_word: word.word,
+        language: langCode
+      });
       
       const response = await fetch(`${API_URL}/assessment/analyze`, {
         method: "POST",
@@ -511,6 +525,7 @@ export default function Assessment() {
       });
 
       const data = await response.json();
+      console.log("Assessment response:", data);
 
       if (!response.ok || data.error || data.detail) {
         throw new Error(data.error || JSON.stringify(data.detail || data));

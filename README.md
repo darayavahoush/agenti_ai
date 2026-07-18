@@ -19,7 +19,8 @@ python -m venv venv
 ### Command Prompt
 ```cmd
 python -m venv venv
-venv\Scripts\activate.bat
+ .\.venv\Scripts\activate    
+ uvicorn app.main:app --reload      
 ```
 
 ## 3. Install Python dependencies
