@@ -6,7 +6,7 @@ import random
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
@@ -123,24 +123,35 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
 
 
 # ------------------------------------------------------------------ #
-#  Kid PIN login (using player_code + PIN)                            #
+#  Kid PIN login (using registered name or player_code + PIN)         #
 # ------------------------------------------------------------------ #
 
 @router.post("/kid-login", response_model=KidTokenResponse)
 async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
+    # Player codes remain supported for children who already have one. Names
+    # are matched without regard to case so children can use their registered
+    # name together with their PIN.
+    identifier = data.player_code.strip()
     result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.player_code == data.player_code.upper())
+        select(BreathQuestPatient).where(
+            (BreathQuestPatient.player_code == identifier.upper())
+            | (func.lower(BreathQuestPatient.first_name) == identifier.lower())
+        )
     )
-    patient = result.scalar_one_or_none()
+    patients = result.scalars().all()
 
-    if not patient:
-        raise HTTPException(status_code=404, detail="Player code not found")
+    # More than one child can have the same name. The PIN identifies the
+    # matching account; their player code remains a fallback for a collision.
+    matching_patients = [patient for patient in patients if verify_pin(data.pin, patient.pin_hash)]
+    if not matching_patients:
+        raise HTTPException(status_code=401, detail="Incorrect name, player code, or PIN")
+    if len(matching_patients) > 1:
+        raise HTTPException(status_code=409, detail="More than one player matches. Please use your player code.")
+
+    patient = matching_patients[0]
 
     if not patient.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
-
-    if not verify_pin(data.pin, patient.pin_hash):
-        raise HTTPException(status_code=401, detail="Incorrect PIN")
 
     token = create_kid_token(patient.id)
     await db.commit()

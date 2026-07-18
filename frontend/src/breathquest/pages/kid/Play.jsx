@@ -12,7 +12,7 @@ export default function KidPlay() {
   const [mode, setMode]         = useState('choose')   // choose | register | login
   const [avatar, setAvatar]     = useState('chick')
   const [firstName, setFirstName] = useState('')
-  const [playerCode, setPlayerCode] = useState('')
+  const [playerName, setPlayerName] = useState('')
   const [pin, setPin]           = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -46,14 +46,14 @@ export default function KidPlay() {
   }
 
   const handleLogin = async () => {
-    if (!playerCode.trim()) { setError('Enter your player code'); return }
+    if (!playerName.trim()) { setError('Enter your registered name'); return }
     if (pin.length < 4)     { setError('Enter your PIN'); return }
     setError(''); setLoading(true)
     try {
-      await loginKid(playerCode.trim().toUpperCase(), pin)
+      await loginKid(playerName.trim(), pin)
       navigate('/breathquest/play/levels')
     } catch {
-      setError('Wrong code or PIN — try again!')
+      setError('Wrong name or PIN — try again!')
       setPin('')
     } finally {
       setLoading(false)
@@ -184,10 +184,11 @@ export default function KidPlay() {
           <h1 className="font-display text-3xl font-black text-white mb-6 text-center">Welcome Back!</h1>
 
           <div className="mb-4">
-            <label className="text-sm text-white/50 block mb-1">Your Player Code</label>
-            <input className="input text-center text-xl font-bold tracking-widest uppercase"
-                   placeholder="e.g. CHICK42"
-                   value={playerCode} onChange={e => setPlayerCode(e.target.value.toUpperCase())} />
+            <label className="text-sm text-white/50 block mb-1">Your registered name</label>
+            <input className="input text-center text-xl font-bold"
+                   placeholder="e.g. Alex"
+                   value={playerName} onChange={e => setPlayerName(e.target.value)} />
+            <p className="text-white/30 text-xs mt-1 text-center">You can also use your player code.</p>
           </div>
 
           <label className="text-sm text-white/50 block mb-2">Your PIN</label>
