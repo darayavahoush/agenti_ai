@@ -33,7 +33,7 @@ function AppContent({ page, setPage }) {
 }
 
 export default function App() {
-  const [page, setPage] = useState("landing");
+  const [page, setPage] = useState(() => new URLSearchParams(window.location.search).get("page") || "landing");
 
   return (
     <BrowserRouter>
