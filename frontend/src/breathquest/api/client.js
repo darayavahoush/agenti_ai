@@ -26,7 +26,9 @@ api.interceptors.request.use((config) => {
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login:    (data) => api.post('/auth/login', data),
+  therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidRegister: (data) => api.post('/auth/kid-register', data),
+  kidCandidates: () => api.get('/auth/kid-candidates'),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
 }
 

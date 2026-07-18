@@ -4,6 +4,7 @@ schemas/breathquest_schemas.py — Pydantic v1 request/response models for Breat
 
 from datetime import datetime
 from typing import Any, Optional, List
+from uuid import UUID
 from pydantic import BaseModel, EmailStr, validator
 import re
 
@@ -38,7 +39,7 @@ class TokenResponse(BaseModel):
 
 
 class KidRegisterRequest(BaseModel):
-    first_name: str
+    patient_id: UUID
     avatar: str = "chick"
     pin: str
 

@@ -29,6 +29,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 #  Therapist auth                                                      #
 # ------------------------------------------------------------------ #
 
+@router.get("/therapist-candidates")
+def therapist_candidates():
+    """Return unique therapist names already recorded during Assessment."""
+    sync_db = SessionLocal()
+    try:
+        names = (
+            sync_db.query(Patient.therapist_name)
+            .filter(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
+            .distinct()
+            .order_by(Patient.therapist_name)
+            .all()
+        )
+        return [name for (name,) in names]
+    finally:
+        sync_db.close()
+
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends(get_db)):
     therapist = Therapist(
@@ -74,57 +90,57 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
 #  Kid self-registration                                               #
 # ------------------------------------------------------------------ #
 
+@router.get("/kid-candidates")
+def kid_candidates():
+    """Return children already created through Assessment for PIN setup."""
+    sync_db = SessionLocal()
+    try:
+        patients = sync_db.query(Patient).filter(Patient.is_active.is_(True)).order_by(Patient.name).all()
+        return [{"id": str(patient.id), "name": patient.name} for patient in patients]
+    finally:
+        sync_db.close()
+
 @router.post("/kid-register", response_model=KidTokenResponse, status_code=201)
 async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
-    # Generate short unique player code e.g. CHICK42
-    while True:
-        code = data.avatar.upper()[:5] + str(random.randint(10, 99))
-        exists = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == code))
-        if not exists.scalar_one_or_none():
-            break
+    """Set or reset a BreathQuest PIN for a child created in Assessment."""
+    sync_db = SessionLocal()
+    try:
+        main_patient = sync_db.get(Patient, data.patient_id)
+    finally:
+        sync_db.close()
 
-    patient = BreathQuestPatient(
-        therapist_id=None,
-        first_name=data.first_name,
-        avatar=data.avatar,
-        pin_hash=hash_pin(data.pin),
-        player_code=code,
-    )
-    db.add(patient)
+    if not main_patient or not main_patient.is_active:
+        raise HTTPException(status_code=404, detail="Registered child not found")
+
+    player_code = f"P{str(main_patient.id).replace('-', '')[:9].upper()}"
+    result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == player_code))
+    patient = result.scalar_one_or_none()
+
+    if patient:
+        patient.first_name = main_patient.name
+        patient.avatar = data.avatar
+        patient.pin_hash = hash_pin(data.pin)
+        patient.is_active = True
+    else:
+        patient = BreathQuestPatient(
+            therapist_id=None,
+            first_name=main_patient.name,
+            avatar=data.avatar,
+            pin_hash=hash_pin(data.pin),
+            player_code=player_code,
+        )
+        db.add(patient)
+
     await db.commit()
     await db.refresh(patient)
-
-    # Also create a record in the main Patient table for dashboard visibility
-    try:
-        sync_db = SessionLocal()
-        main_patient = Patient(
-            name=data.first_name,
-            age=data.age if hasattr(data, 'age') else None,
-            language="en",
-            gender="other",
-            diagnosis="General Speech",
-            is_active=True
-        )
-        sync_db.add(main_patient)
-        sync_db.commit()
-        sync_db.close()
-    except Exception as e:
-        # Log error but don't fail the registration
-        print(f"Failed to create main Patient record: {e}")
-
     token = create_kid_token(patient.id)
     return KidTokenResponse(
         access_token=token,
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
-        player_code=code,
+        player_code=patient.player_code,
     )
-
-
-# ------------------------------------------------------------------ #
-#  Kid PIN login (using registered name or player_code + PIN)         #
-# ------------------------------------------------------------------ #
 
 @router.post("/kid-login", response_model=KidTokenResponse)
 async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):

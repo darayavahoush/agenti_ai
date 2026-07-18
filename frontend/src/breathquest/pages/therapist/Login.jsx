@@ -1,17 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { authAPI } from '../../api/client'
 import { Button, Input, Card } from '../../components/ui'
 
 export default function TherapistLogin() {
   const [mode, setMode]     = useState('login')   // 'login' | 'register'
   const [form, setForm]     = useState({ email: '', password: '', full_name: '', clinic_name: '' })
   const [error, setError]   = useState('')
+  const [therapistNames, setTherapistNames] = useState([])
   const [loading, setLoading] = useState(false)
   const { loginTherapist, registerTherapist } = useAuth()
   const navigate = useNavigate()
 
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  useEffect(() => {
+    authAPI.therapistCandidates()
+      .then(({ data }) => setTherapistNames(data))
+      .catch(() => setTherapistNames([]))
+  }, [])
+const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const submit = async (e) => {
     e.preventDefault()
@@ -75,9 +82,12 @@ export default function TherapistLogin() {
 
           <form onSubmit={submit} className="flex flex-col gap-4">
             {mode === 'register' && (
-              <>
-                <Input label="Full Name" placeholder="Dr. Jane Smith"
-                       value={form.full_name} onChange={set('full_name')} required />
+              <>                <Input label="Full Name" placeholder="Start typing a therapist name"
+                       value={form.full_name} onChange={set('full_name')}
+                       list="assessment-therapist-names" required />
+                <datalist id="assessment-therapist-names">
+                  {therapistNames.map(name => <option key={name} value={name} />)}
+                </datalist>
                 <Input label="Clinic Name (optional)" placeholder="Happy Kids Clinic"
                        value={form.clinic_name} onChange={set('clinic_name')} />
               </>

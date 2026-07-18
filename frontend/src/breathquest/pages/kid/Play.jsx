@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { Button } from '../../components/ui'
+import { authAPI } from '../../api/client'
 
 const AVATARS = ['chick', 'dragon', 'cloud', 'star', 'rocket', 'fish']
 const AVATAR_EMOJIS = { chick:'🐥', dragon:'🐉', cloud:'☁️', star:'⭐', rocket:'🚀', fish:'🐠' }
@@ -11,7 +12,8 @@ export default function KidPlay() {
   const location = useLocation()
   const [mode, setMode]         = useState('choose')   // choose | register | login
   const [avatar, setAvatar]     = useState('chick')
-  const [firstName, setFirstName] = useState('')
+  const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [patients, setPatients] = useState([])
   const [playerName, setPlayerName] = useState('')
   const [pin, setPin]           = useState('')
   const [error, setError]       = useState('')
@@ -26,15 +28,22 @@ export default function KidPlay() {
     else setMode('choose')
   }, [location.pathname])
 
+  useEffect(() => {
+    if (mode !== 'register') return
+    authAPI.kidCandidates()
+      .then(({ data }) => setPatients(data))
+      .catch(() => setError('Unable to load registered children. Please try again.'))
+  }, [mode])
+
   const handlePin = (digit) => { if (pin.length < 4) setPin(p => p + digit) }
   const deletePin = () => setPin(p => p.slice(0, -1))
 
   const handleRegister = async () => {
-    if (!firstName.trim()) { setError('What should we call you?'); return }
+    if (!selectedPatientId) { setError('Choose a registered child'); return }
     if (pin.length < 4)    { setError('Choose a 4-digit PIN'); return }
     setError(''); setLoading(true)
     try {
-      const data = await registerKid(firstName.trim(), avatar, pin)
+      const data = await registerKid(selectedPatientId, avatar, pin)
       // Clear any old game scores so new player starts fresh
       localStorage.removeItem('bq_scores_v1')
       setRegistered({ player_code: data.player_code, first_name: data.first_name })
@@ -104,8 +113,8 @@ export default function KidPlay() {
                          border-2 border-brand-amber/40 hover:border-brand-amber
                          transition-all hover:scale-105 text-left">
               <div className="text-3xl mb-2">✨</div>
-              <p className="font-display text-xl font-bold text-white">New Player</p>
-              <p className="text-white/40 text-sm">Create your account</p>
+              <p className="font-display text-xl font-bold text-white">Set Up PIN</p>
+              <p className="text-white/40 text-sm">Choose a registered child</p>
             </button>
             <button onClick={() => {
               logout()
@@ -127,13 +136,19 @@ export default function KidPlay() {
         <div className="w-full max-w-sm">
           <button onClick={() => { navigate('/breathquest/play'); setPin(''); setError('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors">← Back</button>
-          <h1 className="font-display text-3xl font-black text-white mb-6 text-center">Create Account</h1>
+          <h1 className="font-display text-3xl font-black text-white mb-6 text-center">Set Up Game PIN</h1>
 
-          {/* Name */}
+          {/* Registered child */}
           <div className="mb-4">
-            <label className="text-sm text-white/50 block mb-1">Your first name</label>
-            <input className="input text-lg" placeholder="e.g. Alex"
-                   value={firstName} onChange={e => setFirstName(e.target.value)} />
+            <label className="text-sm text-white/50 block mb-1">Choose a registered child</label>
+            <select className="input text-lg" value={selectedPatientId}
+                    onChange={e => setSelectedPatientId(e.target.value)}>
+              <option value="">Select a child</option>
+              {patients.map(patient => (
+                <option key={patient.id} value={patient.id}>{patient.name}</option>
+              ))}
+            </select>
+            {patients.length === 0 && <p className="text-white/40 text-xs mt-2">No children found. Register the child in Assessment first.</p>}
           </div>
 
           {/* Avatar */}
@@ -171,7 +186,7 @@ export default function KidPlay() {
 
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
           <Button className="w-full" size="lg" onClick={handleRegister} disabled={loading}>
-            {loading ? 'Creating…' : 'Create Account! 🎉'}
+            {loading ? 'Saving…' : 'Save PIN & Play! 🎉'}
           </Button>
         </div>
       )}
