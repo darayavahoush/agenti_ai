@@ -6,11 +6,12 @@ echo   Vaaksudhi Project Setup (Windows)
 echo ========================================
 echo.
 
-REM Check if Python is installed
-python --version >nul 2>&1
+REM Check if uv is installed
+uv --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Python is not installed or not in PATH
-    echo Please install Python 3.10 or higher from https://www.python.org/
+    echo ERROR: uv is not installed or not in PATH
+    echo Please install uv with: pip install uv
+    echo Or visit https://github.com/astral-sh/uv
     pause
     exit /b 1
 )
@@ -24,8 +25,8 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [1/7] Creating Python virtual environment...
-python -m venv venv
+echo [1/7] Creating Python virtual environment with uv...
+uv venv
 if %errorlevel% neq 0 (
     echo ERROR: Failed to create virtual environment
     pause
@@ -33,7 +34,7 @@ if %errorlevel% neq 0 (
 )
 
 echo [2/7] Activating virtual environment...
-call venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 if %errorlevel% neq 0 (
     echo ERROR: Failed to activate virtual environment
     echo If PowerShell blocks execution, run: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
@@ -41,10 +42,9 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [3/7] Installing Python dependencies...
+echo [3/7] Installing Python dependencies with uv...
 cd backend
-pip install --upgrade pip
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo ERROR: Failed to install Python dependencies
     pause
@@ -82,7 +82,7 @@ echo To run the project:
 echo.
 echo 1. Backend:
 echo    cd backend
-echo    ..\venv\Scripts\activate
+echo    ..\.venv\Scripts\activate
 echo    uvicorn app.main:app --reload
 echo.
 echo 2. Frontend (in new terminal):
