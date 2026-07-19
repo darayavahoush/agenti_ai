@@ -18,11 +18,7 @@ from app.tools.audio_tool import (
 )
 from app.tools.speech_tool import transcribe
 from app.tools.phoneme_tool import get_basic_phonemes
-from app.tools.multilang_phoneme_tool import (
-    get_basic_phonemes_multilang,
-    get_display_phonemes_multilang,
-    compare_phonemes_multilang,
-)
+from app.tools.multilang_phoneme_tool import get_basic_phonemes_multilang
 from app.graph.speech_graph import speech_graph
 from app.state.speech_state import SpeechState
 
@@ -262,6 +258,7 @@ async def compare_word(
     }
 
 @router.post("/compare_phoneme")
+@router.post("/compare-phoneme")
 async def compare_phoneme(
     file: UploadFile = File(...),
     target_phoneme: str = Form(...),
@@ -281,28 +278,30 @@ async def compare_phoneme(
 
         # Use same child-segment logic
         y_child = select_child_segment(y, sr)
+        if y_child is None or len(y_child) < 300:
+            y_child = y
 
-        # Transcribe (pass language so Vosk/Whisper can pick appropriate model)
+        # Transcribe with language support so native script can be returned
         spoken_word = transcribe(
             y_child,
             sr,
             language=language
         )
 
-        # Extract phonemes using language-aware extractor
-        spoken_phonemes = get_basic_phonemes_multilang(spoken_word, language)
+        if not spoken_word:
+            spoken_word = transcribe(
+                y,
+                sr,
+                language=language
+            )
 
-        # Compare using language-aware comparator
-        compare_res = compare_phonemes_multilang([target_phoneme], spoken_phonemes, language)
-        correct = False
-        if compare_res and "matches" in compare_res:
-            for m in compare_res["matches"]:
-                if m.get("expected") == target_phoneme and m.get("correct"):
-                    correct = True
-                    break
+        # Convert transcript → phonemes using multilingual helpers
+        spoken_phonemes = get_basic_phonemes_multilang(
+            spoken_word,
+            language
+        )
 
-        # Prepare display-friendly labels for detected phonemes
-        detected_display = get_display_phonemes_multilang(spoken_phonemes, language)
+        correct = target_phoneme in spoken_phonemes
 
         # cleanup
         delete_audio(path)
@@ -313,7 +312,6 @@ async def compare_phoneme(
                 "correct": correct,
                 "transcript": spoken_word,
                 "detected_phonemes": spoken_phonemes,
-                "detected_phonemes_display": detected_display,
                 "feedback": (
                     "Great Job!"
                     if correct

@@ -6,6 +6,7 @@ import numpy as np
 import soundfile as sf
 from faster_whisper import WhisperModel
 from rapidfuzz import fuzz
+from app.utils.transliteration_utils import convert_whisper_output_to_native
 
 # ---------------------------------------------------
 # LOAD MODELS
@@ -121,10 +122,15 @@ def transcribe(y: np.ndarray, sr: int, prompt: Optional[str] = None, language: s
         print("📝 Transcription result:", text)
         
         # For Indian languages, Whisper returns English transliteration
-        # We need to convert this back to native script for phoneme extraction
+        # Convert it back to native script for proper phoneme extraction
         if language in indian_languages and text:
-            print(f"⚠️ Whisper returned English transliteration for {language}: {text}")
-            print(f"💡 To get native script output, install Vosk models")
+            native_text = convert_whisper_output_to_native(text, language)
+            if native_text != text:
+                print(f"✅ Converted English transliteration to native script: '{text}' → '{native_text}'")
+                text = native_text
+            else:
+                print(f"⚠️ Whisper returned English transliteration for {language}: {text}")
+                print(f"💡 To get native script output reliably, install Vosk models: python setup_vosk_models.py {language}")
         
         return normalize_text(text)
     except Exception as e:
