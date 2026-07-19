@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Float, Integer, TIMESTAMP, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
 from datetime import datetime
@@ -35,9 +34,7 @@ class Session(Base):
 
     trs_score = Column(Integer)
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-
-    patient = relationship("Patient", back_populates="sessions")
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property
     def pitch(self):

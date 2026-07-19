@@ -1,40 +1,67 @@
+# Core Framework
 fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
+uvicorn[standard]
 python-dotenv
 pydantic
+pydantic-settings
+email-validator
 
-faster-whisper
+# Database
+sqlalchemy
+psycopg2-binary
+asyncpg
+
+# Authentication & Security
 passlib
 bcrypt
-python-jose
+python-jose[cryptography]
 python-multipart
 
+# Audio Processing
+soundfile
 librosa
 numpy
 pandas
 scipy
-soundfile
-
+faster-whisper
 openai-whisper
 rapidfuzz
-
-streamlit
-requests
-streamlit-mic-recorder
-
-aiofiles
-imageio-ffmpeg
-opencv-python
-praat-parselmouth
 noisereduce
-
-torch
+praat-parselmouth
 silero-vad
-g2p_en
-nltk
-kokoro-onnx
-scikit-learn
+
+# Speech Recognition
+vosk
+pyaudio
+
+# Machine Learning
+torch
+transformers<5
 sentence-transformers
+scikit-learn
+
+# NLP & Phonetics
+nltk
+g2p_en
+
+# Text-to-Speech
+coqui-tts
+kokoro-onnx
+
+# Computer Vision
+opencv-python
+imageio-ffmpeg
+
+# File Handling
+aiofiles
+
+# Web Scraping
+requests
 ddgs
+
+# Translation
+deep-translator
+
+# Streamlit (for admin tools)
+streamlit
+streamlit-mic-recorder

@@ -17,6 +17,11 @@ from app.tools.phoneme_tool import (
     get_display_phoneme_list,
     generate_feedback
 )
+from app.tools.multilang_phoneme_tool import (
+    get_basic_phonemes_multilang,
+    get_display_phonemes_multilang,
+    compare_phonemes_multilang
+)
 from app.services.phoneme.scoring import score_phonemes
 from rapidfuzz import fuzz
 
@@ -33,27 +38,39 @@ class SpeechAnalysisAgent:
             return state
 
         try:
+            # Get language parameter (default to English)
+            language = state.get("language", "en")
+            print("🌐 Speech analysis with language:", language)
+            
             # Load audio
             y, sr = load_audio(path)
             state["sample_rate"] = sr
 
             # Normalize audio
             y = normalize_audio(y)
+            print("📊 Normalized audio shape:", y.shape)
 
             # Trim silence
             y = trim_audio(y, top_db=10)
+            print("✂️ Trimmed audio shape:", y.shape)
 
             # Child segment selection
             y_child = select_child_segment(y, sr)
+            print("👶 Child segment shape:", y_child.shape if y_child is not None else "None")
 
             # Fallback safety
             if y_child is None or len(y_child) < 300:
+                print("⚠️ Using full audio as fallback")
                 y_child = y
 
-            # Transcribe
+            # Transcribe with language support
             target_word = state.get("target_word", "")
-            transcript_child = transcribe(y_child, sr, prompt=target_word)
-            transcript_full = transcribe(y, sr, prompt=target_word)
+            print("🎯 Target word:", target_word)
+            transcript_child = transcribe(y_child, sr, prompt=target_word, language=language)
+            transcript_full = transcribe(y, sr, prompt=target_word, language=language)
+
+            print("📝 Child transcript:", transcript_child)
+            print("📝 Full transcript:", transcript_full)
 
             target = normalize_text(target_word)
 
@@ -98,15 +115,21 @@ class SpeechAnalysisAgent:
 
             spoken = normalize_text(spoken)
             state["spoken_word"] = spoken if spoken else "No speech detected"
+            print("🗣️ Final spoken word:", state["spoken_word"])
 
-            # Phoneme analysis
-            expected_phonemes = get_basic_phonemes(target)
-            spoken_phonemes = get_basic_phonemes(spoken)
+            # Phoneme analysis with multi-language support
+            expected_phonemes = get_basic_phonemes_multilang(target_word, language)
+            spoken_phonemes = get_basic_phonemes_multilang(spoken, language)
+            
+            print("🔊 Expected phonemes:", expected_phonemes)
+            print("🔊 Spoken phonemes:", spoken_phonemes)
 
             state["expected_phonemes"] = expected_phonemes
             state["spoken_phonemes"] = spoken_phonemes
 
-            phoneme_result = score_phonemes(expected_phonemes, spoken_phonemes)
+            # Use multi-language phoneme comparison
+            phoneme_result = compare_phonemes_multilang(expected_phonemes, spoken_phonemes, language)
+            print("📊 Phoneme accuracy:", phoneme_result["accuracy"])
             state["phoneme_accuracy"] = phoneme_result["accuracy"]
             state["phoneme_matches"] = phoneme_result["matches"]
 
@@ -125,12 +148,12 @@ class SpeechAnalysisAgent:
             state["loudness"] = metrics["loudness"]
             state["pitch"] = metrics["pitch"]
 
-            # Display formatting
-            state["expected_phonemes_display"] = get_display_phoneme_list(
-                expected_phonemes, word=target_word
+            # Display formatting with multi-language support
+            state["expected_phonemes_display"] = get_display_phonemes_multilang(
+                expected_phonemes, language
             )
-            state["spoken_phonemes_display"] = get_display_phoneme_list(
-                spoken_phonemes, word=spoken
+            state["spoken_phonemes_display"] = get_display_phonemes_multilang(
+                spoken_phonemes, language
             )
 
         except Exception as e:

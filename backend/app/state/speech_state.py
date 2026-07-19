@@ -12,6 +12,7 @@ class SpeechState(TypedDict):
     patient_name: str
     target_word: str
     therapy_mode: str
+    language: Optional[str]
 
     # -------------------------
     # Audio
