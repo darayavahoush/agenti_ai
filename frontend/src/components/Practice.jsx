@@ -189,10 +189,10 @@ export function Practice({ sessionId }) {
       fd.append("file", blob, "recording.wav");
       fd.append("target_phoneme", focusPhoneme);
       // Backend expects short language codes (en, hi, te, kn, etc.)
-      const langCode = language === "hindi" ? "hi" : "en";
+      const langCode = language === "hindi" ? "hi" : language === "telugu" ? "te" : language === "kannada" ? "kn" : "en";
       fd.append("language", langCode);
     try {
-      const res = await fetch(`${BACKEND}/api/phonemes/compare-phoneme`, { method:"POST", body:fd });
+      const res = await fetch(`${BACKEND}/speech/compare_phoneme`, { method:"POST", body:fd });
       const data = await res.json();
       if(data.success) {
         setPhonemeResult(data.data);
