@@ -9,6 +9,27 @@ A speech therapy application designed to help children practice pronunciation an
 - PostgreSQL database (default: localhost:5433)
 - Git
 
+## System Requirements
+
+### Minimum Specifications
+- **RAM:** 8 GB
+- **Processor:** Intel i5 / AMD Ryzen 5 (or equivalent)
+- **Storage:** 20 GB free space
+- **OS:** Windows 10/11, macOS 10.15+, or Linux (Ubuntu 20.04+)
+
+### Recommended Specifications
+- **RAM:** 16 GB or higher
+- **Processor:** Intel i7 / AMD Ryzen 7 (or equivalent) with dedicated GPU (NVIDIA RTX series preferred for PyTorch acceleration)
+- **Storage:** 50 GB SSD (for faster model loading and audio processing)
+- **OS:** Windows 11, macOS 12+, or Linux (Ubuntu 22.04+)
+
+### Notes on Resource Usage
+- **PyTorch & ML Models:** Requires significant RAM for model loading (2-4 GB for Whisper models, additional for transformers)
+- **Audio Processing:** Librosa and soundfile operations are CPU-intensive
+- **Vosk Models:** Each language model is ~50MB (optional but recommended for native script output)
+- **Database:** PostgreSQL requires minimal resources (< 500 MB for typical usage)
+- **GPU:** Not required but highly recommended for faster speech recognition and ML inference
+
 ## Quick Setup Guide
 
 ### 1. Clone the repository
@@ -24,7 +45,7 @@ cd vaaksudhi
 **Windows (PowerShell):**
 ```powershell
 python -m venv venv
-.\venv\Scripts\Activate.ps1
+ .\.venv\Scripts\activate   
 ```
 
 **Windows (Command Prompt):**
