@@ -7,10 +7,11 @@ echo "  Vaaksudhi Project Setup (Linux/Mac)"
 echo "========================================"
 echo ""
 
-# Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo "ERROR: Python 3 is not installed"
-    echo "Please install Python 3.10 or higher"
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo "ERROR: uv is not installed"
+    echo "Please install uv with: pip install uv"
+    echo "Or visit https://github.com/astral-sh/uv"
     exit 1
 fi
 
@@ -21,24 +22,23 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-echo "[1/7] Creating Python virtual environment..."
-python3 -m venv venv
+echo "[1/7] Creating Python virtual environment with uv..."
+uv venv
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to create virtual environment"
     exit 1
 fi
 
 echo "[2/7] Activating virtual environment..."
-source venv/bin/activate
+source .venv/bin/activate
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate virtual environment"
     exit 1
 fi
 
-echo "[3/7] Installing Python dependencies..."
+echo "[3/7] Installing Python dependencies with uv..."
 cd backend
-pip install --upgrade pip
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to install Python dependencies"
     exit 1
@@ -74,7 +74,7 @@ echo "To run the project:"
 echo ""
 echo "1. Backend:"
 echo "   cd backend"
-echo "   source ../venv/bin/activate"
+echo "   source ../.venv/bin/activate"
 echo "   uvicorn app.main:app --reload"
 echo ""
 echo "2. Frontend (in new terminal):"

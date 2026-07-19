@@ -5,6 +5,7 @@ A speech therapy application designed to help children practice pronunciation an
 ## Prerequisites
 
 - Python 3.10 or higher
+- uv (fast Python package installer) - Install with: `pip install uv` or visit https://github.com/astral-sh/uv
 - Node.js 18 or higher
 - PostgreSQL database (default: localhost:5433)
 - Git
@@ -34,36 +35,40 @@ A speech therapy application designed to help children practice pronunciation an
 
 ### 1. Clone the repository
 ```bash
-git clone <repo-url>
-cd vaaksudhi
+git clone https://github.com/lavanya2kowmar/agenti_ai.git
+cd agenti_ai/vaaksudhi
 ```
-
+### 1.1 Install uv
+```bash
+pip install uv
+```
 ### 2. Backend Setup
 
-#### 2.1 Create and activate Python virtual environment
+#### 2.1 Create Python virtual environment with uv
 
 **Windows (PowerShell):**
 ```powershell
-python -m venv venv
- .\.venv\Scripts\activate   
+uv venv
+.venv\Scripts\Activate.ps1
+.\.venv\Scripts\activate  (optional)
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-python -m venv venv
-venv\Scripts\activate
+uv venv
+.venv\Scripts\activate
 ```
 
 **Linux/Mac:**
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+uv venv
+source .venv/bin/activate
 ```
 
-#### 2.2 Install Python dependencies
+#### 2.2 Install Python dependencies with uv
 ```bash
 cd backend
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 #### 2.3 Configure environment variables
@@ -80,7 +85,7 @@ cp .env.example .env
 python -c "import nltk; nltk.download('averaged_perceptron_tagger_eng'); nltk.download('averaged_perceptron_tagger'); nltk.download('cmudict'); nltk.download('punkt')"
 ```
 
-#### 2.5 (Optional) Install Vosk for Indian language speech recognition
+#### 2.5 Install Vosk for Indian language speech recognition
 This enables native script output (Hindi speech → Hindi text, Telugu speech → Telugu text, etc.):
 
 ```bash
@@ -215,6 +220,4 @@ vaaksudhi/
 - **Lucide React** - Icons
 - **Recharts** - Charts
 
-## License
-
-[Your License Here]     
+ 
