@@ -18,3 +18,14 @@ class AssessmentWord(Base):
     animation_filename = Column(String(240), nullable=True)
     display_order = Column(Integer, default=0, nullable=False)
     media_filename = Column(String(240), nullable=True)
+
+    # Translation columns
+    word_key = Column(String(120), nullable=True, index=True)
+    english = Column(String(120), nullable=True)
+    telugu = Column(String(120), nullable=True)
+    hindi = Column(String(120), nullable=True)
+    tamil = Column(String(120), nullable=True)
+    kannada = Column(String(120), nullable=True)
+    malayalam = Column(String(120), nullable=True)
+    bengali = Column(String(120), nullable=True)
+    marathi = Column(String(120), nullable=True)

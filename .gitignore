@@ -1,27 +1,85 @@
 # Virtual Environment
-speak_easy/Lib/
-speak_easy/Scripts/
-speak_easy/Include/
-speak_easy/share/
-speak_easy/etc/
-speak_easy/pyvenv.cfg
-
-etc/
-share/
+venv/
+env/
+.venv/
+speak_easy/
 Lib/
 Scripts/
 Include/
+share/
+etc/
 pyvenv.cfg
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Environment
 .env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Generated files
 audio_files/
+*.wav
+*.mp3
+*.ogg
+*.flac
 
-# VS Code
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# External repositories
+backend/breathquest/
+
+# Vosk models (optional - can be large)
+vosk-models/

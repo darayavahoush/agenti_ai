@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export default function Progress() {
   const [patients, setPatients] = useState([]);
@@ -27,7 +27,7 @@ export default function Progress() {
           setSelectedPatientId(loadedPatients[0].id);
         }
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching progress data from PostgreSQL:', err);
       } finally {
         setLoading(false);
       }
@@ -68,7 +68,7 @@ export default function Progress() {
         <div style={{ padding: "30px", background: "white", borderRadius: "16px", textAlign: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
           <span style={{ fontSize: "40px" }}>🌱</span>
           <h2 style={{ color: "#64748b" }}>No patients registered yet</h2>
-          <p style={{ color: "#94a3b8" }}>Try running a live therapy session first to register a patient.</p>
+          <p style={{ color: "#94a3b8" }}>Try running an assessment first to register a patient.</p>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

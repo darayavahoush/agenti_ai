@@ -140,11 +140,11 @@ export function Landing({ onStart }) {
           </p>
 
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "22px" }}>
-            <Button onClick={onStart} variant="primary" style={{ padding: "18px 32px", fontSize: "18px" }}>
-              Get Started
+            <Button onClick={() => onStart("dashboard")} variant="primary" style={{ padding: "18px 32px", fontSize: "18px" }}>
+              Go to Dashboard
             </Button>
             <Button onClick={onStart} variant="secondary" style={{ padding: "18px 28px", fontSize: "18px" }}>
-              Watch Demo
+              Start Therapy
             </Button>
           </div>
 

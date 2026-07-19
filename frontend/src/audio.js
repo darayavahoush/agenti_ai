@@ -36,6 +36,14 @@ export function playPhonemeAudio(exampleWord) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(exampleWord);
-  utt.rate = 0.7; utt.pitch = 1.0; utt.lang = "en-US";
+  utt.rate = 0.7; utt.pitch = 1.0; utt.lang = "en-IN";
+  
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => {
+    const name = v.name.toLowerCase();
+    return name.includes("nova") || v.lang.toLowerCase().startsWith("en-in") || name.includes("veena") || name.includes("heera");
+  });
+  if (preferred) utt.voice = preferred;
+  
   window.speechSynthesis.speak(utt);
 }

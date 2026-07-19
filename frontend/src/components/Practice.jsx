@@ -31,7 +31,7 @@ export function Practice({ sessionId }) {
     genTimer.current = setTimeout(() => fetchPhonemes(word.trim()), 480);
   }, [word, language]);
 
-  async function fetchPhonemes(w) {
+   async function fetchPhonemes(w) {
   setGenerating(true);
 
   try {
@@ -43,7 +43,8 @@ export function Practice({ sessionId }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          word: w,
+               word: w,
+               language: language === "hindi" ? "hi" : "en",
         }),
       }
     );
@@ -139,6 +140,8 @@ export function Practice({ sessionId }) {
     "therapy_mode",
     "Full Word Match"
   );
+   // Include short language code for backend (en, hi, etc.)
+   fd.append("language", language === "hindi" ? "hi" : "en");
 
   try {
 
@@ -181,13 +184,15 @@ export function Practice({ sessionId }) {
   }
 }
 
-  async function sendPhoneme(blob) {
-    const fd = new FormData();
-    fd.append("file", blob, "recording.wav");
-    fd.append("target_phoneme", focusPhoneme);
-    fd.append("language", language);
+   async function sendPhoneme(blob) {
+      const fd = new FormData();
+      fd.append("file", blob, "recording.wav");
+      fd.append("target_phoneme", focusPhoneme);
+      // Backend expects short language codes (en, hi, te, kn, etc.)
+      const langCode = language === "hindi" ? "hi" : language === "telugu" ? "te" : language === "kannada" ? "kn" : "en";
+      fd.append("language", langCode);
     try {
-      const res = await fetch(`${BACKEND}/api/phonemes/compare-phoneme`, { method:"POST", body:fd });
+      const res = await fetch(`${BACKEND}/speech/compare_phoneme`, { method:"POST", body:fd });
       const data = await res.json();
       if(data.success) {
         setPhonemeResult(data.data);
@@ -216,7 +221,7 @@ export function Practice({ sessionId }) {
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = language === "hindi" ? "hi-IN" : "en-US";
+    utterance.lang = language === "hindi" ? "hi-IN" : "en-IN";
     
     // For English, macOS distorts heavily below 0.6. Hindi handles 0.5 fine.
     utterance.rate = slow ? (language === "hindi" ? 0.5 : 0.6) : 0.95; 
@@ -225,19 +230,23 @@ export function Practice({ sessionId }) {
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
       const preferred = voices.find(v => {
-        if (language === "hindi") return v.lang.includes("hi") && (v.name.includes("Female") || v.name.includes("Google"));
-        
         const name = v.name.toLowerCase();
-        // The most premium, natural female English voices on Mac and Chrome
-        return name === "google us english" || name === "samantha" || name === "victoria" || name === "karen";
+        if (name.includes("nova")) return true;
+        
+        if (language === "hindi") return v.lang.toLowerCase().includes("hi") && (v.name.includes("Female") || v.name.includes("Google"));
+        
+        // Prefer Indian English voice
+        return v.lang.toLowerCase().startsWith("en-in") || name.includes("veena") || name.includes("heera") || name.includes("google en-in");
       });
       
-      const fallback = voices.find(v => v.lang.startsWith("en-US") && v.name.toLowerCase().includes("female"));
-      const fallback2 = voices.find(v => v.lang.startsWith("en"));
+      const fallback = voices.find(v => v.lang.toLowerCase().startsWith("en-in"));
+      const fallback2 = voices.find(v => v.lang.toLowerCase().startsWith("hi-in"));
+      const fallback3 = voices.find(v => v.lang.toLowerCase().startsWith("en"));
       
       if (preferred) utterance.voice = preferred;
       else if (fallback) utterance.voice = fallback;
       else if (fallback2) utterance.voice = fallback2;
+      else if (fallback3) utterance.voice = fallback3;
     }
     
     window.speechSynthesis.speak(utterance);
@@ -250,6 +259,8 @@ export function Practice({ sessionId }) {
     return m.correct ? "correct" : "wrong";
   });
   const correctCount = chipStatuses.filter(s => s === "correct").length;
+   const expectedDisplay = wordResult?.expected_phonemes_display || expectedList;
+   const spokenDisplay = wordResult?.spoken_phonemes_display || wordResult?.spoken_phonemes || [];
   
   const canRecord = mode === MODE_WORD
     ? (genPhonemes.length > 0 && !loading && !generating)
@@ -478,6 +489,16 @@ export function Practice({ sessionId }) {
                            <PhonemeChip key={i} phoneme={ph} status={chipStatuses[i]} onClick={() => drillPhoneme(ph)} />
                         ))}
                      </div>
+                        {expectedDisplay && expectedDisplay.length > 0 && (
+                           <div style={{ marginTop: "12px", fontSize: "13px", color: T.textMuted }}>
+                              Expected (native): <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{expectedDisplay.join(' ')}</strong>
+                           </div>
+                        )}
+                        {spokenDisplay && spokenDisplay.length > 0 && (
+                           <div style={{ marginTop: "6px", fontSize: "13px", color: T.textMuted }}>
+                              Detected (native): <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{spokenDisplay.join(' ')}</strong>
+                           </div>
+                        )}
                   </div>
 
                   <div style={{ background: "#FFF5EF", padding: "24px", borderRadius: "20px" }}>
@@ -567,6 +588,11 @@ export function Practice({ sessionId }) {
                         <div style={{ color: T.text, fontSize: "16px", marginBottom: "16px", opacity: 0.8 }}>
                            We heard: <strong>"{phonemeResult.transcript || "..."}"</strong>
                         </div>
+                        {phonemeResult.detected_phonemes_display && (
+                           <div style={{ color: T.textMuted, fontSize: "14px", marginBottom: "12px" }}>
+                              Detected phoneme(s): <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{phonemeResult.detected_phonemes_display.join(' ')}</strong>
+                           </div>
+                        )}
                         {!phonemeResult.correct && (
                            <div style={{ background: "rgba(255,255,255,0.7)", padding: "16px", borderRadius: "12px", fontSize: "15px", lineHeight: 1.6, textAlign: "left" }}>
                               <strong>Tip:</strong> {phonemeResult.feedback}
