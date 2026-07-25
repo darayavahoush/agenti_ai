@@ -9,6 +9,7 @@ import Assessment from "./pages/assessment";
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";
 import BreathQuestRouter from "./components/BreathQuestRouter";
+import VoiceHurdleRace from "./voiceHurdleRace/VoiceHurdleRace";
 
 import "./App.css";
 
@@ -39,6 +40,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/breathquest/*" element={<BreathQuestRouter />} />
+        <Route path="/voice-hurdle-race" element={<VoiceHurdleRace />} />
         <Route path="/*" element={<AppContent page={page} setPage={setPage} />} />
       </Routes>
     </BrowserRouter>
