@@ -42,6 +42,10 @@ export default function LiveTherapy({ setPage }) {
     navigate("/breathquest");
   };
 
+  const handleVoiceHurdleRace = () => {
+    navigate("/voice-hurdle-race");
+  };
+
   return (
     <div
       style={{
@@ -85,6 +89,22 @@ export default function LiveTherapy({ setPage }) {
             }}
           >
             💨 BreathQuest
+          </button>
+          <button
+            onClick={handleVoiceHurdleRace}
+            style={{
+              padding: "16px 32px",
+              border: "none",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #f59e0b, #f97316)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "18px",
+              cursor: "pointer",
+              boxShadow: "0 8px 18px rgba(245, 158, 11, 0.28)",
+            }}
+          >
+            🐶 Voice Hurdle Race
           </button>
         </div>
         {/* <section style={{ marginTop: "22px", padding: "18px", borderRadius: "14px", background: "#f5f3ff", textAlign: "left" }}>
