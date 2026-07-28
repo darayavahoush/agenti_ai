@@ -27,6 +27,10 @@ import {
 } from './levels';
 
 import LevelSelection from './LevelSelection';
+import PatientLogin from './PatientLogin';
+import { voiceHurdleRaceApi, Patient } from '../api/voiceHurdleRaceApi';
+import { useAuth } from '../breathquest/context/AuthContext';
+import { Avatar, StarRating } from '../breathquest/components/ui';
 
 
 /* ============================================================
@@ -79,6 +83,28 @@ export default function VoiceHurdleRace() {
   ] = useState<string | null>(
     null
   );
+
+  const [
+    patient,
+    setPatient,
+  ] = useState<Patient | null>(null);
+
+  const [
+    showLogin,
+    setShowLogin,
+  ] = useState(true);
+
+  const { patient: authPatient, isKid, logout: authLogout } = useAuth();
+
+  useEffect(() => {
+    if (authPatient && isKid) {
+      setPatient(authPatient as any);
+      setShowLogin(false);
+    } else {
+      setPatient(null);
+      setShowLogin(true);
+    }
+  }, [authPatient, isKid]);
 
 
   /* ============================================================
@@ -347,7 +373,7 @@ export default function VoiceHurdleRace() {
         animationRef.current =
           null;
 
-        if (selectedLevel) {
+        if (selectedLevel && patient) {
           const accuracy =
             (
               state.pitchAccuracy +
@@ -365,6 +391,21 @@ export default function VoiceHurdleRace() {
             selectedLevel.id,
             stars
           );
+
+          // Save session to backend
+          voiceHurdleRaceApi.createVoiceHurdleRaceSession({
+            patient_id: patient.id,
+            level_id: selectedLevel.id,
+            level_name: selectedLevel.name,
+            score: state.score,
+            time_remaining: state.timeRemaining,
+            pitch_accuracy: state.pitchAccuracy,
+            loudness_accuracy: state.loudnessAccuracy,
+            stars: stars,
+            session_type: 'voice_hurdle_race'
+          }).catch(err => {
+            console.error('Failed to save session:', err);
+          });
         }
 
         return;
@@ -472,6 +513,52 @@ export default function VoiceHurdleRace() {
 
 
   /* ============================================================
+     PATIENT AUTHENTICATION
+  ============================================================ */
+
+  const handlePatientLogin = async (
+    name: string,
+    dateOfBirth: string
+  ) => {
+    try {
+      setError(null);
+      const loggedInPatient = await voiceHurdleRaceApi.loginPatient({
+        name,
+        date_of_birth: dateOfBirth,
+      });
+      setPatient(loggedInPatient);
+      setShowLogin(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    }
+  };
+
+  const handlePatientRegister = async (
+    patientData: any
+  ) => {
+    try {
+      setError(null);
+      const newPatient = await voiceHurdleRaceApi.createPatient(patientData);
+      setPatient(newPatient);
+      setShowLogin(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
+    }
+  };
+
+  const handleLogout = () => {
+    authLogout();
+    setPatient(null);
+    setShowLogin(true);
+    setShowLevelSelection(true);
+    setSelectedLevel(null);
+    setIsStarted(false);
+    setIsGameOver(false);
+    setGameState(null);
+  };
+
+
+  /* ============================================================
      CLEANUP
   ============================================================ */
 
@@ -494,6 +581,20 @@ export default function VoiceHurdleRace() {
 
 
   /* ============================================================
+     LOGIN SCREEN
+  ============================================================ */
+
+  if (showLogin) {
+    return (
+      <PatientLogin
+        onLogin={handlePatientLogin}
+        onRegister={handlePatientRegister}
+        error={error}
+      />
+    );
+  }
+
+  /* ============================================================
      LEVEL SELECTION
   ============================================================ */
 
@@ -503,7 +604,7 @@ export default function VoiceHurdleRace() {
         onSelectLevel={
           handleSelectLevel
         }
-        onBack={() => {}}
+        onBack={handleLogout}
       />
     );
   }

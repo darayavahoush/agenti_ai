@@ -1,205 +1,176 @@
 /**
  * Level Selection Page for Voice Hurdle Race
- * Displays all levels with unlock status and star ratings
+ * Displays all levels with unlock status and star ratings in a premium consistent design
  */
 
 import { useEffect, useState } from 'react';
 import { LEVELS, LevelProgress, getLevelProgress } from './levels';
+import { useAuth } from '../breathquest/context/AuthContext';
+import { Avatar, Badge, Card, StarRating, Button } from '../breathquest/components/ui';
 
 interface LevelSelectionProps {
   onSelectLevel: (levelId: number) => void;
   onBack: () => void;
 }
 
+const CARD_THEMES = [
+  { from: '#1e3a8a', border: '#60A5FA', glow: 'rgba(96,165,250,0.15)', emoji: '🐶' },
+  { from: '#065f46', border: '#A8FF6F', glow: 'rgba(168,255,111,0.15)', emoji: '🏃' },
+  { from: '#7c2d12', border: '#FAC775', glow: 'rgba(250,199,117,0.15)', emoji: '🏁' },
+  { from: '#581c87', border: '#F472B6', glow: 'rgba(244,114,182,0.15)', emoji: '🏆' },
+];
+
 export default function LevelSelection({ onSelectLevel, onBack }: LevelSelectionProps) {
+  const { patient, logout } = useAuth();
   const [levelProgress, setLevelProgress] = useState<LevelProgress[]>([]);
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   useEffect(() => {
     setLevelProgress(getLevelProgress());
   }, []);
 
-  const renderStars = (stars: number) => {
-    return (
-      <div style={{ display: 'flex', gap: '4px' }}>
-        {[1, 2, 3].map((star) => (
-          <span key={star} style={{ 
-            fontSize: '1.5rem',
-            opacity: star <= stars ? 1 : 0.3
-          }}>
-            ⭐
-          </span>
-        ))}
-      </div>
-    );
-  };
+  const totalStars = levelProgress.reduce((sum, p) => sum + (p.stars || 0), 0);
+  const maxStars = LEVELS.length * 3;
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      background: 'linear-gradient(180deg, #fffaf2 0%, #f7f3ff 52%, #eefbff 100%)',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      overflow: 'auto',
-      padding: '40px 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center'
+    <div className="min-h-screen text-white flex flex-col font-sans" style={{
+      background: 'radial-gradient(ellipse at 50% -10%, #1e3a8a 0%, #0d0d1a 60%)'
     }}>
-      <h1 style={{
-        fontSize: '2.5rem',
-        color: '#5b21b6',
-        marginBottom: '10px',
-        fontFamily: 'Comic Sans MS, cursive, sans-serif'
-      }}>
-        🐶 Voice Hurdle Race 🏁
-      </h1>
-      
-      <p style={{
-        fontSize: '1.2rem',
-        color: '#64748b',
-        marginBottom: '30px'
-      }}>
-        Select a level to play!
-      </p>
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: '20px',
-        maxWidth: '1200px',
-        width: '100%',
-        marginBottom: '30px'
-      }}>
-        {LEVELS.map((level) => {
-          const progress = levelProgress.find(p => p.levelId === level.id) || {
-            stars: 0,
-            unlocked: false,
-            completed: false
-          };
-
-          return (
-            <div
-              key={level.id}
-              onClick={() => progress.unlocked && onSelectLevel(level.id)}
-              style={{
-                background: progress.unlocked 
-                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                  : 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
-                borderRadius: '20px',
-                padding: '25px',
-                color: 'white',
-                cursor: progress.unlocked ? 'pointer' : 'not-allowed',
-                boxShadow: progress.unlocked
-                  ? '0 10px 30px rgba(102, 126, 234, 0.3)'
-                  : '0 10px 30px rgba(107, 114, 128, 0.2)',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                opacity: progress.unlocked ? 1 : 0.6,
-                border: progress.completed ? '3px solid #fbbf24' : 'none'
-              }}
-              onMouseEnter={(e) => {
-                if (progress.unlocked) {
-                  e.currentTarget.style.transform = 'translateY(-5px)';
-                  e.currentTarget.style.boxShadow = '0 15px 40px rgba(102, 126, 234, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = progress.unlocked
-                  ? '0 10px 30px rgba(102, 126, 234, 0.3)'
-                  : '0 10px 30px rgba(107, 114, 128, 0.2)';
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '15px'
-              }}>
-                <h2 style={{
-                  fontSize: '1.5rem',
-                  margin: 0,
-                  fontWeight: 'bold'
-                }}>
-                  {level.name}
-                </h2>
-                {!progress.unlocked && (
-                  <span style={{ fontSize: '2rem' }}>🔒</span>
-                )}
-              </div>
-
-              <p style={{
-                fontSize: '1rem',
-                marginBottom: '15px',
-                opacity: 0.9
-              }}>
-                {level.description}
-              </p>
-
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                fontSize: '0.9rem',
-                marginBottom: '15px',
-                opacity: 0.85
-              }}>
-                <div>⏱️ Time: {level.duration}s</div>
-                <div>🏃 Hurdles: {level.numHurdles}</div>
-                <div>🎯 Pitch: {level.targetPitch}Hz ±{level.pitchTolerance}Hz</div>
-                <div>🔊 Loudness: {level.targetLoudness}dB ±{level.loudnessTolerance}dB</div>
-              </div>
-
-              {progress.completed && (
-                <div style={{
-                  marginTop: '15px',
-                  padding: '10px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  borderRadius: '10px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '0.9rem', marginBottom: '5px' }}>
-                    Stars Earned:
-                  </div>
-                  {renderStars(progress.stars)}
-                </div>
-              )}
-
-              {!progress.unlocked && (
-                <div style={{
-                  marginTop: '15px',
-                  padding: '10px',
-                  background: 'rgba(0, 0, 0, 0.2)',
-                  borderRadius: '10px',
-                  textAlign: 'center',
-                  fontSize: '0.9rem'
-                }}>
-                  Complete previous level to unlock
-                </div>
-              )}
-            </div>
-          );
-        })}
+      {/* Top status bar consistent with BreathQuest */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-brand-dark/30 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <Avatar avatar={patient?.avatar || 'chick'} size="sm" />
+          <div className="flex flex-col">
+            <span className="font-display font-bold text-white leading-tight">
+              {patient?.first_name || 'Player'}
+            </span>
+            <span className="text-white/30 text-[10px] tracking-wide mt-0.5">
+              {patient?.player_code ? `#${patient.player_code}` : '#GUEST'}
+            </span>
+          </div>
+        </div>
+        {/* Total stars */}
+        <div className="flex items-center gap-2">
+          <span className="text-brand-amber font-bold text-sm">⭐ {totalStars} / {maxStars}</span>
+          {totalStars === maxStars && (
+            <span className="text-[10px] bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full font-bold">Perfect!</span>
+          )}
+        </div>
+        <button 
+          onClick={() => { logout(); onBack(); }} 
+          className="text-white/30 hover:text-white/60 text-xs font-semibold transition-colors"
+        >
+          Switch player
+        </button>
       </div>
 
-      <button
-        onClick={onBack}
-        style={{
-          padding: '15px 40px',
-          fontSize: '1.2rem',
-          fontWeight: 'bold',
-          borderRadius: '50px',
-          border: 'none',
-          background: 'linear-gradient(90deg, #f59e0b, #f97316)',
-          color: 'white',
-          cursor: 'pointer',
-          boxShadow: '0 8px 18px rgba(245, 158, 11, 0.28)',
-          marginTop: '20px'
-        }}
-      >
-        ← Back to Menu
-      </button>
+      <div className="max-w-4xl mx-auto px-6 py-10 w-full flex-1">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <h1 className="font-display text-4xl font-black text-white">
+            Choose a <span className="text-brand-green">Race Level!</span>
+          </h1>
+          <p className="text-white/40 mt-2 text-sm">Use your voice to jump and clear obstacles 🏁</p>
+        </div>
+
+        {/* Level grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {LEVELS.map((level, idx) => {
+            const progress = levelProgress.find(p => p.levelId === level.id) || {
+              stars: 0,
+              unlocked: idx === 0, // Fallback unlock first level
+              completed: false
+            };
+
+            const unlocked = progress.unlocked;
+            const theme = CARD_THEMES[idx % CARD_THEMES.length];
+            const isHover = hoveredId === level.id;
+
+            return (
+              <button
+                key={level.id}
+                onClick={() => unlocked && onSelectLevel(level.id)}
+                onMouseEnter={() => setHoveredId(level.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                disabled={!unlocked}
+                className="relative text-left rounded-2xl overflow-hidden transition-all duration-200"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.from}, #12122A)`,
+                  border: `2px solid ${unlocked ? theme.border : 'rgba(255,255,255,0.08)'}`,
+                  boxShadow: isHover && unlocked ? `0 0 30px ${theme.glow}` : 'none',
+                  transform: isHover && unlocked ? 'scale(1.03)' : 'scale(1)',
+                  opacity: unlocked ? 1 : 0.5,
+                }}
+              >
+                {/* Locked overlay */}
+                {!unlocked && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-10">
+                    <span className="text-4xl mb-2">🔒</span>
+                    <span className="text-white/50 text-xs font-semibold">
+                      Complete Level {idx} first
+                    </span>
+                  </div>
+                )}
+
+                <div className="p-5 flex flex-col h-full justify-between">
+                  {/* Top row */}
+                  <div className="flex items-start justify-between mb-3">
+                    <span className="text-5xl">{theme.emoji}</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-green/20 text-brand-green border border-brand-green/30">
+                        {level.duration}s Race
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Level details */}
+                  <div className="flex-1">
+                    <h3 className="font-display font-bold text-white text-lg leading-tight mb-1">
+                      Level {level.id}: {level.name}
+                    </h3>
+                    <p className="text-white/40 text-xs mb-4">{level.description}</p>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-white/50 border-t border-white/5 pt-3 mb-4">
+                      <div className="flex items-center gap-1.5">
+                        <span>🚧</span> Hurdles: <strong className="text-white">{level.numHurdles}</strong>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span>⏱️</span> Spacing: <strong className="text-white">{level.hurdleSpacing}px</strong>
+                      </div>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span>🎵</span> Pitch: <strong className="text-white">{level.targetPitch}Hz</strong>
+                      </div>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span>🔊</span> Loud: <strong className="text-white">{level.targetLoudness}dB</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rating / Actions footer */}
+                  <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                    <div className="flex gap-0.5">
+                      <StarRating stars={progress.stars} max={3} size="sm" />
+                    </div>
+                    {unlocked && (
+                      <span className="text-xs font-bold transition-all duration-200"
+                            style={{ color: isHover ? theme.border : 'rgba(255,255,255,0.3)' }}>
+                        {progress.completed ? 'Play again →' : 'Start Race →'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Bottom Back Button */}
+        <div className="flex justify-center mt-10">
+          <Button variant="ghost" size="md" onClick={onBack}>
+            ← Back to Portal Select
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

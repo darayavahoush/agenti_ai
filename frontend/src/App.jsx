@@ -11,6 +11,8 @@ import Sidebar from "./components/Sidebar";
 import BreathQuestRouter from "./components/BreathQuestRouter";
 import VoiceHurdleRace from "./voiceHurdleRace/VoiceHurdleRace";
 
+import { AuthProvider } from "./breathquest/context/AuthContext";
+
 import "./App.css";
 
 // Wrapper component to handle page state
@@ -40,7 +42,11 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/breathquest/*" element={<BreathQuestRouter />} />
-        <Route path="/voice-hurdle-race" element={<VoiceHurdleRace />} />
+        <Route path="/voice-hurdle-race" element={
+          <AuthProvider>
+            <VoiceHurdleRace />
+          </AuthProvider>
+        } />
         <Route path="/*" element={<AppContent page={page} setPage={setPage} />} />
       </Routes>
     </BrowserRouter>
