@@ -46,6 +46,14 @@ export default function LiveTherapy({ setPage }) {
     navigate("/voice-hurdle-race");
   };
 
+  const handleVaakMirror = () => {
+    navigate("/vaakmirror");
+  };
+
+  const handlePhoneMeQuest = () => {
+    window.location.href = "/phonemequest/index.html";
+  };
+
   return (
     <div
       style={{
@@ -71,7 +79,7 @@ export default function LiveTherapy({ setPage }) {
         }}
       >
         <h1 style={{ margin: "0 0 20px 0", fontSize: "1.75rem", color: "#5b21b6" }}>
-          🌈 Live Therapy
+          🌈 Live Therapy Games
         </h1>
         <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
           <button
@@ -105,6 +113,38 @@ export default function LiveTherapy({ setPage }) {
             }}
           >
             🐶 Voice Hurdle Race
+          </button>
+          <button
+            onClick={handleVaakMirror}
+            style={{
+              padding: "16px 32px",
+              border: "none",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #f0604a, #ff8a73)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "18px",
+              cursor: "pointer",
+              boxShadow: "0 8px 18px rgba(240, 96, 74, 0.28)",
+            }}
+          >
+            ✨ VaakMirror
+          </button>
+          <button
+            onClick={handlePhoneMeQuest}
+            style={{
+              padding: "16px 32px",
+              border: "none",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #3b82f6, #60a5fa)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "18px",
+              cursor: "pointer",
+              boxShadow: "0 8px 18px rgba(59, 130, 246, 0.28)",
+            }}
+          >
+            🎮 PhoneMeQuest
           </button>
         </div>
         {/* <section style={{ marginTop: "22px", padding: "18px", borderRadius: "14px", background: "#f5f3ff", textAlign: "left" }}>
