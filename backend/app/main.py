@@ -12,12 +12,17 @@ from app.models.patient import Patient
 from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
 from app.models import breathquest_models
+from app.models import vaakmirror_models
 from app.routes.assessment import router as assessment_router
 from app.routers.breathquest import auth as breathquest_auth_router
 from app.routers.breathquest import patients as breathquest_patients_router
 from app.routers.breathquest import sessions as breathquest_sessions_router
 from app.routers.breathquest import dashboard as breathquest_dashboard_router
 from app.routers.voiceHurdleRace import router as voice_hurdle_race_router
+from app.routers.phonemequest import router as phonemequest_router
+from app.routers.vaakmirror.sessions import router as vaakmirror_sessions_router
+from app.routers.vaakmirror.dashboard import router as vaakmirror_dashboard_router
+from app.routers.vaakmirror.exercises import router as vaakmirror_exercises_router
 
 class PatientCreate(BaseModel):
     name: str
@@ -52,6 +57,14 @@ app.include_router(breathquest_patients_router.router, prefix="/api/v1")
 app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
 app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
 app.include_router(voice_hurdle_race_router, prefix="/api/v1", tags=["VoiceHurdleRace"])
+
+# Include PhoneMeQuest (Chime) router
+app.include_router(phonemequest_router, prefix="")
+
+# Include VaakMirror routers
+app.include_router(vaakmirror_sessions_router, prefix="/api/v1/vaakmirror")
+app.include_router(vaakmirror_dashboard_router, prefix="/api/v1/vaakmirror")
+app.include_router(vaakmirror_exercises_router, prefix="/api/v1/vaakmirror")
 
 # Ensure assets/audio directory exists
 AUDIO_DIR = Path("assets/audio")
