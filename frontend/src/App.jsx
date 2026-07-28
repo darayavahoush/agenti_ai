@@ -9,6 +9,7 @@ import Assessment from "./pages/assessment";
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";
 import BreathQuestRouter from "./components/BreathQuestRouter";
+import VaakMirrorRouter from "./components/VaakMirrorRouter";
 import VoiceHurdleRace from "./voiceHurdleRace/VoiceHurdleRace";
 
 import { AuthProvider } from "./breathquest/context/AuthContext";
@@ -42,6 +43,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/breathquest/*" element={<BreathQuestRouter />} />
+        <Route path="/vaakmirror/*" element={<VaakMirrorRouter />} />
         <Route path="/voice-hurdle-race" element={
           <AuthProvider>
             <VoiceHurdleRace />

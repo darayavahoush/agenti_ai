@@ -21,10 +21,15 @@ class Settings(BaseSettings):
     
     # OpenAI API (optional, for enhanced features)
     OPENAI_API_KEY: str = Field(default="", description="OpenAI API key for enhanced features")
+
+    # JWT Configuration (for verifying BreathQuest issued tokens)
+    SECRET_KEY: str = Field(default="supersecretkey", description="JWT secret key")
+    ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

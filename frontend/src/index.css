@@ -99,3 +99,29 @@ select {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+/* VaakMirror sub-app styling */
+body.vaakmirror-app {
+  background: #FBF7EE;
+  color: #0E2A2E;
+}
+
+body.vaakmirror-app .vaakmirror-app .font-display,
+body.vaakmirror-app .font-display {
+  font-family: "Baloo 2", ui-rounded, sans-serif !important;
+}
+
+body.vaakmirror-app .vaakmirror-app .font-body,
+body.vaakmirror-app .font-body {
+  font-family: Sora, ui-sans-serif, system-ui, sans-serif !important;
+}
+
+body.vaakmirror-app .vaakmirror-app .font-mono,
+body.vaakmirror-app .font-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace !important;
+}
+
+/* Ensure navbar custom styles work */
+.rounded-blob {
+  border-radius: 42% 58% 63% 37% / 41% 45% 55% 59% !important;
+}
