@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form, Header
+import os
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,6 +17,20 @@ from app.services.audio_service import AudioService, CoquiTTSEngine
 
 
 router = APIRouter(tags=["Assessment"])
+
+ASSESSMENT_SERVICE_API_KEY = os.getenv("ASSESSMENT_SERVICE_API_KEY")
+
+
+def verify_service_api_key(x_api_key: str = Header(None)):
+    """Service-to-service auth for cross-app calls (e.g. quest-games pulling
+    a diagnostic result). Not a user-facing auth path."""
+    if not ASSESSMENT_SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="ASSESSMENT_SERVICE_API_KEY is not configured on this server",
+        )
+    if not x_api_key or x_api_key != ASSESSMENT_SERVICE_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing service API key")
 
 class AssessmentWordCreate(BaseModel):
     word: str = Field(min_length=1, max_length=120)
@@ -628,6 +643,7 @@ async def analyze_assessment_pronunciation(
             raise Exception(result_state["error"])
 
         # 4. Save session to database if patient_id is provided
+        session_id = None
         logger.info(f"🔍 Checking patient_id: {patient_id}, type: {type(patient_id)}")
         if patient_id and patient_id.strip() and patient_id != "":
             try:
@@ -660,11 +676,24 @@ async def analyze_assessment_pronunciation(
                         f0_mean=result_state.get("pitch"),
                         mpt=result_state.get("duration"),
                         hnr=result_state.get("loudness"),
-                        session_type="word_practice"
+                        session_type="word_practice",
+                        # Diagnostic findings — previously computed by the assessment graph
+                        # and returned to the frontend, but never persisted. TODO: confirm
+                        # severity_score is actually a text classification, not a number.
+                        severity_classification=(
+                            str(result_state.get("severity_score"))
+                            if result_state.get("severity_score") is not None
+                            else None
+                        ),
+                        error_patterns=result_state.get("error_patterns") or [],
+                        targeted_quests=result_state.get("targeted_quests") or [],
+                        diagnostic_report=result_state.get("diagnostic_report"),
                     )
                     db.add(session)
                     db.commit()
-                    logger.info(f"✅ Session saved for patient {patient_id}")
+                    db.refresh(session)
+                    session_id = session.id
+                    logger.info(f"✅ Session saved for patient {patient_id} (session_id={session_id})")
                 else:
                     logger.warning(f"⚠️ Patient {patient_id} not found, session not saved")
                 db.close()
@@ -683,6 +712,7 @@ async def analyze_assessment_pronunciation(
         logger.info(f"🔊 Phoneme accuracy: {result_state['phoneme_accuracy']}")
         
         return {
+            "session_id": session_id,
             "patient_name": patient_name,
             "target_word": target_word,
             "accuracy": result_state["accuracy"],
@@ -711,3 +741,37 @@ async def analyze_assessment_pronunciation(
     finally:
         # Cleanup audio
         delete_audio(path)
+
+
+
+@router.get("/{ref}", dependencies=[Depends(verify_service_api_key)])
+def get_assessment_result(ref: str, db: Session = Depends(get_db)):
+    """
+    Service-to-service read of a persisted diagnostic result, keyed by the
+    Session row id returned from POST /assessment/analyze. Protected by
+    ASSESSMENT_SERVICE_API_KEY (X-API-Key header) — not a user-facing route.
+    """
+    try:
+        session_id = int(ref)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ref must be a numeric session id")
+
+    session = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.session_type == "word_practice")
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Assessment result not found")
+
+    return {
+        "session_id": session.id,
+        "patient_id": session.patient_id,
+        "target_word": session.target_word,
+        "accuracy": session.accuracy,
+        "severity_classification": session.severity_classification,
+        "error_patterns": session.error_patterns,
+        "targeted_quests": session.targeted_quests,
+        "diagnostic_report": session.diagnostic_report,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+    }
