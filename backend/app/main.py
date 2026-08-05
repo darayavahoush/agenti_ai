@@ -72,6 +72,30 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 Base.metadata.create_all(bind=engine)
 
+# No Alembic in this project yet — create_all() only creates missing
+# tables, it does NOT alter existing ones. This is a stopgap: safe,
+# idempotent ADD COLUMN IF NOT EXISTS for columns added after the
+# sessions table already existed in a deployed DB. A real migration
+# tool (Alembic) is the correct long-term fix, not a replacement for
+# this pattern scaling indefinitely.
+def _ensure_session_diagnostic_columns():
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS severity_classification VARCHAR"
+        ))
+        conn.execute(text(
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error_patterns JSONB"
+        ))
+        conn.execute(text(
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS targeted_quests JSONB"
+        ))
+        conn.execute(text(
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS diagnostic_report VARCHAR"
+        ))
+
+_ensure_session_diagnostic_columns()
+
 @app.get("/")
 def home():
     return {"message": "VaakSuddhi V1 Running"}
