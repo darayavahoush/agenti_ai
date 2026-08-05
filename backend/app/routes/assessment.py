@@ -678,8 +678,9 @@ async def analyze_assessment_pronunciation(
                         hnr=result_state.get("loudness"),
                         session_type="word_practice",
                         # Diagnostic findings — previously computed by the assessment graph
-                        # and returned to the frontend, but never persisted. TODO: confirm
-                        # severity_score is actually a text classification, not a number.
+                        # and returned to the frontend, but never persisted. severity_score is
+                        # a text classification (e.g. "Mild to Moderate"), not numeric — see
+                        # articulation_diagnostic_agent.py / assessment_state.py.
                         severity_classification=(
                             str(result_state.get("severity_score"))
                             if result_state.get("severity_score") is not None
