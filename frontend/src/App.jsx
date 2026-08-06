@@ -21,7 +21,7 @@ function AppContent({ page, setPage }) {
 
   return (
     <div className="app">
-      {page !== "landing" && <Sidebar setPage={setPage} page={page} />}
+      {page !== "landing" && page !== "therapy" && <Sidebar setPage={setPage} page={page} />}
 
       <div className="content">
         <>
