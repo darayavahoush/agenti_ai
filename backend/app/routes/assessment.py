@@ -745,6 +745,82 @@ async def analyze_assessment_pronunciation(
 
 
 
+@router.get("/patients/{patient_id}/latest", dependencies=[Depends(verify_service_api_key)])
+def get_latest_assessment_for_patient(patient_id: str, db: Session = Depends(get_db)):
+    """
+    Service-to-service read of a patient's most recent word_practice
+    diagnostic — used by quest-games' agent/diagnostic_client.py to pull
+    current severity + targeted quests. Unlike GET /{ref} below (which
+    needs a specific session id), this answers "what's this kid's current
+    diagnosis" by patient id, most-recent-first. Same
+    ASSESSMENT_SERVICE_API_KEY auth as the existing route.
+    """
+    session = (
+        db.query(SessionModel)
+        .filter(SessionModel.patient_id == patient_id, SessionModel.session_type == "word_practice")
+        .order_by(SessionModel.created_at.desc())
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="No assessment found for this patient")
+
+    return {
+        "session_id": session.id,
+        "patient_id": session.patient_id,
+        "severity_classification": session.severity_classification,
+        "targeted_quests": session.targeted_quests,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+    }
+
+
+@router.get("/therapists", dependencies=[Depends(verify_service_api_key)])
+def list_therapist_candidates(db: Session = Depends(get_db)):
+    """
+    Distinct therapist names already recorded during Assessment intake —
+    used by quest-games' auth.py to populate a therapist-selection dropdown
+    at BreathQuest registration instead of requiring a fresh typed name.
+    """
+    names = (
+        db.query(Patient.therapist_name)
+        .filter(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
+        .distinct()
+        .order_by(Patient.therapist_name)
+        .all()
+    )
+    return [name for (name,) in names]
+
+
+@router.get("/patients", dependencies=[Depends(verify_service_api_key)])
+def list_patient_candidates(db: Session = Depends(get_db)):
+    """
+    Active patients already created through Assessment — used by
+    quest-games' auth.py to populate the kid-selection list at BreathQuest
+    PIN setup.
+    """
+    patients = (
+        db.query(Patient)
+        .filter(Patient.is_active.is_(True))
+        .order_by(Patient.name)
+        .all()
+    )
+    return [{"id": str(p.id), "name": p.name} for p in patients]
+
+
+@router.get("/patients/{patient_id}", dependencies=[Depends(verify_service_api_key)])
+def get_patient_record(patient_id: str, db: Session = Depends(get_db)):
+    """
+    Single Assessment patient record by id (name + active status) — used by
+    quest-games' auth.py to verify a patient exists and is active before
+    linking a BreathQuest PIN account to them. Distinct from
+    /patients/{patient_id}/latest below, which returns a diagnostic session,
+    not the patient record itself.
+    """
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"id": str(patient.id), "name": patient.name, "is_active": patient.is_active}
+
+
 @router.get("/{ref}", dependencies=[Depends(verify_service_api_key)])
 def get_assessment_result(ref: str, db: Session = Depends(get_db)):
     """

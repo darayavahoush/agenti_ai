@@ -53,9 +53,22 @@ app.add_middleware(
 # Include assessment router for speech analysis
 app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
 app.include_router(breathquest_auth_router.router, prefix="/api/v1")
-app.include_router(breathquest_patients_router.router, prefix="/api/v1")
+# Disabled 2026-08-06: get_current_therapist in breathquest_core/deps.py
+# is a hardcoded DummyTherapist stub (no real auth), and this router points
+# at the old, therapist-unscoped Patient model instead of the correct
+# BreathQuestPatient/Therapist models already used elsewhere in this file.
+# Table is empty (0 rows) as of this disable, so no data loss. Standalone
+# breathquest backend (port 8001) is the source of truth for patient CRUD
+# going forward -- see the agenti_ai <-> quest-games merge plan.
+# app.include_router(breathquest_patients_router.router, prefix="/api/v1")
 app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
-app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
+# Disabled 2026-08-06: every endpoint in dashboard.py depends on
+# get_current_therapist, which is a hardcoded DummyTherapist stub (no
+# real auth) -- same issue as breathquest_patients_router, disabled above.
+# breathquest_therapists and breathquest_game_sessions are both empty (0
+# rows) as of this disable, so no data loss. Standalone breathquest
+# backend (port 8001) is the source of truth going forward.
+# app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
 app.include_router(voice_hurdle_race_router, prefix="/api/v1", tags=["VoiceHurdleRace"])
 
 # Include PhoneMeQuest (Chime) router
