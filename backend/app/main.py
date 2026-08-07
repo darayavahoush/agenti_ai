@@ -52,7 +52,12 @@ app.add_middleware(
 
 # Include assessment router for speech analysis
 app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
-app.include_router(breathquest_auth_router.router, prefix="/api/v1")
+# Disabled 2026-08-07: standalone breathquest backend (port 8001) now has
+# full parity for this router -- candidate-list + Assessment-linked PIN
+# setup were ported over (see auth.py there), and parent auth was already
+# standalone-only. breathquest_therapists/patients/game_sessions all still
+# 0 rows as of this disable, so no data loss.
+# app.include_router(breathquest_auth_router.router, prefix="/api/v1")
 # Disabled 2026-08-06: get_current_therapist in breathquest_core/deps.py
 # is a hardcoded DummyTherapist stub (no real auth), and this router points
 # at the old, therapist-unscoped Patient model instead of the correct
@@ -61,7 +66,11 @@ app.include_router(breathquest_auth_router.router, prefix="/api/v1")
 # breathquest backend (port 8001) is the source of truth for patient CRUD
 # going forward -- see the agenti_ai <-> quest-games merge plan.
 # app.include_router(breathquest_patients_router.router, prefix="/api/v1")
-app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
+# Disabled 2026-08-07: uses get_current_patient (real auth, not the
+# DummyTherapist stub), but breathquest_game_sessions is 0 rows and
+# standalone (port 8001) is the session-logging system of record --
+# nothing was ever actually writing through this copy.
+# app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
 # Disabled 2026-08-06: every endpoint in dashboard.py depends on
 # get_current_therapist, which is a hardcoded DummyTherapist stub (no
 # real auth) -- same issue as breathquest_patients_router, disabled above.
@@ -115,6 +124,7 @@ def home():
 
 @app.get("/patients/dashboard/summary")
 def dashboard_summary():
+    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         patients = db.query(Patient).all()
@@ -133,6 +143,7 @@ def dashboard_summary():
 
 @app.get("/patients/")
 def get_all_patients():
+    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         patients = db.query(Patient).all()
@@ -159,6 +170,7 @@ def get_all_patients():
 
 @app.post("/patients/")
 def create_patient(data: PatientCreate):
+    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         patient = Patient(
@@ -195,6 +207,7 @@ def create_patient(data: PatientCreate):
 
 @app.post("/patients/login")
 def login_patient(data: PatientLogin):
+    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         # Search for patient by name and date of birth
@@ -226,6 +239,7 @@ def login_patient(data: PatientLogin):
 
 @app.get("/patients/sessions/all")
 def get_all_sessions():
+    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
