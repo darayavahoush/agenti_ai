@@ -13,6 +13,9 @@ from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
 from app.models import breathquest_models
 from app.models import vaakmirror_models
+from app.models import therapist as therapist_model  # noqa: F401 -- import registers Therapist with Base before create_all
+from app.routers.therapist_auth import router as therapist_auth_router
+from app.routers.therapist_patients import router as therapist_patients_router
 from app.routes.assessment import router as assessment_router
 from app.routers.breathquest import auth as breathquest_auth_router
 from app.routers.breathquest import patients as breathquest_patients_router
@@ -52,6 +55,8 @@ app.add_middleware(
 
 # Include assessment router for speech analysis
 app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
+app.include_router(therapist_auth_router, prefix="/api/v1")
+app.include_router(therapist_patients_router, prefix="/api/v1")
 # Disabled 2026-08-07: standalone breathquest backend (port 8001) now has
 # full parity for this router -- candidate-list + Assessment-linked PIN
 # setup were ported over (see auth.py there), and parent auth was already
@@ -100,6 +105,18 @@ Base.metadata.create_all(bind=engine)
 # sessions table already existed in a deployed DB. A real migration
 # tool (Alembic) is the correct long-term fix, not a replacement for
 # this pattern scaling indefinitely.
+def _ensure_patient_therapist_link_column():
+    """One-time ADD COLUMN for registered_therapist_id -- patients table
+    already existed before this column was added to the model (0 rows as
+    of this migration, so purely additive, no backfill needed)."""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE patients ADD COLUMN IF NOT EXISTS registered_therapist_id UUID"
+        ))
+
+_ensure_patient_therapist_link_column()
+
 def _ensure_session_diagnostic_columns():
     from sqlalchemy import text
     with engine.begin() as conn:
