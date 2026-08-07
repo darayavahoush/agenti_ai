@@ -8,11 +8,6 @@ import Assessment from "./pages/assessment";
 
 import { Landing } from "./components/Landing";
 import Sidebar from "./components/Sidebar";
-import BreathQuestRouter from "./components/BreathQuestRouter";
-import VaakMirrorRouter from "./components/VaakMirrorRouter";
-import VoiceHurdleRace from "./voiceHurdleRace/VoiceHurdleRace";
-
-import { AuthProvider } from "./breathquest/context/AuthContext";
 
 import "./App.css";
 
@@ -42,13 +37,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/breathquest/*" element={<BreathQuestRouter />} />
-        <Route path="/vaakmirror/*" element={<VaakMirrorRouter />} />
-        <Route path="/voice-hurdle-race" element={
-          <AuthProvider>
-            <VoiceHurdleRace />
-          </AuthProvider>
-        } />
+        {/* breathquest, vaakmirror, and voice-hurdle-race moved to the
+            standalone quest-games apps -- see the frontend merge plan. */}
         <Route path="/*" element={<AppContent page={page} setPage={setPage} />} />
       </Routes>
     </BrowserRouter>
