@@ -143,7 +143,7 @@ export function Landing({ onStart }) {
             <Button onClick={() => onStart("dashboard")} variant="primary" style={{ padding: "18px 32px", fontSize: "18px" }}>
               Go to Dashboard
             </Button>
-            <Button onClick={onStart} variant="secondary" style={{ padding: "18px 28px", fontSize: "18px" }}>
+            <Button onClick={() => onStart("therapy")} variant="secondary" style={{ padding: "18px 28px", fontSize: "18px" }}>
               Start Therapy
             </Button>
           </div>
