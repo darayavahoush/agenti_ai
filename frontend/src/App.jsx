@@ -20,7 +20,7 @@ function AppContent({ page, setPage }) {
 
       <div className="content">
         <>
-          {page === "landing" && <Landing onStart={() => setPage("therapy")} />}
+          {page === "landing" && <Landing onStart={(target) => setPage(target || "therapy")} />}
           {page === "dashboard" && <Dashboard />}
           {page === "therapy" && <LiveTherapy setPage={setPage} />}
           {page === "patients" && <Patients />}
