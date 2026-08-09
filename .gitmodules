@@ -1,0 +1,4 @@
+[submodule "quest-games"]
+	path = quest-games
+	url = https://github.com/darayavahoush/quest-games.git
+	branch = hf-deploy

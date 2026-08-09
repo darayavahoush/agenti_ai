@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form, Header
+import os
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,6 +17,20 @@ from app.services.audio_service import AudioService, CoquiTTSEngine
 
 
 router = APIRouter(tags=["Assessment"])
+
+ASSESSMENT_SERVICE_API_KEY = os.getenv("ASSESSMENT_SERVICE_API_KEY")
+
+
+def verify_service_api_key(x_api_key: str = Header(None)):
+    """Service-to-service auth for cross-app calls (e.g. quest-games pulling
+    a diagnostic result). Not a user-facing auth path."""
+    if not ASSESSMENT_SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="ASSESSMENT_SERVICE_API_KEY is not configured on this server",
+        )
+    if not x_api_key or x_api_key != ASSESSMENT_SERVICE_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing service API key")
 
 class AssessmentWordCreate(BaseModel):
     word: str = Field(min_length=1, max_length=120)
@@ -628,6 +643,7 @@ async def analyze_assessment_pronunciation(
             raise Exception(result_state["error"])
 
         # 4. Save session to database if patient_id is provided
+        session_id = None
         logger.info(f"🔍 Checking patient_id: {patient_id}, type: {type(patient_id)}")
         if patient_id and patient_id.strip() and patient_id != "":
             try:
@@ -660,11 +676,25 @@ async def analyze_assessment_pronunciation(
                         f0_mean=result_state.get("pitch"),
                         mpt=result_state.get("duration"),
                         hnr=result_state.get("loudness"),
-                        session_type="word_practice"
+                        session_type="word_practice",
+                        # Diagnostic findings — previously computed by the assessment graph
+                        # and returned to the frontend, but never persisted. severity_score is
+                        # a text classification (e.g. "Mild to Moderate"), not numeric — see
+                        # articulation_diagnostic_agent.py / assessment_state.py.
+                        severity_classification=(
+                            str(result_state.get("severity_score"))
+                            if result_state.get("severity_score") is not None
+                            else None
+                        ),
+                        error_patterns=result_state.get("error_patterns") or [],
+                        targeted_quests=result_state.get("targeted_quests") or [],
+                        diagnostic_report=result_state.get("diagnostic_report"),
                     )
                     db.add(session)
                     db.commit()
-                    logger.info(f"✅ Session saved for patient {patient_id}")
+                    db.refresh(session)
+                    session_id = session.id
+                    logger.info(f"✅ Session saved for patient {patient_id} (session_id={session_id})")
                 else:
                     logger.warning(f"⚠️ Patient {patient_id} not found, session not saved")
                 db.close()
@@ -683,6 +713,7 @@ async def analyze_assessment_pronunciation(
         logger.info(f"🔊 Phoneme accuracy: {result_state['phoneme_accuracy']}")
         
         return {
+            "session_id": session_id,
             "patient_name": patient_name,
             "target_word": target_word,
             "accuracy": result_state["accuracy"],
@@ -711,3 +742,113 @@ async def analyze_assessment_pronunciation(
     finally:
         # Cleanup audio
         delete_audio(path)
+
+
+
+@router.get("/patients/{patient_id}/latest", dependencies=[Depends(verify_service_api_key)])
+def get_latest_assessment_for_patient(patient_id: str, db: Session = Depends(get_db)):
+    """
+    Service-to-service read of a patient's most recent word_practice
+    diagnostic — used by quest-games' agent/diagnostic_client.py to pull
+    current severity + targeted quests. Unlike GET /{ref} below (which
+    needs a specific session id), this answers "what's this kid's current
+    diagnosis" by patient id, most-recent-first. Same
+    ASSESSMENT_SERVICE_API_KEY auth as the existing route.
+    """
+    session = (
+        db.query(SessionModel)
+        .filter(SessionModel.patient_id == patient_id, SessionModel.session_type == "word_practice")
+        .order_by(SessionModel.created_at.desc())
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="No assessment found for this patient")
+
+    return {
+        "session_id": session.id,
+        "patient_id": session.patient_id,
+        "severity_classification": session.severity_classification,
+        "targeted_quests": session.targeted_quests,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+    }
+
+
+@router.get("/therapists", dependencies=[Depends(verify_service_api_key)])
+def list_therapist_candidates(db: Session = Depends(get_db)):
+    """
+    Distinct therapist names already recorded during Assessment intake —
+    used by quest-games' auth.py to populate a therapist-selection dropdown
+    at BreathQuest registration instead of requiring a fresh typed name.
+    """
+    names = (
+        db.query(Patient.therapist_name)
+        .filter(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
+        .distinct()
+        .order_by(Patient.therapist_name)
+        .all()
+    )
+    return [name for (name,) in names]
+
+
+@router.get("/patients", dependencies=[Depends(verify_service_api_key)])
+def list_patient_candidates(db: Session = Depends(get_db)):
+    """
+    Active patients already created through Assessment — used by
+    quest-games' auth.py to populate the kid-selection list at BreathQuest
+    PIN setup.
+    """
+    patients = (
+        db.query(Patient)
+        .filter(Patient.is_active.is_(True))
+        .order_by(Patient.name)
+        .all()
+    )
+    return [{"id": str(p.id), "name": p.name} for p in patients]
+
+
+@router.get("/patients/{patient_id}", dependencies=[Depends(verify_service_api_key)])
+def get_patient_record(patient_id: str, db: Session = Depends(get_db)):
+    """
+    Single Assessment patient record by id (name + active status) — used by
+    quest-games' auth.py to verify a patient exists and is active before
+    linking a BreathQuest PIN account to them. Distinct from
+    /patients/{patient_id}/latest below, which returns a diagnostic session,
+    not the patient record itself.
+    """
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"id": str(patient.id), "name": patient.name, "is_active": patient.is_active}
+
+
+@router.get("/{ref}", dependencies=[Depends(verify_service_api_key)])
+def get_assessment_result(ref: str, db: Session = Depends(get_db)):
+    """
+    Service-to-service read of a persisted diagnostic result, keyed by the
+    Session row id returned from POST /assessment/analyze. Protected by
+    ASSESSMENT_SERVICE_API_KEY (X-API-Key header) — not a user-facing route.
+    """
+    try:
+        session_id = int(ref)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ref must be a numeric session id")
+
+    session = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.session_type == "word_practice")
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Assessment result not found")
+
+    return {
+        "session_id": session.id,
+        "patient_id": session.patient_id,
+        "target_word": session.target_word,
+        "accuracy": session.accuracy,
+        "severity_classification": session.severity_classification,
+        "error_patterns": session.error_patterns,
+        "targeted_quests": session.targeted_quests,
+        "diagnostic_report": session.diagnostic_report,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+    }

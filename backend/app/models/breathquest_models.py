@@ -66,7 +66,12 @@ class BreathQuestPatient(Base):
     is_active:        Mapped[bool]          = mapped_column(Boolean, default=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    therapist: Mapped["Therapist | None"]   = relationship(back_populates="patients")
+    # Fully module-qualified string ref -- bare "Therapist" is ambiguous now
+    # that app/models/therapist.py also registers a class named Therapist
+    # on this same shared Base (see that module's docstring). This
+    # relationship specifically means the old breathquest_therapists-mapped
+    # class, not the new Assessment-native one.
+    therapist: Mapped["app.models.breathquest_models.Therapist | None"] = relationship(back_populates="patients")
     sessions:  Mapped[list["GameSession"]]  = relationship(back_populates="patient", cascade="all, delete-orphan")
     notes:     Mapped[list["TherapistNote"]]= relationship(back_populates="patient", cascade="all, delete-orphan")
 
