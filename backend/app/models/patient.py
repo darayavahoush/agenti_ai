@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, TIMESTAMP, Boolean, Text, ForeignKey
+from sqlalchemy import Column, String, Integer, TIMESTAMP, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 import uuid
@@ -15,11 +15,6 @@ class Patient(Base):
     gender = Column(String)
     diagnosis = Column(String)
     therapist_name = Column(String)
-    # Real link, added alongside the new app/models/therapist.py accounts.
-    # therapist_name above stays as-is (free-text, from intake) -- this is
-    # additive, not a replacement, since nothing currently sets it (no live
-    # POST /patients endpoint exists yet -- separate, flagged gap).
-    registered_therapist_id = Column(UUID(as_uuid=True), ForeignKey("therapists.id"), nullable=True, index=True)
     parent_name = Column(String)
     parent_contact = Column(String)
     email = Column(String)  # 'email' in database, not 'email_address'
