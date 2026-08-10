@@ -13,9 +13,6 @@ from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
 from app.models import breathquest_models
 from app.models import vaakmirror_models
-from app.models import therapist as therapist_model  # noqa: F401 -- import registers Therapist with Base before create_all
-from app.routers.therapist_auth import router as therapist_auth_router
-from app.routers.therapist_patients import router as therapist_patients_router
 from app.routes.assessment import router as assessment_router
 from app.routers.breathquest import auth as breathquest_auth_router
 from app.routers.breathquest import patients as breathquest_patients_router
@@ -55,34 +52,10 @@ app.add_middleware(
 
 # Include assessment router for speech analysis
 app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
-app.include_router(therapist_auth_router, prefix="/api/v1")
-app.include_router(therapist_patients_router, prefix="/api/v1")
-# Disabled 2026-08-07: standalone breathquest backend (port 8001) now has
-# full parity for this router -- candidate-list + Assessment-linked PIN
-# setup were ported over (see auth.py there), and parent auth was already
-# standalone-only. breathquest_therapists/patients/game_sessions all still
-# 0 rows as of this disable, so no data loss.
-# app.include_router(breathquest_auth_router.router, prefix="/api/v1")
-# Disabled 2026-08-06: get_current_therapist in breathquest_core/deps.py
-# is a hardcoded DummyTherapist stub (no real auth), and this router points
-# at the old, therapist-unscoped Patient model instead of the correct
-# BreathQuestPatient/Therapist models already used elsewhere in this file.
-# Table is empty (0 rows) as of this disable, so no data loss. Standalone
-# breathquest backend (port 8001) is the source of truth for patient CRUD
-# going forward -- see the agenti_ai <-> quest-games merge plan.
-# app.include_router(breathquest_patients_router.router, prefix="/api/v1")
-# Disabled 2026-08-07: uses get_current_patient (real auth, not the
-# DummyTherapist stub), but breathquest_game_sessions is 0 rows and
-# standalone (port 8001) is the session-logging system of record --
-# nothing was ever actually writing through this copy.
-# app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
-# Disabled 2026-08-06: every endpoint in dashboard.py depends on
-# get_current_therapist, which is a hardcoded DummyTherapist stub (no
-# real auth) -- same issue as breathquest_patients_router, disabled above.
-# breathquest_therapists and breathquest_game_sessions are both empty (0
-# rows) as of this disable, so no data loss. Standalone breathquest
-# backend (port 8001) is the source of truth going forward.
-# app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
+app.include_router(breathquest_auth_router.router, prefix="/api/v1")
+app.include_router(breathquest_patients_router.router, prefix="/api/v1")
+app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
+app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
 app.include_router(voice_hurdle_race_router, prefix="/api/v1", tags=["VoiceHurdleRace"])
 
 # Include PhoneMeQuest (Chime) router
@@ -99,49 +72,12 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 Base.metadata.create_all(bind=engine)
 
-# No Alembic in this project yet — create_all() only creates missing
-# tables, it does NOT alter existing ones. This is a stopgap: safe,
-# idempotent ADD COLUMN IF NOT EXISTS for columns added after the
-# sessions table already existed in a deployed DB. A real migration
-# tool (Alembic) is the correct long-term fix, not a replacement for
-# this pattern scaling indefinitely.
-def _ensure_patient_therapist_link_column():
-    """One-time ADD COLUMN for registered_therapist_id -- patients table
-    already existed before this column was added to the model (0 rows as
-    of this migration, so purely additive, no backfill needed)."""
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE patients ADD COLUMN IF NOT EXISTS registered_therapist_id UUID"
-        ))
-
-_ensure_patient_therapist_link_column()
-
-def _ensure_session_diagnostic_columns():
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS severity_classification VARCHAR"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error_patterns JSONB"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS targeted_quests JSONB"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS diagnostic_report VARCHAR"
-        ))
-
-_ensure_session_diagnostic_columns()
-
 @app.get("/")
 def home():
     return {"message": "VaakSuddhi V1 Running"}
 
 @app.get("/patients/dashboard/summary")
 def dashboard_summary():
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         patients = db.query(Patient).all()
@@ -160,7 +96,6 @@ def dashboard_summary():
 
 @app.get("/patients/")
 def get_all_patients():
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         patients = db.query(Patient).all()
@@ -187,7 +122,6 @@ def get_all_patients():
 
 @app.post("/patients/")
 def create_patient(data: PatientCreate):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         patient = Patient(
@@ -224,7 +158,6 @@ def create_patient(data: PatientCreate):
 
 @app.post("/patients/login")
 def login_patient(data: PatientLogin):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         # Search for patient by name and date of birth
@@ -256,7 +189,6 @@ def login_patient(data: PatientLogin):
 
 @app.get("/patients/sessions/all")
 def get_all_sessions():
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
     db = SessionLocal()
     try:
         sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
