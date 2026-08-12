@@ -26,6 +26,7 @@ from app.schemas.breathquest_schemas import (
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
 )
+from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -151,6 +152,18 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     # are matched without regard to case so children can use their registered
     # name together with their PIN.
     identifier = data.player_code.strip()
+
+    # Throttle check happens before touching pin_hash at all -- a locked-out
+    # identifier gets 429 regardless of whether the PIN they sent is even
+    # close, so a locked-out attacker learns nothing from further guesses.
+    throttle = await check_throttle(identifier, db)
+    if throttle.locked:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Please try again later.",
+            headers={"Retry-After": str(throttle.retry_after_seconds)},
+        )
+
     result = await db.execute(
         select(BreathQuestPatient).where(
             (BreathQuestPatient.player_code == identifier.upper())
@@ -163,6 +176,8 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     # matching account; their player code remains a fallback for a collision.
     matching_patients = [patient for patient in patients if verify_pin(data.pin, patient.pin_hash)]
     if not matching_patients:
+        await record_failure(identifier, db)
+        await db.commit()
         raise HTTPException(status_code=401, detail="Incorrect name, player code, or PIN")
     if len(matching_patients) > 1:
         raise HTTPException(status_code=409, detail="More than one player matches. Please use your player code.")
@@ -173,6 +188,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Account deactivated")
 
     token = create_kid_token(patient.id)
+    await record_success(identifier, db)
     await db.commit()
     return KidTokenResponse(
         access_token=token,
