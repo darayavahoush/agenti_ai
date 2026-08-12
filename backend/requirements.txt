@@ -8,6 +8,7 @@ email-validator
 
 # Database
 sqlalchemy
+alembic
 psycopg2-binary
 asyncpg
 

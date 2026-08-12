@@ -135,12 +135,25 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 Base.metadata.create_all(bind=engine)
 
-# No Alembic in this project yet — create_all() only creates missing
-# tables, it does NOT alter existing ones. This is a stopgap: safe,
-# idempotent ADD COLUMN IF NOT EXISTS for columns added after the
-# sessions table already existed in a deployed DB. A real migration
-# tool (Alembic) is the correct long-term fix, not a replacement for
-# this pattern scaling indefinitely.
+# create_all() only creates missing tables, it does NOT alter existing
+# ones. The _ensure_*_column() calls below are the old stopgap for
+# that: safe, idempotent ADD COLUMN IF NOT EXISTS for columns added
+# after their table already existed in a deployed DB.
+#
+# Added 2026-08-12: Alembic now exists (see backend/alembic/) and is
+# the correct way to add any *new* column going forward -- don't add
+# another _ensure_*_column() below this comment. The existing ones are
+# left as-is (not retroactively converted) since they're already
+# idempotent and working; no need to churn them.
+#
+# IMPORTANT: BreathQuestPatient.assessment_completed /
+# assessment_summary (added alongside this comment) are NOT covered by
+# an _ensure_*_column() stopgap -- they're the first columns to go
+# through Alembic instead. That means `alembic upgrade head` must be
+# run against this deployment's real database before/as part of
+# deploying this change, or any query touching breathquest_patients
+# will fail against the NOT NULL assessment_completed column that
+# doesn't exist there yet. create_all() below will NOT add it for you.
 def _ensure_patient_therapist_link_column():
     """One-time ADD COLUMN for registered_therapist_id -- patients table
     already existed before this column was added to the model (0 rows as
