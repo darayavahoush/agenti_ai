@@ -268,6 +268,14 @@ class PatientProgress(BaseModel):
     improvement_trend: Optional[float]  # positive = improving
     level_progress: List[LevelProgress]
     recent_sessions: List[SessionOut]
+    # Added for the quest-games dashboard merge (2026-08-12): surfaces the
+    # Assessment-side diagnosis and the RL agent's current game-difficulty
+    # recommendation alongside session stats. Both Optional/default-None so
+    # existing callers of this schema that don't set them keep working.
+    latest_assessment: Optional[dict] = None
+    recommended_action: Optional[str] = None
+    recommendation_message: Optional[str] = None
+    recommendation_policy: Optional[str] = None
 
 
 class DashboardSummary(BaseModel):
