@@ -51,11 +51,24 @@ class KidRegisterRequest(BaseModel):
     creation path with no adult already in the loop, so it's the one that
     needs verifiable parental consent (see breathquest_core/parental_consent.py).
     The email must already have a recently-confirmed code from POST
-    /verify/confirm before this endpoint will accept it."""
+    /verify/confirm before this endpoint will accept it.
+
+    parent_phone added 2026-08-12: phone is a second required factor
+    alongside email (not an alternative -- both must be independently
+    verified), same recently-confirmed-code requirement via
+    POST /verify/phone/confirm."""
     first_name: str
     avatar: str = "chick"
     pin: str
     parent_email: EmailStr
+    parent_phone: str
+
+    @validator("parent_phone")
+    def parent_phone_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter a parent's phone number")
+        return v
 
     @validator("first_name")
     def first_name_present(cls, v):
@@ -479,6 +492,22 @@ class VerifyConfirmIn(BaseModel):
 class VerifyConfirmOut(BaseModel):
     verified: bool
     first_time: bool
+
+
+class PhoneVerifyRequestIn(BaseModel):
+    phone: str
+
+    @validator("phone")
+    def phone_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter a phone number")
+        return v
+
+
+class PhoneVerifyConfirmIn(BaseModel):
+    phone: str
+    code: str
 
 
 # ------------------------------------------------------------------ #
