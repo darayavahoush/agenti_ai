@@ -40,8 +40,11 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  const registerKid = async (firstName, avatar, pin, parentEmail) => {
-    const { data } = await authAPI.kidRegister({ first_name: firstName, avatar, pin, parent_email: parentEmail })
+  const registerKid = async (firstName, avatar, pin, parentEmail, parentPhone) => {
+    const { data } = await authAPI.kidRegister({
+      first_name: firstName, avatar, pin,
+      parent_email: parentEmail, parent_phone: parentPhone,
+    })
     localStorage.setItem('bq_token',     data.access_token)
     localStorage.setItem('bq_user_type', 'patient')
     localStorage.setItem('bq_user_data', JSON.stringify(data))

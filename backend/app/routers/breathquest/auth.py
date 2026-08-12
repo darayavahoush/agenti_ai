@@ -78,16 +78,18 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
     POST /auth/kid-pin-setup instead.
 
     COPPA: this is the only kid-account path with no adult already in the
-    loop, so it's gated on a recently-verified parent email (see
-    breathquest_core/parental_consent.py) before it will touch the DB at
-    all."""
-    consent = await check_parental_consent(data.parent_email, db)
+    loop, so it's gated on a recently-verified parent email AND phone
+    (both required, see breathquest_core/parental_consent.py) before it
+    will touch the DB at all."""
+    consent = await check_parental_consent(data.parent_email, data.parent_phone, db)
     if not consent.granted:
-        detail = (
-            "Please verify the parent's email again before creating the account"
-            if consent.reason == "expired"
-            else "A parent needs to verify their email before creating this account"
-        )
+        detail_by_reason = {
+            "email_not_verified": "A parent needs to verify their email before creating this account",
+            "email_expired": "Please verify the parent's email again before creating the account",
+            "phone_not_verified": "A parent needs to verify their phone number before creating this account",
+            "phone_expired": "Please verify the parent's phone number again before creating the account",
+        }
+        detail = detail_by_reason.get(consent.reason, "A parent needs to verify their email and phone before creating this account")
         raise HTTPException(status_code=403, detail=detail)
 
     player_code = await generate_unique_player_code(db, data.avatar)
@@ -98,7 +100,9 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
         pin_hash=hash_pin(data.pin),
         player_code=player_code,
         parent_email=data.parent_email,
-        parent_consent_verified_at=consent.verified_at,
+        parent_consent_verified_at=consent.email_verified_at,
+        parent_phone=data.parent_phone,
+        parent_phone_consent_verified_at=consent.phone_verified_at,
     )
     db.add(patient)
     await db.commit()
