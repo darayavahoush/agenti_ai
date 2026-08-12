@@ -19,6 +19,7 @@ from app.routers.therapist_auth import router as therapist_auth_router
 from app.routers.therapist_patients import router as therapist_patients_router
 from app.routes.assessment import router as assessment_router
 from app.routers.breathquest import auth as breathquest_auth_router
+from app.routers.breathquest import assessment as breathquest_assessment_router
 from app.routers.breathquest import patients as breathquest_patients_router
 from app.routers.breathquest import sessions as breathquest_sessions_router
 from app.routers.breathquest import dashboard as breathquest_dashboard_router
@@ -69,6 +70,10 @@ app.include_router(therapist_patients_router, prefix="/api/v1")
 # table) and issued tokens get_current_therapist could never resolve.
 # Only the kid-specific + Assessment-candidate endpoints remain.
 app.include_router(breathquest_auth_router.router, prefix="/api/v1")
+# Added 2026-08-12: kid-authenticated wrapper so Assessment.jsx can run
+# against a logged-in BreathQuest kid's own identity instead of its own
+# separate name+DOB gate. See routers/breathquest/assessment.py docstring.
+app.include_router(breathquest_assessment_router.router, prefix="/api/v1")
 # Re-enabled 2026-08-11: rewritten against BreathQuestPatient/GameSession
 # (the 2026-08-06 disable reason -- wrong model imports -- is fixed).
 # get_current_therapist uses real JWT auth; the "DummyTherapist stub" note

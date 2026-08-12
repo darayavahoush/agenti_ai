@@ -21,10 +21,10 @@ from app.database import get_db, SessionLocal
 from app.models.breathquest_models import BreathQuestPatient
 from app.models.patient import Patient
 from app.schemas.breathquest_schemas import (
-    KidLoginRequest, KidTokenResponse, KidRegisterRequest,
+    KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
 )
 from app.breathquest_core.security import (
-    hash_pin, verify_pin, create_kid_token,
+    hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -67,7 +67,42 @@ def kid_candidates():
 
 @router.post("/kid-register", response_model=KidTokenResponse, status_code=201)
 async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Set or reset a BreathQuest PIN for a child created in Assessment."""
+    """Brand-new self-serve kid signup — no prior Assessment record
+    required. This is what frontend/src/context/AuthContext.jsx's
+    registerKid() (used by pages/kid/Play.jsx's signup form) actually
+    calls; it only ever sends {first_name, avatar, pin}. The old
+    patient_id-required version of this endpoint made every one of those
+    calls 422. That link-an-existing-Assessment-patient flow now lives at
+    POST /auth/kid-pin-setup instead."""
+    player_code = await generate_unique_player_code(db, data.avatar)
+    patient = BreathQuestPatient(
+        therapist_id=None,
+        first_name=data.first_name,
+        avatar=data.avatar,
+        pin_hash=hash_pin(data.pin),
+        player_code=player_code,
+    )
+    db.add(patient)
+    await db.commit()
+    await db.refresh(patient)
+    token = create_kid_token(patient.id)
+    return KidTokenResponse(
+        access_token=token,
+        patient_id=str(patient.id),
+        first_name=patient.first_name,
+        avatar=patient.avatar,
+        player_code=patient.player_code,
+        assessment_completed=patient.assessment_completed,
+    )
+
+
+@router.post("/kid-pin-setup", response_model=KidTokenResponse, status_code=201)
+async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get_db)):
+    """Set or reset a BreathQuest PIN for a child already created in
+    Assessment (via POST /patients/). This is the endpoint
+    AuthContext.jsx's setupKidPin() calls -- it used to point at a route
+    that didn't exist at all (404 on every call), since this logic
+    previously lived under /auth/kid-register instead."""
     sync_db = SessionLocal()
     try:
         main_patient = sync_db.get(Patient, data.patient_id)
@@ -94,6 +129,7 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
             pin_hash=hash_pin(data.pin),
             player_code=player_code,
             assessment_patient_id=main_patient.id,
+            assessment_completed=True,  # they already have an Assessment record
         )
         db.add(patient)
 
@@ -106,6 +142,7 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
         first_name=patient.first_name,
         avatar=patient.avatar,
         player_code=patient.player_code,
+        assessment_completed=patient.assessment_completed,
     )
 
 @router.post("/kid-login", response_model=KidTokenResponse)
@@ -143,4 +180,5 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         first_name=patient.first_name,
         avatar=patient.avatar,
         player_code=patient.player_code,
+        assessment_completed=patient.assessment_completed,
     )

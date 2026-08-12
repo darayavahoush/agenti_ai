@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authAPI } from '../api/client'
+import { authAPI, assessmentAPI } from '../api/client'
 
 const AuthContext = createContext(null)
 
@@ -67,6 +67,23 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // Called once AssessmentGate.jsx's POST /assessment/complete succeeds --
+  // updates the in-memory + persisted patient record so ProtectedKid-style
+  // redirect checks (and anything reading isKid's assessment_completed
+  // flag) see the change immediately, without a fresh login round-trip.
+  const markAssessmentComplete = async (summary) => {
+    await assessmentAPI.complete({
+      words_attempted: summary?.wordsAttempted ?? 0,
+      severity_classification: summary?.severityClassification ?? null,
+    })
+    setPatient((prev) => {
+      if (!prev) return prev
+      const updated = { ...prev, assessment_completed: true }
+      localStorage.setItem('bq_user_data', JSON.stringify(updated))
+      return updated
+    })
+  }
+
   // codeType distinguishes which field the code goes in ('player_code' vs
   // 'invite_code') — the two ways described in the parent-facing UI:
   // "log in with your kid's existing code" vs "use the code your
@@ -104,6 +121,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       therapist, patient, parent, loading,
       loginTherapist, registerTherapist, loginKid, registerKid, setupKidPin,
+      markAssessmentComplete,
       loginParent, registerParent, logout,
       isTherapist: !!therapist,
       isKid:       !!patient,

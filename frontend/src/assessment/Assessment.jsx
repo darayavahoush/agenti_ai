@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { MouthDiagram } from "../MouthDiagram";
-import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
+import { MouthDiagram } from "./MouthDiagram";
+import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "./alphabetData";
 import "./Assessment.css";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
@@ -63,8 +63,9 @@ function mapPhonemeToLetter(phoneme) {
   return mapping[p] || null;
 }
 
-export default function Assessment() {
-  const [section, setSection] = useState("auth-selection");
+export default function Assessment({ authedPatientName, authedPatientId, onFinish } = {}) {
+  const [section, setSection] = useState(authedPatientId ? "home" : "auth-selection");
+  const [wordsAttempted, setWordsAttempted] = useState(0);
   const [word, setWord] = useState(null);
   const [wordLoading, setWordLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
@@ -78,7 +79,7 @@ export default function Assessment() {
   const [loginError, setLoginError] = useState("");
 
   // Patient Details Form States
-  const [patientName, setPatientName] = useState("");
+  const [patientName, setPatientName] = useState(authedPatientName || "");
   const [patientDOB, setPatientDOB] = useState("");
   const [parentName, setParentName] = useState("");
   const [therapistName, setTherapistName] = useState("");
@@ -89,7 +90,7 @@ export default function Assessment() {
   const [otherInfo, setOtherInfo] = useState("");
   const [childPhoto, setChildPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [currentPatientId, setCurrentPatientId] = useState(null);
+  const [currentPatientId, setCurrentPatientId] = useState(authedPatientId || null);
 
   // Validation States
   const [contactNumberError, setContactNumberError] = useState("");
@@ -533,6 +534,7 @@ export default function Assessment() {
       }
 
       setAnalysisResult(data);
+      setWordsAttempted((n) => n + 1);
     } catch (err) {
       console.error(err);
       setError("Speech analysis failed: " + err.message);
@@ -779,6 +781,30 @@ export default function Assessment() {
             </span>
             <span className="choice-arrow">→</span>
           </button>
+
+          {onFinish && (
+            <button
+              className="assessment-choice"
+              onClick={() => onFinish({
+                wordsAttempted,
+                severityClassification: analysisResult?.severity_score || null,
+              })}
+              disabled={wordsAttempted === 0}
+              style={{ opacity: wordsAttempted === 0 ? 0.5 : 1, gridColumn: "1 / -1" }}
+              title={wordsAttempted === 0 ? "Try at least one word first" : undefined}
+            >
+              <span className="choice-icon">✅</span>
+              <span className="choice-copy">
+                <strong>Finish assessment & start playing</strong>
+                <small>
+                  {wordsAttempted === 0
+                    ? "Try a word or two above, then finish up here."
+                    : `${wordsAttempted} word${wordsAttempted === 1 ? "" : "s"} attempted so far.`}
+                </small>
+              </span>
+              <span className="choice-arrow">→</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -1222,7 +1248,7 @@ export default function Assessment() {
         <section className="word-assessment-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
             <button
-              onClick={() => setSection("patient-details")}
+              onClick={() => setSection(authedPatientId ? "home" : "patient-details")}
               style={{
                 padding: "8px 16px",
                 border: "2px solid #a855f7",
@@ -1671,7 +1697,7 @@ export default function Assessment() {
         <section className="alphabet-assessment">
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px", padding: "0 20px" }}>
             <button
-              onClick={() => setSection("patient-details")}
+              onClick={() => setSection(authedPatientId ? "home" : "patient-details")}
               style={{
                 padding: "8px 16px",
                 border: "2px solid #a855f7",

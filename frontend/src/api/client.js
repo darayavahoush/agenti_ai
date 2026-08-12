@@ -98,6 +98,15 @@ export const authAPI = {
   kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),
 }
 
+// Kid-authenticated wrapper around the Assessment flow (see
+// routers/breathquest/assessment.py) -- lets AssessmentGate.jsx bootstrap
+// Assessment.jsx against the logged-in kid's own identity instead of its
+// own separate name+DOB gate.
+export const assessmentAPI = {
+  start:    () => api.post('/assessment/start'),
+  complete: (data) => api.post('/assessment/complete', data),
+}
+
 // ------------------------------------------------------------------ //
 //  Patients                                                            //
 // ------------------------------------------------------------------ //

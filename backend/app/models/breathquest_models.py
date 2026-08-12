@@ -86,6 +86,14 @@ class BreathQuestPatient(Base):
     # from a kid_register(data.patient_id) call yet (see patients.py's therapist-created
     # path, which doesn't set this).
     assessment_patient_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("patients.id"), nullable=True, index=True)
+    # Added 2026-08-12 to gate the kid onto /assessment on first login until
+    # they've completed it (see routers/breathquest/assessment.py). Nullable
+    # JSON summary intentionally kept lightweight -- just what
+    # AssessmentReport.jsx's free teaser needs (word count, severity read),
+    # not the full diagnostic report (that stays on the Assessment side's
+    # own Session rows, looked up via assessment_patient_id).
+    assessment_completed: Mapped[bool]       = mapped_column(Boolean, default=False)
+    assessment_summary:   Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint

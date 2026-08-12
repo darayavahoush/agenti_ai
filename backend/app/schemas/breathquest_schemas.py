@@ -39,6 +39,43 @@ class TokenResponse(BaseModel):
 
 
 class KidRegisterRequest(BaseModel):
+    """Self-serve signup — a brand-new kid with no prior Assessment record.
+    Repurposed 2026-08-12: this used to require patient_id (an existing
+    Assessment patient to link), but frontend/src/context/AuthContext.jsx's
+    registerKid() has only ever sent {first_name, avatar, pin} — patient_id
+    was never in that payload, so every call here 422'd. That
+    link-an-existing-patient shape moved to KidPinSetupRequest below,
+    matching what the frontend's separate setupKidPin() actually sends."""
+    first_name: str
+    avatar: str = "chick"
+    pin: str
+
+    @validator("first_name")
+    def first_name_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter a name")
+        return v
+
+    @validator("pin")
+    def pin_format(cls, v):
+        if not re.match(r"^\d{4}$", v):
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
+
+    @validator("avatar")
+    def avatar_valid(cls, v):
+        valid = {"chick", "dragon", "cloud", "star", "rocket", "fish"}
+        if v not in valid:
+            raise ValueError(f"Avatar must be one of {valid}")
+        return v
+
+
+class KidPinSetupRequest(BaseModel):
+    """Link a BreathQuest PIN to a child already created in Assessment
+    (via POST /patients/). This is the old KidRegisterRequest shape --
+    kept as its own class since kid-pin-setup and kid-register are now
+    two genuinely different flows, not one dual-purpose endpoint."""
     patient_id: UUID
     avatar: str = "chick"
     pin: str
@@ -84,6 +121,26 @@ class KidTokenResponse(BaseModel):
     first_name: str
     avatar: str
     player_code: str
+    assessment_completed: bool = False
+
+
+# ------------------------------------------------------------------ #
+#  Assessment (kid-authenticated wrapper)                             #
+# ------------------------------------------------------------------ #
+
+class AssessmentStartOut(BaseModel):
+    """What AssessmentGate.jsx needs to render Assessment.jsx in authed
+    mode: the Assessment-side patient id/name to pass down as
+    authedPatientId/authedPatientName, skipping Assessment.jsx's own
+    name+DOB gate entirely."""
+    assessment_patient_id: str
+    first_name: str
+    already_completed: bool
+
+
+class AssessmentCompleteRequest(BaseModel):
+    words_attempted: int = 0
+    severity_classification: Optional[str] = None
 
 
 # ------------------------------------------------------------------ #

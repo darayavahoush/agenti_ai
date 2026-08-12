@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { PageLoader } from './components/ui'
 
@@ -14,6 +14,8 @@ import TherapistDashboard from './pages/therapist/Dashboard'
 import PatientDetail      from './pages/therapist/PatientDetail'
 import AgentInsight        from './pages/therapist/AgentInsight'
 import KidPlay            from './pages/kid/Play'
+import AssessmentGate      from './pages/kid/AssessmentGate'
+import AssessmentReport    from './pages/kid/AssessmentReport'
 import LevelSelect        from './pages/kid/LevelSelect'
 import GamePage           from './pages/kid/GamePage'
 import GamePicker         from './pages/kid/GamePicker'
@@ -86,9 +88,16 @@ function ProtectedTherapist({ children }) {
 }
 
 function ProtectedKid({ children }) {
-  const { isKid, loading } = useAuth()
+  const { isKid, loading, patient } = useAuth()
+  const location = useLocation()
   if (loading) return <PageLoader />
   if (!isKid) return <Navigate to="/play" replace />
+  // First-login gate: a kid who hasn't finished their assessment yet gets
+  // routed there before anything else in /play/* -- except the assessment
+  // routes themselves, which would otherwise redirect to themselves.
+  if (!patient?.assessment_completed && !location.pathname.startsWith('/assessment')) {
+    return <Navigate to="/assessment" replace />
+  }
   return children
 }
 
@@ -136,6 +145,12 @@ function AppRoutes() {
       {/* Kid */}
       <Route path="/play" element={
         isKid ? <ProtectedKid><GamePicker /></ProtectedKid> : <KidPlay />
+      } />
+      <Route path="/assessment" element={
+        <ProtectedKid><AssessmentGate /></ProtectedKid>
+      } />
+      <Route path="/assessment/report" element={
+        <ProtectedKid><AssessmentReport /></ProtectedKid>
       } />
       <Route path="/play/levels" element={
         <ProtectedKid><LevelSelect /></ProtectedKid>
