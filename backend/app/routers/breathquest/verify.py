@@ -107,5 +107,6 @@ async def confirm_verification(data: VerifyConfirmIn, db: AsyncSession = Depends
     first_time = prior_result.scalar_one_or_none() is None
 
     record.verified = True
+    record.verified_at = datetime.now(timezone.utc)
 
     return VerifyConfirmOut(verified=True, first_time=first_time)

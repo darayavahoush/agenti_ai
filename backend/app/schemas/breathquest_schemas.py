@@ -45,10 +45,17 @@ class KidRegisterRequest(BaseModel):
     registerKid() has only ever sent {first_name, avatar, pin} — patient_id
     was never in that payload, so every call here 422'd. That
     link-an-existing-patient shape moved to KidPinSetupRequest below,
-    matching what the frontend's separate setupKidPin() actually sends."""
+    matching what the frontend's separate setupKidPin() actually sends.
+
+    parent_email added 2026-08-12 for COPPA -- this is the only kid-account
+    creation path with no adult already in the loop, so it's the one that
+    needs verifiable parental consent (see breathquest_core/parental_consent.py).
+    The email must already have a recently-confirmed code from POST
+    /verify/confirm before this endpoint will accept it."""
     first_name: str
     avatar: str = "chick"
     pin: str
+    parent_email: EmailStr
 
     @validator("first_name")
     def first_name_present(cls, v):
