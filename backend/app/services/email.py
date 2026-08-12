@@ -11,22 +11,33 @@ it still had the old standalone-layout imports; see main.py's include_router
 call for verify.router for the fix that made this reachable.
 """
 
+import logging
 import smtplib
 import ssl
 from email.mime.text import MIMEText
 
 from app.config import settings
 
+logger = logging.getLogger("uvicorn.error")
+
 
 def send_otp_email(to_email: str, code: str) -> None:
     if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        # Fails loudly rather than silently no-op'ing -- a verification
-        # flow that "succeeds" without actually sending anything would be
-        # a much worse failure mode than an explicit 500 here.
-        raise RuntimeError(
-            "SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASSWORD) -- "
-            "cannot send OTP email"
+        # Dev-only fallback -- mirrors AUTO_VERIFY_CONSENT's pattern of a
+        # clearly-flagged temporary bypass rather than a silent one. SMTP
+        # unconfigured means local/dev, not production (real deploys must
+        # set these three env vars), so print the code instead of a 500.
+        # This does NOT skip the OTP flow -- the frontend still requires
+        # /verify/confirm with the correct code, it's just read from the
+        # console instead of an inbox until a provider is wired up.
+        logger.warning(
+            "\n"
+            "==================== DEV MODE: SMTP NOT CONFIGURED ====================\n"
+            f"  OTP code for {to_email}: {code}\n"
+            "  (Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env to send real emails)\n"
+            "========================================================================"
         )
+        return
 
     message = MIMEText(
         f"Your verification code is: {code}\n\nThis code expires in 10 minutes."
