@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # JWT Configuration (for verifying BreathQuest issued tokens)
     SECRET_KEY: str = Field(default="supersecretkey", description="JWT secret key")
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
+
+    # Email (OTP verification) -- Gmail SMTP with an app password. Ported
+    # 2026-08-12 alongside verify.py, which was never mounted in main.py
+    # because it still had quest-games' standalone-layout imports.
+    SMTP_HOST: str = Field(default="", description="SMTP host for sending OTP emails")
+    SMTP_PORT: int = Field(default=587, description="SMTP port")
+    SMTP_USER: str = Field(default="", description="SMTP username")
+    SMTP_PASSWORD: str = Field(default="", description="SMTP password (app password for Gmail)")
     
     class Config:
         env_file = ".env"

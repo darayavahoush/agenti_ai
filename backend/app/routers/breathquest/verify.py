@@ -1,8 +1,14 @@
 """
 routers/verify.py — email OTP gate in front of the public landing page's
-"Start Assessment"/"Start Trial" buttons. See models.models.EmailVerification
-for why this is deliberately separate from the real Patient/Therapist
-account systems.
+"Start Assessment"/"Start Trial" buttons. See app.models.breathquest_models.
+EmailVerification for why this is deliberately separate from the real
+Patient/Therapist account systems.
+
+Import paths fixed 2026-08-12 to match the merged app's layout (was still
+quest-games' standalone-backend imports -- database, models.models,
+schemas.schemas, core.email -- which is why this router was never actually
+mounted in main.py; importing it as-is would throw ModuleNotFoundError,
+same class of bug already fixed for chime.py/voicehurdlerace.py).
 """
 
 import hashlib
@@ -13,10 +19,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
-from models.models import EmailVerification
-from schemas.schemas import VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut
-from core.email import send_otp_email
+from app.database import get_db
+from app.models.breathquest_models import EmailVerification
+from app.schemas.breathquest_schemas import VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut
+from app.services.email import send_otp_email
 
 router = APIRouter(prefix="/verify", tags=["verify"])
 

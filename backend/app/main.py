@@ -167,41 +167,6 @@ def _ensure_session_diagnostic_columns():
 
 _ensure_session_diagnostic_columns()
 
-def _ensure_breathquest_therapist_fks_point_at_therapists():
-    """One-time constraint swap -- five FK columns (BreathQuestPatient.
-    therapist_id, TherapistNote.therapist_id, Subscription.
-    owner_therapist_id, Assignment.assigned_by, Goal.created_by) were
-    declared against breathquest_therapists.id, but every therapist
-    created through the canonical /api/v1/auth/register path lives in
-    therapists.id (see app/models/therapist.py). That mismatch meant no
-    therapist created via the real registration flow could ever create a
-    BreathQuestPatient -- confirmed via a live Internal Server Error on
-    POST /api/v1/breathquest/patients. breathquest_therapists and every
-    table with one of these five columns were confirmed empty (0 rows)
-    at the time of this fix, so this is a clean constraint swap, not a
-    data migration -- no remapping step needed. Idempotent: DROP...IF
-    EXISTS + re-add is safe to run on every startup, same as the other
-    stopgaps in this block."""
-    from sqlalchemy import text
-    swaps = [
-        ("breathquest_patients", "therapist_id", "breathquest_patients_therapist_id_fkey"),
-        ("breathquest_therapist_notes", "therapist_id", "breathquest_therapist_notes_therapist_id_fkey"),
-        ("breathquest_subscriptions", "owner_therapist_id", "breathquest_subscriptions_owner_therapist_id_fkey"),
-        ("breathquest_assignments", "assigned_by", "breathquest_assignments_assigned_by_fkey"),
-        ("breathquest_goals", "created_by", "breathquest_goals_created_by_fkey"),
-    ]
-    with engine.begin() as conn:
-        for table, column, constraint in swaps:
-            conn.execute(text(
-                f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint}"
-            ))
-            conn.execute(text(
-                f"ALTER TABLE {table} ADD CONSTRAINT {constraint} "
-                f"FOREIGN KEY ({column}) REFERENCES therapists(id)"
-            ))
-
-_ensure_breathquest_therapist_fks_point_at_therapists()
-
 @app.get("/")
 def home():
     return {"message": "VaakSuddhi V1 Running"}
