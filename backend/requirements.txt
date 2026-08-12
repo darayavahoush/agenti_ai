@@ -1,0 +1,71 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+pydantic-settings
+email-validator
+
+# Database
+sqlalchemy
+psycopg2-binary
+asyncpg
+
+# Authentication & Security
+passlib
+bcrypt
+python-jose[cryptography]
+python-multipart
+
+# Audio Processing
+soundfile
+librosa
+numpy
+pandas
+scipy
+faster-whisper
+openai-whisper
+rapidfuzz
+noisereduce
+praat-parselmouth
+silero-vad
+
+# Speech Recognition
+vosk
+pyaudio
+
+# Machine Learning
+torch==2.13.0
+transformers<5
+sentence-transformers
+scikit-learn
+
+# NLP & Phonetics
+nltk
+g2p_en
+
+# Text-to-Speech
+coqui-tts
+kokoro-onnx
+
+# Computer Vision
+opencv-python
+imageio-ffmpeg
+
+# File Handling
+aiofiles
+
+# Web Scraping
+requests
+ddgs
+
+# Translation
+deep-translator
+
+# Streamlit (for admin tools)
+streamlit
+streamlit-mic-recorder
+# Added for agent/retraining/simulator merge (BreathQuest RL stack)
+gymnasium==1.3.0
+stable-baselines3==2.9.0
+sb3-contrib==2.9.0
