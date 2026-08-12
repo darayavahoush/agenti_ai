@@ -42,9 +42,15 @@ export default function Landing() {
   const [searchParams] = useSearchParams()
   // Reached via "Sign in" (already-registered users) -- skip the email
   // verification hop and go straight to the role's real login page.
-  // Reached via "Start Assessment" (default) -- go through /verify first.
+  // Reached via "Start Assessment" (default) -- go through /verify first,
+  // UNLESS this device already proved an email in a past visit (see
+  // Verify.jsx's bq_verified_email localStorage write on confirm). Without
+  // this check, every single landing on /play-select -- logout, back
+  // button, closing and reopening the tab -- re-triggers the full
+  // email-OTP round trip even though nothing about the email changed.
   const isSignIn = searchParams.get('mode') === 'signin'
-  const routeFor = (dest) => isSignIn ? dest : `/verify?dest=${dest}`
+  const alreadyVerified = !!localStorage.getItem('bq_verified_email')
+  const routeFor = (dest) => (isSignIn || alreadyVerified) ? dest : `/verify?dest=${dest}`
   // Manual tap-to-hear only, no auto-play — see Play.jsx for why nav/menu
   // screens don't auto-speak while the actual games still do.
   const replayTagline = () => speak(
