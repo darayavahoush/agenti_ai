@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope } from 'lucide-react'
+import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { authAPI, getErrorMessage } from '../../api/client'
+import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
 import { Button, Avatar } from '../../components/ui'
 import { Creature } from '../../components/ui/Creatures'
 import { speak } from '../../lib/speech'
@@ -116,6 +116,14 @@ export default function KidPlay() {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [registered, setRegistered] = useState(null)  // {player_code, first_name}
+  // COPPA: New Player signup can't create an account until a parent has
+  // verified their email, so 'register' mode branches through these steps
+  // before handleRegister ever runs. 'form' collects the kid's own details
+  // first so a parent isn't asked for their email before there's even an
+  // account to consent to.
+  const [registerStep, setRegisterStep] = useState('form')  // form | parentEmail | parentCode
+  const [parentEmail, setParentEmail]   = useState('')
+  const [otpCode, setOtpCode]           = useState('')
   const [mounted, setMounted]   = useState(false)
   const [candidates, setCandidates]               = useState([])
   const [candidatesLoading, setCandidatesLoading] = useState(false)
@@ -161,15 +169,34 @@ export default function KidPlay() {
   const handlePin = (digit) => { if (pin.length < 4) setPin(p => p + digit) }
   const deletePin = () => setPin(p => p.slice(0, -1))
 
-  const handleRegister = async () => {
+  const handleContinueToParentEmail = () => {
     if (!firstName.trim()) { setError('What should we call you?'); return }
     if (pin.length < 4)    { setError('Choose a 4-digit PIN'); return }
+    setError(''); setRegisterStep('parentEmail')
+  }
+
+  const handleSendParentCode = async () => {
+    if (!parentEmail.trim()) { setError("Enter a parent's email"); return }
     setError(''); setLoading(true)
     try {
-      const data = await registerKid(firstName.trim(), avatar, pin)
+      await verifyAPI.request({ email: parentEmail.trim() })
+      setRegisterStep('parentCode')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirmParentCode = async () => {
+    if (otpCode.length < 6) { setError('Enter the 6-digit code'); return }
+    setError(''); setLoading(true)
+    try {
+      await verifyAPI.confirm({ email: parentEmail.trim(), code: otpCode })
+      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim())
       setRegistered({ player_code: data.player_code, first_name: data.first_name })
     } catch (e) {
-      setError(getErrorMessage(e))
+      setError(getErrorMessage(e, 'Incorrect code — try again'))
     } finally {
       setLoading(false)
     }
@@ -332,9 +359,9 @@ export default function KidPlay() {
       )}
 
       {/* Register */}
-      {mode === 'register' && (
+      {mode === 'register' && registerStep === 'form' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setMode('choose'); setPin(''); setError('') }}
+          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail(''); setOtpCode('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -373,7 +400,66 @@ export default function KidPlay() {
           <PinPad onDigit={handlePin} onDelete={deletePin} />
 
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
-          <Button className="w-full gap-2" size="lg" onClick={handleRegister} disabled={loading}>
+          <Button className="w-full gap-2" size="lg" onClick={handleContinueToParentEmail} disabled={loading}>
+            Continue <ArrowRight className="w-4 h-4" />
+          </Button>
+        </GlassPanel>
+      )}
+
+      {/* Register — parent email (COPPA: a parent has to verify before we create the account) */}
+      {mode === 'register' && registerStep === 'parentEmail' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setRegisterStep('form'); setError('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <div className="flex justify-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-brand-amber" />
+            </div>
+          </div>
+          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
+            Almost there, {firstName.trim() || 'friend'}!
+          </h1>
+          <p className="text-white/50 text-sm text-center mb-6">
+            We need a parent's email to finish creating your account.
+          </p>
+          <div className="mb-5">
+            <label className="text-sm text-white/50 block mb-1">Parent's email</label>
+            <input type="email" className="input text-lg" placeholder="parent@example.com"
+                   value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
+          </div>
+          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+          <Button className="w-full gap-2" size="lg" onClick={handleSendParentCode} disabled={loading}>
+            {loading ? 'Sending…' : 'Send code to parent'}
+          </Button>
+        </GlassPanel>
+      )}
+
+      {/* Register — confirm parent's code, then actually create the account */}
+      {mode === 'register' && registerStep === 'parentCode' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setRegisterStep('parentEmail'); setOtpCode(''); setError('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
+            Enter the code
+          </h1>
+          <p className="text-white/50 text-sm text-center mb-6">
+            We sent a code to {parentEmail} — a parent should check their inbox.
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={otpCode}
+            onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="123456"
+            className="input text-center text-lg tracking-widest mb-3"
+          />
+          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+          <Button className="w-full gap-2" size="lg" onClick={handleConfirmParentCode} disabled={loading}>
             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
           </Button>
         </GlassPanel>
