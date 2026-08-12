@@ -13,7 +13,7 @@ export default function Verify() {
   const navigate = useNavigate()
 
   const [step, setStep] = useState('email') // 'email' | 'code'
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem('bq_verified_email') || '')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,6 +38,12 @@ export default function Verify() {
     setLoading(true)
     try {
       await verifyAPI.confirm({ email, code })
+      // Remember this device already proved this email, so PlaySelect's
+      // routeFor() can skip the /verify hop next time -- without this,
+      // every single visit to /play-select (logout, back button, closing
+      // and reopening the tab) re-triggers the full email-OTP round trip,
+      // even though nothing about the email changed.
+      localStorage.setItem('bq_verified_email', email)
       navigate(dest)
     } catch (err) {
       setError(getErrorMessage(err, 'Incorrect code — try again'))
