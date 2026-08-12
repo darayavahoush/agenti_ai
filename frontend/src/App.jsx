@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { meAPI } from './api/client'
 import { PageLoader } from './components/ui'
 
 import PlaySelect         from './pages/Landing'  // quest-games' original kid/therapist/parent
@@ -87,9 +89,26 @@ function ProtectedTherapist({ children }) {
   return children
 }
 
-function ProtectedKid({ children }) {
+function ProtectedKid({ children, requireEntitlement = true }) {
   const { isKid, loading, patient } = useAuth()
   const location = useLocation()
+  const [access, setAccess] = useState(null) // null = not yet checked this route
+
+  const needsEntitlementCheck = requireEntitlement && isKid && !!patient?.assessment_completed
+
+  useEffect(() => {
+    if (!needsEntitlementCheck) { setAccess(null); return }
+    let cancelled = false
+    meAPI.access()
+      .then(({ data }) => { if (!cancelled) setAccess(data) })
+      // Fail open on a network/server error rather than locking a kid out
+      // of games they may have already paid for over a flaky connection --
+      // this is a soft-nudge product, not a high-security paywall. A real
+      // "no subscription" response (has_access: false) still gates below.
+      .catch(() => { if (!cancelled) setAccess({ has_access: true, reason: 'check_failed' }) })
+    return () => { cancelled = true }
+  }, [needsEntitlementCheck, location.pathname])
+
   if (loading) return <PageLoader />
   if (!isKid) return <Navigate to="/play" replace />
   // First-login gate: a kid who hasn't finished their assessment yet gets
@@ -97,6 +116,10 @@ function ProtectedKid({ children }) {
   // routes themselves, which would otherwise redirect to themselves.
   if (!patient?.assessment_completed && !location.pathname.startsWith('/assessment')) {
     return <Navigate to="/assessment" replace />
+  }
+  if (needsEntitlementCheck) {
+    if (access === null) return <PageLoader />
+    if (!access.has_access) return <Navigate to="/assessment/report" replace />
   }
   return children
 }
@@ -144,19 +167,19 @@ function AppRoutes() {
 
       {/* Kid */}
       <Route path="/play" element={
-        isKid ? <ProtectedKid><GamePicker /></ProtectedKid> : <KidPlay />
+        isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
       } />
       <Route path="/assessment" element={
-        <ProtectedKid><AssessmentGate /></ProtectedKid>
+        <ProtectedKid requireEntitlement={false}><AssessmentGate /></ProtectedKid>
       } />
       <Route path="/assessment/report" element={
-        <ProtectedKid><AssessmentReport /></ProtectedKid>
+        <ProtectedKid requireEntitlement={false}><AssessmentReport /></ProtectedKid>
       } />
       <Route path="/play/levels" element={
         <ProtectedKid><LevelSelect /></ProtectedKid>
       } />
       <Route path="/play/progress" element={
-        <ProtectedKid><MyProgress /></ProtectedKid>
+        <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
       } />
       <Route path="/play/game/:levelId" element={
         <ProtectedKid><GamePage /></ProtectedKid>

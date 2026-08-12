@@ -1,14 +1,16 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { PartyPopper, Sparkles, Lock } from 'lucide-react'
+import { PartyPopper, Sparkles, Lock, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Button, Card } from '../../components/ui'
+import { meAPI } from '../../api/client'
 
 // Shown right after a kid finishes their first assessment
-// (pages/kid/AssessmentGate.jsx's onFinish). This is a soft nudge, not an
-// enforcement gate -- nothing here blocks the "Keep exploring" link below
-// from reaching real games. Real enforcement (checking a parent/
-// therapist's subscription status before letting a kid into gameplay
-// routes) is a separate, deliberately scoped-out follow-up.
+// (pages/kid/AssessmentGate.jsx's onFinish) -- and also whatever this kid
+// lands on later once ProtectedKid's entitlement check (App.jsx) redirects
+// them here for lacking an active subscription. Real gameplay routes are
+// gated by GET /me/access now; this page reads the same endpoint just to
+// show accurate copy (trial days left, etc.) instead of a generic nudge.
 export default function AssessmentReport() {
   const navigate = useNavigate()
   const { patient } = useAuth()
@@ -16,6 +18,20 @@ export default function AssessmentReport() {
   const summary = location.state?.summary || {}
   const wordsAttempted = summary.wordsAttempted ?? 0
   const severity = summary.severityClassification
+
+  const [access, setAccess] = useState(null) // null = loading
+
+  useEffect(() => {
+    let cancelled = false
+    meAPI.access()
+      .then(({ data }) => { if (!cancelled) setAccess(data) })
+      .catch(() => { if (!cancelled) setAccess({ has_access: false, reason: 'unknown' }) })
+    return () => { cancelled = true }
+  }, [])
+
+  const trialDaysLeft = access?.trial_ends_at
+    ? Math.max(0, Math.ceil((new Date(access.trial_ends_at) - new Date()) / 86400000))
+    : null
 
   return (
     <div
@@ -49,23 +65,36 @@ export default function AssessmentReport() {
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-white/10 flex items-start gap-2 text-white/40 text-xs">
-            <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-            <span>
-              The full report -- error patterns, targeted quests, and progress tracking --
-              unlocks with a parent or therapist plan.
-            </span>
-          </div>
+          {access?.has_access ? (
+            <div className="mt-4 pt-4 border-t border-white/10 flex items-start gap-2 text-brand-green text-xs">
+              <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {access.reason === 'trialing' && trialDaysLeft !== null
+                  ? `${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left on your free trial -- full report and games unlocked.`
+                  : 'A plan is active on your account -- full report and games unlocked.'}
+              </span>
+            </div>
+          ) : (
+            <div className="mt-4 pt-4 border-t border-white/10 flex items-start gap-2 text-white/40 text-xs">
+              <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                The full report -- error patterns, targeted quests, and progress tracking --
+                unlocks with a parent or therapist plan.
+              </span>
+            </div>
+          )}
         </Card>
 
-        <Button
-          variant="primary"
-          size="lg"
-          className="w-full mb-3"
-          onClick={() => navigate('/parent/login')}
-        >
-          Ask a grown-up to start a free trial
-        </Button>
+        {access !== null && !access.has_access && (
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full mb-3"
+            onClick={() => navigate('/parent/login')}
+          >
+            Ask a grown-up to start a free trial
+          </Button>
+        )}
         <button
           onClick={() => navigate('/play')}
           className="text-white/40 hover:text-white/70 text-sm transition-colors"

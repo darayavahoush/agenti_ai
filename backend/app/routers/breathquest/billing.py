@@ -15,11 +15,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
-from models.models import Subscription, Therapist, Parent
-from schemas.schemas import SubscriptionOut
-from core.deps import get_current_therapist, get_current_parent
-from core.billing_provider import get_billing_provider, BillingProvider
+from app.database import get_db
+from app.models.breathquest_models import Subscription, Parent
+from app.models.therapist import Therapist
+from app.schemas.breathquest_schemas import SubscriptionOut
+from app.breathquest_core.deps import get_current_therapist, get_current_parent
+from app.breathquest_core.billing_provider import get_billing_provider, BillingProvider
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
