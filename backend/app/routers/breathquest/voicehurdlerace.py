@@ -15,15 +15,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
-from database import get_db
-from models.models import Patient, Therapist
-from models.voicehurdlerace_models import VoiceHurdleRaceSession
-from schemas.voicehurdlerace_schemas import (
+from app.database import get_db
+from app.models.breathquest_models import BreathQuestPatient, Therapist
+from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from app.schemas.voicehurdlerace_schemas import (
     VoiceHurdleRaceSessionCreate,
     VoiceHurdleRaceSessionOut,
     LeaderboardEntryOut,
 )
-from core.deps import get_current_patient, get_current_therapist
+from app.breathquest_core.deps import get_current_patient, get_current_therapist
 from agent.service import AgentService
 from retraining import data_store
 
@@ -48,7 +48,7 @@ def _vhr_level_key(level_id: int) -> str:
 @router.post("/sessions", response_model=VoiceHurdleRaceSessionOut, status_code=201)
 async def create_session(
     data: VoiceHurdleRaceSessionCreate,
-    patient: Patient = Depends(get_current_patient),
+    patient: BreathQuestPatient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ):
     session = VoiceHurdleRaceSession(
@@ -91,7 +91,12 @@ def _log_race_to_agent(patient_id: str, data: VoiceHurdleRaceSessionCreate):
             attempt_number=attempt_number,
             score=data.stars / 3,
             is_valid_attempt=True,
-            threshold_at_time=data.difficulty,
+            threshold_at_time=None,  # VoiceHurdleRace has no difficulty-threshold concept
+                                      # the way Chime/BreathQuest do -- data.difficulty never
+                                      # existed on this schema (see voicehurdlerace_schemas.py);
+                                      # this used to AttributeError here on every call, silently
+                                      # swallowed by the try/except below, so the agent never
+                                      # actually recorded a threshold for this game.
             quit_flag=False,
             db_path=data_store.DEFAULT_DB_PATH,
         )
@@ -104,7 +109,7 @@ def _log_race_to_agent(patient_id: str, data: VoiceHurdleRaceSessionCreate):
 async def get_agent_decision(
     level_id: int,
     policy: str = "tabular_q",
-    patient: Patient = Depends(get_current_patient),
+    patient: BreathQuestPatient = Depends(get_current_patient),
 ):
     """Same shape as /chime/agent/decide and /breath/agent/decide — the
     frontend translates the raise/hold/lower action into a scaled
@@ -125,7 +130,7 @@ async def get_agent_decision(
 
 @router.get("/sessions", response_model=list[VoiceHurdleRaceSessionOut])
 async def get_my_sessions(
-    patient: Patient = Depends(get_current_patient),
+    patient: BreathQuestPatient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ):
     """The logged-in kid's own VoiceHurdleRace history."""
@@ -147,7 +152,7 @@ async def get_patient_sessions(
     403) if the patient isn't theirs, so this doesn't leak which patient
     IDs exist to a therapist probing at random."""
     patient_result = await db.execute(
-        select(Patient).where(Patient.id == patient_id, Patient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
     if not patient_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -168,9 +173,9 @@ async def get_leaderboard(
     """Top 10 sessions among this therapist's own patients only — a
     therapist should never see another clinic's kids on a leaderboard."""
     result = await db.execute(
-        select(VoiceHurdleRaceSession, Patient)
-        .join(Patient, Patient.id == VoiceHurdleRaceSession.patient_id)
-        .where(Patient.therapist_id == therapist.id)
+        select(VoiceHurdleRaceSession, BreathQuestPatient)
+        .join(BreathQuestPatient, BreathQuestPatient.id == VoiceHurdleRaceSession.patient_id)
+        .where(BreathQuestPatient.therapist_id == therapist.id)
         .order_by(desc(VoiceHurdleRaceSession.stars), desc(VoiceHurdleRaceSession.pitch_accuracy))
         .limit(10)
     )

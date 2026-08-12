@@ -1,24 +1,29 @@
 """
-routers/auth.py — Authentication for therapists (JWT) and kids (PIN).
+routers/auth.py — Kid PIN auth for BreathQuest, plus candidate lookups
+against Assessment's patient/therapist records.
+
+Therapist register/login live at app/routers/therapist_auth.py instead
+(mounted at the same /api/v1/auth/register and /api/v1/auth/login paths
+this router used to define) -- that one is backed by the canonical
+`therapists` table; this router's old register/login used the retiring
+`breathquest_therapists` table and were removed 2026-08-12 to avoid a
+silent route collision if both were ever mounted together, and because
+get_current_therapist (gating patients.py/dashboard.py/chime.py) already
+only recognizes the canonical table's tokens -- the old endpoints here
+issued tokens those routes could never actually accept.
 """
 
-import random
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models.breathquest_models import Therapist, BreathQuestPatient
+from app.models.breathquest_models import BreathQuestPatient
 from app.models.patient import Patient
 from app.schemas.breathquest_schemas import (
-    TherapistRegister, TherapistLogin, TokenResponse,
     KidLoginRequest, KidTokenResponse, KidRegisterRequest,
 )
 from app.breathquest_core.security import (
-    hash_password, verify_password,
-    create_access_token,
     hash_pin, verify_pin, create_kid_token,
 )
 
@@ -26,7 +31,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # ------------------------------------------------------------------ #
-#  Therapist auth                                                      #
+#  Therapist candidate lookup (Assessment cross-reference)              #
 # ------------------------------------------------------------------ #
 
 @router.get("/therapist-candidates")
@@ -44,46 +49,6 @@ def therapist_candidates():
         return [name for (name,) in names]
     finally:
         sync_db.close()
-
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends(get_db)):
-    therapist = Therapist(
-        email=data.email,
-        hashed_password=hash_password(data.password),
-        full_name=data.full_name,
-        clinic_name=data.clinic_name,
-    )
-    db.add(therapist)
-    await db.commit()
-    await db.refresh(therapist)
-
-    token = create_access_token(therapist.id)
-    return TokenResponse(
-        access_token=token,
-        therapist_id=str(therapist.id),
-        full_name=therapist.full_name,
-    )
-
-
-@router.post("/login", response_model=TokenResponse)
-async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Therapist).where(Therapist.email == data.email))
-    therapist = result.scalar_one_or_none()
-
-    if not therapist or not verify_password(data.password, therapist.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    if not therapist.is_active:
-        raise HTTPException(status_code=403, detail="Account deactivated")
-
-    therapist.last_login = datetime.now(timezone.utc)
-
-    token = create_access_token(therapist.id)
-    return TokenResponse(
-        access_token=token,
-        therapist_id=str(therapist.id),
-        full_name=therapist.full_name,
-    )
 
 
 # ------------------------------------------------------------------ #

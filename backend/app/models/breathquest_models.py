@@ -49,14 +49,30 @@ class Therapist(Base):
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login:       Mapped[datetime|None] = mapped_column(DateTime(timezone=True))
 
-    patients: Mapped[list["BreathQuestPatient"]] = relationship(back_populates="therapist", cascade="all, delete-orphan")
+    # back_populates relationship to BreathQuestPatient removed 2026-08-12 --
+    # this class (breathquest_therapists) is retiring; nothing creates rows
+    # here anymore (see app.models.therapist.Therapist, the real one
+    # get_current_therapist resolves against). Every FK that used to point
+    # at this table has been repointed to therapists.id. Keeping this class
+    # only because breathquest_models.Therapist is still imported by name
+    # in a couple of unported routers (chime.py/voicehurdlerace.py) --
+    # remove entirely once those are fixed.
 
 
 class BreathQuestPatient(Base):
     __tablename__ = "breathquest_patients"
 
     id:               Mapped[uuid.UUID]    = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
-    therapist_id:     Mapped[uuid.UUID | None] = mapped_column(ForeignKey("breathquest_therapists.id"), nullable=True, index=True)
+    # Repointed 2026-08-12: was FK'd to breathquest_therapists.id (the
+    # retiring class above), but every therapist created through the
+    # canonical /api/v1/auth/register path lives in therapists.id (see
+    # app/models/therapist.py). That mismatch made every therapist-created
+    # patient fail with an FK integrity error -- confirmed via a real
+    # Internal Server Error on POST /api/v1/breathquest/patients. Both
+    # tables were empty at the time of this fix, so this is a clean swap,
+    # not a data migration (see main.py's _ensure_breathquest_therapist_fks
+    # stopgap for the matching DB-side ALTER).
+    therapist_id:     Mapped[uuid.UUID | None] = mapped_column(ForeignKey("therapists.id"), nullable=True, index=True)
     first_name:       Mapped[str]           = mapped_column(String(100), nullable=False)
     avatar:           Mapped[str]           = mapped_column(String(50), default="chick")
     pin_hash:         Mapped[str]           = mapped_column(String(64), nullable=False)
@@ -72,12 +88,14 @@ class BreathQuestPatient(Base):
     assessment_patient_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("patients.id"), nullable=True, index=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    # Fully module-qualified string ref -- bare "Therapist" is ambiguous now
-    # that app/models/therapist.py also registers a class named Therapist
-    # on this same shared Base (see that module's docstring). This
-    # relationship specifically means the old breathquest_therapists-mapped
-    # class, not the new Assessment-native one.
-    therapist: Mapped["app.models.breathquest_models.Therapist | None"] = relationship(back_populates="patients")
+    # `therapist` relationship removed 2026-08-12 alongside the FK repoint
+    # above -- it was wired via back_populates to breathquest_models.Therapist
+    # specifically (the retiring class), which is now the wrong target for
+    # what therapist_id actually references (therapists.id). No router
+    # actually used patient.therapist (confirmed by search), so this is a
+    # pure removal, not a repoint -- if ORM-level access to the owning
+    # therapist is needed later, query app.models.therapist.Therapist by
+    # therapist_id directly rather than re-adding a relationship here.
     sessions:  Mapped[list["GameSession"]]  = relationship(back_populates="patient", cascade="all, delete-orphan")
     notes:     Mapped[list["TherapistNote"]]= relationship(back_populates="patient", cascade="all, delete-orphan")
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
@@ -128,7 +146,9 @@ class TherapistNote(Base):
 
     id:           Mapped[uuid.UUID]   = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
     patient_id:   Mapped[uuid.UUID]   = mapped_column(ForeignKey("breathquest_patients.id"), nullable=False, index=True)
-    therapist_id: Mapped[uuid.UUID]   = mapped_column(ForeignKey("breathquest_therapists.id"), nullable=False)
+    # Repointed 2026-08-12, same root cause as BreathQuestPatient.therapist_id
+    # above -- see that field's comment.
+    therapist_id: Mapped[uuid.UUID]   = mapped_column(ForeignKey("therapists.id"), nullable=False)
     created_at:   Mapped[datetime]     = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at:   Mapped[datetime]     = mapped_column(DateTime(timezone=True), default=utcnow)
     session_id:   Mapped[uuid.UUID|None] = mapped_column(ForeignKey("breathquest_game_sessions.id"))
@@ -175,7 +195,9 @@ class Subscription(Base):
 
     id:                       Mapped[uuid.UUID]     = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
     owner_parent_id:          Mapped[uuid.UUID | None] = mapped_column(ForeignKey("breathquest_parents.id"), nullable=True, unique=True, index=True)
-    owner_therapist_id:       Mapped[uuid.UUID | None] = mapped_column(ForeignKey("breathquest_therapists.id"), nullable=True, unique=True, index=True)
+    # Repointed 2026-08-12, same root cause as BreathQuestPatient.therapist_id
+    # above -- see that field's comment.
+    owner_therapist_id:       Mapped[uuid.UUID | None] = mapped_column(ForeignKey("therapists.id"), nullable=True, unique=True, index=True)
     plan_type:                Mapped[str]           = mapped_column(String(50), nullable=False)
     status:                   Mapped[str]           = mapped_column(String(20), nullable=False, default="trialing")
     trial_ends_at:            Mapped[datetime]      = mapped_column(DateTime(timezone=True), nullable=False)
@@ -200,7 +222,9 @@ class Assignment(Base):
 
     id:           Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
     patient_id:   Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_patients.id"), nullable=False, index=True)
-    assigned_by:  Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_therapists.id"), nullable=False)
+    # Repointed 2026-08-12, same root cause as BreathQuestPatient.therapist_id
+    # above -- see that field's comment.
+    assigned_by:  Mapped[uuid.UUID] = mapped_column(ForeignKey("therapists.id"), nullable=False)
     game:         Mapped[str]           = mapped_column(String(50), nullable=False)
     level_id:     Mapped[str | None]    = mapped_column(String(50))
     title:        Mapped[str]           = mapped_column(String(255), nullable=False)
@@ -219,7 +243,9 @@ class Goal(Base):
 
     id:             Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
     patient_id:     Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_patients.id"), nullable=False, index=True)
-    created_by:     Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_therapists.id"), nullable=False)
+    # Repointed 2026-08-12, same root cause as BreathQuestPatient.therapist_id
+    # above -- see that field's comment.
+    created_by:     Mapped[uuid.UUID] = mapped_column(ForeignKey("therapists.id"), nullable=False)
     target_metric:  Mapped[str]           = mapped_column(String(100), nullable=False)
     target_value:   Mapped[float]         = mapped_column(Float, nullable=False)
     baseline_value: Mapped[float | None]  = mapped_column(Float)

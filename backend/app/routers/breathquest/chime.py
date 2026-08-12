@@ -16,9 +16,9 @@ import numpy as np
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from database import get_db
-from models.models import Patient, Therapist
-from core.deps import get_current_patient, get_current_therapist
+from app.database import get_db
+from app.models.breathquest_models import BreathQuestPatient, Therapist
+from app.breathquest_core.deps import get_current_patient, get_current_therapist
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from retraining import data_store
@@ -105,7 +105,7 @@ class AgentDecisionOut(BaseModel):
 # Session events
 # ============================================================
 @router.post("/events", response_model=EventOut)
-def log_event(event: EventIn, background_tasks: BackgroundTasks, patient: Patient = Depends(get_current_patient)):
+def log_event(event: EventIn, background_tasks: BackgroundTasks, patient: BreathQuestPatient = Depends(get_current_patient)):
     # patient.id is BreathQuest's own primary key -- get_diagnostic_context
     # needs Assessment's UUID instead, which is only set for patients
     # linked via kid-pin-setup. Unlinked patients (created directly in
@@ -154,7 +154,7 @@ def log_event(event: EventIn, background_tasks: BackgroundTasks, patient: Patien
 
 
 @router.get("/events", response_model=list[EventOut])
-def get_events(level_id: Optional[str] = None, patient: Patient = Depends(get_current_patient)):
+def get_events(level_id: Optional[str] = None, patient: BreathQuestPatient = Depends(get_current_patient)):
     events = data_store.get_events(child_id=patient.id, db_path=DB_PATH)
     if level_id:
         events = [e for e in events if e["level_id"] == level_id]
@@ -172,7 +172,7 @@ async def get_patient_events(
     before this, chime.py only had kid-token-gated endpoints. Ownership
     check matches the pattern in routers/voicehurdlerace.py."""
     patient_result = await db.execute(
-        select(Patient).where(Patient.id == patient_id, Patient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
     if not patient_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -194,7 +194,7 @@ RECENT_WINDOW = 10
 
 
 @router.get("/difficulty/{level_id}", response_model=DifficultyDecision)
-def get_difficulty(level_id: str, patient: Patient = Depends(get_current_patient)):
+def get_difficulty(level_id: str, patient: BreathQuestPatient = Depends(get_current_patient)):
     # Delegates to agent.service.AgentService — the same non-learning fallback
     # heuristic BreathQuest's own levels now use too (routers/breath_agent.py).
     return DifficultyDecision(**_agent_service.simple_difficulty_heuristic(patient.id, level_id))
@@ -204,7 +204,7 @@ def get_difficulty(level_id: str, patient: Patient = Depends(get_current_patient
 # Village Builder word matching (stateless — patient dep kept for auth only)
 # ============================================================
 @router.post("/village-builder/score-word", response_model=WordScoreOut)
-def score_word(payload: WordScoreIn, patient: Patient = Depends(get_current_patient)):
+def score_word(payload: WordScoreIn, patient: BreathQuestPatient = Depends(get_current_patient)):
     result = score_word_attempt(payload.transcript, payload.target_word, payload.asr_confidence)
     return WordScoreOut(
         transcript=result.transcript,
@@ -232,7 +232,7 @@ def get_whisper_model():
 @router.post("/village-builder/transcribe", response_model=TranscribeOut)
 async def transcribe_audio(
     audio: UploadFile = File(...),
-    patient: Patient = Depends(get_current_patient),
+    patient: BreathQuestPatient = Depends(get_current_patient),
 ):
     audio_bytes = await audio.read()
     if not audio_bytes:
@@ -279,7 +279,7 @@ def _decode_audio_file(tmp_path: str, target_sr: int = 16000):
 async def score_phoneme(
     level_id: str,
     audio: UploadFile = File(...),
-    patient: Patient = Depends(get_current_patient),
+    patient: BreathQuestPatient = Depends(get_current_patient),
 ):
     if level_id not in EXTRACTORS:
         raise HTTPException(
@@ -329,7 +329,7 @@ def _maybe_update_tabular_q_from_new_event(child_id: str, level_id: str, quit_fl
 def agent_decide(
     level_id: str,
     policy: Literal["rule_based", "bandit", "tabular_q", "ppo", "recurrent_ppo"] = "tabular_q",
-    patient: Patient = Depends(get_current_patient),
+    patient: BreathQuestPatient = Depends(get_current_patient),
 ):
     try:
         result = _agent_service.decide(patient.id, level_id, policy)

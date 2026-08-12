@@ -23,7 +23,8 @@ from app.routers.breathquest import patients as breathquest_patients_router
 from app.routers.breathquest import sessions as breathquest_sessions_router
 from app.routers.breathquest import dashboard as breathquest_dashboard_router
 from app.routers.breathquest import breath_agent as breathquest_breath_agent_router
-from app.routers.voiceHurdleRace import router as voice_hurdle_race_router
+from app.routers.breathquest import chime as breathquest_chime_router
+from app.routers.breathquest import voicehurdlerace as breathquest_voicehurdlerace_router
 from app.routers.vaakmirror.sessions import router as vaakmirror_sessions_router
 from app.routers.vaakmirror.dashboard import router as vaakmirror_dashboard_router
 from app.routers.vaakmirror.exercises import router as vaakmirror_exercises_router
@@ -58,22 +59,25 @@ app.add_middleware(
 app.include_router(assessment_router, prefix="/assessment", tags=["Assessment"])
 app.include_router(therapist_auth_router, prefix="/api/v1")
 app.include_router(therapist_patients_router, prefix="/api/v1")
-# Disabled 2026-08-07: standalone breathquest backend (port 8001) now has
-# full parity for this router -- candidate-list + Assessment-linked PIN
-# setup were ported over (see auth.py there), and parent auth was already
-# standalone-only. breathquest_therapists/patients/game_sessions all still
-# 0 rows as of this disable, so no data loss.
-# app.include_router(breathquest_auth_router.router, prefix="/api/v1")
+# Re-enabled 2026-08-12: the standalone backend (port 8001) this was
+# deferring to is no longer running (confirmed via `ps`/`lsof` -- nothing
+# listens on 8001), so /auth/kid-register and /auth/kid-login had no live
+# implementation anywhere. Trimmed down first: this router used to also
+# define /auth/register and /auth/login against the retiring
+# breathquest_therapists table, which would have silently collided with
+# therapist_auth_router's identical paths below (the canonical `therapists`
+# table) and issued tokens get_current_therapist could never resolve.
+# Only the kid-specific + Assessment-candidate endpoints remain.
+app.include_router(breathquest_auth_router.router, prefix="/api/v1")
 # Re-enabled 2026-08-11: rewritten against BreathQuestPatient/GameSession
 # (the 2026-08-06 disable reason -- wrong model imports -- is fixed).
 # get_current_therapist uses real JWT auth; the "DummyTherapist stub" note
 # above was stale.
 app.include_router(breathquest_patients_router.router, prefix="/api/v1/breathquest")
-# Disabled 2026-08-07: uses get_current_patient (real auth, not the
-# DummyTherapist stub), but breathquest_game_sessions is 0 rows and
-# standalone (port 8001) is the session-logging system of record --
-# nothing was ever actually writing through this copy.
-# app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
+# Re-enabled 2026-08-12: same situation as breathquest_auth above -- was
+# deferring to the standalone backend on port 8001, which isn't running.
+# get_current_patient uses real JWT auth, not a stub.
+app.include_router(breathquest_sessions_router.router, prefix="/api/v1")
 # Re-enabled 2026-08-11: rewritten against BreathQuestPatient/GameSession/
 # TherapistNote. Also fixed two scoping bugs found during rewrite:
 # get_dashboard_summary queried all patients with no therapist filter, and
@@ -85,9 +89,24 @@ app.include_router(breathquest_dashboard_router.router, prefix="/api/v1")
 # (see backend/app/models/breathquest_models.py) since this router's
 # get_diagnostic_context() call needed a real link that didn't exist yet.
 app.include_router(breathquest_breath_agent_router.router, prefix="/api/v1")
-app.include_router(voice_hurdle_race_router, prefix="/api/v1", tags=["VoiceHurdleRace"])
+# Swapped 2026-08-12: was app.routers.voiceHurdleRace (top-level, capital
+# H) -- a stale, unauthenticated implementation still requiring patient_id
+# in the request body and missing GET /sessions ("my sessions") entirely,
+# which the current frontend (voiceHurdleRaceApi.ts, rewritten to send the
+# bearer token instead of patient_id) can't work with at all. This is the
+# breathquest-native version instead: token-authenticated via
+# get_current_patient, built on BreathQuestPatient/GameSession like every
+# other game router here, and has the /agent/decide endpoint the old one
+# never had. Its imports needed the same app.* rewrite chime.py got.
+app.include_router(breathquest_voicehurdlerace_router.router, prefix="/api/v1", tags=["VoiceHurdleRace"])
 
-# Include PhoneMeQuest (Chime) router
+# Added 2026-08-12: chime.py's imports were still the standalone quest-games
+# layout (bare `database`/`models.models`/`core.deps` instead of `app.*`)
+# and would have raised ModuleNotFoundError on import -- never actually
+# mountable before now. Rewritten to match sessions.py/patients.py's pattern
+# (BreathQuestPatient instead of the wrong Patient model) and mounted here
+# for the first time.
+app.include_router(breathquest_chime_router.router, prefix="/api/v1")
 
 # Include VaakMirror routers
 app.include_router(vaakmirror_sessions_router, prefix="/api/v1/vaakmirror")
@@ -147,6 +166,41 @@ def _ensure_session_diagnostic_columns():
         ))
 
 _ensure_session_diagnostic_columns()
+
+def _ensure_breathquest_therapist_fks_point_at_therapists():
+    """One-time constraint swap -- five FK columns (BreathQuestPatient.
+    therapist_id, TherapistNote.therapist_id, Subscription.
+    owner_therapist_id, Assignment.assigned_by, Goal.created_by) were
+    declared against breathquest_therapists.id, but every therapist
+    created through the canonical /api/v1/auth/register path lives in
+    therapists.id (see app/models/therapist.py). That mismatch meant no
+    therapist created via the real registration flow could ever create a
+    BreathQuestPatient -- confirmed via a live Internal Server Error on
+    POST /api/v1/breathquest/patients. breathquest_therapists and every
+    table with one of these five columns were confirmed empty (0 rows)
+    at the time of this fix, so this is a clean constraint swap, not a
+    data migration -- no remapping step needed. Idempotent: DROP...IF
+    EXISTS + re-add is safe to run on every startup, same as the other
+    stopgaps in this block."""
+    from sqlalchemy import text
+    swaps = [
+        ("breathquest_patients", "therapist_id", "breathquest_patients_therapist_id_fkey"),
+        ("breathquest_therapist_notes", "therapist_id", "breathquest_therapist_notes_therapist_id_fkey"),
+        ("breathquest_subscriptions", "owner_therapist_id", "breathquest_subscriptions_owner_therapist_id_fkey"),
+        ("breathquest_assignments", "assigned_by", "breathquest_assignments_assigned_by_fkey"),
+        ("breathquest_goals", "created_by", "breathquest_goals_created_by_fkey"),
+    ]
+    with engine.begin() as conn:
+        for table, column, constraint in swaps:
+            conn.execute(text(
+                f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint}"
+            ))
+            conn.execute(text(
+                f"ALTER TABLE {table} ADD CONSTRAINT {constraint} "
+                f"FOREIGN KEY ({column}) REFERENCES therapists(id)"
+            ))
+
+_ensure_breathquest_therapist_fks_point_at_therapists()
 
 @app.get("/")
 def home():
