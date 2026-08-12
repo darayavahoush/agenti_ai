@@ -298,3 +298,22 @@ class HomePracticeLog(Base):
     notes:            Mapped[str | None]    = mapped_column(Text)
 
     patient: Mapped["BreathQuestPatient"] = relationship(back_populates="home_practice_logs")
+
+
+class KidLoginThrottle(Base):
+    """Brute-force tracking for POST /auth/kid-login. Keyed by the raw
+    identifier string a client attempts (name or player code), not by
+    patient_id -- a 4-digit PIN attempt against a name/code that doesn't
+    even exist yet is still an attempt worth counting, and kid_login
+    itself doesn't know which (if any) patient an identifier resolves to
+    until after the PIN check. Identifier is stored lowercased so
+    'Milo'/'milo'/'MILO' all throttle the same underlying attempts,
+    matching kid_login's own case-insensitive name matching."""
+    __tablename__ = "breathquest_kid_login_throttle"
+
+    id:              Mapped[uuid.UUID]        = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
+    identifier:      Mapped[str]              = mapped_column(String(255), nullable=False, unique=True, index=True)
+    failed_attempts: Mapped[int]              = mapped_column(Integer, nullable=False, default=0)
+    first_failed_at: Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
+    last_failed_at:  Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
+    locked_until:    Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
