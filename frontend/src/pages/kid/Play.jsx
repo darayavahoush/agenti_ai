@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
+import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail, Phone } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
 import { Button, Avatar } from '../../components/ui'
@@ -121,9 +121,11 @@ export default function KidPlay() {
   // before handleRegister ever runs. 'form' collects the kid's own details
   // first so a parent isn't asked for their email before there's even an
   // account to consent to.
-  const [registerStep, setRegisterStep] = useState('form')  // form | parentEmail | parentCode
+  const [registerStep, setRegisterStep] = useState('form')  // form | parentEmail | parentCode | parentPhone | parentPhoneCode
   const [parentEmail, setParentEmail]   = useState('')
   const [otpCode, setOtpCode]           = useState('')
+  const [parentPhone, setParentPhone]   = useState('')
+  const [phoneOtpCode, setPhoneOtpCode] = useState('')
   const [mounted, setMounted]   = useState(false)
   const [candidates, setCandidates]               = useState([])
   const [candidatesLoading, setCandidatesLoading] = useState(false)
@@ -193,7 +195,38 @@ export default function KidPlay() {
     setError(''); setLoading(true)
     try {
       await verifyAPI.confirm({ email: parentEmail.trim(), code: otpCode })
-      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim())
+      // Email is verified, but phone is a second required factor (not an
+      // alternative) -- advance to collecting/verifying it instead of
+      // registering yet. See parental_consent.py's check_parental_consent.
+      setRegisterStep('parentPhone')
+    } catch (e) {
+      setError(getErrorMessage(e, 'Incorrect code — try again'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSendParentPhoneCode = async () => {
+    if (!parentPhone.trim()) { setError("Enter a parent's phone number"); return }
+    setError(''); setLoading(true)
+    try {
+      await verifyAPI.phoneRequest({ phone: parentPhone.trim() })
+      setRegisterStep('parentPhoneCode')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirmParentPhoneCode = async () => {
+    if (phoneOtpCode.length < 6) { setError('Enter the 6-digit code'); return }
+    setError(''); setLoading(true)
+    try {
+      await verifyAPI.phoneConfirm({ phone: parentPhone.trim(), code: phoneOtpCode })
+      // Both factors verified now -- this is the only place registerKid
+      // actually gets called.
+      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim(), parentPhone.trim())
       setRegistered({ player_code: data.player_code, first_name: data.first_name })
     } catch (e) {
       setError(getErrorMessage(e, 'Incorrect code — try again'))
@@ -460,6 +493,65 @@ export default function KidPlay() {
           />
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
           <Button className="w-full gap-2" size="lg" onClick={handleConfirmParentCode} disabled={loading}>
+            {loading ? 'Confirming…' : 'Confirm'}
+          </Button>
+        </GlassPanel>
+      )}
+
+      {/* Register — parent phone (second required consent factor alongside email) */}
+      {mode === 'register' && registerStep === 'parentPhone' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setRegisterStep('parentCode'); setError('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <div className="flex justify-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
+              <Phone className="w-6 h-6 text-brand-amber" />
+            </div>
+          </div>
+          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
+            One more thing!
+          </h1>
+          <p className="text-white/50 text-sm text-center mb-6">
+            We also need a parent's phone number to finish creating your account.
+          </p>
+          <div className="mb-5">
+            <label className="text-sm text-white/50 block mb-1">Parent's phone number</label>
+            <input type="tel" className="input text-lg" placeholder="+1 555 123 4567"
+                   value={parentPhone} onChange={e => setParentPhone(e.target.value)} />
+          </div>
+          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+          <Button className="w-full gap-2" size="lg" onClick={handleSendParentPhoneCode} disabled={loading}>
+            {loading ? 'Sending…' : 'Send code to parent'}
+          </Button>
+        </GlassPanel>
+      )}
+
+      {/* Register — confirm parent's phone code, then actually create the account */}
+      {mode === 'register' && registerStep === 'parentPhoneCode' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setRegisterStep('parentPhone'); setPhoneOtpCode(''); setError('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
+            Enter the code
+          </h1>
+          <p className="text-white/50 text-sm text-center mb-6">
+            We sent a code to {parentPhone} — a parent should check their phone.
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={phoneOtpCode}
+            onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="123456"
+            className="input text-center text-lg tracking-widest mb-3"
+          />
+          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+          <Button className="w-full gap-2" size="lg" onClick={handleConfirmParentPhoneCode} disabled={loading}>
             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
           </Button>
         </GlassPanel>
