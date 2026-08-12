@@ -20,9 +20,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.breathquest_models import EmailVerification
-from app.schemas.breathquest_schemas import VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut
+from app.models.breathquest_models import EmailVerification, PhoneVerification
+from app.schemas.breathquest_schemas import (
+    VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut,
+    PhoneVerifyRequestIn, PhoneVerifyConfirmIn,
+)
 from app.services.email import send_otp_email
+from app.breathquest_core.phone_provider import get_phone_provider
 
 router = APIRouter(prefix="/verify", tags=["verify"])
 
@@ -102,6 +106,89 @@ async def confirm_verification(data: VerifyConfirmIn, db: AsyncSession = Depends
     prior_result = await db.execute(
         select(EmailVerification.id)
         .where(EmailVerification.email == data.email, EmailVerification.verified == True)  # noqa: E712
+        .limit(1)
+    )
+    first_time = prior_result.scalar_one_or_none() is None
+
+    record.verified = True
+    record.verified_at = datetime.now(timezone.utc)
+
+    return VerifyConfirmOut(verified=True, first_time=first_time)
+
+
+# ------------------------------------------------------------------ #
+#  Phone OTP -- second required consent factor alongside email       #
+#  (see breathquest_core/parental_consent.py). Mirrors the email      #
+#  endpoints above exactly; only the model, provider call, and field  #
+#  name differ.                                                       #
+# ------------------------------------------------------------------ #
+
+@router.post("/phone/request")
+async def request_phone_verification(data: PhoneVerifyRequestIn, db: AsyncSession = Depends(get_db)):
+    recent_result = await db.execute(
+        select(PhoneVerification)
+        .where(PhoneVerification.phone == data.phone)
+        .order_by(PhoneVerification.created_at.desc())
+        .limit(1)
+    )
+    recent = recent_result.scalars().first()
+    if recent is not None:
+        elapsed = (datetime.now(timezone.utc) - recent.created_at).total_seconds()
+        if elapsed < RESEND_COOLDOWN_SECONDS:
+            wait = int(RESEND_COOLDOWN_SECONDS - elapsed)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Please wait {wait}s before requesting another code",
+            )
+
+    code = f"{random.randint(0, 999999):06d}"
+    record = PhoneVerification(
+        phone=data.phone,
+        otp_code_hash=_hash_code(code),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES),
+    )
+    db.add(record)
+    await db.flush()
+
+    # get_db (app/database.py) rolls back the whole request on any
+    # exception, so while no SMS provider is configured this call's 501
+    # also rolls back the row flushed above -- no orphaned PhoneVerification
+    # rows pile up from calls that never actually sent anything. Once a
+    # real provider is wired up (see phone_provider.py), both the row and
+    # the SMS commit together as intended.
+    await get_phone_provider().send_otp_sms(data.phone, code)
+
+    return {"message": f"Verification code sent to {data.phone}"}
+
+
+@router.post("/phone/confirm", response_model=VerifyConfirmOut)
+async def confirm_phone_verification(data: PhoneVerifyConfirmIn, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(PhoneVerification)
+        .where(
+            PhoneVerification.phone == data.phone,
+            PhoneVerification.verified == False,  # noqa: E712
+        )
+        .order_by(PhoneVerification.created_at.desc())
+    )
+    record = result.scalars().first()
+
+    if record is None:
+        raise HTTPException(status_code=400, detail="No pending verification for this phone — request a new code")
+
+    if record.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Code expired — request a new one")
+
+    if record.attempts >= MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many attempts — request a new code")
+
+    if _hash_code(data.code) != record.otp_code_hash:
+        record.attempts += 1
+        raise HTTPException(status_code=400, detail="Incorrect code")
+
+    prior_result = await db.execute(
+        select(PhoneVerification.id)
+        .where(PhoneVerification.phone == data.phone, PhoneVerification.verified == True)  # noqa: E712
         .limit(1)
     )
     first_time = prior_result.scalar_one_or_none() is None

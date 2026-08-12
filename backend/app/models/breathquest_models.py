@@ -103,6 +103,11 @@ class BreathQuestPatient(Base):
     # created the record first, so this doesn't apply to them.
     parent_email:                Mapped[str | None] = mapped_column(String(255), nullable=True)
     parent_consent_verified_at:  Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added 2026-08-12: phone verification is now required alongside email
+    # (not an alternative -- both must be verified) for kid-register. Same
+    # nullable reasoning as parent_email above.
+    parent_phone:                     Mapped[str | None] = mapped_column(String(32), nullable=True)
+    parent_phone_consent_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
@@ -191,6 +196,25 @@ class EmailVerification(Base):
     # parental_consent.py): kid-register needs to know *when* an email was
     # verified, not just whether it ever was, so a code confirmed weeks ago
     # can't be replayed indefinitely to gate a new signup.
+    verified_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PhoneVerification(Base):
+    """OTP-gate for parent phone numbers, mirroring EmailVerification
+    exactly. Added 2026-08-12 alongside making phone verification a second
+    required consent factor on kid-register (see breathquest_core/
+    parental_consent.py) -- deliberately its own table rather than adding
+    a phone column to EmailVerification, same reasoning EmailVerification
+    itself gives for staying separate from Therapist/BreathQuestPatient."""
+    __tablename__ = "breathquest_phone_verifications"
+
+    id:               Mapped[uuid.UUID]    = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
+    phone:            Mapped[str]           = mapped_column(String(32), nullable=False, index=True)
+    otp_code_hash:    Mapped[str]           = mapped_column(String(64), nullable=False)
+    expires_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts:         Mapped[int]           = mapped_column(Integer, default=0)
+    verified:         Mapped[bool]          = mapped_column(Boolean, default=False)
     verified_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
