@@ -94,6 +94,15 @@ class BreathQuestPatient(Base):
     # own Session rows, looked up via assessment_patient_id).
     assessment_completed: Mapped[bool]       = mapped_column(Boolean, default=False)
     assessment_summary:   Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Added 2026-08-12 for COPPA: POST /auth/kid-register (the only path with
+    # no adult already in the loop -- see breathquest_core/parental_consent.py)
+    # now requires a recently-verified parent email before it will create an
+    # account at all, and records that email + when consent was verified on
+    # the resulting row. Nullable because kid-pin-setup and the
+    # assessment-linked flow both already require a therapist/parent to have
+    # created the record first, so this doesn't apply to them.
+    parent_email:                Mapped[str | None] = mapped_column(String(255), nullable=True)
+    parent_consent_verified_at:  Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
@@ -178,6 +187,11 @@ class EmailVerification(Base):
     expires_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), nullable=False)
     attempts:         Mapped[int]           = mapped_column(Integer, default=0)
     verified:         Mapped[bool]          = mapped_column(Boolean, default=False)
+    # Added 2026-08-12 for COPPA parental consent (see breathquest_core/
+    # parental_consent.py): kid-register needs to know *when* an email was
+    # verified, not just whether it ever was, so a code confirmed weeks ago
+    # can't be replayed indefinitely to gate a new signup.
+    verified_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

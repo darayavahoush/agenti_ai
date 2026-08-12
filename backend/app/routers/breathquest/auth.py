@@ -27,6 +27,7 @@ from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
 )
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
+from app.breathquest_core.parental_consent import check_parental_consent
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -74,7 +75,21 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
     calls; it only ever sends {first_name, avatar, pin}. The old
     patient_id-required version of this endpoint made every one of those
     calls 422. That link-an-existing-Assessment-patient flow now lives at
-    POST /auth/kid-pin-setup instead."""
+    POST /auth/kid-pin-setup instead.
+
+    COPPA: this is the only kid-account path with no adult already in the
+    loop, so it's gated on a recently-verified parent email (see
+    breathquest_core/parental_consent.py) before it will touch the DB at
+    all."""
+    consent = await check_parental_consent(data.parent_email, db)
+    if not consent.granted:
+        detail = (
+            "Please verify the parent's email again before creating the account"
+            if consent.reason == "expired"
+            else "A parent needs to verify their email before creating this account"
+        )
+        raise HTTPException(status_code=403, detail=detail)
+
     player_code = await generate_unique_player_code(db, data.avatar)
     patient = BreathQuestPatient(
         therapist_id=None,
@@ -82,6 +97,8 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
         avatar=data.avatar,
         pin_hash=hash_pin(data.pin),
         player_code=player_code,
+        parent_email=data.parent_email,
+        parent_consent_verified_at=consent.verified_at,
     )
     db.add(patient)
     await db.commit()
