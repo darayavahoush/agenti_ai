@@ -120,6 +120,10 @@ export const patientsAPI = {
   update: (id, data)   => api.patch(`/breathquest/patients/${id}`, data),
   delete: (id)         => api.delete(`/breathquest/patients/${id}`),
   generateParentInviteCode: (id) => api.post(`/breathquest/patients/${id}/parent-invite-code`),
+  // Therapist-launched entry point into Assessment/Live Therapy (see
+  // AuthContext.jsx's startSupervisedSession) -- mints a real kid token
+  // for this patient without needing their PIN.
+  startSession: (id)   => api.post(`/breathquest/patients/${id}/start-session`),
 }
 
 // ------------------------------------------------------------------ //
