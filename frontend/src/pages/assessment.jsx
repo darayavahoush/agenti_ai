@@ -3,7 +3,7 @@ import { MouthDiagram } from "../MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "../alphabetData";
 import "./Assessment.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "").replace(/\/api\/v1$/, "");
 
 const INDIAN_LANGUAGES = [
   { code: "en-IN", name: "English (India)", voiceLang: "en-IN", translationKey: "english", listenText: "Listen", slowText: "Say it slowly" },
@@ -228,7 +228,7 @@ export default function Assessment() {
   // Function to load patient details
   const loadPatientDetails = async (patientId) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "").replace(/\/api\/v1$/, "");
       const response = await fetch(`${API_URL}/patients/${patientId}`);
       
       if (!response.ok) {
