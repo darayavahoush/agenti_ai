@@ -1285,7 +1285,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                 e.target.style.color = "#7c3aed";
               }}
             >
-              ✏️ Edit Details
+              {authedPatientId ? "← Back" : "✏️ Edit Details"}
             </button>
           </div>
           {wordLoading && <div className="assessment-loader">Picking a word for you…</div>}
@@ -1315,6 +1315,14 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                   />
                 </div>
                 <div className="word-practice-panel" style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: "10px", padding: "12px" }}>
+                  <h4 style={{ margin: 0, color: "#6d28d9", fontSize: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: "22px", height: "22px", borderRadius: "50%",
+                      background: "#a855f7", color: "#fff", fontSize: "13px", fontWeight: 900
+                    }}>1</span>
+                    Look & listen
+                  </h4>
                   <span className="word-label">Your word is</span>
                   <h2 style={{ fontSize: "2rem", margin: 0, color: "#5b21b6" }}>{word.word}</h2>
                   <p style={{ margin: 0, fontSize: "14px" }}>Listen carefully, then try saying the word yourself.</p>
@@ -1342,6 +1350,23 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                         </option>
                       ))}
                     </select>
+
+                    {/* This mic records/replaces the reference pronunciation clip
+                        played back by "Listen"/"Play Slow" above -- separate from
+                        the student's own attempt further down ("Try Pronouncing
+                        It"). Wasn't visually distinguished before, so it looked
+                        like a second, redundant record button. */}
+                    <span style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#9333ea",
+                      background: "#f3e8ff",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      whiteSpace: "nowrap"
+                    }}>
+                      🗂️ Reference audio
+                    </span>
 
                     {customRecording ? (
                       <button
@@ -1465,8 +1490,15 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                     )}
                   </div>
 
-                  <div style={{ borderTop: "1px solid #eee", marginTop: "12px", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <h4 style={{ margin: 0, color: "#6d28d9", fontSize: "15px" }}>🎙️ Try Pronouncing It:</h4>
+                  <div style={{ borderTop: "2px solid #f97316", marginTop: "12px", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <h4 style={{ margin: 0, color: "#c2410c", fontSize: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        width: "22px", height: "22px", borderRadius: "50%",
+                        background: "#f97316", color: "#fff", fontSize: "13px", fontWeight: 900
+                      }}>2</span>
+                      Your turn — say the word!
+                    </h4>
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                       {!recording ? (
                         <button
@@ -1552,6 +1584,11 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
                     <h3 style={{ margin: 0, color: "#db2777", display: "flex", alignItems: "center", gap: "8px", fontSize: "1.1rem", fontWeight: 900 }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        width: "22px", height: "22px", borderRadius: "50%",
+                        background: "#db2777", color: "#fff", fontSize: "13px", fontWeight: 900
+                      }}>3</span>
                       🪄 Wizard's Speech Magic! ✨
                     </h3>
                     <div style={{ fontSize: "20px", fontWeight: 900, color: "#16a34a" }}>
@@ -1602,7 +1639,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
 
                     {analysisResult.recommendations && analysisResult.recommendations.length > 0 && (
                       <div style={{ padding: "10px", background: "#f0f9ff", borderRadius: "10px", borderTop: "4px solid #38bdf8" }}>
-                        <span style={{ fontSize: "13px", fontWeight: 800, color: "#0369a1" }}>💨 Acoustic cord check</span>
+                        <span style={{ fontSize: "13px", fontWeight: 800, color: "#0369a1" }}>💨 Tips to try</span>
                         <ul style={{ margin: "4px 0 0 0", paddingLeft: "14px", fontSize: "12px", color: "#4b5563", fontWeight: 500 }}>
                           {analysisResult.recommendations.map((metric, i) => (
                             <li key={i}>{metric}</li>
@@ -1734,7 +1771,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                 e.target.style.color = "#7c3aed";
               }}
             >
-              ✏️ Edit Details
+              {authedPatientId ? "← Back" : "✏️ Edit Details"}
             </button>
           </div>
           <div className="keyboard-card">
