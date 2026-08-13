@@ -296,6 +296,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   const chunksRef = useRef([]);
   const customMediaRecorderRef = useRef(null);
   const customChunksRef = useRef([]);
+  const articulationCardRef = useRef(null);
 
   const selectedSound = ALPHABET_SOUNDS[letter];
   const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
@@ -476,6 +477,15 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   function openAlphabet() {
     setSection("alphabet");
     setError("");
+  }
+
+  // Tapping a letter updates the articulation card below, but on a page
+  // this long (especially on mobile) that card can be off-screen -- it
+  // silently updates with no visible sign anything happened. Scrolling it
+  // into view makes the cause-and-effect obvious.
+  function selectLetter(key) {
+    setLetter(key);
+    articulationCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   const startRecording = async () => {
@@ -1778,10 +1788,13 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
             <div className="keyboard-title">
               <div>
                 <span>Interactive keyboard</span>
-                <h2>Choose an alphabet</h2>
+                <h2>Choose a letter</h2>
               </div>
               <div className="selected-letter-mini">{letter}</div>
             </div>
+            <p style={{ margin: "0 20px 12px 20px", fontSize: "13px", color: "#6b7280", fontWeight: 600 }}>
+              👇 Tap any letter below — the card underneath will show exactly how to say it.
+            </p>
             <div style={{ padding: "0 20px 20px 20px" }}>
               <label style={{ fontSize: "13px", fontWeight: 700, color: "#6d28d9" }}>🌐 Select Language:</label>
               <select 
@@ -1805,6 +1818,9 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                   </option>
                 ))}
               </select>
+              <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>
+                Changes the accent used for 🔊 — the written guide below stays in English.
+              </p>
             </div>
             <div className="alphabet-keyboard">
               {KEYBOARD_ROWS.map((row, rowIndex) => (
@@ -1813,7 +1829,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                     <button
                       key={key}
                       className={letter === key ? "active" : ""}
-                      onClick={() => setLetter(key)}
+                      onClick={() => selectLetter(key)}
                       aria-label={`Show articulation for ${key}`}
                     >
                       {key}
@@ -1824,7 +1840,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
             </div>
           </div>
 
-          <article className="articulation-card">
+          <article className="articulation-card" ref={articulationCardRef}>
             <div className="sound-header">
               <div className="big-letter">{letter}</div>
               <div>
@@ -1847,7 +1863,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                   <span>👄 Shape & position</span>
                   <strong>{letterGuide.anatomy}</strong>
                 </div>
-                <h3>Make the sound correctly</h3>
+                <h3>How to say “{selectedSound.spoken}”</h3>
                 <ol>
                   <li className="letter-transition">{selectedSound.transition}</li>
                   {letterGuide.steps.map((step) => <li key={step}>{step}</li>)}
