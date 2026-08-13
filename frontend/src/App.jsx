@@ -74,7 +74,7 @@ function adoptHubHandoffIfPresent() {
     return
   }
 
-  // Strip the params from the URL/history without needing react-router
+  // Strip  /the params from the URL/history without needing react-router
   // (this runs before BrowserRouter has mounted).
   const cleanUrl = window.location.pathname + window.location.hash
   window.history.replaceState({}, '', cleanUrl)
