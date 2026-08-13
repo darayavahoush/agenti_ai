@@ -3,7 +3,20 @@ import { MouthDiagram } from "./MouthDiagram";
 import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "./alphabetData";
 import "./Assessment.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+// Deliberately its own base URL, not api/client.js's axios instance --
+// this file predates that client and still uses plain fetch() throughout.
+// VITE_API_URL is shared with that axios client, though, which expects
+// it to end in /api/v1 (see api/client.js's own default). This file's
+// own routes (routes/assessment.py, routes/patient.py) are mounted at
+// the bare /assessment and /patients prefixes with no /api/v1 -- so if
+// VITE_API_URL includes /api/v1 (as it does in this project's
+// frontend/.env), every fetch in this file 404'd against a path one
+// level too deep. Stripping a trailing /api/v1 here, rather than
+// assuming VITE_API_URL is unprefixed, keeps this working under either
+// convention without the two files needing to agree on one.
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000")
+  .replace(/\/$/, "")
+  .replace(/\/api\/v1$/, "");
 
 const INDIAN_LANGUAGES = [
   { code: "en-IN", name: "English (India)", voiceLang: "en-IN", translationKey: "english", listenText: "Listen", slowText: "Say it slowly" },
@@ -229,7 +242,10 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   // Function to load patient details
   const loadPatientDetails = async (patientId) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      // Uses the module-level API_URL (already /api/v1-stripped) rather
+      // than a separate local copy -- this used to re-derive its own
+      // unstripped version here, which would have hit the same /api/v1
+      // mismatch as the module-level fetches once that was fixed there.
       const response = await fetch(`${API_URL}/patients/${patientId}`);
       
       if (!response.ok) {
