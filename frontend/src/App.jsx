@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { meAPI } from './api/client'
-import { PageLoader } from './components/ui'
+import { PageLoader, SupervisedBanner } from './components/ui'
 
 import PlaySelect         from './pages/Landing'  // quest-games' original kid/therapist/parent
                                                         // chooser -- renamed at the import site only;
@@ -135,114 +135,117 @@ function AppRoutes() {
   if (loading) return <PageLoader />
 
   return (
-    <Routes>
-      <Route path="/" element={<AgentiLanding onStart={(target) => navigate(
-        target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
-          : '/play-select'
-      )} />} />
-      <Route path="/play-select" element={<PlaySelect />} />
-      <Route path="/verify" element={<Verify />} />
+    <>
+      <SupervisedBanner />
+      <Routes>
+        <Route path="/" element={<AgentiLanding onStart={(target) => navigate(
+          target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
+            : '/play-select'
+        )} />} />
+        <Route path="/play-select" element={<PlaySelect />} />
+        <Route path="/verify" element={<Verify />} />
 
-      {/* Therapist */}
-      <Route path="/therapist/login" element={
-        isTherapist ? <Navigate to="/therapist/dashboard" replace /> : <TherapistLogin />
-      } />
-      <Route path="/therapist/dashboard" element={
-        <ProtectedTherapist><TherapistDashboard /></ProtectedTherapist>
-      } />
-      <Route path="/therapist/patients/:id" element={
-        <ProtectedTherapist><PatientDetail /></ProtectedTherapist>
-      } />
-      <Route path="/therapist/patients/:id/agent" element={
-        <ProtectedTherapist><AgentInsight /></ProtectedTherapist>
-      } />
-      <Route path="/therapist/billing" element={
-        <ProtectedTherapist><Billing role="therapist" /></ProtectedTherapist>
-      } />
+        {/* Therapist */}
+        <Route path="/therapist/login" element={
+          isTherapist ? <Navigate to="/therapist/dashboard" replace /> : <TherapistLogin />
+        } />
+        <Route path="/therapist/dashboard" element={
+          <ProtectedTherapist><TherapistDashboard /></ProtectedTherapist>
+        } />
+        <Route path="/therapist/patients/:id" element={
+          <ProtectedTherapist><PatientDetail /></ProtectedTherapist>
+        } />
+        <Route path="/therapist/patients/:id/agent" element={
+          <ProtectedTherapist><AgentInsight /></ProtectedTherapist>
+        } />
+        <Route path="/therapist/billing" element={
+          <ProtectedTherapist><Billing role="therapist" /></ProtectedTherapist>
+        } />
 
-      {/* Kid */}
-      <Route path="/play" element={
-        isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
-      } />
-      <Route path="/assessment" element={
-        <ProtectedKid requireEntitlement={false}><AssessmentGate /></ProtectedKid>
-      } />
-      <Route path="/assessment/report" element={
-        <ProtectedKid requireEntitlement={false}><AssessmentReport /></ProtectedKid>
-      } />
-      <Route path="/play/levels" element={
-        <ProtectedKid><LevelSelect /></ProtectedKid>
-      } />
-      <Route path="/play/progress" element={
-        <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
-      } />
-      <Route path="/play/game/:levelId" element={
-        <ProtectedKid><GamePage /></ProtectedKid>
-      } />
-      <Route path="/play/vaakmirror" element={
-        <ProtectedKid><VaakMirrorHome /></ProtectedKid>
-      } />
-      <Route path="/play/vaakmirror/mirror-mirror" element={
-        <ProtectedKid><MirrorMirror /></ProtectedKid>
-      } />
-      <Route path="/play/vaakmirror/tongue-tamer" element={
-        <ProtectedKid><TongueTamer /></ProtectedKid>
-      } />
-      <Route path="/play/vaakmirror/lip-sync-hero" element={
-        <ProtectedKid><LipSyncHero /></ProtectedKid>
-      } />
-      <Route path="/play/vaakmirror/minimal-pair-drill" element={
-        <ProtectedKid><MinimalPairDrill /></ProtectedKid>
-      } />
-      <Route path="/play/chime" element={
-        <ProtectedKid><ChimeHome /></ProtectedKid>
-      } />
-      <Route path="/play/chime/rocket-launch" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="aa"><RocketLaunch /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/submarine-dive" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="oo"><SubmarineDive /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/firefly-jar" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="ma"><FireflyJar /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/wind-chime-garden" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="fa"><WindChimeGarden /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/bubble-wrap-pop" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="ha"><BubbleWrapPop /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/xylophone-tower" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="ee"><XylophoneTower /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/lions-roar" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="r"><LionsRoar /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/chime/village-builder" element={
-        <ProtectedKid><RequireLevelUnlocked levelId="village-builder"><VillageBuilder /></RequireLevelUnlocked></ProtectedKid>
-      } />
-      <Route path="/play/voice-hurdle-race" element={
-        <ProtectedKid><VoiceHurdleRace /></ProtectedKid>
-      } />
+        {/* Kid */}
+        <Route path="/play" element={
+          isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
+        } />
+        <Route path="/assessment" element={
+          <ProtectedKid requireEntitlement={false}><AssessmentGate /></ProtectedKid>
+        } />
+        <Route path="/assessment/report" element={
+          <ProtectedKid requireEntitlement={false}><AssessmentReport /></ProtectedKid>
+        } />
+        <Route path="/play/levels" element={
+          <ProtectedKid><LevelSelect /></ProtectedKid>
+        } />
+        <Route path="/play/progress" element={
+          <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
+        } />
+        <Route path="/play/game/:levelId" element={
+          <ProtectedKid><GamePage /></ProtectedKid>
+        } />
+        <Route path="/play/vaakmirror" element={
+          <ProtectedKid><VaakMirrorHome /></ProtectedKid>
+        } />
+        <Route path="/play/vaakmirror/mirror-mirror" element={
+          <ProtectedKid><MirrorMirror /></ProtectedKid>
+        } />
+        <Route path="/play/vaakmirror/tongue-tamer" element={
+          <ProtectedKid><TongueTamer /></ProtectedKid>
+        } />
+        <Route path="/play/vaakmirror/lip-sync-hero" element={
+          <ProtectedKid><LipSyncHero /></ProtectedKid>
+        } />
+        <Route path="/play/vaakmirror/minimal-pair-drill" element={
+          <ProtectedKid><MinimalPairDrill /></ProtectedKid>
+        } />
+        <Route path="/play/chime" element={
+          <ProtectedKid><ChimeHome /></ProtectedKid>
+        } />
+        <Route path="/play/chime/rocket-launch" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="aa"><RocketLaunch /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/submarine-dive" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="oo"><SubmarineDive /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/firefly-jar" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="ma"><FireflyJar /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/wind-chime-garden" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="fa"><WindChimeGarden /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/bubble-wrap-pop" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="ha"><BubbleWrapPop /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/xylophone-tower" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="ee"><XylophoneTower /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/lions-roar" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="r"><LionsRoar /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/chime/village-builder" element={
+          <ProtectedKid><RequireLevelUnlocked levelId="village-builder"><VillageBuilder /></RequireLevelUnlocked></ProtectedKid>
+        } />
+        <Route path="/play/voice-hurdle-race" element={
+          <ProtectedKid><VoiceHurdleRace /></ProtectedKid>
+        } />
 
-      {/* Parent */}
-      <Route path="/parent/login" element={<ParentAuth />} />
-      <Route path="/parent/dashboard" element={
-        <ProtectedParent><ParentDashboard /></ProtectedParent>
-      } />
-      <Route path="/parent/billing" element={
-        <ProtectedParent><Billing role="parent" /></ProtectedParent>
-      } />
+        {/* Parent */}
+        <Route path="/parent/login" element={<ParentAuth />} />
+        <Route path="/parent/dashboard" element={
+          <ProtectedParent><ParentDashboard /></ProtectedParent>
+        } />
+        <Route path="/parent/billing" element={
+          <ProtectedParent><Billing role="parent" /></ProtectedParent>
+        } />
 
-      <Route path="*" element={
-        <Navigate to={
-          isTherapist ? '/therapist/dashboard'
-            : isParent  ? '/parent/dashboard'
-            : isKid     ? '/play'
-            : '/'
-        } replace />
-      } />
-    </Routes>
+        <Route path="*" element={
+          <Navigate to={
+            isTherapist ? '/therapist/dashboard'
+              : isParent  ? '/parent/dashboard'
+              : isKid     ? '/play'
+              : '/'
+          } replace />
+        } />
+        </Routes>
+    </>
   )
 }
 

@@ -6,7 +6,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play } from 'lucide-react'
 
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
@@ -21,12 +21,13 @@ const VM_GAME_LABELS = {
 export default function PatientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { therapist, logout } = useAuth()
+  const { therapist, logout, startSupervisedSession } = useAuth()
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab]         = useState('progress')   // progress | sessions | voicehurdlerace | chime | vaakmirror | care | notes
   const [downloadingReport, setDownloadingReport] = useState(false)
   const [reportError, setReportError] = useState('')
+  const [launchingSession, setLaunchingSession] = useState(null) // null | 'assessment' | 'play'
   const [soundProgress, setSoundProgress] = useState(null)
   const [soundProgressLoading, setSoundProgressLoading] = useState(true)
   const [noteText, setNoteText] = useState('')
@@ -168,6 +169,27 @@ export default function PatientDetail() {
 
   const dismissAgentSuggestion = (game) => {
     setDismissedSuggestions(prev => ({ ...prev, [game]: true }))
+  }
+
+  // Launches a supervised session (see AuthContext.jsx's startSupervisedSession)
+  // straight from the patient's own detail page, instead of requiring the
+  // kid to separately log in with their PIN first -- the structural gap
+  // identified 2026-08-13. `dest` picks the landing route directly rather
+  // than relying on ProtectedKid's own assessment_completed redirect,
+  // since "Launch Assessment" should go to /assessment even for a patient
+  // who's already completed it (a therapist re-running it deliberately),
+  // not get bounced to /play/levels by that redirect.
+  const handleLaunchSession = async (dest) => {
+    setLaunchingSession(dest)
+    try {
+      await startSupervisedSession(id)
+      navigate(dest === 'assessment' ? '/assessment' : '/play')
+    } catch (err) {
+      console.error('Failed to launch session:', err)
+      setReportError("Couldn't launch the session — please try again.")
+    } finally {
+      setLaunchingSession(null)
+    }
   }
 
   const handleDownloadReport = async () => {
@@ -354,6 +376,14 @@ export default function PatientDetail() {
         <span className="text-white/20">/</span>
         <span className="text-white font-semibold">{data.first_name}</span>
         <div className="flex-1" />
+        <Button variant="teal" size="sm" onClick={() => handleLaunchSession('assessment')} disabled={launchingSession !== null}>
+          <ClipboardCheck size={14} className="mr-1.5 inline" />
+          {launchingSession === 'assessment' ? 'Launching…' : 'Launch Assessment'}
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => handleLaunchSession('play')} disabled={launchingSession !== null}>
+          <Play size={14} className="mr-1.5 inline" />
+          {launchingSession === 'play' ? 'Launching…' : 'Launch Live Therapy'}
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => navigate(`/therapist/patients/${id}/agent`)}>
           <Brain size={14} className="mr-1.5 inline" />
           What the agent sees

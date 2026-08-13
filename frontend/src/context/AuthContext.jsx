@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authAPI, assessmentAPI } from '../api/client'
+import { authAPI, assessmentAPI, patientsAPI } from '../api/client'
 
 const AuthContext = createContext(null)
 
@@ -8,6 +8,10 @@ export function AuthProvider({ children }) {
   const [patient,   setPatient]   = useState(null)
   const [parent,    setParent]    = useState(null)
   const [loading,   setLoading]   = useState(true)
+  // Set only while a therapist is supervising a session launched via
+  // startSupervisedSession below -- holds the therapist's own session so
+  // endSupervisedSession can restore it without a fresh login.
+  const [supervisorBackup, setSupervisorBackup] = useState(null)
 
   useEffect(() => {
     const token    = localStorage.getItem('bq_token')
@@ -18,6 +22,10 @@ export function AuthProvider({ children }) {
       if (userType === 'therapist') setTherapist(parsed)
       if (userType === 'patient')   setPatient(parsed)
       if (userType === 'parent')    setParent(parsed)
+    }
+    const backupRaw = localStorage.getItem('bq_supervisor_backup')
+    if (backupRaw) {
+      try { setSupervisorBackup(JSON.parse(backupRaw)) } catch { /* corrupt -- ignore */ }
     }
     setLoading(false)
   }, [])
@@ -87,6 +95,56 @@ export function AuthProvider({ children }) {
     })
   }
 
+  // Therapist-launched entry point into Assessment/Live Therapy
+  // (2026-08-13) -- the structural gap identified alongside the patient-
+  // linking fix: previously a kid had to self-login with their own PIN
+  // before either flow was reachable, so a therapist creating a patient
+  // and wanting to run their first assessment had no way in at all.
+  //
+  // Stashes the therapist's OWN session (token/type/data) under a
+  // separate key before overwriting bq_token/bq_user_type/bq_user_data
+  // with the patient's -- so endSupervisedSession can restore it exactly,
+  // without a fresh login round-trip. Deliberately a separate localStorage
+  // key rather than reusing bq_token itself, since the whole point is to
+  // recover the therapist's session after the patient's overwrites it.
+  const startSupervisedSession = async (breathQuestPatientId) => {
+    const backup = {
+      token:    localStorage.getItem('bq_token'),
+      userType: localStorage.getItem('bq_user_type'),
+      userData: localStorage.getItem('bq_user_data'),
+    }
+    const { data } = await patientsAPI.startSession(breathQuestPatientId)
+
+    localStorage.setItem('bq_supervisor_backup', JSON.stringify(backup))
+    setSupervisorBackup(backup)
+
+    localStorage.setItem('bq_token',     data.access_token)
+    localStorage.setItem('bq_user_type', 'patient')
+    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    setPatient(data); setTherapist(null); setParent(null)
+    return data
+  }
+
+  // Restores the therapist's session stashed above. Silently no-ops if
+  // there's nothing to restore (e.g. called twice) rather than throwing --
+  // this runs from a banner's "Exit session" button, where a confusing
+  // error is worse than a harmless no-op.
+  const endSupervisedSession = () => {
+    if (!supervisorBackup) return
+    const { token, userType, userData } = supervisorBackup
+    if (token)    localStorage.setItem('bq_token', token)
+    if (userType) localStorage.setItem('bq_user_type', userType)
+    if (userData) localStorage.setItem('bq_user_data', userData)
+    localStorage.removeItem('bq_supervisor_backup')
+    setSupervisorBackup(null)
+
+    const parsed = userData ? JSON.parse(userData) : null
+    setTherapist(userType === 'therapist' ? parsed : null)
+    setPatient(userType === 'patient' ? parsed : null)
+    setParent(userType === 'parent' ? parsed : null)
+  }
+
+
   // codeType distinguishes which field the code goes in ('player_code' vs
   // 'invite_code') — the two ways described in the parent-facing UI:
   // "log in with your kid's existing code" vs "use the code your
@@ -117,6 +175,8 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('bq_token')
     localStorage.removeItem('bq_user_type')
     localStorage.removeItem('bq_user_data')
+    localStorage.removeItem('bq_supervisor_backup')
+    setSupervisorBackup(null)
     setTherapist(null); setPatient(null); setParent(null)
   }
 
@@ -125,11 +185,14 @@ export function AuthProvider({ children }) {
       therapist, patient, parent, loading,
       loginTherapist, registerTherapist, loginKid, registerKid, setupKidPin,
       markAssessmentComplete,
+      startSupervisedSession, endSupervisedSession,
       loginParent, registerParent, logout,
       isTherapist: !!therapist,
       isKid:       !!patient,
       isParent:    !!parent,
       isLoggedIn:  !!(therapist || patient || parent),
+      isSupervised:    !!supervisorBackup,
+      supervisorName:  supervisorBackup?.userData ? JSON.parse(supervisorBackup.userData).full_name : null,
     }}>
       {children}
     </AuthContext.Provider>

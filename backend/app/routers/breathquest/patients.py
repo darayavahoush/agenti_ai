@@ -15,9 +15,12 @@ from sqlalchemy import select, func
 
 from app.database import get_db
 from app.models.breathquest_models import BreathQuestPatient, GameSession
-from app.schemas.breathquest_schemas import PatientCreate, PatientUpdate, PatientOut, PatientDetailOut
+from app.models.patient import Patient
+from app.schemas.breathquest_schemas import (
+    PatientCreate, PatientUpdate, PatientOut, PatientDetailOut, KidTokenResponse,
+)
 from app.breathquest_core.deps import get_current_therapist
-from app.breathquest_core.security import hash_pin
+from app.breathquest_core.security import hash_pin, create_kid_token
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -30,6 +33,27 @@ async def create_patient(
     therapist = Depends(get_current_therapist),
     db: AsyncSession = Depends(get_db),
 ):
+    """Creates BOTH the BreathQuestPatient (game-side identity, PIN login)
+    and its linked Assessment-side Patient row, in one transaction --
+    fixing the gap identified 2026-08-13: previously, assessment_patient_id
+    only ever got set via the kid self-login path (breathquest/assessment.py's
+    /start), so a therapist-created patient had no game<->assessment link at
+    all until the kid happened to self-start an assessment. A therapist
+    launching Assessment/Live Therapy for a patient they just created
+    (see start-session below) needs that link to exist immediately.
+
+    Single flush at the end, no intermediate commit -- both rows are
+    created atomically or neither is, since Patient's own creation has no
+    meaningful existence without a BreathQuestPatient to hand it back to."""
+    assessment_patient = Patient(
+        name=data.first_name,
+        age=data.age,
+        diagnosis=data.diagnosis_notes,
+        registered_therapist_id=therapist.id,
+    )
+    db.add(assessment_patient)
+    await db.flush()  # populate assessment_patient.id before referencing it below
+
     patient = BreathQuestPatient(
         therapist_id=therapist.id,
         first_name=data.first_name,
@@ -38,6 +62,7 @@ async def create_patient(
         player_code="",  # set below once we have the generated id
         age=data.age,
         diagnosis_notes=data.diagnosis_notes,
+        assessment_patient_id=assessment_patient.id,
     )
     db.add(patient)
     await db.flush()
@@ -47,6 +72,60 @@ async def create_patient(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
         age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
+
+@router.post("/{patient_id}/start-session", response_model=KidTokenResponse)
+async def start_session(
+    patient_id: str,
+    therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """The therapist-launched entry point into Assessment/Live Therapy
+    (2026-08-13): mints a real kid token for a chosen patient without
+    requiring the kid's PIN, so a therapist can launch a session directly
+    from PatientDetail.jsx instead of the kid having to self-login first.
+    Frontend stashes its own session and adopts this token as a
+    supervised session (see AuthContext.jsx's startSupervisedSession),
+    then restores the therapist session on exit.
+
+    Also backfills assessment_patient_id for patients created before the
+    linking fix above (only correctly linked patients have GameSession/
+    diagnostic-context lookups actually work) -- this endpoint is the
+    only reachable path some pre-fix patients have, so it doubles as the
+    backstop rather than leaving them permanently unlinked."""
+    result = await db.execute(
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.id == patient_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    patient = result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if not patient.is_active:
+        raise HTTPException(status_code=403, detail="Account deactivated")
+
+    if patient.assessment_patient_id is None:
+        assessment_patient = Patient(
+            name=patient.first_name,
+            age=patient.age,
+            diagnosis=patient.diagnosis_notes,
+            registered_therapist_id=therapist.id,
+        )
+        db.add(assessment_patient)
+        await db.flush()
+        patient.assessment_patient_id = assessment_patient.id
+        await db.flush()
+
+    token = create_kid_token(patient.id)
+    return KidTokenResponse(
+        access_token=token,
+        patient_id=str(patient.id),
+        first_name=patient.first_name,
+        avatar=patient.avatar,
+        player_code=patient.player_code,
+        assessment_completed=patient.assessment_completed,
+    )
+
 
 @router.get("", response_model=list[PatientDetailOut])
 async def list_patients(
