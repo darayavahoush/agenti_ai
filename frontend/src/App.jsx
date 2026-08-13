@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { meAPI } from './api/client'
 import { PageLoader } from './components/ui'
@@ -9,8 +9,6 @@ import PlaySelect         from './pages/Landing'  // quest-games' original kid/t
                                                         // moved off "/" to make room for agenti_ai's
                                                         // Landing there instead (see routes below)
 import { Landing as AgentiLanding } from './agenti/Landing'
-import AgentiDashboard    from './agenti/Dashboard'
-import AgentiPatients     from './agenti/Patients'
 import TherapistLogin     from './pages/therapist/Login'
 import TherapistDashboard from './pages/therapist/Dashboard'
 import PatientDetail      from './pages/therapist/PatientDetail'
@@ -132,21 +130,18 @@ function ProtectedParent({ children }) {
 }
 
 function AppRoutes() {
-  const { isTherapist, isKid, loading } = useAuth()
+  const { isTherapist, isKid, isParent, loading } = useAuth()
+  const navigate = useNavigate()
   if (loading) return <PageLoader />
 
   return (
     <Routes>
-      <Route path="/" element={<AgentiLanding onStart={(target) => window.location.assign(
-        target === 'dashboard' ? '/dashboard'
-          : target === 'patients' ? '/patients'
-          : target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
+      <Route path="/" element={<AgentiLanding onStart={(target) => navigate(
+        target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
           : '/play-select'
       )} />} />
       <Route path="/play-select" element={<PlaySelect />} />
       <Route path="/verify" element={<Verify />} />
-      <Route path="/dashboard" element={<AgentiDashboard />} />
-      <Route path="/patients" element={<AgentiPatients />} />
 
       {/* Therapist */}
       <Route path="/therapist/login" element={
@@ -239,7 +234,14 @@ function AppRoutes() {
         <ProtectedParent><Billing role="parent" /></ProtectedParent>
       } />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={
+        <Navigate to={
+          isTherapist ? '/therapist/dashboard'
+            : isParent  ? '/parent/dashboard'
+            : isKid     ? '/play'
+            : '/'
+        } replace />
+      } />
     </Routes>
   )
 }
