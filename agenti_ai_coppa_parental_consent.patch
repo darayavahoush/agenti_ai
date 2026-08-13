@@ -1,0 +1,433 @@
+From 59af245a90571d309e020bad984b37ff72523b81 Mon Sep 17 00:00:00 2001
+From: Ananya Sridhar <ananyasridhar108@gmail.com>
+Date: Wed, 12 Aug 2026 09:06:59 +0000
+Subject: [PATCH] COPPA: verifiable parental consent gate on self-serve kid
+ signup
+
+POST /auth/kid-register now requires a recently-verified parent email
+(via the existing /verify/request + /verify/confirm OTP flow) before it
+will create an account. Reuses EmailVerification rather than a second
+system; adds verified_at so consent checks can enforce a 30-minute
+recency window instead of treating any past verification as permanent.
+
+New migration c3d4e5f6a7b8, chained on b2c3d4e5f6a7 (the now-merged
+kid-login throttle table) -- single clean head, alembic history/heads
+both confirm it.
+---
+ ...d4e5f6a7b8_add_parental_consent_columns.py |  51 +++++++++
+ .../app/breathquest_core/parental_consent.py  |  66 ++++++++++++
+ backend/app/models/breathquest_models.py      |  14 +++
+ backend/app/routers/breathquest/auth.py       |  19 +++-
+ backend/app/routers/breathquest/verify.py     |   1 +
+ backend/app/schemas/breathquest_schemas.py    |   9 +-
+ frontend/src/context/AuthContext.jsx          |   4 +-
+ frontend/src/pages/kid/Play.jsx               | 102 ++++++++++++++++--
+ 8 files changed, 254 insertions(+), 12 deletions(-)
+ create mode 100644 backend/alembic/versions/c3d4e5f6a7b8_add_parental_consent_columns.py
+ create mode 100644 backend/app/breathquest_core/parental_consent.py
+
+diff --git a/backend/alembic/versions/c3d4e5f6a7b8_add_parental_consent_columns.py b/backend/alembic/versions/c3d4e5f6a7b8_add_parental_consent_columns.py
+new file mode 100644
+index 0000000..f0a6404
+--- /dev/null
++++ b/backend/alembic/versions/c3d4e5f6a7b8_add_parental_consent_columns.py
+@@ -0,0 +1,51 @@
++"""add COPPA parental consent columns
++
++Revision ID: c3d4e5f6a7b8
++Revises: b2c3d4e5f6a7
++Create Date: 2026-08-12
++
++Backs breathquest_core/parental_consent.py's gate on POST /auth/kid-register:
++  - breathquest_email_verifications.verified_at, so a consent check can
++    tell *when* an email was verified, not just whether it ever was
++  - breathquest_patients.parent_email / parent_consent_verified_at, so a
++    self-serve signup records which parent consented and when
++
++Chains on b2c3d4e5f6a7 (the kid-login throttle table), the real current
++head on main as of this migration -- both ALTERs on existing tables, so
++unlike b2c3d4e5f6a7 this one is NOT safe to skip in favor of create_all():
++if the app boots against a DB that's missing this migration, `alembic
++upgrade head` must run before kid-register or verify/confirm will work.
++
++Hand-written, same reasoning as a1b2c3d4e5f6 and b2c3d4e5f6a7: no live DB
++in this sandbox to autogenerate against.
++"""
++from alembic import op
++import sqlalchemy as sa
++
++
++# revision identifiers, used by Alembic.
++revision = "c3d4e5f6a7b8"
++down_revision = "b2c3d4e5f6a7"
++branch_labels = None
++depends_on = None
++
++
++def upgrade() -> None:
++    op.add_column(
++        "breathquest_email_verifications",
++        sa.Column("verified_at", sa.DateTime(timezone=True), nullable=True),
++    )
++    op.add_column(
++        "breathquest_patients",
++        sa.Column("parent_email", sa.String(255), nullable=True),
++    )
++    op.add_column(
++        "breathquest_patients",
++        sa.Column("parent_consent_verified_at", sa.DateTime(timezone=True), nullable=True),
++    )
++
++
++def downgrade() -> None:
++    op.drop_column("breathquest_patients", "parent_consent_verified_at")
++    op.drop_column("breathquest_patients", "parent_email")
++    op.drop_column("breathquest_email_verifications", "verified_at")
+diff --git a/backend/app/breathquest_core/parental_consent.py b/backend/app/breathquest_core/parental_consent.py
+new file mode 100644
+index 0000000..17f994a
+--- /dev/null
++++ b/backend/app/breathquest_core/parental_consent.py
+@@ -0,0 +1,66 @@
++"""
++breathquest_core/parental_consent.py — COPPA gate for the self-serve kid
++signup path.
++
++POST /auth/kid-register is the only account-creation route with no adult
++already in the loop: kid-pin-setup and the assessment-linked flow both
++require a therapist or parent to have created the record first. This
++module answers "has a parent verified this email recently enough to
++consent to creating this child's account" for that one route.
++
++We reuse the existing email-OTP infrastructure (EmailVerification /
++POST /verify/request + /verify/confirm) rather than building a second
++verification system -- a confirmed code already proves control of the
++inbox, which is the verifiable part of "verifiable parental consent".
++What this module adds on top is the *recency* requirement: a code
++confirmed once, days ago, shouldn't be replayable forever to gate
++new signups, so a verification only counts within CONSENT_WINDOW_MINUTES
++of when it was confirmed. In practice this means the parent verifies
++their email and the account is created in the same sitting, which also
++matches the actual UX (Play.jsx sends them straight from confirming the
++code into finishing registration).
++"""
++
++from dataclasses import dataclass
++from datetime import datetime, timezone
++from typing import Optional
++
++from sqlalchemy import select
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from app.models.breathquest_models import EmailVerification
++
++CONSENT_WINDOW_MINUTES = 30
++
++
++@dataclass
++class ConsentStatus:
++    granted: bool
++    reason: str  # "granted" | "not_verified" | "expired"
++    verified_at: Optional[datetime] = None
++
++
++async def check_parental_consent(email: str, db: AsyncSession) -> ConsentStatus:
++    """Most recent verified EmailVerification for this email, checked
++    against the recency window. Case-sensitivity matches EmailVerification's
++    own storage -- it's written and looked up as given, same as
++    verify.py's own queries."""
++    result = await db.execute(
++        select(EmailVerification)
++        .where(
++            EmailVerification.email == email,
++            EmailVerification.verified == True,  # noqa: E712
++        )
++        .order_by(EmailVerification.verified_at.desc())
++        .limit(1)
++    )
++    record = result.scalars().first()
++
++    if record is None or record.verified_at is None:
++        return ConsentStatus(granted=False, reason="not_verified")
++
++    elapsed_minutes = (datetime.now(timezone.utc) - record.verified_at).total_seconds() / 60
++    if elapsed_minutes > CONSENT_WINDOW_MINUTES:
++        return ConsentStatus(granted=False, reason="expired", verified_at=record.verified_at)
++
++    return ConsentStatus(granted=True, reason="granted", verified_at=record.verified_at)
+diff --git a/backend/app/models/breathquest_models.py b/backend/app/models/breathquest_models.py
+index ce51b50..e3d2538 100644
+--- a/backend/app/models/breathquest_models.py
++++ b/backend/app/models/breathquest_models.py
+@@ -94,6 +94,15 @@ class BreathQuestPatient(Base):
+     # own Session rows, looked up via assessment_patient_id).
+     assessment_completed: Mapped[bool]       = mapped_column(Boolean, default=False)
+     assessment_summary:   Mapped[dict | None] = mapped_column(JSON, nullable=True)
++    # Added 2026-08-12 for COPPA: POST /auth/kid-register (the only path with
++    # no adult already in the loop -- see breathquest_core/parental_consent.py)
++    # now requires a recently-verified parent email before it will create an
++    # account at all, and records that email + when consent was verified on
++    # the resulting row. Nullable because kid-pin-setup and the
++    # assessment-linked flow both already require a therapist/parent to have
++    # created the record first, so this doesn't apply to them.
++    parent_email:                Mapped[str | None] = mapped_column(String(255), nullable=True)
++    parent_consent_verified_at:  Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
+ 
+     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
+@@ -178,6 +187,11 @@ class EmailVerification(Base):
+     expires_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), nullable=False)
+     attempts:         Mapped[int]           = mapped_column(Integer, default=0)
+     verified:         Mapped[bool]          = mapped_column(Boolean, default=False)
++    # Added 2026-08-12 for COPPA parental consent (see breathquest_core/
++    # parental_consent.py): kid-register needs to know *when* an email was
++    # verified, not just whether it ever was, so a code confirmed weeks ago
++    # can't be replayed indefinitely to gate a new signup.
++    verified_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
+ 
+ 
+diff --git a/backend/app/routers/breathquest/auth.py b/backend/app/routers/breathquest/auth.py
+index 9a634f8..3f4c5fd 100644
+--- a/backend/app/routers/breathquest/auth.py
++++ b/backend/app/routers/breathquest/auth.py
+@@ -27,6 +27,7 @@ from app.breathquest_core.security import (
+     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
+ )
+ from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
++from app.breathquest_core.parental_consent import check_parental_consent
+ 
+ router = APIRouter(prefix="/auth", tags=["auth"])
+ 
+@@ -74,7 +75,21 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
+     calls; it only ever sends {first_name, avatar, pin}. The old
+     patient_id-required version of this endpoint made every one of those
+     calls 422. That link-an-existing-Assessment-patient flow now lives at
+-    POST /auth/kid-pin-setup instead."""
++    POST /auth/kid-pin-setup instead.
++
++    COPPA: this is the only kid-account path with no adult already in the
++    loop, so it's gated on a recently-verified parent email (see
++    breathquest_core/parental_consent.py) before it will touch the DB at
++    all."""
++    consent = await check_parental_consent(data.parent_email, db)
++    if not consent.granted:
++        detail = (
++            "Please verify the parent's email again before creating the account"
++            if consent.reason == "expired"
++            else "A parent needs to verify their email before creating this account"
++        )
++        raise HTTPException(status_code=403, detail=detail)
++
+     player_code = await generate_unique_player_code(db, data.avatar)
+     patient = BreathQuestPatient(
+         therapist_id=None,
+@@ -82,6 +97,8 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
+         avatar=data.avatar,
+         pin_hash=hash_pin(data.pin),
+         player_code=player_code,
++        parent_email=data.parent_email,
++        parent_consent_verified_at=consent.verified_at,
+     )
+     db.add(patient)
+     await db.commit()
+diff --git a/backend/app/routers/breathquest/verify.py b/backend/app/routers/breathquest/verify.py
+index 7d04026..c94a479 100644
+--- a/backend/app/routers/breathquest/verify.py
++++ b/backend/app/routers/breathquest/verify.py
+@@ -107,5 +107,6 @@ async def confirm_verification(data: VerifyConfirmIn, db: AsyncSession = Depends
+     first_time = prior_result.scalar_one_or_none() is None
+ 
+     record.verified = True
++    record.verified_at = datetime.now(timezone.utc)
+ 
+     return VerifyConfirmOut(verified=True, first_time=first_time)
+diff --git a/backend/app/schemas/breathquest_schemas.py b/backend/app/schemas/breathquest_schemas.py
+index eadbc94..db0b581 100644
+--- a/backend/app/schemas/breathquest_schemas.py
++++ b/backend/app/schemas/breathquest_schemas.py
+@@ -45,10 +45,17 @@ class KidRegisterRequest(BaseModel):
+     registerKid() has only ever sent {first_name, avatar, pin} — patient_id
+     was never in that payload, so every call here 422'd. That
+     link-an-existing-patient shape moved to KidPinSetupRequest below,
+-    matching what the frontend's separate setupKidPin() actually sends."""
++    matching what the frontend's separate setupKidPin() actually sends.
++
++    parent_email added 2026-08-12 for COPPA -- this is the only kid-account
++    creation path with no adult already in the loop, so it's the one that
++    needs verifiable parental consent (see breathquest_core/parental_consent.py).
++    The email must already have a recently-confirmed code from POST
++    /verify/confirm before this endpoint will accept it."""
+     first_name: str
+     avatar: str = "chick"
+     pin: str
++    parent_email: EmailStr
+ 
+     @validator("first_name")
+     def first_name_present(cls, v):
+diff --git a/frontend/src/context/AuthContext.jsx b/frontend/src/context/AuthContext.jsx
+index 8b84b85..9ea9406 100644
+--- a/frontend/src/context/AuthContext.jsx
++++ b/frontend/src/context/AuthContext.jsx
+@@ -40,8 +40,8 @@ export function AuthProvider({ children }) {
+     return data
+   }
+ 
+-  const registerKid = async (firstName, avatar, pin) => {
+-    const { data } = await authAPI.kidRegister({ first_name: firstName, avatar, pin })
++  const registerKid = async (firstName, avatar, pin, parentEmail) => {
++    const { data } = await authAPI.kidRegister({ first_name: firstName, avatar, pin, parent_email: parentEmail })
+     localStorage.setItem('bq_token',     data.access_token)
+     localStorage.setItem('bq_user_type', 'patient')
+     localStorage.setItem('bq_user_data', JSON.stringify(data))
+diff --git a/frontend/src/pages/kid/Play.jsx b/frontend/src/pages/kid/Play.jsx
+index 880b87b..b78f959 100644
+--- a/frontend/src/pages/kid/Play.jsx
++++ b/frontend/src/pages/kid/Play.jsx
+@@ -1,8 +1,8 @@
+ import { useEffect, useState } from 'react'
+ import { useNavigate, Link } from 'react-router-dom'
+-import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope } from 'lucide-react'
++import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
+ import { useAuth } from '../../context/AuthContext'
+-import { authAPI, getErrorMessage } from '../../api/client'
++import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
+ import { Button, Avatar } from '../../components/ui'
+ import { Creature } from '../../components/ui/Creatures'
+ import { speak } from '../../lib/speech'
+@@ -116,6 +116,14 @@ export default function KidPlay() {
+   const [error, setError]       = useState('')
+   const [loading, setLoading]   = useState(false)
+   const [registered, setRegistered] = useState(null)  // {player_code, first_name}
++  // COPPA: New Player signup can't create an account until a parent has
++  // verified their email, so 'register' mode branches through these steps
++  // before handleRegister ever runs. 'form' collects the kid's own details
++  // first so a parent isn't asked for their email before there's even an
++  // account to consent to.
++  const [registerStep, setRegisterStep] = useState('form')  // form | parentEmail | parentCode
++  const [parentEmail, setParentEmail]   = useState('')
++  const [otpCode, setOtpCode]           = useState('')
+   const [mounted, setMounted]   = useState(false)
+   const [candidates, setCandidates]               = useState([])
+   const [candidatesLoading, setCandidatesLoading] = useState(false)
+@@ -161,15 +169,34 @@ export default function KidPlay() {
+   const handlePin = (digit) => { if (pin.length < 4) setPin(p => p + digit) }
+   const deletePin = () => setPin(p => p.slice(0, -1))
+ 
+-  const handleRegister = async () => {
++  const handleContinueToParentEmail = () => {
+     if (!firstName.trim()) { setError('What should we call you?'); return }
+     if (pin.length < 4)    { setError('Choose a 4-digit PIN'); return }
++    setError(''); setRegisterStep('parentEmail')
++  }
++
++  const handleSendParentCode = async () => {
++    if (!parentEmail.trim()) { setError("Enter a parent's email"); return }
++    setError(''); setLoading(true)
++    try {
++      await verifyAPI.request({ email: parentEmail.trim() })
++      setRegisterStep('parentCode')
++    } catch (e) {
++      setError(getErrorMessage(e, "Couldn't send code — try again"))
++    } finally {
++      setLoading(false)
++    }
++  }
++
++  const handleConfirmParentCode = async () => {
++    if (otpCode.length < 6) { setError('Enter the 6-digit code'); return }
+     setError(''); setLoading(true)
+     try {
+-      const data = await registerKid(firstName.trim(), avatar, pin)
++      await verifyAPI.confirm({ email: parentEmail.trim(), code: otpCode })
++      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim())
+       setRegistered({ player_code: data.player_code, first_name: data.first_name })
+     } catch (e) {
+-      setError(getErrorMessage(e))
++      setError(getErrorMessage(e, 'Incorrect code — try again'))
+     } finally {
+       setLoading(false)
+     }
+@@ -332,9 +359,9 @@ export default function KidPlay() {
+       )}
+ 
+       {/* Register */}
+-      {mode === 'register' && (
++      {mode === 'register' && registerStep === 'form' && (
+         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+-          <button onClick={() => { setMode('choose'); setPin(''); setError('') }}
++          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail(''); setOtpCode('') }}
+                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+             <ArrowLeft className="w-3.5 h-3.5" /> Back
+           </button>
+@@ -373,7 +400,66 @@ export default function KidPlay() {
+           <PinPad onDigit={handlePin} onDelete={deletePin} />
+ 
+           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+-          <Button className="w-full gap-2" size="lg" onClick={handleRegister} disabled={loading}>
++          <Button className="w-full gap-2" size="lg" onClick={handleContinueToParentEmail} disabled={loading}>
++            Continue <ArrowRight className="w-4 h-4" />
++          </Button>
++        </GlassPanel>
++      )}
++
++      {/* Register — parent email (COPPA: a parent has to verify before we create the account) */}
++      {mode === 'register' && registerStep === 'parentEmail' && (
++        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
++          <button onClick={() => { setRegisterStep('form'); setError('') }}
++                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
++            <ArrowLeft className="w-3.5 h-3.5" /> Back
++          </button>
++          <div className="flex justify-center mb-4">
++            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
++              <Mail className="w-6 h-6 text-brand-amber" />
++            </div>
++          </div>
++          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
++            Almost there, {firstName.trim() || 'friend'}!
++          </h1>
++          <p className="text-white/50 text-sm text-center mb-6">
++            We need a parent's email to finish creating your account.
++          </p>
++          <div className="mb-5">
++            <label className="text-sm text-white/50 block mb-1">Parent's email</label>
++            <input type="email" className="input text-lg" placeholder="parent@example.com"
++                   value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
++          </div>
++          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
++          <Button className="w-full gap-2" size="lg" onClick={handleSendParentCode} disabled={loading}>
++            {loading ? 'Sending…' : 'Send code to parent'}
++          </Button>
++        </GlassPanel>
++      )}
++
++      {/* Register — confirm parent's code, then actually create the account */}
++      {mode === 'register' && registerStep === 'parentCode' && (
++        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
++          <button onClick={() => { setRegisterStep('parentEmail'); setOtpCode(''); setError('') }}
++                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
++            <ArrowLeft className="w-3.5 h-3.5" /> Back
++          </button>
++          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
++            Enter the code
++          </h1>
++          <p className="text-white/50 text-sm text-center mb-6">
++            We sent a code to {parentEmail} — a parent should check their inbox.
++          </p>
++          <input
++            type="text"
++            inputMode="numeric"
++            maxLength={6}
++            value={otpCode}
++            onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
++            placeholder="123456"
++            className="input text-center text-lg tracking-widest mb-3"
++          />
++          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
++          <Button className="w-full gap-2" size="lg" onClick={handleConfirmParentCode} disabled={loading}>
+             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
+           </Button>
+         </GlassPanel>
+-- 
+2.43.0
+
