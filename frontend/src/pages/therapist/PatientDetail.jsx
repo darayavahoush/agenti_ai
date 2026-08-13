@@ -6,7 +6,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb } from 'lucide-react'
 
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
@@ -16,6 +16,24 @@ const LEVEL_EMOJIS = {
 const VM_GAMES = ['mirror_mirror', 'tongue_tamer', 'lip_sync_hero']
 const VM_GAME_LABELS = {
   mirror_mirror: 'Mirror Mirror', tongue_tamer: 'Tongue Tamer', lip_sync_hero: 'Lip Sync Hero',
+}
+
+// recommended_action vocabulary from breathquest_agent/service.py's decide().
+const ACTION_STYLE = {
+  raise: { label: 'Raise difficulty', color: 'green' },
+  hold:  { label: 'Hold steady',      color: 'gray'  },
+  lower: { label: 'Lower difficulty', color: 'amber' },
+}
+
+// recommendation_policy vocabulary — mirrors AgentService.decide()'s
+// Literal[...] exactly, so an unrecognized value here signals the backend
+// added a new policy this map hasn't caught up with yet, not a typo.
+const POLICY_LABEL = {
+  rule_based:    'Rule-based',
+  tabular_q:     'Learned (per-child)',
+  bandit:        'Bandit (retired)',
+  ppo:           'PPO',
+  recurrent_ppo: 'Recurrent PPO',
 }
 
 export default function PatientDetail() {
@@ -438,108 +456,141 @@ export default function PatientDetail() {
 
         {/* Progress tab */}
         {tab === 'progress' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Radar */}
-            <Card>
-              <h3 className="font-semibold text-white mb-4">Level Mastery</h3>
-              <ResponsiveContainer width="100%" height={260}>
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                  <PolarAngleAxis dataKey="level" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} />
-                  <Radar dataKey="stars" stroke="#A8FF6F" fill="#A8FF6F" fillOpacity={0.2} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </Card>
-
-            {/* Level breakdown */}
-            <Card>
-              <h3 className="font-semibold text-white mb-4">Level Details</h3>
-              <div className="flex flex-col gap-3">
-                {data.level_progress.map(l => (
-                  <div key={l.level_id} className="flex items-center gap-3">
-                    <span className="text-xl w-7">{LEVEL_EMOJIS[l.level_id]}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-white/70">{l.level_name}</span>
-                        <StarRating stars={l.best_stars} size="sm" />
-                      </div>
-                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-brand-green rounded-full transition-all"
-                             style={{ width: `${(l.best_stars / 3) * 100}%` }} />
-                      </div>
-                    </div>
-                    <span className="text-white/30 text-xs w-14 text-right">{l.attempts} tries</span>
+          <div className="flex flex-col gap-6">
+            {/* Today's Recommendation — surfaces the RL agent's latest
+                per-level decision (see dashboard.py's get_patient_progress /
+                chime_data_store.get_latest_decision). null when the child
+                has no recent session for any level yet, or every level's
+                decision predates this being tracked. */}
+            {data.recommended_action && (
+              <Card>
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-brand-green/15 flex items-center justify-center shrink-0">
+                    <Lightbulb size={18} className="text-brand-green" />
                   </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Session trend bar chart */}
-            {barData.length > 0 && (
-              <Card className="md:col-span-2">
-                <h3 className="font-semibold text-white mb-4">Recent Session Stars</h3>
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={barData}>
-                    <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 3]} ticks={[0,1,2,3]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
-                             labelStyle={{ color: 'rgba(255,255,255,0.5)' }} itemStyle={{ color: '#A8FF6F' }} />
-                    <Bar dataKey="stars" fill="#A8FF6F" radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h3 className="font-semibold text-white">Today's Recommendation</h3>
+                      <Badge color={ACTION_STYLE[data.recommended_action]?.color || 'gray'}>
+                        {ACTION_STYLE[data.recommended_action]?.label || data.recommended_action}
+                      </Badge>
+                      {data.recommendation_policy && (
+                        <Badge color="purple">
+                          {POLICY_LABEL[data.recommendation_policy] || data.recommendation_policy}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-white/60 text-sm">
+                      {data.recommendation_message || 'No further detail from the agent for this decision.'}
+                    </p>
+                  </div>
+                </div>
               </Card>
             )}
 
-            {/* Sound accuracy over time — real data from VaakMirror Attempts +
-                Chime session_events. No vocabulary-size or fluency-rate chart
-                here since neither is tracked anywhere in this app; showing
-                only what's actually measured rather than approximating. */}
-            <Card className="md:col-span-2">
-              <h3 className="font-semibold text-white mb-1">Sound Accuracy Over Time</h3>
-              <p className="text-white/30 text-xs mb-4">
-                Weekly accuracy per sound, from VaakMirror + Chime attempts (last 8 weeks)
-              </p>
-              {soundProgressLoading ? (
-                <div className="h-40 flex items-center justify-center"><Spinner /></div>
-              ) : !soundProgress || Object.keys(soundProgress.sounds).length === 0 ? (
-                <p className="text-white/30 text-sm py-8 text-center">
-                  Not enough sound-level practice data yet — this fills in as {data.first_name} plays
-                  VaakMirror or Chime.
-                </p>
-              ) : (() => {
-                const COLORS = ['#A8FF6F', '#FAC775', '#6EC6E8', '#E24B4A', '#B08CE0']
-                const topSounds = Object.entries(soundProgress.sounds)
-                  .sort((a, b) => b[1].reduce((s, p) => s + p.attempts, 0) - a[1].reduce((s, p) => s + p.attempts, 0))
-                  .slice(0, 5)
-                  .map(([sound]) => sound)
-                const weekSet = new Set()
-                topSounds.forEach(s => soundProgress.sounds[s].forEach(p => weekSet.add(p.week)))
-                const weeks = [...weekSet].sort()
-                const chartData = weeks.map(week => {
-                  const row = { week: week.split('-W')[1] ? `W${week.split('-W')[1]}` : week }
-                  topSounds.forEach(sound => {
-                    const point = soundProgress.sounds[sound].find(p => p.week === week)
-                    row[sound] = point ? Math.round(point.accuracy * 100) : null
-                  })
-                  return row
-                })
-                return (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={chartData}>
-                      <XAxis dataKey="week" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0, 100]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Radar */}
+              <Card>
+                <h3 className="font-semibold text-white mb-4">Level Mastery</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                    <PolarAngleAxis dataKey="level" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} />
+                    <Radar dataKey="stars" stroke="#A8FF6F" fill="#A8FF6F" fillOpacity={0.2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </Card>
+
+              {/* Level breakdown */}
+              <Card>
+                <h3 className="font-semibold text-white mb-4">Level Details</h3>
+                <div className="flex flex-col gap-3">
+                  {data.level_progress.map(l => (
+                    <div key={l.level_id} className="flex items-center gap-3">
+                      <span className="text-xl w-7">{LEVEL_EMOJIS[l.level_id]}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm text-white/70">{l.level_name}</span>
+                          <StarRating stars={l.best_stars} size="sm" />
+                        </div>
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-full bg-brand-green rounded-full transition-all"
+                               style={{ width: `${(l.best_stars / 3) * 100}%` }} />
+                        </div>
+                      </div>
+                      <span className="text-white/30 text-xs w-14 text-right">{l.attempts} tries</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Session trend bar chart */}
+              {barData.length > 0 && (
+                <Card className="md:col-span-2">
+                  <h3 className="font-semibold text-white mb-4">Recent Session Stars</h3>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={barData}>
+                      <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 3]} ticks={[0,1,2,3]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
-                               labelStyle={{ color: 'rgba(255,255,255,0.5)' }} formatter={(v) => v == null ? 'no data' : `${v}%`} />
-                      <Legend wrapperStyle={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }} />
-                      {topSounds.map((sound, i) => (
-                        <Line key={sound} type="monotone" dataKey={sound} stroke={COLORS[i % COLORS.length]}
-                              strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                      ))}
-                    </LineChart>
+                               labelStyle={{ color: 'rgba(255,255,255,0.5)' }} itemStyle={{ color: '#A8FF6F' }} />
+                      <Bar dataKey="stars" fill="#A8FF6F" radius={[4,4,0,0]} />
+                    </BarChart>
                   </ResponsiveContainer>
-                )
-              })()}
-            </Card>
+                </Card>
+              )}
+
+              {/* Sound accuracy over time — real data from VaakMirror Attempts +
+                  Chime session_events. No vocabulary-size or fluency-rate chart
+                  here since neither is tracked anywhere in this app; showing
+                  only what's actually measured rather than approximating. */}
+              <Card className="md:col-span-2">
+                <h3 className="font-semibold text-white mb-1">Sound Accuracy Over Time</h3>
+                <p className="text-white/30 text-xs mb-4">
+                  Weekly accuracy per sound, from VaakMirror + Chime attempts (last 8 weeks)
+                </p>
+                {soundProgressLoading ? (
+                  <div className="h-40 flex items-center justify-center"><Spinner /></div>
+                ) : !soundProgress || Object.keys(soundProgress.sounds).length === 0 ? (
+                  <p className="text-white/30 text-sm py-8 text-center">
+                    Not enough sound-level practice data yet — this fills in as {data.first_name} plays
+                    VaakMirror or Chime.
+                  </p>
+                ) : (() => {
+                  const COLORS = ['#A8FF6F', '#FAC775', '#6EC6E8', '#E24B4A', '#B08CE0']
+                  const topSounds = Object.entries(soundProgress.sounds)
+                    .sort((a, b) => b[1].reduce((s, p) => s + p.attempts, 0) - a[1].reduce((s, p) => s + p.attempts, 0))
+                    .slice(0, 5)
+                    .map(([sound]) => sound)
+                  const weekSet = new Set()
+                  topSounds.forEach(s => soundProgress.sounds[s].forEach(p => weekSet.add(p.week)))
+                  const weeks = [...weekSet].sort()
+                  const chartData = weeks.map(week => {
+                    const row = { week: week.split('-W')[1] ? `W${week.split('-W')[1]}` : week }
+                    topSounds.forEach(sound => {
+                      const point = soundProgress.sounds[sound].find(p => p.week === week)
+                      row[sound] = point ? Math.round(point.accuracy * 100) : null
+                    })
+                    return row
+                  })
+                  return (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={chartData}>
+                        <XAxis dataKey="week" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis domain={[0, 100]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
+                                 labelStyle={{ color: 'rgba(255,255,255,0.5)' }} formatter={(v) => v == null ? 'no data' : `${v}%`} />
+                        <Legend wrapperStyle={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }} />
+                        {topSounds.map((sound, i) => (
+                          <Line key={sound} type="monotone" dataKey={sound} stroke={COLORS[i % COLORS.length]}
+                                strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )
+                })()}
+              </Card>
+              </div>
           </div>
         )}
 
