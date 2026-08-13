@@ -19,7 +19,7 @@ from app.tools.audio_tool import (
 from app.tools.speech_tool import transcribe
 from app.tools.phoneme_tool import get_basic_phonemes
 from app.tools.multilang_phoneme_tool import get_basic_phonemes_multilang
-from app.graph.speech_graph import speech_graph
+from app._legacy.speech_pipeline.graph.speech_graph import speech_graph
 from app.state.speech_state import SpeechState
 
 router = APIRouter(prefix="/speech", tags=["Speech Therapy"])

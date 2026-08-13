@@ -2,11 +2,11 @@ from langgraph.graph import StateGraph, END
 
 from app.state.speech_state import SpeechState
 from app.agents.speech_analysis_agent import SpeechAnalysisAgent
-from app.agents.supervisor_agent import SupervisorAgent
-from app.agents.therapy_recommendation_agent import TherapyRecommendationAgent
-from app.agents.progress_evaluation_agent import ProgressEvaluationAgent
-from app.agents.intensive_practice_agent import IntensivePracticeAgent
-from app.agents.session_planning_agent import SessionPlanningAgent
+from app._legacy.speech_pipeline.agents.supervisor_agent import SupervisorAgent
+from app._legacy.speech_pipeline.agents.therapy_recommendation_agent import TherapyRecommendationAgent
+from app._legacy.speech_pipeline.agents.progress_evaluation_agent import ProgressEvaluationAgent
+from app._legacy.speech_pipeline.agents.intensive_practice_agent import IntensivePracticeAgent
+from app._legacy.speech_pipeline.agents.session_planning_agent import SessionPlanningAgent
 
 # Instantiate agents
 analysis_agent = SpeechAnalysisAgent()
