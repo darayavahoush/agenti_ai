@@ -216,6 +216,7 @@ async def get_dashboard_summary(
             diagnosis_notes=p.diagnosis_notes,
             total_sessions=combined_total, total_stars=combined_stars,
             last_session_at=combined_last,
+            needs_first_session=(p.assessment_patient_id is not None and combined_total == 0),
         ))
 
     return DashboardSummary(

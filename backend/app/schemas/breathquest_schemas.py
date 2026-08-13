@@ -231,6 +231,15 @@ class PatientDetailOut(PatientOut):
     total_sessions: int = 0
     total_stars: int = 0
     last_session_at: Optional[datetime] = None
+    # True when this patient has a linked Assessment intake record
+    # (assessment_patient_id is set -- see routers/breathquest/patients.py's
+    # atomic create) but total_sessions across every BreathQuest surface
+    # (Chime, VoiceHurdleRace, VaakMirror, GameSession) is still zero.
+    # Distinct from the `alerts` endpoint's flags: those describe a patient
+    # who's playing but showing concerning signals; this describes a
+    # patient who was assessed and is ready to start but just hasn't yet --
+    # an opportunity to follow up on, not a red flag.
+    needs_first_session: bool = False
 
 
 # ------------------------------------------------------------------ #

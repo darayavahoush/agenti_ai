@@ -6,7 +6,7 @@ import { Button, Card, Badge, Avatar, StatCard, PageLoader, Sidebar, AmbientGlow
 import AddPatientModal from '../../components/therapist/AddPatientModal'
 import {
   Users, UserCheck, Gamepad2, Star, AlertTriangle, Clock,
-  Search, ArrowUpDown, Sparkles, UserPlus, ChevronRight, LayoutDashboard, CreditCard,
+  Search, ArrowUpDown, Sparkles, UserPlus, ChevronRight, LayoutDashboard, CreditCard, Rocket,
 } from 'lucide-react'
 
 function relativeDate(iso) {
@@ -60,6 +60,11 @@ export default function TherapistDashboard() {
   useEffect(() => { load() }, [])
 
   const alertsByPatient = useMemo(() => Object.fromEntries(alerts.map(a => [a.patient_id, a])), [alerts])
+
+  const readyToStart = useMemo(
+    () => (summary?.patients || []).filter(p => p.needs_first_session),
+    [summary]
+  )
 
   const patients = useMemo(() => {
     const list = (summary?.patients || []).filter(p =>
@@ -145,6 +150,36 @@ export default function TherapistDashboard() {
               <span className="text-white font-medium">{summary.most_improved_patient}</span>
               <span className="text-white/40"> made the biggest jump in stars this week.</span>
             </p>
+          </div>
+        )}
+
+        {/* Ready to start — assessed (has an Assessment intake link) but
+            hasn't played a single BreathQuest/VoiceHurdleRace/VaakMirror/
+            Chime session yet. Distinct from the amber "needs attention"
+            banner above: that's about concerning in-progress signals, this
+            is a positive nudge — these kids are set up and just need a
+            first launch (see PatientDetail's Launch Assessment / Launch
+            Live Therapy buttons). */}
+        {readyToStart.length > 0 && (
+          <div className="rounded-2xl border border-brand-teal/25 bg-brand-teal/5 p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Rocket size={16} className="text-brand-teal" />
+              <p className="text-brand-teal text-sm font-semibold">
+                {readyToStart.length} patient{readyToStart.length !== 1 ? 's' : ''} ready to start
+                — assessed but haven't played yet
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {readyToStart.map(p => (
+                <button key={p.id} onClick={() => navigate(`/therapist/patients/${p.id}`)}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full
+                             bg-brand-teal/10 text-brand-teal/90 border border-brand-teal/20
+                             hover:bg-brand-teal/20 transition-colors">
+                  <Rocket size={12} />
+                  {p.first_name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -240,6 +275,8 @@ function PatientCard({ patient, alert, onClick }) {
               : alert.flag === 'inactive' ? 'Inactive'
               : 'Overdue'}
           </Badge>
+        ) : patient.needs_first_session ? (
+          <Badge color="purple">Ready to start</Badge>
         ) : (
           <Badge color={patient.is_active ? 'green' : 'gray'}>
             {patient.is_active ? 'Active' : 'Inactive'}
