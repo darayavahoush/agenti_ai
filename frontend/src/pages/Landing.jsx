@@ -88,7 +88,7 @@ export default function Landing() {
           Blow, speak, and watch the world move.
         </h1>
         <p className="text-paper/60 text-lg mt-4 max-w-md mx-auto flex items-center justify-center gap-2 flex-wrap">
-          <span>Three small worlds built around one big idea — a real breath, a real word,
+          <span>Four small worlds built around one big idea — a real breath, a real word,
           moving something real on screen.</span>
           <button onClick={replayTagline} className="text-paper/30 hover:text-paper/60 transition-colors" aria-label="Hear this again">
             <Volume2 className="w-4 h-4" />
@@ -105,6 +105,9 @@ export default function Landing() {
         </span>
         <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-coral/15 text-coral-light border border-coral/25">
           🔔 Chime
+        </span>
+        <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-sky/15 text-sky-light border border-sky/25">
+          🐶 Voice Hurdle Race
         </span>
       </div>
 
