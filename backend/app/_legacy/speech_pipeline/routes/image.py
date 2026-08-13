@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.services.image.matcher import get_image_for_phrase
-from app.routes.speech import get_basic_phonemes
+from app._legacy.speech_pipeline.routes.speech import get_basic_phonemes
 
 
 router = APIRouter(
