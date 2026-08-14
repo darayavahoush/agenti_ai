@@ -64,4 +64,4 @@ deep-translator
 
 # Streamlit (for admin tools)
 streamlit
-streamlit-mic-recorder
+streamlit-mic-recorderlanggraph>=1.2.7
