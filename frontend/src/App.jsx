@@ -4,10 +4,6 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { meAPI } from './api/client'
 import { PageLoader, SupervisedBanner } from './components/ui'
 
-import PlaySelect         from './pages/Landing'  // quest-games' original kid/therapist/parent
-                                                        // chooser -- renamed at the import site only;
-                                                        // moved off "/" to make room for agenti_ai's
-                                                        // Landing there instead (see routes below)
 import { Landing as AgentiLanding } from './agenti/Landing'
 import TherapistLogin     from './pages/therapist/Login'
 import TherapistDashboard from './pages/therapist/Dashboard'
@@ -40,6 +36,7 @@ import ParentAuth         from './pages/parent/ParentAuth'
 import ParentDashboard    from './pages/parent/ParentDashboard'
 import Verify             from './pages/Verify'
 import Billing            from './pages/Billing'
+import AuthPage           from './pages/AuthPage'
 
 // Lets Quest Hub hand off a logged-in session by linking here with
 // ?token=&kind=&id=&name=&data= — adopts it into BreathQuest's OWN
@@ -138,11 +135,15 @@ function AppRoutes() {
     <>
       <SupervisedBanner />
       <Routes>
-        <Route path="/" element={<AgentiLanding onStart={(target) => navigate(
-          target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
-            : '/play-select'
-        )} />} />
-        <Route path="/play-select" element={<PlaySelect />} />
+        <Route path="/" element={<AgentiLanding onStart={(target) => {
+          // target is "play-select" or "play-select?mode=signin" -- carry
+          // mode through to the unified page, same as before.
+          const mode = target.includes('mode=signin') ? '&mode=signin' : ''
+          navigate(`/auth?role=kid${mode}`)
+        }} />} />
+        <Route path="/auth" element={<AuthPage />} />
+        {/* Old deep link -- still works, lands on the unified page, kid tab preset */}
+        <Route path="/play-select" element={<AuthPage initialRole="kid" />} />
         <Route path="/verify" element={<Verify />} />
 
         {/* Therapist */}
