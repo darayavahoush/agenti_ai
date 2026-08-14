@@ -1,74 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@700;800;900&family=Baloo+2:wght@600;700;800&family=Quicksand:wght@500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html, body {
-  width: 100%;
-  overflow-x: hidden;
-  margin: 0;
-  padding: 0;
-}
-
-#root {
-  width: 100%;
-  overflow-x: hidden;
-}
-
-body {
-  font-family: "Segoe UI", sans-serif;
-  background: #f5f7ff;
-  color: #333;
-}
-
-/* BreathQuest-specific body styling */
-body.breathquest {
-  background: #12122A !important;
-  color: white !important;
-}
-
-/* Ensure BreathQuest routes take full viewport */
-body.breathquest #root {
-  width: 100vw !important;
-  height: 100vh !important;
-  overflow: hidden !important;
-}
-
-body.breathquest .app {
-  display: none !important;
-}
-
-#root {
-  width: 100%;
-  min-height: 100vh;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  font-weight: 700;
-}
-
-button {
-  cursor: pointer;
-  font-family: inherit;
-}
-
-input,
-select {
-  font-family: inherit;
-}
-
-/* BreathQuest-specific styles */
 @layer base {
   body {
+    @apply bg-brand-dark text-white;
     font-family: 'Inter', sans-serif;
   }
 }
@@ -99,29 +36,3 @@ select {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-
-/* VaakMirror sub-app styling */
-body.vaakmirror-app {
-  background: #FBF7EE;
-  color: #0E2A2E;
-}
-
-body.vaakmirror-app .vaakmirror-app .font-display,
-body.vaakmirror-app .font-display {
-  font-family: "Baloo 2", ui-rounded, sans-serif !important;
-}
-
-body.vaakmirror-app .vaakmirror-app .font-body,
-body.vaakmirror-app .font-body {
-  font-family: Sora, ui-sans-serif, system-ui, sans-serif !important;
-}
-
-body.vaakmirror-app .vaakmirror-app .font-mono,
-body.vaakmirror-app .font-mono {
-  font-family: "JetBrains Mono", ui-monospace, monospace !important;
-}
-
-/* Ensure navbar custom styles work */
-.rounded-blob {
-  border-radius: 42% 58% 63% 37% / 41% 45% 55% 59% !important;
-}
