@@ -11,6 +11,8 @@ POST endpoints are explicit 501s until a provider (Razorpay/Stripe) is
 picked -- no fake success responses, no silent no-ops.
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,10 +79,14 @@ async def _mark_active(db: AsyncSession, owner_col, owner_id, plan_type: str) ->
     if sub:
         sub.status = "active"
     else:
+        # trial_ends_at is NOT NULL with no column default -- doesn't
+        # matter what it's set to here since status is "active" (not
+        # "trialing"), so nothing reads it, but the insert fails without it.
         db.add(Subscription(
             **{owner_col.key: owner_id},
             plan_type=plan_type,
             status="active",
+            trial_ends_at=datetime.now(timezone.utc),
         ))
     await db.flush()
 
