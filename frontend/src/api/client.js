@@ -62,3 +62,103 @@ export const dashboardAPI = {
 }
 
 export default api
+
+// ------------------------------------------------------------------ //
+//  Beacon (fire-and-forget, page-unload-safe request)
+// ------------------------------------------------------------------ //
+
+export function beaconPost(path, body, method = 'POST') {
+  const token = localStorage.getItem('bq_token')
+  try {
+    fetch(`${BASE_URL}${path}`, {
+      method,
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    // best-effort — nothing to do if even starting the request throws
+  }
+}
+
+// ------------------------------------------------------------------ //
+//  Verify
+// ------------------------------------------------------------------ //
+
+export const verifyAPI = {
+  request: (data) => api.post('/verify/request', data),
+  confirm: (data) => api.post('/verify/confirm', data),
+  phoneRequest: (data) => api.post('/verify/phone/request', data),
+  phoneConfirm: (data) => api.post('/verify/phone/confirm', data),
+}
+
+// Kid-authenticated wrapper around the Assessment flow — lets
+// AssessmentGate.jsx bootstrap Assessment.jsx against the logged-in kid's
+// own identity instead of its own separate name+DOB gate.
+export const assessmentAPI = {
+  start:    () => api.post('/assessment/start'),
+  complete: (data) => api.post('/assessment/complete', data),
+}
+
+// ------------------------------------------------------------------ //
+//  Chime (therapist-facing)
+// ------------------------------------------------------------------ //
+
+export const chimeAPI = {
+  getPatientEvents: (patientId, levelId) =>
+    api.get(`/chime/patients/${patientId}/events`, { params: levelId ? { level_id: levelId } : {} }),
+}
+
+// ------------------------------------------------------------------ //
+//  VaakMirror (therapist-facing)
+// ------------------------------------------------------------------ //
+
+export const vaakmirrorAPI = {
+  getPatientDashboard: (patientId) => api.get(`/vaakmirror/patients/${patientId}/dashboard`),
+  getGameSettingsSuggestion: (patientId, game) =>
+    api.get(`/vaakmirror/patients/${patientId}/game-settings/${game}/suggestion`),
+  updateGameSettings: (patientId, game, payload) =>
+    api.patch(`/vaakmirror/patients/${patientId}/game-settings/${game}`, payload),
+}
+
+// ------------------------------------------------------------------ //
+//  Kid-facing "my progress"
+// ------------------------------------------------------------------ //
+
+export const meAPI = {
+  progress: () => api.get('/me/progress'),
+  access:   () => api.get('/me/access'),
+}
+
+// ------------------------------------------------------------------ //
+//  Parent-facing
+// ------------------------------------------------------------------ //
+
+export const billingAPI = {
+  getSubscription:       () => api.get('/billing/subscription'),
+  getParentSubscription: () => api.get('/billing/parent-subscription'),
+  checkout:       () => api.post('/billing/checkout'),
+  parentCheckout: () => api.post('/billing/parent-checkout'),
+}
+
+export const parentAPI = {
+  progress: () => api.get('/parent/progress'),
+  guidedActivity: () => api.get('/parent/guided-activity'),
+}
+
+// FastAPI's `detail` field is a plain string for most HTTPExceptions, but
+// automatic Pydantic request-validation failures (422s) return an *array*
+// of {type, loc, msg, input, ctx} objects instead. Normalize once, here.
+export function getErrorMessage(err, fallback = 'Something went wrong') {
+  const detail = err?.response?.data?.detail
+  if (!detail) return fallback
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const messages = detail.map(d => d?.msg).filter(Boolean)
+    return messages.length ? messages.join('; ') : fallback
+  }
+  return fallback
+}

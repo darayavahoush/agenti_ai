@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { T, BACKEND } from "../constants";
-import { Card, ProgressBar } from "./UI";
+import { Card, ProgressBar } from "./PastelUI";
 
 export function Progress({ childId }) {
   const [data, setData] = useState(null);
