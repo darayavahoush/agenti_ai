@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage } from '../../api/client'
 import {
   Heart, LineChart, MessageCircle,
-  Mail, Lock, User, KeyRound, Eye, EyeOff, ArrowLeft,
+  Mail, Lock, User, KeyRound, Phone, Eye, EyeOff, ArrowLeft,
 } from 'lucide-react'
 
 const VALUE_PROPS = [
@@ -34,7 +34,7 @@ export default function ParentAuth() {
   const { loginParent, registerParent } = useAuth()
   const [mode, setMode] = useState('login')
   const [codeType, setCodeType] = useState('player_code')
-  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '' })
+  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -51,7 +51,7 @@ export default function ParentAuth() {
       if (mode === 'login') {
         await loginParent(form.email, form.password)
       } else {
-        await registerParent({ code: form.code, codeType, email: form.email, password: form.password, fullName: form.fullName })
+        await registerParent({ code: form.code, codeType, email: form.email, password: form.password, fullName: form.fullName, phone: form.phone })
       }
       navigate('/parent/dashboard')
     } catch (err) {
@@ -149,6 +149,9 @@ export default function ParentAuth() {
                     value={form.code} onChange={update('code')} />
                   <Field icon={User} type="text" placeholder="Your name (optional)"
                     value={form.fullName} onChange={update('fullName')} />
+                  {/* Collected, not verified — no SMS provider wired up yet. */}
+                  <Field icon={Phone} type="tel" placeholder="Phone (optional)"
+                    value={form.phone} onChange={update('phone')} />
                 </>
               )}
               <Field icon={Mail} type="email" required placeholder="Email"

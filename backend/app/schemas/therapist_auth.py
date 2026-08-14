@@ -6,6 +6,8 @@ class TherapistRegister(BaseModel):
     password: str
     full_name: str
     clinic_name: str | None = None
+    # Collected, not verified -- see Therapist.phone's comment.
+    phone: str | None = None
 
 
 class TherapistLogin(BaseModel):

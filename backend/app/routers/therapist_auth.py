@@ -27,6 +27,7 @@ async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends
         hashed_password=hash_password(data.password),
         full_name=data.full_name,
         clinic_name=data.clinic_name,
+        phone=data.phone,
     )
     db.add(therapist)
     await db.flush()

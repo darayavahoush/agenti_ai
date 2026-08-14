@@ -227,6 +227,9 @@ class Parent(Base):
     email:            Mapped[str]           = mapped_column(String(255), unique=True, nullable=False)
     hashed_password:  Mapped[str]           = mapped_column(String(255), nullable=False)
     full_name:        Mapped[str | None]    = mapped_column(String(255), nullable=True)
+    # Added 2026-08-13: collected on signup, not verified (no SMS provider
+    # wired up yet). Nullable since existing accounts predate this field.
+    phone:            Mapped[str | None]    = mapped_column(String(50), nullable=True)
     is_active:        Mapped[bool]          = mapped_column(Boolean, default=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login:       Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

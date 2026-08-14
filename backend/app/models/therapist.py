@@ -27,3 +27,8 @@ class Therapist(Base):
     # quest-games' now-retired Therapist model tracked this; this is the
     # one field it had that Assessment's canonical Therapist didn't.
     last_login = Column(TIMESTAMP, nullable=True)
+    # Added 2026-08-13: collected on signup, not verified (no SMS provider
+    # wired up yet -- see breathquest_core/phone_provider.py's kid-consent
+    # path for the one place phone verification does exist). Nullable
+    # since existing accounts predate this field.
+    phone = Column(String, nullable=True)
