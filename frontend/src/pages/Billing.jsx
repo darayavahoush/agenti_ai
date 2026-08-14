@@ -77,8 +77,12 @@ export default function Billing({ role }) {
         )}
 
         {status === 'none' && (
-          <Card className="p-6 text-white/70">
-            No subscription found on this account yet.
+          <Card className="p-6 space-y-4">
+            <p className="text-white/70">No subscription found on this account yet.</p>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            <Button onClick={handleCheckout} disabled={checkingOut}>
+              {checkingOut ? 'Redirecting…' : 'Subscribe'}
+            </Button>
           </Card>
         )}
 
