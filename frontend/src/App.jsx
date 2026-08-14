@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { meAPI } from './api/client'
 import { PageLoader, SupervisedBanner } from './components/ui'
 
-import PlaySelect         from './pages/Landing'  // quest-games' original kid/therapist/parent
+import AuthPage           from './pages/AuthPage'
                                                         // chooser -- renamed at the import site only;
                                                         // moved off "/" to make room for agenti_ai's
                                                         // Landing there instead (see routes below)
@@ -142,7 +142,8 @@ function AppRoutes() {
           target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
             : '/play-select'
         )} />} />
-        <Route path="/play-select" element={<PlaySelect />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/play-select" element={<AuthPage initialRole="kid" />} />
         <Route path="/verify" element={<Verify />} />
 
         {/* Therapist */}
