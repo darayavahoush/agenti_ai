@@ -55,19 +55,19 @@ function SpeakButton({ onClick, className = 'text-white/25 hover:text-white/50' 
 // so it's the moment to introduce the cast, not a generic icon.
 function WelcomeCrew() {
   return (
-    <div className="relative w-64 h-32 mx-auto mt-16 mb-4">
-      <div className="absolute inset-x-10 inset-y-4 rounded-full bg-ember/20 blur-2xl motion-safe:animate-pulse-slow" />
-      <div className="absolute left-2 bottom-0 w-14 h-14 motion-safe:animate-float"
+    <div className="relative flex items-end justify-center gap-4 mt-16 mb-4">
+      <div className="absolute inset-x-10 inset-y-0 rounded-full bg-ember/20 blur-2xl motion-safe:animate-pulse-slow" />
+      <div className="relative w-14 h-14 motion-safe:animate-float"
            style={{ animationDelay: '0.4s', animationDuration: '3.4s' }}>
         <Creature species="bunny" className="w-full h-full drop-shadow-lg" />
       </div>
-      <div className="absolute right-2 bottom-0 w-14 h-14 motion-safe:animate-float"
-           style={{ animationDelay: '0.9s', animationDuration: '3.8s' }}>
-        <Creature species="fox" className="w-full h-full drop-shadow-lg" />
-      </div>
-      <div className="absolute left-1/2 -translate-x-1/2 top-4 w-20 h-20 motion-safe:animate-float"
+      <div className="relative w-20 h-20 mb-2 motion-safe:animate-float"
            style={{ animationDelay: '0s', animationDuration: '3s' }}>
         <Creature species="chick" className="w-full h-full drop-shadow-xl" />
+      </div>
+      <div className="relative w-14 h-14 motion-safe:animate-float"
+           style={{ animationDelay: '0.9s', animationDuration: '3.8s' }}>
+        <Creature species="fox" className="w-full h-full drop-shadow-lg" />
       </div>
     </div>
   )
