@@ -14,6 +14,32 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// A 401 here means the backend has rejected the token itself (expired,
+// invalid, or the patient/therapist/parent record it points to no longer
+// exists) — not a per-endpoint permission issue. Skip this for the auth
+// endpoints themselves — a wrong PIN/password is a legitimate 401 with no
+// session to invalidate, not a dead-session signal.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !error.config?.url?.startsWith('/auth/')) {
+      const userType = localStorage.getItem('bq_user_type')
+      localStorage.removeItem('bq_token')
+      localStorage.removeItem('bq_user_type')
+      localStorage.removeItem('bq_user_data')
+
+      const loginPath = userType === 'therapist' ? '/therapist/login'
+        : userType === 'parent' ? '/parent/login'
+        : '/play'
+
+      if (window.location.pathname !== loginPath) {
+        window.location.href = loginPath
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // ------------------------------------------------------------------ //
 //  Auth                                                                //
 // ------------------------------------------------------------------ //
