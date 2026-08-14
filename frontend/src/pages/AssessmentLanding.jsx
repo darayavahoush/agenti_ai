@@ -1,16 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 
 export default function Landing() {
   const navigate = useNavigate()
-  const { logout, isKid } = useAuth()
-
-  const handleKidClick = () => {
-    if (isKid) {
-      logout()
-    }
-    navigate('/breathquest/play')
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"
@@ -34,7 +25,7 @@ export default function Landing() {
 
         {/* Kid portal */}
         <button
-          onClick={handleKidClick}
+          onClick={() => navigate('/assessment')}
           className="flex-1 group relative overflow-hidden rounded-3xl p-8 text-center
                      bg-gradient-to-br from-brand-amber/20 to-brand-coral/20
                      border-2 border-brand-amber/30 hover:border-brand-amber/60
@@ -50,7 +41,7 @@ export default function Landing() {
 
         {/* Therapist portal */}
         <button
-          onClick={() => navigate('/breathquest/therapist/login')}
+          onClick={() => navigate('/dashboard')}
           className="flex-1 group relative overflow-hidden rounded-3xl p-8 text-center
                      bg-gradient-to-br from-brand-green/20 to-brand-teal/20
                      border-2 border-brand-green/30 hover:border-brand-green/60

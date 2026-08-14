@@ -16,8 +16,8 @@ export default function GameCard({ to, eyebrow, title, blurb, accent, icon: Icon
       >
         <Icon size={22} className="text-ink-deep" strokeWidth={2.4} />
       </div>
-      <p className="font-mono text-xs uppercase tracking-widest text-mint mb-2">{eyebrow}</p>
-      <h3 className="font-display text-2xl font-bold text-paper mb-2">{title}</h3>
+      <p className="font-vm-mono text-xs uppercase tracking-widest text-mint mb-2">{eyebrow}</p>
+      <h3 className="font-vm-display text-2xl font-bold text-paper mb-2">{title}</h3>
       <p className="text-paper/60 text-sm leading-relaxed mb-8">{blurb}</p>
       <div className="absolute bottom-7 right-7">
         {live ? (
