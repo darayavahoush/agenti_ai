@@ -7,6 +7,7 @@ import numpy as np
 import librosa
 import torch
 from fastapi import UploadFile
+from pydub import AudioSegment
 from silero_vad import get_speech_timestamps, load_silero_vad
 
 # ---------------------------------------------------
@@ -28,17 +29,31 @@ def save_audio(file: UploadFile) -> str:
     print("📋 Content-Type:", file.content_type)
     print("📊 File size:", file.file.getbuffer().nbytes if hasattr(file.file, 'getbuffer') else "unknown")
 
-    ext = os.path.splitext(file.filename)[1]
-    if not ext:
-        ext = ".wav"
+    # The browser's MediaRecorder actually records WebM/Opus (Chrome/Edge)
+    # or MP4/AAC (Safari) no matter what filename/content-type the frontend
+    # blob claims -- it's just labeled "recording.wav" / "audio/wav" without
+    # any real re-encoding. Trusting that label made save_audio write raw
+    # WebM/AAC bytes to a .wav path, which Parselmouth/libsndfile then
+    # rejected with "Format not recognised". So: always decode with pydub
+    # (via ffmpeg, which auto-detects the real container/codec from the
+    # bytes) and re-encode to genuine 16-bit PCM WAV, ignoring the claimed
+    # extension entirely.
+    raw_bytes = file.file.read()
 
-    path = os.path.join(
-        tempfile.gettempdir(),
-        f"{uuid.uuid4()}{ext}"
-    )
+    tmp_in_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.upload")
+    with open(tmp_in_path, "wb") as f:
+        f.write(raw_bytes)
 
-    with open(path, "wb") as f:
-        f.write(file.file.read())
+    path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.wav")
+    try:
+        audio = AudioSegment.from_file(tmp_in_path)  # ffmpeg sniffs real format
+        audio.export(path, format="wav")
+    except Exception as e:
+        print("❌ Transcode error:", e)
+        raise
+    finally:
+        if os.path.exists(tmp_in_path):
+            os.remove(tmp_in_path)
 
     print("💾 Saved as:", path)
     print("📏 Saved file size:", os.path.getsize(path), "bytes")
