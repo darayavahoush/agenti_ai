@@ -63,32 +63,44 @@ async def get_parent_subscription(
     )
 
 
+# TODO: real payment -- no provider is picked yet (see billing_provider.py),
+# so "checkout" here just marks the subscription active directly instead of
+# calling provider.create_checkout_session (which honestly 501s). Product
+# call: the paywall isn't live yet, so clicking Subscribe should grant
+# access for everyone rather than dead-ending on a 501. Swap this back to
+# calling the real provider and letting /billing/webhook flip the status
+# once Razorpay/Stripe is wired up -- don't leave this bypass in place
+# past that point.
+async def _mark_active(db: AsyncSession, owner_col, owner_id, plan_type: str) -> None:
+    result = await db.execute(select(Subscription).where(owner_col == owner_id))
+    sub = result.scalar_one_or_none()
+    if sub:
+        sub.status = "active"
+    else:
+        db.add(Subscription(
+            **{owner_col.key: owner_id},
+            plan_type=plan_type,
+            status="active",
+        ))
+    await db.flush()
+
+
 @router.post("/checkout")
 async def start_therapist_checkout(
     therapist: Therapist = Depends(get_current_therapist),
-    provider: BillingProvider = Depends(get_billing_provider),
+    db: AsyncSession = Depends(get_db),
 ):
-    url = await provider.create_checkout_session(
-        customer_email=therapist.email,
-        plan_type="therapist_monthly",
-        owner_id=therapist.id,
-        owner_kind="therapist",
-    )
-    return {"checkout_url": url}
+    await _mark_active(db, Subscription.owner_therapist_id, therapist.id, "therapist_monthly")
+    return {"checkout_url": "/therapist/billing?subscribed=1"}
 
 
 @router.post("/parent-checkout")
 async def start_parent_checkout(
     parent: Parent = Depends(get_current_parent),
-    provider: BillingProvider = Depends(get_billing_provider),
+    db: AsyncSession = Depends(get_db),
 ):
-    url = await provider.create_checkout_session(
-        customer_email=parent.email,
-        plan_type="parent_monthly",
-        owner_id=parent.id,
-        owner_kind="parent",
-    )
-    return {"checkout_url": url}
+    await _mark_active(db, Subscription.owner_parent_id, parent.id, "parent_monthly")
+    return {"checkout_url": "/parent/billing?subscribed=1"}
 
 
 @router.post("/webhook")
