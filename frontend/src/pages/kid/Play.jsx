@@ -10,6 +10,22 @@ import { speak } from '../../lib/speech'
 const AVATARS = ['chick', 'dragon', 'bunny', 'fox', 'rocket', 'fish']
 const AVATAR_NAMES = { chick: 'Chicky', dragon: 'Dino', bunny: 'Hoppy', fox: 'Foxy', rocket: 'Zoom', fish: 'Finley' }
 
+// Same four worlds GamePicker.jsx lists post-login, plus a 5th badge for the
+// assessment feature (not a "world" -- a diagnostic tool -- so it gets its
+// own higher-energy copy instead of reusing GamePicker text).
+const GAMES = [
+  { key: 'breathquest', emoji: '🐉', name: 'BreathQuest', desc: 'Breath-controlled adventures — 6 levels',
+    badgeClass: 'bg-ember/15 text-ember-glow border-ember/25' },
+  { key: 'orpheus', emoji: '🪞', name: 'Orpheus', desc: 'Mouth & tongue mirror games — 3 games',
+    badgeClass: 'bg-mint/15 text-mint-light border-mint/25' },
+  { key: 'chime', emoji: '🔔', name: 'Chime', desc: 'Say the word, build a village',
+    badgeClass: 'bg-coral/15 text-coral-light border-coral/25' },
+  { key: 'voice-hurdle-race', emoji: '🐶', name: 'Voice Hurdle Race', desc: 'Use your voice to jump hurdles',
+    badgeClass: 'bg-sky/15 text-sky-light border-sky/25' },
+  { key: 'assessment', emoji: '⚡', name: 'Speech Assessment', desc: 'Real-time AI voice analysis — your progress, scored instantly',
+    badgeClass: 'bg-white/10 text-white/90 border-white/25' },
+]
+
 // Same dusk-into-ember gradient Landing.jsx uses one screen back — this page
 // used to drop straight from that illustrated world into a flat navy square,
 // which is most of why it read as cold. Carrying the gradient (and a little
@@ -39,17 +55,17 @@ function SpeakButton({ onClick, className = 'text-white/25 hover:text-white/50' 
 // so it's the moment to introduce the cast, not a generic icon.
 function WelcomeCrew() {
   return (
-    <div className="relative w-40 h-24 mx-auto mb-2">
-      <div className="absolute inset-x-6 inset-y-2 rounded-full bg-ember/20 blur-2xl motion-safe:animate-pulse-slow" />
-      <div className="absolute left-0 bottom-0 w-14 h-14 motion-safe:animate-float"
+    <div className="relative w-64 h-32 mx-auto mt-16 mb-4">
+      <div className="absolute inset-x-10 inset-y-4 rounded-full bg-ember/20 blur-2xl motion-safe:animate-pulse-slow" />
+      <div className="absolute left-2 bottom-0 w-14 h-14 motion-safe:animate-float"
            style={{ animationDelay: '0.4s', animationDuration: '3.4s' }}>
-        <Creature species="fish" className="w-full h-full drop-shadow-lg" />
+        <Creature species="bunny" className="w-full h-full drop-shadow-lg" />
       </div>
-      <div className="absolute right-0 bottom-0 w-14 h-14 motion-safe:animate-float"
+      <div className="absolute right-2 bottom-0 w-14 h-14 motion-safe:animate-float"
            style={{ animationDelay: '0.9s', animationDuration: '3.8s' }}>
-        <Creature species="dragon" className="w-full h-full drop-shadow-lg" />
+        <Creature species="fox" className="w-full h-full drop-shadow-lg" />
       </div>
-      <div className="absolute left-1/2 -translate-x-1/2 -top-1 w-24 h-24 motion-safe:animate-float"
+      <div className="absolute left-1/2 -translate-x-1/2 top-4 w-20 h-20 motion-safe:animate-float"
            style={{ animationDelay: '0s', animationDuration: '3s' }}>
         <Creature species="chick" className="w-full h-full drop-shadow-xl" />
       </div>
@@ -127,6 +143,7 @@ export default function KidPlay() {
   const [parentEmail, setParentEmail]   = useState('')
   const [parentPhone, setParentPhone]   = useState('')
   const [mounted, setMounted]   = useState(false)
+  const [activeGame, setActiveGame] = useState(null)  // key of the badge tapped for a quick info popover, or null
   const [candidates, setCandidates]               = useState([])
   const [candidatesLoading, setCandidatesLoading] = useState(false)
   const [candidatesError, setCandidatesError]     = useState('')
@@ -289,10 +306,45 @@ export default function KidPlay() {
       {mode === 'choose' && (
         <div className="text-center w-full max-w-sm relative z-10">
           <WelcomeCrew />
-          <h1 className="font-vm-display text-4xl font-bold text-white mb-2">BreathQuest</h1>
-          <p className="text-white/40 mb-10 flex items-center justify-center gap-1.5">
+          <h1 className="font-vm-display text-3xl font-bold text-white mb-3 leading-tight">
+            Blow, speak, and watch the world move.
+          </h1>
+          <p className="text-white/50 text-sm mb-5">
+            Four playful worlds built to turn practice into an adventure.
+          </p>
+          <p className="text-white/40 mb-6 flex items-center justify-center gap-1.5">
             Ready to play? <SpeakButton onClick={replayChoose} />
           </p>
+          <div className="relative flex flex-wrap items-center justify-center gap-3 mb-12">
+            {GAMES.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setActiveGame(cur => cur === g.key ? null : g.key)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold border transition-all
+                            hover:-translate-y-0.5 active:scale-95 ${g.badgeClass}
+                            ${activeGame === g.key ? 'ring-2 ring-white/40' : ''}`}
+              >
+                {g.emoji} {g.name}
+              </button>
+            ))}
+
+            {activeGame && (() => {
+              const g = GAMES.find(x => x.key === activeGame)
+              return (
+                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 z-20
+                                bg-dusk-mid/95 backdrop-blur-md border border-white/15 rounded-2xl
+                                p-4 text-left shadow-xl">
+                  <button onClick={() => setActiveGame(null)}
+                          className="absolute top-2 right-2 text-white/30 hover:text-white/60 text-xs">
+                    ✕
+                  </button>
+                  <p className="font-vm-display text-white font-bold mb-1">{g.emoji} {g.name}</p>
+                  <p className="text-white/50 text-sm">{g.desc}</p>
+                </div>
+              )
+            })()}
+          </div>
           <div className="flex flex-col gap-4">
             <button onClick={() => setMode('register')}
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
