@@ -1,156 +1,162 @@
 """
-routers/patients.py — Patient management (therapist-only).
+routers/breathquest/patients.py — Patient management (therapist-only).
+
+Fixed 2026-08-14: was pointing at app.models.patient.Patient (Assessment's
+patient-intake record) and app.models.session.Session (Assessment's manual
+acoustic-session log) instead of the correct BreathQuestPatient/GameSession
+models in app.models.breathquest_models, and get_current_therapist was a
+hardcoded dummy rather than real auth. Both fixed here.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
 
-from app.database import SessionLocal
-from app.models.patient import Patient
-from app.models.session import Session as SessionModel
+from app.database import get_db
+from app.models.breathquest_models import BreathQuestPatient, GameSession
 from app.schemas.breathquest_schemas import PatientCreate, PatientUpdate, PatientOut, PatientDetailOut
 from app.breathquest_core.deps import get_current_therapist
+from app.breathquest_core.security import hash_pin
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
-def get_sync_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
+def _player_code(patient_id) -> str:
+    return f"P{str(patient_id).replace('-', '')[:9].upper()}"
 
 
 @router.post("", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
-def create_patient(
+async def create_patient(
     data: PatientCreate,
     therapist = Depends(get_current_therapist),
-    db: Session = Depends(get_sync_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    patient = Patient(
-        name=data.first_name,
+    patient = BreathQuestPatient(
+        therapist_id=therapist.id,
+        first_name=data.first_name,
+        avatar=data.avatar,
+        pin_hash=hash_pin(data.pin),
+        player_code="",  # set below once we have the generated id
         age=data.age,
-        language="en",
-        gender="other",
-        diagnosis=data.diagnosis_notes,
-        therapist_name="Therapist",
-        parent_contact="",
-        is_active=True
+        diagnosis_notes=data.diagnosis_notes,
     )
     db.add(patient)
-    db.flush()
-    
+    await db.flush()
+    patient.player_code = _player_code(patient.id)
+    await db.flush()
+
     return PatientOut(
-        id=str(patient.id),
-        first_name=patient.name,
-        avatar=data.avatar,
-        age=patient.age,
-        is_active=patient.is_active,
-        created_at=patient.created_at
+        id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        player_code=patient.player_code, age=patient.age, is_active=patient.is_active,
+        created_at=patient.created_at,
     )
 
 
 @router.get("", response_model=list[PatientDetailOut])
-def list_patients(
+async def list_patients(
     therapist = Depends(get_current_therapist),
-    db: Session = Depends(get_sync_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    patients = db.query(Patient).order_by(Patient.created_at.desc()).all()
+    result = await db.execute(
+        select(BreathQuestPatient)
+        .where(BreathQuestPatient.therapist_id == therapist.id)
+        .order_by(BreathQuestPatient.created_at.desc())
+    )
+    patients = result.scalars().all()
 
     out = []
     for p in patients:
-        # Get session stats
-        stats = db.query(
-            func.count(SessionModel.id).label("total"),
-            func.sum(SessionModel.stars).label("stars"),
-            func.avg(SessionModel.accuracy).label("avg_accuracy"),
-            func.max(SessionModel.created_at).label("last"),
-        ).filter(SessionModel.patient_id == p.id).first()
+        stats = await db.execute(
+            select(
+                func.count(GameSession.id).label("total"),
+                func.sum(GameSession.stars_earned).label("stars"),
+                func.max(GameSession.started_at).label("last"),
+            ).where(GameSession.patient_id == p.id)
+        )
+        row = stats.one()
         out.append(PatientDetailOut(
-            id=str(p.id),
-            first_name=p.name,
-            avatar="chick",
-            age=p.age,
-            is_active=p.is_active,
-            created_at=p.created_at,
-            diagnosis_notes=p.diagnosis,
-            total_sessions=stats.total or 0,
-            total_stars=int(stats.stars or 0),
-            last_session_at=stats.last,
+            id=str(p.id), first_name=p.first_name, avatar=p.avatar,
+            player_code=p.player_code, age=p.age, is_active=p.is_active,
+            created_at=p.created_at, diagnosis_notes=p.diagnosis_notes,
+            total_sessions=row.total or 0, total_stars=int(row.stars or 0),
+            last_session_at=row.last,
         ))
     return out
 
 
 @router.get("/{patient_id}", response_model=PatientDetailOut)
-def get_patient(
+async def get_patient(
     patient_id: str,
     therapist = Depends(get_current_therapist),
-    db: Session = Depends(get_sync_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    result = await db.execute(
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.id == patient_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    stats = db.query(
-        func.count(SessionModel.id).label("total"),
-        func.sum(SessionModel.stars).label("stars"),
-        func.avg(SessionModel.accuracy).label("avg_accuracy"),
-        func.max(SessionModel.created_at).label("last"),
-    ).filter(SessionModel.patient_id == patient.id).first()
+    stats = await db.execute(
+        select(
+            func.count(GameSession.id).label("total"),
+            func.sum(GameSession.stars_earned).label("stars"),
+            func.max(GameSession.started_at).label("last"),
+        ).where(GameSession.patient_id == patient.id)
+    )
+    row = stats.one()
     return PatientDetailOut(
-        id=str(patient.id),
-        first_name=patient.name,
-        avatar="chick",
-        age=patient.age,
-        is_active=patient.is_active,
-        created_at=patient.created_at,
-        diagnosis_notes=patient.diagnosis,
-        total_sessions=stats.total or 0,
-        total_stars=int(stats.stars or 0),
-        last_session_at=stats.last,
+        id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        player_code=patient.player_code, age=patient.age, is_active=patient.is_active,
+        created_at=patient.created_at, diagnosis_notes=patient.diagnosis_notes,
+        total_sessions=row.total or 0, total_stars=int(row.stars or 0),
+        last_session_at=row.last,
     )
 
 
 @router.patch("/{patient_id}", response_model=PatientOut)
-def update_patient(
+async def update_patient(
     patient_id: str,
     data: PatientUpdate,
     therapist = Depends(get_current_therapist),
-    db: Session = Depends(get_sync_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    result = await db.execute(
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.id == patient_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    # Map schema fields to model fields
-    if data.first_name:
-        patient.name = data.first_name
-    if data.age is not None:
-        patient.age = data.age
-    if data.diagnosis_notes is not None:
-        patient.diagnosis = data.diagnosis_notes
-    if data.is_active is not None:
-        patient.is_active = data.is_active
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(patient, field, value)
 
     return PatientOut(
-        id=str(patient.id),
-        first_name=patient.name,
-        avatar="chick",
-        age=patient.age,
-        is_active=patient.is_active,
-        created_at=patient.created_at
+        id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        player_code=patient.player_code, age=patient.age, is_active=patient.is_active,
+        created_at=patient.created_at,
     )
 
 
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_patient(
+async def delete_patient(
     patient_id: str,
     therapist = Depends(get_current_therapist),
-    db: Session = Depends(get_sync_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    result = await db.execute(
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.id == patient_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    db.delete(patient)
+    await db.delete(patient)
