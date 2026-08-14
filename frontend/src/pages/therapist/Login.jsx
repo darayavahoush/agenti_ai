@@ -5,7 +5,7 @@ import { getErrorMessage } from '../../api/client'
 import { Button, Input, Card } from '../../components/ui'
 import {
   ClipboardList, LineChart, ShieldCheck,
-  Mail, Lock, User, Building2, Eye, EyeOff, ArrowLeft, Stethoscope,
+  Mail, Lock, User, Building2, Phone, Eye, EyeOff, ArrowLeft, Stethoscope,
 } from 'lucide-react'
 
 const VALUE_PROPS = [
@@ -16,7 +16,7 @@ const VALUE_PROPS = [
 
 export default function TherapistLogin() {
   const [mode, setMode] = useState('login')
-  const [form, setForm] = useState({ email: '', password: '', full_name: '', clinic_name: '' })
+  const [form, setForm] = useState({ email: '', password: '', full_name: '', clinic_name: '', phone: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -117,6 +117,9 @@ export default function TherapistLogin() {
                          value={form.full_name} onChange={set('full_name')} required />
                   <Input icon={Building2} label="Clinic name (optional)" placeholder="Happy Kids Clinic"
                          value={form.clinic_name} onChange={set('clinic_name')} />
+                  {/* Collected, not verified — no SMS provider wired up yet. */}
+                  <Input icon={Phone} label="Phone (optional)" type="tel" placeholder="(555) 123-4567"
+                         value={form.phone} onChange={set('phone')} />
                 </>
               )}
               <Input icon={Mail} label="Email" type="email" placeholder="you@clinic.com"

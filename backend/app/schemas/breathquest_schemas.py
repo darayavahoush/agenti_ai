@@ -402,6 +402,8 @@ class ParentRegisterRequest(BaseModel):
     email: str
     password: str
     full_name: Optional[str] = None
+    # Collected, not verified -- see Parent.phone's comment.
+    phone: Optional[str] = None
 
 
 class ParentLoginRequest(BaseModel):
