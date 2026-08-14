@@ -4,7 +4,7 @@ import { normalizeAudio, encodeWav, playPhonemeAudio } from "../audio";
 import { PHONEME_INFO, getPhonemeInfo } from "../phonemeData";
 import { Particle, RainbowArc, PhonemeChip, RecordButton, CelebrationOverlay } from "../components";
 import { MouthDiagram } from "../MouthDiagram";
-import { Card, Button, ProgressBar, BunnyMascot } from "./UI";
+import { Card, Button, ProgressBar, BunnyMascot } from "./PastelUI";
 
 export function Practice({ sessionId }) {
   const [mode, setMode] = useState(MODE_WORD);

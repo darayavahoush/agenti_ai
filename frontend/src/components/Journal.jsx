@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { T, BACKEND } from "../constants";
-import { Card, Button } from "./UI";
+import { Card, Button } from "./PastelUI";
 
 export function Journal({ childId }) {
   const [sessions, setSessions] = useState([]);

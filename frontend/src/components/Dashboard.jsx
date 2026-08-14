@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { T } from "../constants";
-import { BunnyMascot } from "./UI";
+import { BunnyMascot } from "./PastelUI";
 
 export function DashboardLayout({ children, currentTab, setTab }) {
   const tabs = [

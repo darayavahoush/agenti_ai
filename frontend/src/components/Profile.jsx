@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { T } from "../constants";
-import { Card, Button } from "./UI";
+import { Card, Button } from "./PastelUI";
 
 export function Profile({ childId, activeSessionId, onResetSession }) {
   const [profile] = useState({

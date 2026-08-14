@@ -111,3 +111,23 @@ export function PageLoader() {
     </div>
   )
 }
+
+export function StatCard({ icon: Icon, value, label, accent = '#2FB8A6' }) {
+  return (
+    <Card className="flex flex-col gap-3">
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center"
+        style={{ backgroundColor: `${accent}1f`, border: `1px solid ${accent}33` }}
+      >
+        <Icon size={18} style={{ color: accent }} />
+      </div>
+      <div>
+        <p className="font-display text-2xl font-bold text-white tracking-tight leading-none">{value}</p>
+        <p className="text-white/40 text-xs mt-1.5">{label}</p>
+      </div>
+    </Card>
+  )
+}
+export { default as Sidebar } from './Sidebar'
+export { default as AmbientGlow } from './AmbientGlow'
+export { default as SupervisedBanner } from './SupervisedBanner'

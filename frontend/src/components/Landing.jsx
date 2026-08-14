@@ -1,5 +1,5 @@
 import { T } from "../constants";
-import { Button, BunnyMascot } from "./UI";
+import { Button, BunnyMascot } from "./PastelUI";
 
 export function Landing({ onStart }) {
   return (
