@@ -4,9 +4,6 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { meAPI } from './api/client'
 import { PageLoader, SupervisedBanner } from './components/ui'
 
-                                                        // chooser -- renamed at the import site only;
-                                                        // moved off "/" to make room for agenti_ai's
-                                                        // Landing there instead (see routes below)
 import { Landing as AgentiLanding } from './agenti/Landing'
 import TherapistLogin     from './pages/therapist/Login'
 import TherapistDashboard from './pages/therapist/Dashboard'
