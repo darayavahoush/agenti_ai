@@ -95,3 +95,7 @@ quest-games/breathquest/frontend/node_modules/
 *.zip
 data/images/
 backend/assets/audio/
+
+# Editor/script backups
+*.bak
+*.bak_*

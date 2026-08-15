@@ -8,8 +8,25 @@ import api from '../../api/client'
 
 const FC = '/flashcards'
 
-export function getRandomWord(language = 'english') {
-  return api.get(`${FC}/random-word`, { params: { language } }).then(r => r.data)
+export function getThemes() {
+  return api.get(`${FC}/themes`).then(r => r.data)
+}
+
+export function getWordsForTheme(theme) {
+  return api.get(`${FC}/words`, { params: { theme } }).then(r => r.data)
+}
+
+export function getMastery() {
+  return api.get(`${FC}/mastery`).then(r => r.data)
+}
+
+// Accepts either the old positional string ('english') or an options
+// object ({ language, theme, word }) so every existing call site keeps
+// working unchanged.
+export function getRandomWord(arg = 'english') {
+  const opts = typeof arg === 'string' ? { language: arg } : (arg || {})
+  const { language = 'english', theme, word } = opts
+  return api.get(`${FC}/random-word`, { params: { language, theme, word } }).then(r => r.data)
 }
 
 export function getCharacters() {
@@ -29,7 +46,7 @@ export function getImageForPhrase(phrase) {
   return api.post(`${FC}/image`, form, { responseType: 'blob' }).then(r => r.data)
 }
 
-export function evaluateAttempt({ audio, targetWord, character, language, sessionId, attemptNumber }) {
+export function evaluateAttempt({ audio, targetWord, character, language, sessionId, attemptNumber, theme }) {
   const form = new FormData()
   form.append('audio', audio, 'attempt.wav')
   form.append('target_word', targetWord)
@@ -37,5 +54,6 @@ export function evaluateAttempt({ audio, targetWord, character, language, sessio
   form.append('language', language || 'english')
   form.append('attempt_number', String(attemptNumber || 1))
   if (sessionId) form.append('session_id', sessionId)
+  if (theme) form.append('theme', theme)
   return api.post(`${FC}/evaluate`, form).then(r => r.data)
 }

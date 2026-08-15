@@ -4,39 +4,38 @@ import { Sidebar } from "../../components/ui";
 import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
+import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
+import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
-import { evaluateAttempt, speakWord, getRandomWord } from "../../flashcards/lib/api";
+import { evaluateAttempt, speakWord, getRandomWord, getThemes } from "../../flashcards/lib/api";
 import { friendlyPhoneme, phonemeExample } from "../../flashcards/utils/phonemeMap";
 import { getTheme, getSurface } from "../../flashcards/utils/themes";
 
 function CharacterSelect({ onPick }) {
   return (
-    <div className="flex-1 flex items-center justify-center" style={{ background: '#0d0d1a' }}>
-      <div style={{ maxWidth: "480px", width: "100%", padding: "24px" }}>
-        <h2 style={{ color: "#fff", fontFamily: "Nunito, sans-serif", fontSize: "1.4rem", fontWeight: 900, textAlign: "center", marginBottom: "6px" }}>
-          Who's helping you today?
+    <div className="flex-1 flex items-center justify-center" style={{ background: '#0d0d1a', position: "relative", overflow: "hidden" }}>
+      <PlayfulBackdrop tint="#A78BFA" />
+      <GlobalSelectionStyles />
+      <div style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
+        <StepDots current={3} total={3} />
+        <h2 style={{ color: "#fff", fontFamily: "Nunito, sans-serif", fontSize: "1.5rem", fontWeight: 900, textAlign: "center", marginBottom: "6px" }}>
+          Who's helping you today? 🚀
         </h2>
         <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", fontSize: "0.85rem", marginBottom: "24px" }}>
           Pick a friend to practice words with
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
-          {Object.values(CHARACTERS).map(c => (
-            <button
+          {Object.values(CHARACTERS).map((c, i) => (
+            <PlayCard
               key={c.id}
+              image={c.image}
+              imageAlt={c.name}
+              title={c.name}
+              subtitle={c.tagline}
+              color={c.color}
+              index={i}
               onClick={() => onPick(c.id)}
-              style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: "8px",
-                background: "rgba(255,255,255,0.05)", border: `2px solid ${c.color}55`,
-                borderRadius: "16px", padding: "16px 10px", cursor: "pointer",
-                transition: "border-color 0.2s, transform 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = c.color; e.currentTarget.style.transform = "scale(1.04)" }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = c.color + "55"; e.currentTarget.style.transform = "scale(1)" }}
-            >
-              <img src={c.image} alt={c.name} style={{ width: "56px", height: "56px", objectFit: "contain" }} />
-              <span style={{ color: "#fff", fontSize: "0.8rem", fontWeight: 800, fontFamily: "Nunito, sans-serif" }}>{c.name}</span>
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.62rem", textAlign: "center", lineHeight: 1.3 }}>{c.tagline}</span>
-            </button>
+            />
           ))}
         </div>
       </div>
@@ -46,7 +45,15 @@ function CharacterSelect({ onPick }) {
 
 export default function Flashcards() {
   const { patient, logout } = useAuth();
-  const [character, setCharacter] = useState(null); // null until picked
+
+  // Setup flow: 'theme' -> 'word' -> 'character' -> 'practice'. Picking
+  // "Surprise me" at the theme step skips straight to 'character' with
+  // theme/word left null (random.random-word already handles that).
+  const [stage, setStage] = useState("theme");
+  const [selectedTheme, setSelectedTheme] = useState(null);   // theme id or null (any topic)
+  const [character, setCharacter] = useState(null);
+  const [themeNames, setThemeNames] = useState({});           // { id: {name, emoji} } for header display
+
   const [wordData, setWordData] = useState(null);
   const [loadingWord, setLoadingWord] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
@@ -58,9 +65,18 @@ export default function Flashcards() {
   const [playingChar, setPlayingChar] = useState(false);
   const [playingChild, setPlayingChild] = useState(false);
   const { isRecording, audioBlob, audioUrl, startRecording, stopRecording, reset } = useAudio();
-  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);      // character switcher (existing)
+  const [showTopicSwitcher, setShowTopicSwitcher] = useState(false); // NEW: topic switcher
 
   const th = character ? getTheme(character, false) : null;
+
+  useEffect(() => {
+    getThemes().then(d => {
+      const map = {};
+      d.themes.forEach(t => { map[t.id] = t; });
+      setThemeNames(map);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (th) {
@@ -69,13 +85,13 @@ export default function Flashcards() {
     }
   }, [th]);
 
-  const loadNextWord = async () => {
+  const loadNextWord = async (wordOverride) => {
     setLoadingWord(true);
     setResult(null);
     setPhase("listen");
     reset();
     try {
-      const data = await getRandomWord("english");
+      const data = await getRandomWord({ language: "english", theme: selectedTheme || undefined, word: wordOverride || undefined });
       setWordData(data);
     } catch (err) {
       console.error("Failed to load word", err);
@@ -84,7 +100,17 @@ export default function Flashcards() {
     }
   };
 
-  useEffect(() => { if (character) loadNextWord(); }, [character]);
+  // Runs once, right when the setup flow finishes and character gets set
+  // for the first time. `pendingFirstWord` (closed over via ref-like state
+  // below) is only honoured for this very first card.
+  const [pendingFirstWord, setPendingFirstWord] = useState(null);
+  useEffect(() => {
+    if (character && stage === "practice") {
+      loadNextWord(pendingFirstWord);
+      setPendingFirstWord(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character, stage]);
 
   const playWord = async (speed = 1.0) => {
     if (!wordData) return;
@@ -122,6 +148,7 @@ export default function Flashcards() {
         language: "english",
         sessionId,
         attemptNumber,
+        theme: selectedTheme || wordData?.theme || undefined,
       });
       setAttemptHistory(h => [...h, res]);
       setResult(res);
@@ -145,16 +172,44 @@ export default function Flashcards() {
     reset();
   };
 
+  // --- Setup flow handlers ---
+  const handleThemePick = (themeId) => {
+    setSelectedTheme(themeId);
+    setStage(themeId ? "word" : "character"); // "Surprise me" (null) skips word-select
+  };
+  const handleWordPick = (word) => {
+    setPendingFirstWord(word); // null = surprise within theme
+    setStage("character");
+  };
+
+  const handleCharacterPick = (id) => {
+    setCharacter(id);
+    setStage("practice");
+  };
+  // --- In-session topic switcher (mirrors the existing character Switch) ---
+  const handleSwitchTheme = (themeId) => {
+    setSelectedTheme(themeId);
+    setShowTopicSwitcher(false);
+    loadNextWord(); // fresh random word in the new (or cleared) topic
+  };
+
   const imageUrl = wordData?.image_base64 ? `data:image/png;base64,${wordData.image_base64}` : null;
   const char = character ? CHARACTERS[character] : null;
+  const currentThemeLabel = selectedTheme && themeNames[selectedTheme]
+    ? `${themeNames[selectedTheme].emoji} ${themeNames[selectedTheme].name}`
+    : "🎲 Any topic";
 
   return (
     <div className="flex min-h-screen">
       <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
       <div className="flex-1 flex flex-col" style={{ background: th?.bg || '#0d0d1a' }}>
 
-        {!character ? (
-          <CharacterSelect onPick={setCharacter} />
+        {stage === "theme" ? (
+          <ThemeSelect onPick={handleThemePick} />
+        ) : stage === "word" ? (
+          <WordSelect theme={selectedTheme} onPick={handleWordPick} onBack={() => setStage("theme")} />
+        ) : stage === "character" ? (
+          <CharacterSelect onPick={handleCharacterPick} />
         ) : loadingWord ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <p style={{ color: th.text, fontFamily: "Nunito, sans-serif" }}>Loading a card…</p>
@@ -170,10 +225,29 @@ export default function Flashcards() {
                   <span style={{ color: th.text, fontWeight: 800, fontSize: "0.95rem", fontFamily: "Nunito, sans-serif" }}>{char.name}</span>
                 </div>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <button onClick={() => setShowSwitcher(!showSwitcher)} style={{ background: th.card, border: `1.5px solid ${th.accent}44`, borderRadius: "10px", padding: "5px 12px", color: th.sub, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>Switch</button>
+                  <button onClick={() => { setShowTopicSwitcher(!showTopicSwitcher); setShowSwitcher(false); }} style={{ background: th.card, border: `1.5px solid ${th.accent}44`, borderRadius: "10px", padding: "5px 12px", color: th.sub, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
+                    {currentThemeLabel}
+                  </button>
+                  <button onClick={() => { setShowSwitcher(!showSwitcher); setShowTopicSwitcher(false); }} style={{ background: th.card, border: `1.5px solid ${th.accent}44`, borderRadius: "10px", padding: "5px 12px", color: th.sub, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>Switch</button>
                   <div style={{ background: th.card, border: `1px solid ${th.accent}44`, borderRadius: "20px", padding: "4px 14px", fontSize: "0.75rem", color: th.sub, fontWeight: 700 }}>Attempt {attemptNumber}</div>
                 </div>
               </div>
+
+              {showTopicSwitcher && (
+                <div style={{ background: getSurface(false, 0.9), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "14px", boxShadow: `0 4px 20px ${th.accent}18` }}>
+                  <p style={{ color: th.sub, fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px 0" }}>Switch topic</p>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button onClick={() => handleSwitchTheme(null)} style={{ display: "flex", alignItems: "center", gap: "6px", background: !selectedTheme ? th.card : "transparent", border: `1.5px solid ${!selectedTheme ? th.accent : "rgba(0,0,0,0.08)"}`, borderRadius: "10px", padding: "8px 12px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700, color: th.text, fontFamily: "Nunito, sans-serif" }}>
+                      🎲 Any topic
+                    </button>
+                    {Object.values(themeNames).map(t => (
+                      <button key={t.id} onClick={() => handleSwitchTheme(t.id)} style={{ display: "flex", alignItems: "center", gap: "6px", background: selectedTheme === t.id ? th.card : "transparent", border: `1.5px solid ${selectedTheme === t.id ? th.accent : "rgba(0,0,0,0.08)"}`, borderRadius: "10px", padding: "8px 12px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700, color: th.text, fontFamily: "Nunito, sans-serif" }}>
+                        {t.emoji} {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {showSwitcher && (
                 <div style={{ background: getSurface(false, 0.9), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "14px", boxShadow: `0 4px 20px ${th.accent}18` }}>
