@@ -14,14 +14,18 @@ import base64
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.vaakmirror_auth import get_current_patient_id
+from app.database import get_db
 
 from .tts import speak as tts_speak, get_characters
 from .matcher import get_image_for_phrase
 from .processor import analyse_audio
 from .scorer import build_attempt_result
 from .grapheme_to_phoneme import get_phonemes
+from . import themes as themes_module
+from . import mastery
 
 _DATA_DIR = Path(__file__).resolve().parents[3] / 'data' / 'flashcard_images'
 _INDEX_PATH = _DATA_DIR / 'index.json'
@@ -29,24 +33,72 @@ _INDEX_PATH = _DATA_DIR / 'index.json'
 router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
 
 
-@router.get("/random-word")
-def random_word(language: str = "english", patient_id: str = Depends(get_current_patient_id)):
+def _word_payload(word: str, language: str) -> dict:
     with open(_INDEX_PATH) as f:
         index = json.load(f)
-    word = random.choice(list(index.keys()))
     image_path = _DATA_DIR / index[word]
     image_b64 = base64.b64encode(image_path.read_bytes()).decode() if image_path.exists() else None
     return {
         "word": word,
         "language": language,
+        "theme": themes_module.theme_for_word(word),
         "phonemes": get_phonemes(word, language),
         "image_base64": image_b64,
     }
 
 
+@router.get("/themes")
+def list_themes(patient_id: str = Depends(get_current_patient_id)):
+    return {"themes": themes_module.list_themes()}
+
+
+@router.get("/words")
+def words_for_theme(theme: str, patient_id: str = Depends(get_current_patient_id)):
+    return {"theme": theme, "words": themes_module.words_for_theme(theme)}
+
+
+@router.get("/random-word")
+def random_word(
+    language: str = "english",
+    theme: str = None,
+    word: str = None,
+    patient_id: str = Depends(get_current_patient_id),
+):
+    with open(_INDEX_PATH) as f:
+        index = json.load(f)
+
+    # Exact word requested (card-level selection). Falls through to
+    # theme/full-random only if the word somehow isn't in the index.
+    if word and word in index:
+        return _word_payload(word, language)
+
+    if theme:
+        candidates = themes_module.words_for_theme(theme)
+        if candidates:
+            return _word_payload(random.choice(candidates), language)
+        # Unknown/empty theme -- degrade to fully random rather than 404,
+        # same approach kid_progress.py takes for a missing VaakMirrorSession.
+
+    chosen = random.choice(list(index.keys()))
+    return _word_payload(chosen, language)
+
+
 @router.get("/characters")
 def characters(patient_id: str = Depends(get_current_patient_id)):
     return {"characters": get_characters()}
+
+
+@router.get("/mastery")
+async def get_mastery(
+    patient_id: str = Depends(get_current_patient_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-phoneme accuracy for the logged-in kid. Same data is available
+    in-process (no HTTP needed) to other games/agent logic via
+    mastery.get_mastery_summary()/get_weak_phonemes()."""
+    summary = await mastery.get_mastery_summary(db, uuid.UUID(patient_id))
+    weak = await mastery.get_weak_phonemes(db, uuid.UUID(patient_id))
+    return {"phonemes": summary, "weakest": weak}
 
 
 @router.post("/speak")
@@ -87,7 +139,9 @@ async def evaluate(
     attempt_number: int = Form(default=1),
     session_id: str = Form(default=None),
     character: str = Form(default="BOLT"),
+    theme: str = Form(default=None),
     patient_id: str = Depends(get_current_patient_id),
+    db: AsyncSession = Depends(get_db),
 ):
     session_id = session_id or str(uuid.uuid4())
 
@@ -114,6 +168,16 @@ async def evaluate(
             condition=condition,
             character=character,
         )
+
+        # Persist for mastery tracking. Isolated in its own try/except --
+        # a DB hiccup here must never cost the kid their already-computed
+        # result, which is why this runs after `result` exists rather than
+        # being folded into build_attempt_result.
+        try:
+            await mastery.record_attempt(db, uuid.UUID(patient_id), result, theme_id=theme)
+        except Exception as e:
+            print(f"mastery.record_attempt failed (non-fatal): {e}")
+
         return result
     finally:
         os.unlink(tmp_path)

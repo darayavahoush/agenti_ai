@@ -48,3 +48,8 @@ class AttemptResult(BaseModel):
     attempt_number: int
     feedback: str
     condition: str = "autism"
+    # Was accepted by /evaluate and passed into build_attempt_result() but
+    # never landed on the response model, so it silently vanished before
+    # ever being persisted -- added so mastery.py's FlashcardAttempt log
+    # can actually record which character a given attempt was made with.
+    character: Optional[str] = None

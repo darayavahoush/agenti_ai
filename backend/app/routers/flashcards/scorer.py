@@ -212,4 +212,5 @@ def build_attempt_result(
         attempt_number=attempt_number,
         feedback=feedback,
         condition=condition,
+        character=character,
     )
