@@ -231,3 +231,44 @@ async def delete_patient(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     await db.delete(patient)
+
+
+# ------------------------------------------------------------------ #
+#  Kid self-service profile edit -- separate from PATCH /{patient_id}
+#  above, which is therapist-only and scoped by therapist_id. This lets
+#  a logged-in kid change their own display name and avatar, nothing
+#  else (no therapist_id, is_active, etc. exposed here).
+# ------------------------------------------------------------------ #
+from pydantic import BaseModel, Field
+from app.breathquest_core.deps import get_current_patient
+
+VALID_AVATARS = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
+
+
+class MyProfileUpdate(BaseModel):
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    avatar: str | None = None
+
+
+@router.patch("/me/profile", response_model=PatientOut)
+async def update_my_profile(
+    data: MyProfileUpdate,
+    patient: BreathQuestPatient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    if data.avatar is not None and data.avatar not in VALID_AVATARS:
+        raise HTTPException(status_code=400, detail="Invalid avatar choice")
+
+    if data.first_name is not None:
+        patient.first_name = data.first_name.strip()
+    if data.avatar is not None:
+        patient.avatar = data.avatar
+
+    db.add(patient)
+    await db.commit()
+    await db.refresh(patient)
+
+    return PatientOut(
+        id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+    )

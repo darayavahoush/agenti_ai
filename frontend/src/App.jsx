@@ -15,7 +15,7 @@ import AssessmentReport    from './pages/kid/AssessmentReport'
 import LevelSelect        from './pages/kid/LevelSelect'
 import GamePage           from './pages/kid/GamePage'
 import GamePicker         from './pages/kid/GamePicker'
-import MyProgress         from './pages/kid/MyProgress'
+import MyAccount          from './pages/kid/MyAccount'
 import VaakMirrorHome     from './vaakmirror/VaakMirrorHome'
 import MirrorMirror       from './vaakmirror/MirrorMirror'
 import TongueTamer        from './vaakmirror/TongueTamer'
@@ -176,8 +176,8 @@ function AppRoutes() {
         <Route path="/play/levels" element={
           <ProtectedKid><LevelSelect /></ProtectedKid>
         } />
-        <Route path="/play/progress" element={
-          <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
+        <Route path="/play/account" element={
+          <ProtectedKid requireEntitlement={false}><MyAccount /></ProtectedKid>
         } />
         <Route path="/play/game/:levelId" element={
           <ProtectedKid><GamePage /></ProtectedKid>

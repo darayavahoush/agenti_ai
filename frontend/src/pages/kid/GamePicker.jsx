@@ -112,8 +112,8 @@ export default function GamePicker() {
           </div>
         </div>
         <div className="flex items-center gap-5">
-          <button onClick={() => navigate('/play/progress')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
-            <TrendingUp size={15} /> My Progress
+          <button onClick={() => navigate('/play/account')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
+            <TrendingUp size={15} /> My Account
           </button>
           <button onClick={() => navigate('/assessment/report')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
             <Sparkles size={15} /> My Results

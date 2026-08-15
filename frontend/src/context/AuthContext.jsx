@@ -171,6 +171,22 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // Merges partial patient updates (e.g. from MyAccount.jsx's profile
+  // edit) into both React state and the localStorage blob AuthContext
+  // itself reads on mount, so a refresh doesn't lose the new name/avatar.
+  const updatePatient = (fields) => {
+    setPatient((prev) => {
+      const next = { ...prev, ...fields }
+      try {
+        const stored = JSON.parse(localStorage.getItem('bq_user_data') || '{}')
+        localStorage.setItem('bq_user_data', JSON.stringify({ ...stored, ...fields }))
+      } catch {
+        // ignore malformed existing storage
+      }
+      return next
+    })
+  }
+
   const logout = () => {
     localStorage.removeItem('bq_token')
     localStorage.removeItem('bq_user_type')
@@ -187,6 +203,7 @@ export function AuthProvider({ children }) {
       markAssessmentComplete,
       startSupervisedSession, endSupervisedSession,
       loginParent, registerParent, logout,
+      updatePatient,
       isTherapist: !!therapist,
       isKid:       !!patient,
       isParent:    !!parent,
