@@ -150,7 +150,7 @@ export default function GamePicker() {
               <div
                 className="relative h-full rounded-3xl p-7 border-2 transition-all duration-300"
                 style={{
-                  background: `linear-gradient(160deg, ${app.accentSoft} 0%, rgba(30,30,63,0.7) 65%)`,
+                  background: `linear-gradient(160deg, ${app.accentSoft} 0%, #1E1E3F 65%)`,
                   borderColor: 'rgba(255,255,255,0.08)',
                 }}
                 onMouseEnter={(e) => {
