@@ -222,6 +222,13 @@ export const meAPI = {
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
   updateProfile:   (data) => api.patch('/patients/me/profile', data),
+  uploadProfilePhoto: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/patients/me/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 // ------------------------------------------------------------------ //

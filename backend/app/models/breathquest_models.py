@@ -75,6 +75,7 @@ class BreathQuestPatient(Base):
     therapist_id:     Mapped[uuid.UUID | None] = mapped_column(ForeignKey("therapists.id"), nullable=True, index=True)
     first_name:       Mapped[str]           = mapped_column(String(100), nullable=False)
     avatar:           Mapped[str]           = mapped_column(String(50), default="chick")
+    avatar_photo_url: Mapped[str | None]     = mapped_column(String(255), nullable=True)  # custom uploaded pfp; overrides `avatar` species art when set
     pin_hash:         Mapped[str]           = mapped_column(String(64), nullable=False)
     player_code:      Mapped[str]           = mapped_column(String(10), unique=True, nullable=False, index=True)
     age:              Mapped[int | None]    = mapped_column(Integer)

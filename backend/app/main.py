@@ -53,6 +53,11 @@ class PatientLogin(BaseModel):
 
 app = FastAPI()
 
+from fastapi.staticfiles import StaticFiles
+import os as _os
+_os.makedirs("uploads/avatars", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "*"],

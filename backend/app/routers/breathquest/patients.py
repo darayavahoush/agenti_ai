@@ -9,7 +9,8 @@ disable comment, which flagged this exact bug as the reason this router was
 turned off.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -70,6 +71,7 @@ async def create_patient(
     await db.flush()
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
         age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
 
@@ -212,6 +214,7 @@ async def update_patient(
 
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
         age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
 
@@ -270,5 +273,51 @@ async def update_my_profile(
 
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
+        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+    )
+
+
+@router.post("/me/profile/photo", response_model=PatientOut)
+async def upload_my_profile_photo(
+    file: UploadFile = File(...),
+    patient: BreathQuestPatient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kid-authenticated custom pfp upload, alongside the built-in
+    creature avatars. Local-disk storage only (uploads/avatars/) --
+    fine for dev, but won't survive a redeploy on platforms with
+    ephemeral filesystems (Render, Railway, etc.) or work across
+    multiple backend instances. Needs real object storage (S3 or
+    equivalent) before this is production-ready."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
+    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise HTTPException(status_code=400, detail="Unsupported image format")
+
+    upload_dir = "uploads/avatars"
+    os.makedirs(upload_dir, exist_ok=True)
+    # Deterministic filename -- new upload overwrites the old one, no
+    # orphaned files piling up per kid.
+    filename = f"{patient.id}{ext}"
+    filepath = os.path.join(upload_dir, filename)
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be under 5MB")
+
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    patient.avatar_photo_url = f"/uploads/avatars/{filename}"
+    db.add(patient)
+    await db.commit()
+    await db.refresh(patient)
+
+    return PatientOut(
+        id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
         age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )

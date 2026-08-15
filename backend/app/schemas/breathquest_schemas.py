@@ -219,6 +219,7 @@ class PatientOut(BaseModel):
     id: str
     first_name: str
     avatar: str
+    avatar_photo_url: Optional[str] = None
     player_code: str
     age: Optional[int]
     is_active: bool
