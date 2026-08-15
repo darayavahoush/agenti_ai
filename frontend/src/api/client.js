@@ -221,6 +221,7 @@ export const meAPI = {
   progress:        () => api.get('/me/progress'),
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
+  updateProfile:   (data) => api.patch('/patients/me/profile', data),
 }
 
 // ------------------------------------------------------------------ //
