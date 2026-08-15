@@ -18,6 +18,7 @@ export default function MyAccount() {
   const [nameDraft, setNameDraft] = useState('')
   const [pickingAvatar, setPickingAvatar] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -29,6 +30,26 @@ export default function MyAccount() {
 
   const displayName = patient?.first_name || progress?.first_name
   const displayAvatar = patient?.avatar || progress?.avatar
+  const displayPhotoUrl = patient?.avatar_photo_url
+  // Photo, if uploaded, takes visual priority over the creature species art
+  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1$/, '')
+
+  async function handlePhotoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadError('')
+    setSaving(true)
+    try {
+      const { data } = await meAPI.uploadProfilePhoto(file)
+      updatePatient(data)
+      setPickingAvatar(false)
+    } catch (err) {
+      setUploadError(err?.response?.data?.detail || "Couldn't upload that photo -- try a different one.")
+    } finally {
+      setSaving(false)
+      e.target.value = ''
+    }
+  }
 
   async function saveProfile(fields) {
     setSaving(true)
@@ -93,7 +114,15 @@ export default function MyAccount() {
           <>
             <div className="text-center mb-8">
               <div className="relative inline-block">
-                <Avatar avatar={displayAvatar} size="xl" />
+                {displayPhotoUrl ? (
+                  <img
+                    src={`${apiBase}${displayPhotoUrl}`}
+                    alt=""
+                    className="w-24 h-24 rounded-full object-cover border-2 border-white/10"
+                  />
+                ) : (
+                  <Avatar avatar={displayAvatar} size="xl" />
+                )}
                 <button
                   onClick={() => setPickingAvatar(true)}
                   className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white/10 border border-white/20
@@ -118,6 +147,11 @@ export default function MyAccount() {
                       <Creature species={species} className="w-full h-full" />
                     </button>
                   ))}
+                  <label className="w-14 h-14 rounded-full border-2 border-dashed border-white/20 flex items-center
+                                     justify-center cursor-pointer hover:border-white/40 transition-colors">
+                    <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={saving} />
+                    <span className="text-white/40 text-[10px] text-center leading-tight px-1">Upload<br/>photo</span>
+                  </label>
                   <button
                     onClick={() => setPickingAvatar(false)}
                     className="text-white/30 hover:text-white/60 text-xs ml-1 self-center"
@@ -125,6 +159,9 @@ export default function MyAccount() {
                     Done
                   </button>
                 </div>
+              )}
+              {uploadError && (
+                <p className="text-brand-amber text-xs mt-2 text-center">{uploadError}</p>
               )}
 
               <div className="mt-5 flex items-center justify-center gap-2">
