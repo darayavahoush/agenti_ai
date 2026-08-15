@@ -23,7 +23,9 @@ from app.models.breathquest_models import BreathQuestPatient
 from app.models.patient import Patient
 from app.breathquest_core.deps import get_current_patient
 from app.schemas.breathquest_schemas import AssessmentStartOut, AssessmentCompleteRequest
+from app.routers.breathquest.assessment_lookup import get_latest_assessment
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
 
@@ -83,3 +85,16 @@ async def complete_assessment(
         "severity_classification": data.severity_classification,
     }
     await db.commit()
+
+
+@router.get("/me/latest")
+async def get_my_latest_assessment(
+    patient: BreathQuestPatient = Depends(get_current_patient),
+):
+    """Kid-authenticated 'my latest results' lookup, for
+    pages/kid/AssessmentReport.jsx when revisited later (not just right
+    after finishing an assessment via router state). Same in-process query
+    dashboard.py already uses, just exposed to the kid themselves."""
+    if not patient.assessment_patient_id:
+        return None
+    return await asyncio.to_thread(get_latest_assessment, str(patient.assessment_patient_id))

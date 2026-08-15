@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, Volume2 } from 'lucide-react'
+import { TrendingUp, Volume2, Sparkles } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar } from '../../components/ui'
 import { speak } from '../../lib/speech'
@@ -114,6 +114,9 @@ export default function GamePicker() {
         <div className="flex items-center gap-5">
           <button onClick={() => navigate('/play/progress')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
             <TrendingUp size={15} /> My Progress
+          </button>
+          <button onClick={() => navigate('/assessment/report')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
+            <Sparkles size={15} /> My Results
           </button>
           <button onClick={logout} className="text-white/30 hover:text-white/60 text-sm transition-colors">
             Switch player
