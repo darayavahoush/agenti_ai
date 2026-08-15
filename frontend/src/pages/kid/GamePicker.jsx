@@ -105,7 +105,7 @@ export default function GamePicker() {
     <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #12142E 0%, #1E1E3F 100%)' }}>
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <Avatar avatar={patient?.avatar} size="sm" />
+          <Avatar avatar={patient?.avatar} photoUrl={patient?.avatar_photo_url} size="sm" />
           <div>
             <span className="font-display font-bold text-white">{patient?.first_name}</span>
             <span className="text-white/30 text-xs ml-2">#{patient?.player_code}</span>
@@ -126,7 +126,7 @@ export default function GamePicker() {
 
       <div className="max-w-3xl mx-auto px-6 py-14">
         <div className="text-center mb-12">
-          <Avatar avatar={patient?.avatar} size="xl" />
+          <Avatar avatar={patient?.avatar} photoUrl={patient?.avatar_photo_url} size="xl" />
           <h1 className="font-vm-display text-4xl font-bold text-white mt-5">
             {greeting()}, {patient?.first_name || 'friend'}!
           </h1>

@@ -424,7 +424,7 @@ export default function PatientDetail() {
         <div className="flex items-center gap-6 mb-8">
           <div className="relative">
             <div className="absolute inset-0 rounded-full bg-brand-green/20 blur-xl" />
-            <Avatar avatar={data.avatar} size="xl" />
+            <Avatar avatar={data.avatar} photoUrl={data.avatar_photo_url} size="xl" />
           </div>
           <div className="flex-1">
             <h1 className="font-display text-3xl font-bold text-white">{data.first_name}</h1>

@@ -4,6 +4,7 @@ import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X } from 'lucide-react
 import { Avatar } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { meAPI } from '../../api/client'
+import PhotoCropModal from './PhotoCropModal'
 import { useAuth } from '../../context/AuthContext'
 
 const AVATAR_OPTIONS = Object.keys(CREATURE_ACCENTS)
@@ -19,6 +20,7 @@ export default function MyAccount() {
   const [pickingAvatar, setPickingAvatar] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [cropImageSrc, setCropImageSrc] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -34,20 +36,31 @@ export default function MyAccount() {
   // Photo, if uploaded, takes visual priority over the creature species art
   const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1$/, '')
 
-  async function handlePhotoUpload(e) {
+  function handlePhotoSelect(e) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadError('')
+    setCropImageSrc(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  function cancelCrop() {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc)
+    setCropImageSrc(null)
+  }
+
+  async function confirmCrop(blob) {
     setSaving(true)
     try {
-      const { data } = await meAPI.uploadProfilePhoto(file)
+      const croppedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+      const { data } = await meAPI.uploadProfilePhoto(croppedFile)
       updatePatient(data)
       setPickingAvatar(false)
     } catch (err) {
       setUploadError(err?.response?.data?.detail || "Couldn't upload that photo -- try a different one.")
     } finally {
       setSaving(false)
-      e.target.value = ''
+      cancelCrop()
     }
   }
 
@@ -121,7 +134,7 @@ export default function MyAccount() {
                     className="w-24 h-24 rounded-full object-cover border-2 border-white/10"
                   />
                 ) : (
-                  <Avatar avatar={displayAvatar} size="xl" />
+                  <Avatar avatar={displayAvatar} photoUrl={displayPhotoUrl} size="xl" />
                 )}
                 <button
                   onClick={() => setPickingAvatar(true)}
@@ -149,7 +162,7 @@ export default function MyAccount() {
                   ))}
                   <label className="w-14 h-14 rounded-full border-2 border-dashed border-white/20 flex items-center
                                      justify-center cursor-pointer hover:border-white/40 transition-colors">
-                    <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={saving} />
+                    <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" disabled={saving} />
                     <span className="text-white/40 text-[10px] text-center leading-tight px-1">Upload<br/>photo</span>
                   </label>
                   <button
@@ -255,6 +268,14 @@ export default function MyAccount() {
           </>
         )}
       </div>
+      {cropImageSrc && (
+        <PhotoCropModal
+          imageSrc={cropImageSrc}
+          onCancel={cancelCrop}
+          onConfirm={confirmCrop}
+          saving={saving}
+        />
+      )}
     </div>
   )
 }
