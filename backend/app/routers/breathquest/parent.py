@@ -10,16 +10,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from database import get_db
-from models.models import Parent, Patient, GameSession
-from schemas.schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut
-from core.deps import get_current_parent
-from services.weekly_summary import generate_weekly_summary
-from services.home_practice_ideas import IDEAS, filter_ideas
+from app.database import get_db
+from app.models.breathquest_models import Parent, GameSession
+from app.models.patient import Patient
+from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut
+from app.breathquest_core.deps import get_current_parent
+from app.services.weekly_summary import generate_weekly_summary
+from app.services.home_practice_ideas import IDEAS, filter_ideas
 from retraining import data_store as chime_data_store
-from routers.dashboard import LEVEL_NAMES, CHIME_DB_PATH
-from vaakmirror.models import GameSession as VaakMirrorSession, Attempt
-from schemas.schemas import LevelProgress
+from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH
+# vaakmirror lives outside this backend's Python path in some deploy
+# configs -- degrade to None rather than crashing app startup, same
+# pattern as kid_progress.py's own VaakMirrorSession handling.
+try:
+    from vaakmirror.models import GameSession as VaakMirrorSession, Attempt
+except ImportError:
+    VaakMirrorSession = None
+    Attempt = None
+from app.schemas.breathquest_schemas import LevelProgress
 from sqlalchemy import func
 
 router = APIRouter(prefix="/parent", tags=["parent"])

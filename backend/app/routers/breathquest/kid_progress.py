@@ -11,10 +11,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
-from database import get_db
-from models.models import Patient, GameSession
-from models.voicehurdlerace_models import VoiceHurdleRaceSession
-from retraining import data_store as chime_data_store
+from app.database import get_db
+from app.models.patient import Patient
+from app.models.breathquest_models import GameSession
+from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from retraining import data_store as chime_data_store  # top-level package, see try/except below
 
 # vaakmirror lives outside breathquest/backend (sibling package under the repo
 # root) and isn't guaranteed to be on the Python path in every deploy config —
@@ -26,8 +27,8 @@ try:
     from vaakmirror.models import GameSession as VaakMirrorSession
 except ImportError:
     VaakMirrorSession = None
-from schemas.schemas import KidProgressOut
-from core.deps import get_current_patient
+from app.schemas.breathquest_schemas import KidProgressOut
+from app.breathquest_core.deps import get_current_patient
 
 router = APIRouter(prefix="/me", tags=["kid-progress"])
 
