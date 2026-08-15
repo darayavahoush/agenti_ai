@@ -31,6 +31,7 @@ import BubbleWrapPop      from './chime/BubbleWrapPop'
 import XylophoneTower    from './chime/XylophoneTower'
 import LionsRoar          from './chime/LionsRoar'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
+import Flashcards from './pages/kid/Flashcards'
 import VoiceHurdleRace    from './voiceHurdleRace/VoiceHurdleRace'
 import ParentAuth         from './pages/parent/ParentAuth'
 import ParentDashboard    from './pages/parent/ParentDashboard'
@@ -226,6 +227,9 @@ function AppRoutes() {
         } />
         <Route path="/play/voice-hurdle-race" element={
           <ProtectedKid><VoiceHurdleRace /></ProtectedKid>
+        } />
+        <Route path="/play/flashcards" element={
+          <ProtectedKid><Flashcards /></ProtectedKid>
         } />
 
         {/* Parent */}

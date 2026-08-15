@@ -34,6 +34,7 @@ from app.routers.breathquest import parent as breathquest_parent_router
 from app.routers.vaakmirror.sessions import router as vaakmirror_sessions_router
 from app.routers.vaakmirror.dashboard import router as vaakmirror_dashboard_router
 from app.routers.vaakmirror.exercises import router as vaakmirror_exercises_router
+from app.routers.flashcards.router import router as flashcards_router
 
 class PatientCreate(BaseModel):
     name: str
@@ -145,6 +146,7 @@ app.include_router(breathquest_parent_router.router, prefix="/api/v1")
 app.include_router(vaakmirror_sessions_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_dashboard_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_exercises_router, prefix="/api/v1/vaakmirror")
+app.include_router(flashcards_router, prefix="/api/v1")
 
 # Ensure assets/audio directory exists
 AUDIO_DIR = Path("assets/audio")
