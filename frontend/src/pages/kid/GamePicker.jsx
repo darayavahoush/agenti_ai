@@ -50,6 +50,17 @@ const APPS = [
     glow: 'rgba(96,165,250,0.35)',
     motif: 'ripple',
   },
+  {
+    id: 'flashcards',
+    name: 'Flashcards',
+    emoji: '🗂️',
+    desc: 'Practice words with picture cards',
+    path: '/play/flashcards',
+    accent: '#A78BFA',
+    accentSoft: 'rgba(167,139,250,0.14)',
+    glow: 'rgba(167,139,250,0.35)',
+    motif: 'pulse',
+  },
 ]
 
 function CardMotif({ motif, accent }) {
