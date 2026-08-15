@@ -263,7 +263,7 @@ function PatientCard({ patient, alert, onClick }) {
                  ${alert ? 'hover:border-brand-amber/40 hover:bg-brand-amber/5'
                          : 'hover:border-brand-green/30 hover:bg-brand-green/5'}`}>
       <div className="flex items-center gap-3 mb-4">
-        <Avatar avatar={patient.avatar} size="md" />
+        <Avatar avatar={patient.avatar} photoUrl={patient.avatar_photo_url} size="md" />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-white truncate">{patient.first_name}</p>
           {patient.age && <p className="text-white/40 text-xs">Age {patient.age}</p>}
