@@ -73,7 +73,7 @@ export default function LevelSelect() {
                 disabled={!unlocked}
                 className="relative text-left rounded-2xl overflow-hidden transition-all duration-200"
                 style={{
-                  background: `linear-gradient(135deg, ${theme.from}, #12122A)`,
+                  background: 'linear-gradient(135deg, #1E1E3F, #12122A)',
                   border: `2px solid ${unlocked ? (isHover ? theme.border : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.08)'}`,
                   boxShadow: isHover && unlocked ? `0 0 30px ${theme.glow}` : 'none',
                   transform: isHover && unlocked ? 'scale(1.03)' : 'scale(1)',
@@ -138,7 +138,7 @@ export default function LevelSelect() {
                     <div className="h-full transition-all duration-700"
                          style={{
                            width: `${(stars/3)*100}%`,
-                           background: `linear-gradient(90deg, ${theme.border}88, ${theme.border})`,
+                           background: 'linear-gradient(90deg, #FAC77588, #FAC775)',
                          }} />
                   </div>
                 )}
