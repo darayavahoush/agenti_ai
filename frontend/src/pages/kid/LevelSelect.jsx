@@ -74,7 +74,7 @@ export default function LevelSelect() {
                 className="relative text-left rounded-2xl overflow-hidden transition-all duration-200"
                 style={{
                   background: `linear-gradient(135deg, ${theme.from}, #12122A)`,
-                  border: `2px solid ${unlocked ? theme.border : 'rgba(255,255,255,0.08)'}`,
+                  border: `2px solid ${unlocked ? (isHover ? theme.border : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.08)'}`,
                   boxShadow: isHover && unlocked ? `0 0 30px ${theme.glow}` : 'none',
                   transform: isHover && unlocked ? 'scale(1.03)' : 'scale(1)',
                   opacity: unlocked ? 1 : 0.5,
