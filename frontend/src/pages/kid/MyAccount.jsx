@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X } from 'lucide-react'
-import { Avatar, Creature } from '../../components/ui'
-import { CREATURE_ACCENTS } from '../../components/ui/Creatures'
+import { Avatar } from '../../components/ui'
+import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { meAPI } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 

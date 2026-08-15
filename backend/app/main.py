@@ -29,6 +29,8 @@ from app.routers.breathquest import breath_agent as breathquest_breath_agent_rou
 from app.routers.breathquest import chime as breathquest_chime_router
 from app.routers.breathquest import voicehurdlerace as breathquest_voicehurdlerace_router
 from app.routers.breathquest import verify as breathquest_verify_router
+from app.routers.breathquest import kid_progress as breathquest_kid_progress_router
+from app.routers.breathquest import parent as breathquest_parent_router
 from app.routers.vaakmirror.sessions import router as vaakmirror_sessions_router
 from app.routers.vaakmirror.dashboard import router as vaakmirror_dashboard_router
 from app.routers.vaakmirror.exercises import router as vaakmirror_exercises_router
@@ -131,6 +133,8 @@ app.include_router(breathquest_chime_router.router, prefix="/api/v1")
 # and check_parental_consent (parental_consent.py) depending on rows this
 # endpoint is supposed to create. Mounting it is the fix for that 404.
 app.include_router(breathquest_verify_router.router, prefix="/api/v1")
+app.include_router(breathquest_kid_progress_router.router, prefix="/api/v1")
+app.include_router(breathquest_parent_router.router, prefix="/api/v1")
 
 # Include VaakMirror routers
 app.include_router(vaakmirror_sessions_router, prefix="/api/v1/vaakmirror")
