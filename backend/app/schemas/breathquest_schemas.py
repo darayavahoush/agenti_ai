@@ -344,6 +344,21 @@ class LevelProgress(BaseModel):
     last_played: datetime | None
 
 
+class CategoryProgress(BaseModel):
+    """Normalized per-game progress row. Unlike LevelProgress (BreathQuest-
+    only, stars-based), this covers all five games uniformly: category_name
+    is level_name for BreathQuest/VoiceHurdleRace, sub-game for VaakMirror,
+    phoneme for Flashcards. accuracy_pct meaning varies by game (see
+    parent.py's get_parent_progress for the per-game formula) but is always
+    0-100. stars is None for games with no stars concept (VaakMirror,
+    Flashcards)."""
+    category_name: str
+    attempts: int
+    accuracy_pct: float
+    last_played: datetime | None
+    stars: Optional[int] = None
+
+
 class PatientProgress(BaseModel):
     patient_id: str
     first_name: str
@@ -474,7 +489,8 @@ class ParentProgressOut(BaseModel):
     max_possible_stars: int
     completion_rate: float
     improvement_trend: Optional[float]
-    level_progress: List[LevelProgress]
+    level_progress: List[LevelProgress]   # kept for backward compat (report_pdf.py etc. — BreathQuest only)
+    categories: dict[str, List[CategoryProgress]]  # {"breathquest": [...], "voicehurdlerace": [...], "vaakmirror": [...], "flashcards": [...]}
     weekly_summary: WeeklySummaryOut
 
 

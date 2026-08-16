@@ -12,12 +12,28 @@ from app.database import get_db
 from app.models.therapist import Therapist
 from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse
 from app.breathquest_core.security import hash_password, verify_password, create_access_token
+from app.breathquest_core.parental_consent import check_email_consent
 
 router = APIRouter(prefix="/auth", tags=["therapist-auth"])
 
 
 @router.post("/register", response_model=TherapistTokenResponse, status_code=status.HTTP_201_CREATED)
 async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends(get_db)):
+    # Same recently-verified-email gate as kid-register (see
+    # parental_consent.py) -- a therapist signing up standalone has no
+    # adult/org already vouching for them, same "no one else in the loop"
+    # situation kid-register was built for. AUTO_VERIFY_CONSENT currently
+    # makes this auto-grant once an email is provided (no live OTP
+    # provider wired up yet) -- see that flag's docstring.
+    consent = await check_email_consent(data.email, db)
+    if not consent.granted:
+        detail_by_reason = {
+            "not_verified": "Please verify your email before registering",
+            "expired": "Please verify your email again before registering",
+        }
+        detail = detail_by_reason.get(consent.reason, "Please verify your email before registering")
+        raise HTTPException(status_code=403, detail=detail)
+
     existing = await db.execute(select(Therapist).where(Therapist.email == data.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")

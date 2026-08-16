@@ -59,7 +59,24 @@ export default function ParentDashboard() {
 
       <div className="relative flex-1 min-w-0 max-w-3xl mx-auto px-6 py-10">
         {status === 'loading' && (
-          <div className="text-center py-20 text-paper/40">Loading progress…</div>
+          <div className="animate-pulse">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-8 h-8 rounded-full bg-white/[0.06]" />
+              <div className="h-3 w-40 rounded-full bg-white/[0.06]" />
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4 h-24" />
+              ))}
+            </div>
+            <div className="rounded-2xl bg-white/[0.04] border border-white/[0.06] h-20 mb-8" />
+            <div className="h-3 w-28 rounded-full bg-white/[0.06] mb-3" />
+            <div className="flex flex-col gap-2.5">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="rounded-2xl bg-white/[0.04] border border-white/[0.06] h-16" />
+              ))}
+            </div>
+          </div>
         )}
 
         {status === 'error' && (
@@ -138,10 +155,11 @@ export default function ParentDashboard() {
               )}
             </div>
 
-            {/* Total stars bar */}
+            {/* Total stars bar -- now BreathQuest + VoiceHurdleRace combined,
+                the two games that actually have a stars concept. */}
             <Card className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-paper/60 text-sm font-medium">Total stars (BreathQuest)</span>
+                <span className="text-paper/60 text-sm font-medium">Total stars</span>
                 <span className="text-paper/40 text-xs">{data.total_stars} / {data.max_possible_stars}</span>
               </div>
               <div className="h-3 rounded-full bg-white/[0.06] overflow-hidden">
@@ -152,22 +170,22 @@ export default function ParentDashboard() {
               </div>
             </Card>
 
-            {/* Per-level breakdown -- best stars and last played, no raw
-                scores (avg_breath_strength always comes back null here on
-                purpose from the backend). */}
-            <h2 className="font-display text-lg font-bold text-paper mb-3">By level</h2>
-            <div className="flex flex-col gap-2.5">
-              {data.level_progress.map((lvl) => (
-                <Card key={lvl.level_id} className="flex items-center justify-between gap-4 py-4">
+            {/* Games & Levels -- BreathQuest + VoiceHurdleRace merged, since
+                both are level_id/level_name/stars shaped. avg_breath_strength
+                is still never shown here on purpose. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">Games & levels</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {[...(data.categories?.breathquest ?? []), ...(data.categories?.voicehurdlerace ?? [])].map((cat, i) => (
+                <Card key={i} className="flex items-center justify-between gap-4 py-4">
                   <div>
-                    <p className="text-paper text-sm font-semibold">{lvl.level_name}</p>
+                    <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
                     <p className="text-paper/35 text-xs mt-0.5">
-                      {lvl.attempts} attempt{lvl.attempts === 1 ? '' : 's'} · last played {formatDate(lvl.last_played)}
+                      {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {Array.from({ length: 3 }, (_, j) => (
-                      <span key={j} className="text-lg" style={{ color: j < lvl.best_stars ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
+                      <span key={j} className="text-lg" style={{ color: j < (cat.stars ?? 0) ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
                         ★
                       </span>
                     ))}
@@ -176,9 +194,47 @@ export default function ParentDashboard() {
               ))}
             </div>
 
-            <p className="text-paper/25 text-xs text-center mt-10">
-              Showing BreathQuest progress. Ask your child's therapist about progress in other games.
-            </p>
+            {/* VaakMirror -- no stars concept, shown as pass-rate instead. */}
+            {data.categories?.vaakmirror?.length > 0 && (
+              <>
+                <h2 className="font-display text-lg font-bold text-paper mb-3">VaakMirror</h2>
+                <div className="flex flex-col gap-2.5 mb-8">
+                  {data.categories.vaakmirror.map((cat, i) => (
+                    <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                      <div>
+                        <p className="text-paper text-sm font-semibold">
+                          {cat.category_name.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
+                        </p>
+                        <p className="text-paper/35 text-xs mt-0.5">
+                          {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                        </p>
+                      </div>
+                      <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Flashcards -- per-phoneme mastery, no stars/levels either. */}
+            {data.categories?.flashcards?.length > 0 && (
+              <>
+                <h2 className="font-display text-lg font-bold text-paper mb-3">Flashcards</h2>
+                <div className="flex flex-col gap-2.5 mb-8">
+                  {data.categories.flashcards.map((cat, i) => (
+                    <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                      <div>
+                        <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
+                        <p className="text-paper/35 text-xs mt-0.5">
+                          {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                        </p>
+                      </div>
+                      <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
