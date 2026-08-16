@@ -11,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.breathquest_models import Parent, GameSession
-from app.models.patient import Patient
-from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut
+from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient
+from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress
 from app.breathquest_core.deps import get_current_parent
 from app.services.weekly_summary import generate_weekly_summary
 from app.services.home_practice_ideas import IDEAS, filter_ideas
@@ -22,19 +21,21 @@ from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH
 # vaakmirror lives outside this backend's Python path in some deploy
 # configs -- degrade to None rather than crashing app startup, same
 # pattern as kid_progress.py's own VaakMirrorSession handling.
-try:
-    from vaakmirror.models import GameSession as VaakMirrorSession, Attempt
-except ImportError:
-    VaakMirrorSession = None
-    Attempt = None
-from app.schemas.breathquest_schemas import LevelProgress
+from collections import defaultdict
+from app.models.vaakmirror_models import (
+    VaakMirrorSession, Attempt, AttemptOutcome,
+)
+from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from app.models.flashcards_models import PhonemeMastery
 from sqlalchemy import func
+
+_VM_SUCCESS_OUTCOMES = (AttemptOutcome.passed, AttemptOutcome.caught)  # matches weekly_summary.py's definition
 
 router = APIRouter(prefix="/parent", tags=["parent"])
 
 
-async def _get_linked_patient(parent: Parent, db: AsyncSession) -> Patient:
-    result = await db.execute(select(Patient).where(Patient.id == parent.patient_id))
+async def _get_linked_patient(parent: Parent, db: AsyncSession) -> BreathQuestPatient:
+    result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Linked child account no longer exists")
@@ -48,6 +49,9 @@ async def get_parent_progress(
 ):
     patient = await _get_linked_patient(parent, db)
 
+    pid_str = str(patient.id)
+
+    # --- BreathQuest ---
     sessions_result = await db.execute(
         select(GameSession)
         .where(GameSession.patient_id == patient.id)
@@ -60,15 +64,17 @@ async def get_parent_progress(
     max_possible = len(LEVEL_NAMES) * 3
 
     level_progress = []
+    bq_categories = []
     for level_id, level_name in LEVEL_NAMES.items():
         level_sessions = [s for s in completed if s.level_id == level_id]
+        all_level_sessions = [s for s in sessions if s.level_id == level_id]
         best_stars = max((s.stars_earned or 0 for s in level_sessions), default=0)
         avg_stars = (sum(s.stars_earned or 0 for s in level_sessions) / len(level_sessions)) if level_sessions else 0.0
         last_played = max((s.started_at for s in level_sessions), default=None)
         level_progress.append(LevelProgress(
             level_id=level_id,
             level_name=level_name,
-            attempts=len([s for s in sessions if s.level_id == level_id]),
+            attempts=len(all_level_sessions),
             best_stars=best_stars,
             avg_stars=round(avg_stars, 2),
             # Deliberately omitted for parents — avg_breath_strength is a
@@ -77,6 +83,66 @@ async def get_parent_progress(
             avg_breath_strength=None,
             last_played=last_played,
         ))
+        bq_categories.append(CategoryProgress(
+            category_name=level_name,
+            attempts=len(all_level_sessions),
+            accuracy_pct=round(100 * len(level_sessions) / len(all_level_sessions), 1) if all_level_sessions else 0.0,
+            last_played=last_played,
+            stars=best_stars,
+        ))
+
+    # --- VoiceHurdleRace ---
+    vhr_sessions = (await db.execute(
+        select(VoiceHurdleRaceSession).where(VoiceHurdleRaceSession.patient_id == patient.id)
+    )).scalars().all()
+    vhr_by_level = defaultdict(list)
+    for s in vhr_sessions:
+        vhr_by_level[s.level_name].append(s)
+    vhr_categories = [
+        CategoryProgress(
+            category_name=name,
+            attempts=len(rows),
+            accuracy_pct=round(sum((r.pitch_accuracy + r.loudness_accuracy) / 2 for r in rows) / len(rows), 1),
+            last_played=max(r.created_at for r in rows),
+            stars=max(r.stars for r in rows),
+        ) for name, rows in vhr_by_level.items()
+    ]
+    vhr_total_stars = sum(s.stars for s in vhr_sessions)
+
+    # --- VaakMirror (patient_id is a loose String column, not a real FK —
+    # join Attempt -> VaakMirrorSession on session_id, filter session's
+    # patient_id as a string compare, same pattern as weekly_summary.py) ---
+    vm_attempts = (await db.execute(
+        select(Attempt, VaakMirrorSession.game)
+        .join(VaakMirrorSession, Attempt.session_id == VaakMirrorSession.id)
+        .where(VaakMirrorSession.patient_id == pid_str)
+    )).all()
+    vm_by_game = defaultdict(list)
+    for attempt, game in vm_attempts:
+        vm_by_game[game.value].append(attempt)
+    vm_categories = [
+        CategoryProgress(
+            category_name=game,
+            attempts=len(rows),
+            accuracy_pct=round(100 * len([r for r in rows if r.outcome in _VM_SUCCESS_OUTCOMES]) / len(rows), 1),
+            last_played=max(r.created_at for r in rows),
+            stars=None,
+        ) for game, rows in vm_by_game.items()
+    ]
+
+    # --- Flashcards ---
+    fc_mastery = (await db.execute(
+        select(PhonemeMastery).where(PhonemeMastery.patient_id == patient.id)
+    )).scalars().all()
+    fc_categories = [
+        CategoryProgress(
+            category_name=m.phoneme,
+            attempts=m.attempts_count,
+            accuracy_pct=round(m.accuracy, 1),
+            last_played=m.last_practiced_at,
+            stars=None,
+        ) for m in fc_mastery
+    ]
 
     trend = None
     if len(completed) >= 6:
@@ -92,11 +158,17 @@ async def get_parent_progress(
         child_first_name=patient.first_name,
         avatar=patient.avatar,
         total_sessions=len(sessions),
-        total_stars=total_stars,
-        max_possible_stars=max_possible,
+        total_stars=total_stars + vhr_total_stars,
+        max_possible_stars=max_possible + len(vhr_by_level) * 3,
         completion_rate=round(len(completed) / len(sessions), 2) if sessions else 0.0,
         improvement_trend=trend,
         level_progress=level_progress,
+        categories={
+            "breathquest": bq_categories,
+            "voicehurdlerace": vhr_categories,
+            "vaakmirror": vm_categories,
+            "flashcards": fc_categories,
+        },
         weekly_summary=WeeklySummaryOut(**weekly_data),
     )
 
@@ -182,7 +254,7 @@ async def get_guided_activity(
         pool = IDEAS
 
     # Stable per-day pick so the suggestion doesn't change on every refresh.
-    pick_index = (hash(patient.id + datetime.now(timezone.utc).strftime("%Y-%m-%d"))) % len(pool)
+    pick_index = (hash(str(patient.id) + datetime.now(timezone.utc).strftime("%Y-%m-%d"))) % len(pool)
     idea = pool[pick_index]
 
     if weakest_tag:
