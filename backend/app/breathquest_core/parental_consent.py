@@ -62,7 +62,20 @@ async def _check_factor_consent(model, field_name: str, value: str, db: AsyncSes
     """Shared recency-window check, parameterized over EmailVerification
     (field_name="email") and PhoneVerification (field_name="phone") --
     the two models are identical in shape, so this avoids duplicating the
-    query/window logic twice."""
+    query/window logic twice.
+
+    AUTO_VERIFY_CONSENT bypass lives here (not just in
+    check_parental_consent) so single-factor callers -- check_email_consent
+    on its own, e.g. therapist registration -- get the same "no OTP
+    round-trip needed yet" behavior as the dual-factor kid/parent flows,
+    instead of being the one path that actually enforces a real
+    EmailVerification row that nothing in this environment can create yet."""
+    if AUTO_VERIFY_CONSENT:
+        if not value or not value.strip():
+            return ConsentStatus(granted=False, reason="not_verified")
+        now = datetime.now(timezone.utc)
+        return ConsentStatus(granted=True, reason="granted_auto_verify_stub", verified_at=now)
+
     result = await db.execute(
         select(model)
         .where(

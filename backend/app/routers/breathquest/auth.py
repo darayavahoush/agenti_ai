@@ -19,11 +19,20 @@ from sqlalchemy import func, select
 from datetime import datetime, timezone
 
 from app.database import get_db, SessionLocal
-from app.models.breathquest_models import BreathQuestPatient, Parent
+from app.models.breathquest_models import (
+    BreathQuestPatient, Parent, Subscription,
+    TherapistNote, Assignment, Goal, Message, HomePracticeLog,
+    GameSession,
+)
 from app.models.patient import Patient
+from app.models.therapist import Therapist
+from app.models.vaakmirror_models import VaakMirrorSession, Attempt
+from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
+    ParentKidRegisterRequest,
 )
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
@@ -31,6 +40,45 @@ from app.breathquest_core.security import (
 )
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 from app.breathquest_core.parental_consent import check_parental_consent
+from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
+from sqlalchemy import delete as sa_delete
+
+
+async def _delete_patient_cascade(db: AsyncSession, patient_id) -> None:
+    """Deletes every row across every table that FKs to this patient,
+    explicitly and in dependency order, rather than relying on
+    BreathQuestPatient's ORM-level cascade='all, delete-orphan'
+    relationships firing correctly in an async session (which requires
+    those relationships to already be loaded -- not guaranteed here).
+    VaakMirror has no real FK (patient_id is a loose string column), so
+    it's deleted via a join on session_id instead of a direct filter.
+    Caller is responsible for db.commit()."""
+    pid_str = str(patient_id)
+
+    vm_session_ids = (await db.execute(
+        select(VaakMirrorSession.id).where(VaakMirrorSession.patient_id == pid_str)
+    )).scalars().all()
+    if vm_session_ids:
+        await db.execute(sa_delete(Attempt).where(Attempt.session_id.in_(vm_session_ids)))
+    await db.execute(sa_delete(VaakMirrorSession).where(VaakMirrorSession.patient_id == pid_str))
+
+    await db.execute(sa_delete(VoiceHurdleRaceSession).where(VoiceHurdleRaceSession.patient_id == patient_id))
+    await db.execute(sa_delete(PhonemeMastery).where(PhonemeMastery.patient_id == patient_id))
+    await db.execute(sa_delete(FlashcardAttempt).where(FlashcardAttempt.patient_id == patient_id))
+
+    await db.execute(sa_delete(GameSession).where(GameSession.patient_id == patient_id))
+    await db.execute(sa_delete(TherapistNote).where(TherapistNote.patient_id == patient_id))
+    await db.execute(sa_delete(Assignment).where(Assignment.patient_id == patient_id))
+    await db.execute(sa_delete(Goal).where(Goal.patient_id == patient_id))
+    await db.execute(sa_delete(Message).where(Message.patient_id == patient_id))
+    await db.execute(sa_delete(HomePracticeLog).where(HomePracticeLog.patient_id == patient_id))
+
+    parent_row = (await db.execute(select(Parent).where(Parent.patient_id == patient_id))).scalar_one_or_none()
+    if parent_row:
+        await db.execute(sa_delete(Subscription).where(Subscription.owner_parent_id == parent_row.id))
+    await db.execute(sa_delete(Parent).where(Parent.patient_id == patient_id))
+
+    await db.execute(sa_delete(BreathQuestPatient).where(BreathQuestPatient.id == patient_id))
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -116,9 +164,124 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
     )
+
+
+@router.post("/parent-kid-register", response_model=ParentTokenResponse, status_code=201)
+async def parent_kid_register(data: ParentKidRegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Parent-initiated combined signup, no therapist -- creates the kid
+    account and links a parent account to it in one transaction. See
+    ParentKidRegisterRequest's docstring for how this differs from the
+    existing kid-register -> parent-register two-step flow."""
+    consent = await check_parental_consent(data.email, data.phone, db)
+    if not consent.granted:
+        detail_by_reason = {
+            "email_not_verified": "Please verify your email before registering",
+            "email_expired": "Please verify your email again before registering",
+            "phone_not_verified": "Please verify your phone number before registering",
+            "phone_expired": "Please verify your phone number again before registering",
+        }
+        detail = detail_by_reason.get(consent.reason, "Please verify your email and phone before registering")
+        raise HTTPException(status_code=403, detail=detail)
+
+    existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
+    if existing_parent_email.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    player_code = await generate_unique_player_code(db, data.avatar)
+    patient = BreathQuestPatient(
+        therapist_id=None,
+        first_name=data.first_name,
+        avatar=data.avatar,
+        pin_hash=hash_pin(data.pin),
+        player_code=player_code,
+        parent_email=data.email,
+        parent_consent_verified_at=consent.email_verified_at,
+        parent_phone=data.phone,
+        parent_phone_consent_verified_at=consent.phone_verified_at,
+    )
+    db.add(patient)
+    await db.flush()  # get patient.id without committing yet
+
+    parent = Parent(
+        patient_id=patient.id,
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        full_name=data.full_name,
+        phone=data.phone,
+    )
+    db.add(parent)
+    await db.commit()
+    await db.refresh(parent)
+
+    return _make_parent_token_response(parent, patient.first_name)
+
+
+@router.delete("/parent-account", status_code=204)
+async def delete_parent_account(
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Deletes the parent's account AND their linked child's account +
+    all game data (see _delete_patient_cascade) -- a parent account has
+    no meaning without its one linked child in this app's model."""
+    await _delete_patient_cascade(db, parent.patient_id)
+    await db.commit()
+
+
+@router.delete("/account", status_code=204)
+async def delete_therapist_account(
+    therapist: Therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """Deletes the therapist's own account. Does NOT cascade-delete their
+    patients -- a therapist leaving shouldn't destroy a kid's account or
+    progress. Nullable FKs (BreathQuestPatient.therapist_id,
+    Subscription.owner_therapist_id, Patient.registered_therapist_id) are
+    detached instead. TherapistNote.therapist_id is NOT nullable (notes
+    are authored content, not a loose reference), so those rows are
+    deleted outright rather than left dangling."""
+    await db.execute(
+        sa_delete(TherapistNote).where(TherapistNote.therapist_id == therapist.id)
+    )
+    await db.execute(
+        BreathQuestPatient.__table__.update()
+        .where(BreathQuestPatient.therapist_id == therapist.id)
+        .values(therapist_id=None)
+    )
+    await db.execute(
+        Subscription.__table__.update()
+        .where(Subscription.owner_therapist_id == therapist.id)
+        .values(owner_therapist_id=None)
+    )
+    await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
+    await db.commit()
+
+    # Patient (Assessment's model) lives on a separate sync session, same
+    # as kid_pin_setup's main_patient lookup above -- not part of the
+    # async `db` session at all.
+    sync_db = SessionLocal()
+    try:
+        sync_db.query(Patient).filter(
+            Patient.registered_therapist_id == therapist.id
+        ).update({Patient.registered_therapist_id: None})
+        sync_db.commit()
+    finally:
+        sync_db.close()
+
+
+@router.delete("/kid-account", status_code=204)
+async def delete_kid_account(
+    patient: BreathQuestPatient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kid deletes their own account -- also removes any linked Parent
+    row, same cascade as the parent-initiated delete above."""
+    await _delete_patient_cascade(db, patient.id)
+    await db.commit()
 
 
 @router.post("/kid-pin-setup", response_model=KidTokenResponse, status_code=201)
@@ -251,6 +414,8 @@ def _make_parent_token_response(parent: Parent, child_first_name: str) -> Parent
         access_token=token,
         parent_id=str(parent.id),
         patient_id=str(parent.patient_id),
+        email=parent.email,
+        phone=parent.phone,
         child_first_name=child_first_name,
     )
 

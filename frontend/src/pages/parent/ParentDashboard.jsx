@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard } from 'lucide-react'
+import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar } from '../../components/ui'
+import { useNavigate } from 'react-router-dom'
 import { parentAPI } from '../../api/client'
 
 function formatDate(iso) {
@@ -18,7 +19,10 @@ function formatDate(iso) {
 // LevelProgress in parent.py), no clinical notes. That's therapist-only,
 // via a completely separate dashboard.py + therapist token.
 export default function ParentDashboard() {
-  const { parent, logout } = useAuth()
+  const { parent, logout, deleteParentAccount } = useAuth()
+  const navigate = useNavigate()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [data, setData] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [activity, setActivity] = useState(null)
@@ -52,6 +56,7 @@ export default function ParentDashboard() {
         items={[
           { label: 'Progress', icon: TrendingUp, to: '/parent/dashboard' },
           { label: 'Billing', icon: CreditCard, to: '/parent/billing' },
+          { label: 'Settings', icon: Settings, to: '/parent/settings' },
         ]}
         name={(data?.child_first_name || parent?.child_first_name) ? `${data?.child_first_name || parent?.child_first_name}'s Progress` : undefined}
         onLogout={logout}

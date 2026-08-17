@@ -93,11 +93,16 @@ export const authAPI = {
   kidRegister: (data) => api.post('/auth/kid-register', data),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
   parentRegister: (data) => api.post('/auth/parent-register', data),
+  parentKidRegister: (data) => api.post('/auth/parent-kid-register', data),
   parentLogin:    (data) => api.post('/auth/parent-login', data),
 
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidCandidates:       () => api.get('/auth/kid-candidates'),
   kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),
+
+  deleteParentAccount: () => api.delete('/auth/parent-account'),
+  deleteKidAccount:    () => api.delete('/auth/kid-account'),
+  deleteTherapistAccount: () => api.delete('/auth/account'),
 }
 
 // Kid-authenticated wrapper around the Assessment flow (see

@@ -6,7 +6,7 @@ import { Button, Card, Badge, Avatar, StatCard, PageLoader, Sidebar, AmbientGlow
 import AddPatientModal from '../../components/therapist/AddPatientModal'
 import {
   Users, UserCheck, Gamepad2, Star, AlertTriangle, Clock,
-  Search, ArrowUpDown, Sparkles, UserPlus, ChevronRight, LayoutDashboard, CreditCard, Rocket,
+  Search, ArrowUpDown, Sparkles, UserPlus, ChevronRight, LayoutDashboard, CreditCard, Rocket, Settings,
 } from 'lucide-react'
 
 function relativeDate(iso) {
@@ -90,6 +90,7 @@ export default function TherapistDashboard() {
         items={[
           { label: 'Dashboard', icon: LayoutDashboard, to: '/therapist/dashboard' },
           { label: 'Billing', icon: CreditCard, to: '/therapist/billing' },
+          { label: 'Settings', icon: Settings, to: '/therapist/settings' },
         ]}
         name={therapist?.full_name}
         subtitle={therapist?.clinic_name}

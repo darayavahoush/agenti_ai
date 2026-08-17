@@ -21,3 +21,4 @@ class TherapistTokenResponse(BaseModel):
     therapist_id: str
     full_name: str
     email: str
+    phone: str | None = None

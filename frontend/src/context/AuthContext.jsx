@@ -148,10 +148,27 @@ export function AuthProvider({ children }) {
   // codeType distinguishes which field the code goes in ('player_code' vs
   // 'invite_code') — the two ways described in the parent-facing UI:
   // "log in with your kid's existing code" vs "use the code your
-  // therapist gave you".
-  const registerParent = async ({ code, codeType, email, password, fullName }) => {
+  // therapist gave you". A third value, 'new_child', means there's no
+  // code at all yet -- the parent is creating both their own account and
+  // their child's in one step (POST /auth/parent-kid-register instead of
+  // /auth/parent-register), so kidFirstName/kidAvatar/kidPin are used
+  // instead of code, and phone is required (dual-factor consent) rather
+  // than optional.
+  const registerParent = async ({ code, codeType, email, password, fullName, phone, kidFirstName, kidAvatar, kidPin }) => {
+    if (codeType === 'new_child') {
+      const payload = {
+        first_name: kidFirstName, avatar: kidAvatar, pin: kidPin,
+        email, password, full_name: fullName, phone,
+      }
+      const { data } = await authAPI.parentKidRegister(payload)
+      localStorage.setItem('bq_token',     data.access_token)
+      localStorage.setItem('bq_user_type', 'parent')
+      localStorage.setItem('bq_user_data', JSON.stringify(data))
+      setParent(data); setTherapist(null); setPatient(null)
+      return data
+    }
     const payload = {
-      email, password, full_name: fullName,
+      email, password, full_name: fullName, phone,
       [codeType === 'invite' ? 'invite_code' : 'player_code']: code,
     }
     const { data } = await authAPI.parentRegister(payload)
@@ -160,6 +177,32 @@ export function AuthProvider({ children }) {
     localStorage.setItem('bq_user_data', JSON.stringify(data))
     setParent(data); setTherapist(null); setPatient(null)
     return data
+  }
+
+  // Shared by all three delete-account flows: clears every piece of
+  // local auth state regardless of which role called it, since deleting
+  // an account should always end in a fully logged-out state (same
+  // cleanup logout() already does).
+  const _clearSession = () => {
+    localStorage.removeItem('bq_token')
+    localStorage.removeItem('bq_user_type')
+    localStorage.removeItem('bq_user_data')
+    setParent(null); setTherapist(null); setPatient(null)
+  }
+
+  const deleteParentAccount = async () => {
+    await authAPI.deleteParentAccount()
+    _clearSession()
+  }
+
+  const deleteKidAccount = async () => {
+    await authAPI.deleteKidAccount()
+    _clearSession()
+  }
+
+  const deleteTherapistAccount = async () => {
+    await authAPI.deleteTherapistAccount()
+    _clearSession()
   }
 
   const loginParent = async (email, password) => {
@@ -203,6 +246,7 @@ export function AuthProvider({ children }) {
       markAssessmentComplete,
       startSupervisedSession, endSupervisedSession,
       loginParent, registerParent, logout,
+      deleteParentAccount, deleteKidAccount, deleteTherapistAccount,
       updatePatient,
       isTherapist: !!therapist,
       isKid:       !!patient,

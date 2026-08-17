@@ -6,12 +6,15 @@ import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { meAPI } from '../../api/client'
 import PhotoCropModal from './PhotoCropModal'
 import { useAuth } from '../../context/AuthContext'
+import { Trash2 } from 'lucide-react'
 
 const AVATAR_OPTIONS = Object.keys(CREATURE_ACCENTS)
 
 export default function MyAccount() {
   const navigate = useNavigate()
-  const { patient, updatePatient } = useAuth()
+  const { patient, updatePatient, deleteKidAccount } = useAuth()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [progress, setProgress] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
 
@@ -268,6 +271,44 @@ export default function MyAccount() {
           </>
         )}
       </div>
+      {/* Delete account -- two-tap confirm, since this is destructive and
+          irreversible (deletes all game progress, not just the login). */}
+      <div className="mt-12 pt-6 border-t border-white/10">
+        {!confirmingDelete ? (
+          <button onClick={() => setConfirmingDelete(true)}
+                  className="text-white/25 hover:text-brand-coral text-xs flex items-center gap-1.5 mx-auto transition-colors">
+            <Trash2 className="w-3.5 h-3.5" /> Delete my account
+          </button>
+        ) : (
+          <div className="text-center">
+            <p className="text-white/50 text-sm mb-3">
+              This deletes everything — your progress, stars, all of it. Are you sure?
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => setConfirmingDelete(false)}
+                      className="text-white/40 hover:text-white/70 text-sm px-4 py-2 transition-colors">
+                Never mind
+              </button>
+              <button
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true)
+                  try {
+                    await deleteKidAccount()
+                    navigate('/')
+                  } catch {
+                    setDeleting(false)
+                  }
+                }}
+                className="text-brand-coral hover:text-white text-sm font-semibold px-4 py-2 rounded-xl
+                           bg-brand-coral/10 hover:bg-brand-coral border border-brand-coral/30 transition-colors disabled:opacity-50">
+                {deleting ? 'Deleting…' : 'Yes, delete it'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {cropImageSrc && (
         <PhotoCropModal
           imageSrc={cropImageSrc}
