@@ -55,7 +55,7 @@ function SpeakButton({ onClick, className = 'text-white/25 hover:text-white/50' 
 // so it's the moment to introduce the cast, not a generic icon.
 function WelcomeCrew() {
   return (
-    <div className="relative flex items-end justify-center gap-4 mt-16 mb-4">
+    <div className="relative flex items-end justify-center gap-4 mt-12 mb-3">
       <div className="absolute inset-x-10 inset-y-0 rounded-full bg-ember/20 blur-2xl motion-safe:animate-pulse-slow" />
       <div className="relative w-14 h-14 motion-safe:animate-float"
            style={{ animationDelay: '0.4s', animationDuration: '3.4s' }}>
@@ -302,49 +302,20 @@ export default function KidPlay() {
         </Link>
       )}
 
-      {/* Mode chooser */}
+      {/* Mode chooser — action buttons come right after a short intro,
+          not after the full game-preview row. The badges used to sit
+          between the intro and these buttons, pushing New Player/I have
+          a code below the fold on first visit; they're now a compact
+          teaser underneath instead of a scroll gate in front of them. */}
       {mode === 'choose' && (
         <div className="text-center w-full max-w-sm relative z-10">
           <WelcomeCrew />
-          <h1 className="font-vm-display text-3xl font-bold text-white mb-3 leading-tight">
+          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 leading-tight">
             Blow, speak, and watch the world move.
           </h1>
-          <p className="text-white/50 text-sm mb-5">
-            Four playful worlds built to turn practice into an adventure.
-          </p>
-          <p className="text-white/40 mb-6 flex items-center justify-center gap-1.5">
+          <p className="text-white/40 mb-6 flex items-center justify-center gap-1.5 text-sm">
             Ready to play? <SpeakButton onClick={replayChoose} />
           </p>
-          <div className="relative flex flex-wrap items-center justify-center gap-3 mb-12">
-            {GAMES.map((g) => (
-              <button
-                key={g.key}
-                type="button"
-                onClick={() => setActiveGame(cur => cur === g.key ? null : g.key)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold border transition-all
-                            hover:-translate-y-0.5 active:scale-95 ${g.badgeClass}
-                            ${activeGame === g.key ? 'ring-2 ring-white/40' : ''}`}
-              >
-                {g.emoji} {g.name}
-              </button>
-            ))}
-
-            {activeGame && (() => {
-              const g = GAMES.find(x => x.key === activeGame)
-              return (
-                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 z-20
-                                bg-dusk-mid/95 backdrop-blur-md border border-white/15 rounded-2xl
-                                p-4 text-left shadow-xl">
-                  <button onClick={() => setActiveGame(null)}
-                          className="absolute top-2 right-2 text-white/30 hover:text-white/60 text-xs">
-                    ✕
-                  </button>
-                  <p className="font-vm-display text-white font-bold mb-1">{g.emoji} {g.name}</p>
-                  <p className="text-white/50 text-sm">{g.desc}</p>
-                </div>
-              )
-            })()}
-          </div>
           <div className="flex flex-col gap-4">
             <button onClick={() => setMode('register')}
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
@@ -403,6 +374,47 @@ export default function KidPlay() {
                 </div>
               </div>
             </button>
+          </div>
+
+          {/* Game preview — a teaser below the actual actions now, not a
+              row you have to get past first. One line, horizontally
+              scrollable so all 5 fit without wrapping on narrow screens. */}
+          <p className="text-white/30 text-xs mt-10 mb-3">Five ways to practice, all in one place.</p>
+          {/* Named badges, wrapping onto 2 short lines rather than forced
+              onto one -- 5 full names don't fit one line at this width
+              without becoming unreadable. Popover opens ABOVE the row
+              (bottom-full, not top-full): this row sits near the bottom
+              of the page, and the page wrapper's overflow-hidden was
+              clipping a below-row popover out of view entirely. */}
+          <div className="relative flex flex-wrap items-center justify-center gap-2">
+            {GAMES.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setActiveGame(cur => cur === g.key ? null : g.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
+                            hover:-translate-y-0.5 active:scale-95 whitespace-nowrap ${g.badgeClass}
+                            ${activeGame === g.key ? 'ring-2 ring-white/40' : ''}`}
+              >
+                {g.emoji} {g.name}
+              </button>
+            ))}
+
+            {activeGame && (() => {
+              const g = GAMES.find(x => x.key === activeGame)
+              return (
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 z-20
+                                bg-dusk-mid/95 backdrop-blur-md border border-white/15 rounded-2xl
+                                p-4 text-left shadow-xl">
+                  <button onClick={() => setActiveGame(null)}
+                          className="absolute top-2 right-2 text-white/30 hover:text-white/60 text-xs">
+                    ✕
+                  </button>
+                  <p className="font-vm-display text-white font-bold mb-1">{g.emoji} {g.name}</p>
+                  <p className="text-white/50 text-sm">{g.desc}</p>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}

@@ -10,9 +10,12 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.therapist import Therapist
+from app.models.breathquest_models import BreathQuestPatient, Subscription
 from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse
 from app.breathquest_core.security import hash_password, verify_password, create_access_token
 from app.breathquest_core.parental_consent import check_email_consent
+from app.breathquest_core.deps import get_current_therapist
+from sqlalchemy import delete as sa_delete, update as sa_update
 
 router = APIRouter(prefix="/auth", tags=["therapist-auth"])
 
@@ -52,6 +55,7 @@ async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends
     return TherapistTokenResponse(
         access_token=token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
+        phone=therapist.phone,
     )
 
 
@@ -69,4 +73,22 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
     return TherapistTokenResponse(
         access_token=token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
+        phone=therapist.phone,
     )
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_therapist_account(
+    therapist: Therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """Deletes the therapist's own account. Does NOT cascade to their
+    patients -- BreathQuestPatient.therapist_id is nullable, so patients
+    just become unassigned (therapist_id=None) rather than being deleted,
+    matching how kid-register already creates patients with no therapist."""
+    await db.execute(
+        sa_update(BreathQuestPatient).where(BreathQuestPatient.therapist_id == therapist.id).values(therapist_id=None)
+    )
+    await db.execute(sa_delete(Subscription).where(Subscription.owner_therapist_id == therapist.id))
+    await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
+    await db.commit()

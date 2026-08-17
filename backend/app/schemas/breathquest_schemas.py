@@ -140,6 +140,7 @@ class KidTokenResponse(BaseModel):
     patient_id: str
     first_name: str
     avatar: str
+    avatar_photo_url: str | None = None
     player_code: str
     assessment_completed: bool = False
 
@@ -411,6 +412,58 @@ class AssessmentPinSetupRequest(BaseModel):
 #  Parent auth                                                         #
 # ------------------------------------------------------------------ #
 
+class ParentKidRegisterRequest(BaseModel):
+    """Combined signup: a parent creates their own account AND their
+    child's account in one step, with no therapist involved (therapist_id
+    stays None on the resulting BreathQuestPatient, same as kid-register).
+    Distinct from the existing two-step dance (kid-register, then a
+    separate parent-register using the resulting player_code) -- this is
+    for the parent-initiated case where they're doing both at once.
+
+    Reuses kid-register's COPPA gate: email/phone must already be
+    recently verified via POST /verify/confirm + /verify/phone/confirm
+    (see check_parental_consent) before this will touch the DB. The
+    parent's email/phone here ARE their login credentials AND the
+    consent-check subject -- unlike kid-register where parent_email is
+    only used for consent and no Parent account gets created."""
+    # -- kid fields --
+    first_name: str
+    avatar: str = "chick"
+    pin: str
+    # -- parent fields --
+    email: EmailStr
+    password: str
+    full_name: Optional[str] = None
+    phone: str
+
+    @validator("first_name")
+    def first_name_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter your child's name")
+        return v
+
+    @validator("phone")
+    def phone_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter your phone number")
+        return v
+
+    @validator("pin")
+    def pin_format(cls, v):
+        if not re.match(r"^\d{4}$", v):
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
+
+    @validator("avatar")
+    def avatar_valid(cls, v):
+        valid = {"chick", "dragon", "cloud", "star", "rocket", "fish"}
+        if v not in valid:
+            raise ValueError(f"Avatar must be one of {valid}")
+        return v
+
+
 class ParentRegisterRequest(BaseModel):
     # Exactly one of these must be provided — validated in the endpoint,
     # not here, since it needs a DB lookup either way.
@@ -434,6 +487,8 @@ class ParentTokenResponse(BaseModel):
     parent_id: str
     patient_id: str
     child_first_name: str
+    email: str
+    phone: str | None = None
 
 
 class ParentInviteCodeOut(BaseModel):

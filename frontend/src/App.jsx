@@ -9,6 +9,7 @@ import TherapistLogin     from './pages/therapist/Login'
 import TherapistDashboard from './pages/therapist/Dashboard'
 import PatientDetail      from './pages/therapist/PatientDetail'
 import AgentInsight        from './pages/therapist/AgentInsight'
+import TherapistSettings  from './pages/therapist/Settings'
 import KidPlay            from './pages/kid/Play'
 import AssessmentGate      from './pages/kid/AssessmentGate'
 import AssessmentReport    from './pages/kid/AssessmentReport'
@@ -35,6 +36,7 @@ import Flashcards from './pages/kid/Flashcards'
 import VoiceHurdleRace    from './voiceHurdleRace/VoiceHurdleRace'
 import ParentAuth         from './pages/parent/ParentAuth'
 import ParentDashboard    from './pages/parent/ParentDashboard'
+import ParentSettings     from './pages/parent/Settings'
 import Verify             from './pages/Verify'
 import Billing            from './pages/Billing'
 import AuthPage           from './pages/AuthPage'
@@ -163,6 +165,9 @@ function AppRoutes() {
         <Route path="/therapist/billing" element={
           <ProtectedTherapist><Billing role="therapist" /></ProtectedTherapist>
         } />
+        <Route path="/therapist/settings" element={
+          <ProtectedTherapist><TherapistSettings /></ProtectedTherapist>
+        } />
 
         {/* Kid */}
         <Route path="/play" element={
@@ -239,6 +244,9 @@ function AppRoutes() {
         } />
         <Route path="/parent/billing" element={
           <ProtectedParent><Billing role="parent" /></ProtectedParent>
+        } />
+        <Route path="/parent/settings" element={
+          <ProtectedParent><ParentSettings /></ProtectedParent>
         } />
 
         <Route path="*" element={

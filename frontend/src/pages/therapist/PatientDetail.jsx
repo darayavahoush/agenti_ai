@@ -6,7 +6,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings } from 'lucide-react'
 
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
@@ -379,6 +379,7 @@ export default function PatientDetail() {
         role="therapist"
         items={[
           { label: 'Dashboard', icon: LayoutDashboard, to: '/therapist/dashboard' },
+          { label: 'Settings', icon: Settings, to: '/therapist/settings' },
         ]}
         name={therapist?.full_name}
         subtitle={therapist?.clinic_name}
