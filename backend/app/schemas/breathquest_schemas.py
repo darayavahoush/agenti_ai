@@ -547,6 +547,14 @@ class ParentProgressOut(BaseModel):
     level_progress: List[LevelProgress]   # kept for backward compat (report_pdf.py etc. — BreathQuest only)
     categories: dict[str, List[CategoryProgress]]  # {"breathquest": [...], "voicehurdlerace": [...], "vaakmirror": [...], "flashcards": [...]}
     weekly_summary: WeeklySummaryOut
+    # Added to surface two things parents couldn't see before: the same
+    # adaptive-difficulty "today's recommendation" therapists already get
+    # (PatientProgress.recommended_action, same chime_data_store source),
+    # and a breath-consistency trend (session-level only until now, never
+    # aggregated for the parent view).
+    recommended_action: Optional[str] = None
+    recommendation_message: Optional[str] = None
+    avg_breath_consistency: Optional[float] = None
 
 
 class KidProgressOut(BaseModel):

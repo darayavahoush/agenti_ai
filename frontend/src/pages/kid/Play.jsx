@@ -313,8 +313,27 @@ export default function KidPlay() {
           <h1 className="font-vm-display text-2xl font-bold text-white mb-2 leading-tight">
             Blow, speak, and watch the world move.
           </h1>
-          <p className="text-white/40 mb-6 flex items-center justify-center gap-1.5 text-sm">
+
+          {/* A felt moment, not just a claim -- breath literally moving a
+              game object, before any signup. Nothing else in this space
+              does breath-driven gameplay, so this is worth showing, not
+              just saying in marketing copy. */}
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="text-2xl motion-safe:animate-pulse-slow" style={{ animationDuration: '2.2s' }}>🌬️</span>
+            <span className="text-white/30 text-xs">→</span>
+            <span className="text-2xl motion-safe:animate-float" style={{ animationDuration: '2.2s' }}>🎈</span>
+          </div>
+
+          <p className="text-white/40 mb-2 flex items-center justify-center gap-1.5 text-sm">
             Ready to play? <SpeakButton onClick={replayChoose} />
+          </p>
+
+          {/* No-therapist trust badge -- most competitors assume a clinic
+              relationship or don't support one at all; worth stating
+              plainly since it's a real acquisition lever, not buried
+              backend logic. */}
+          <p className="text-white/25 text-xs mb-6">
+            Works with or without a therapist.
           </p>
           <div className="flex flex-col gap-4">
             <button onClick={() => setMode('register')}
@@ -376,10 +395,18 @@ export default function KidPlay() {
             </button>
           </div>
 
+          {/* Language badge -- the assessment flow genuinely supports 8
+              Indian languages (see routes/assessment.py's valid_languages),
+              which almost nothing else in this market does. Worth
+              surfacing at first contact, not buried in a settings screen. */}
+          <p className="text-white/25 text-xs mt-10 mb-1">
+            Practice in English, Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, or Marathi.
+          </p>
+
           {/* Game preview — a teaser below the actual actions now, not a
               row you have to get past first. One line, horizontally
               scrollable so all 5 fit without wrapping on narrow screens. */}
-          <p className="text-white/30 text-xs mt-10 mb-3">Five ways to practice, all in one place.</p>
+          <p className="text-white/30 text-xs mt-3 mb-3">Five ways to practice, all in one place.</p>
           {/* Named badges, wrapping onto 2 short lines rather than forced
               onto one -- 5 full names don't fit one line at this width
               without becoming unreadable. Popover opens ABOVE the row
