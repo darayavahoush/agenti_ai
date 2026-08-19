@@ -154,6 +154,19 @@ async def get_parent_progress(
     this_monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     weekly_data = await generate_weekly_summary(db, patient, this_monday, chime_data_store.DEFAULT_DB_PATH)
 
+    # Same adaptive-difficulty recommendation therapists already see on
+    # PatientProgress (dashboard.py) -- reusing the identical source
+    # rather than a second, possibly-divergent computation.
+    latest_decision = await asyncio.to_thread(chime_data_store.get_latest_decision, str(patient.id))
+    recommended_action = latest_decision["recommended_action"] if latest_decision else None
+    recommendation_message = latest_decision["recommendation_message"] if latest_decision else None
+
+    breath_consistency_vals = [s.breath_consistency for s in completed if s.breath_consistency is not None]
+    avg_breath_consistency = (
+        round(sum(breath_consistency_vals) / len(breath_consistency_vals), 3)
+        if breath_consistency_vals else None
+    )
+
     return ParentProgressOut(
         child_first_name=patient.first_name,
         avatar=patient.avatar,
@@ -170,6 +183,9 @@ async def get_parent_progress(
             "flashcards": fc_categories,
         },
         weekly_summary=WeeklySummaryOut(**weekly_data),
+        recommended_action=recommended_action,
+        recommendation_message=recommendation_message,
+        avg_breath_consistency=avg_breath_consistency,
     )
 
 

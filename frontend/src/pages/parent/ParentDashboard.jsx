@@ -93,11 +93,44 @@ export default function ParentDashboard() {
 
         {status === 'ready' && data && (
           <>
+            {/* Today's difficulty recommendation -- same adaptive-difficulty
+                agent decision therapists already see, now surfaced for
+                parents too. Only renders when there's an actual decision
+                on file (recommended_action is null otherwise). */}
+            {data.recommended_action && (
+              <Card className="border-brand-amber/25 mb-6 flex items-center gap-3">
+                <span className="text-xl">
+                  {data.recommended_action === 'raise' ? '🔼' : data.recommended_action === 'lower' ? '🔽' : '➡️'}
+                </span>
+                <div>
+                  <p className="text-paper text-sm font-semibold">
+                    Today's difficulty: {data.recommended_action === 'raise' ? 'stepped up' : data.recommended_action === 'lower' ? 'eased back' : 'holding steady'}
+                  </p>
+                  {data.recommendation_message && (
+                    <p className="text-paper/40 text-xs mt-0.5">{data.recommendation_message}</p>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Weekly summary — dense numbers/chips only, no narrative prose.
                 stats/highlights both come from the rule-based (no LLM)
                 generator dashboard.py already builds for therapists too. */}
             <Card className="border-mint/20 mb-6">
-              <p className="font-mono text-xs uppercase tracking-widest text-mint mb-4">This week</p>
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-mono text-xs uppercase tracking-widest text-mint">This week</p>
+                {/* Transparency note -- this summary is deterministic, built
+                    from actual session data, not an LLM guessing. Worth
+                    saying explicitly for an audience wary of AI summaries. */}
+                <span className="group relative">
+                  <span className="text-paper/25 text-xs cursor-help">ⓘ How we write this</span>
+                  <span className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-ink border border-white/10
+                                    p-3 text-paper/60 text-xs leading-relaxed opacity-0 group-hover:opacity-100
+                                    pointer-events-none transition-opacity z-20">
+                    Generated from your child's actual session data — not AI guessing. Same numbers every time, for the same week.
+                  </span>
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-x-4 gap-y-4 mb-5">
                 {[
                   ['BreathQuest', data.weekly_summary.stats.bq_sessions],
@@ -174,6 +207,18 @@ export default function ParentDashboard() {
                 />
               </div>
             </Card>
+
+            {/* Breath-consistency trend -- session-level data that was never
+                aggregated for parents before now. Only shows once there's
+                enough data to be meaningful. */}
+            {data.avg_breath_consistency != null && (
+              <Card className="mb-8 flex items-center justify-between">
+                <span className="text-paper/60 text-sm font-medium">Breath consistency</span>
+                <span className="text-mint-light text-sm font-semibold">
+                  {Math.round(data.avg_breath_consistency * 100)}%
+                </span>
+              </Card>
+            )}
 
             {/* Games & Levels -- BreathQuest + VoiceHurdleRace merged, since
                 both are level_id/level_name/stars shaped. avg_breath_strength
