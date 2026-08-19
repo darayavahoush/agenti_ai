@@ -220,12 +220,12 @@ export default function ParentDashboard() {
               </Card>
             )}
 
-            {/* Games & Levels -- BreathQuest + VoiceHurdleRace merged, since
-                both are level_id/level_name/stars shaped. avg_breath_strength
-                is still never shown here on purpose. */}
-            <h2 className="font-display text-lg font-bold text-paper mb-3">Games & levels</h2>
+            {/* BreathQuest -- always renders all 6 fixed levels regardless
+                of data (see bq_categories loop over LEVEL_NAMES server-side),
+                so this section alone was never the empty-state problem. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">BreathQuest</h2>
             <div className="flex flex-col gap-2.5 mb-8">
-              {[...(data.categories?.breathquest ?? []), ...(data.categories?.voicehurdlerace ?? [])].map((cat, i) => (
+              {(data.categories?.breathquest ?? []).map((cat, i) => (
                 <Card key={i} className="flex items-center justify-between gap-4 py-4">
                   <div>
                     <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
@@ -242,6 +242,39 @@ export default function ParentDashboard() {
                   </div>
                 </Card>
               ))}
+            </div>
+
+            {/* VoiceHurdleRace -- split out of the old merged BreathQuest+VHR
+                list. Its category list is built from actual session rows
+                (vhr_by_level server-side), so on zero sessions it was
+                silently contributing nothing to the merged list and
+                vanishing -- same always-visible + empty-state treatment as
+                VaakMirror/Flashcards below. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">VoiceHurdleRace</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.voicehurdlerace?.length > 0 ? (
+                data.categories.voicehurdlerace.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {Array.from({ length: 3 }, (_, j) => (
+                        <span key={j} className="text-lg" style={{ color: j < (cat.stars ?? 0) ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried VoiceHurdleRace yet.</p>
+                </Card>
+              )}
             </div>
 
             {/* VaakMirror -- no stars concept, shown as pass-rate instead.
@@ -291,6 +324,31 @@ export default function ParentDashboard() {
               ) : (
                 <Card className="py-4">
                   <p className="text-paper/40 text-sm">Hasn't tried Flashcards yet.</p>
+                </Card>
+              )}
+            </div>
+
+            {/* Chime -- new category, previously only surfaced as a single
+                aggregate number (chime_attempts) in the weekly stats grid
+                with no per-sound breakdown. Same pass-rate treatment as
+                VaakMirror/Flashcards since Chime has no stars concept. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">Chime</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.chime?.length > 0 ? (
+                data.categories.chime.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried Chime yet.</p>
                 </Card>
               )}
             </div>
