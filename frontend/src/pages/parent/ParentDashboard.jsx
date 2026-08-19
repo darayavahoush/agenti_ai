@@ -244,47 +244,56 @@ export default function ParentDashboard() {
               ))}
             </div>
 
-            {/* VaakMirror -- no stars concept, shown as pass-rate instead. */}
-            {data.categories?.vaakmirror?.length > 0 && (
-              <>
-                <h2 className="font-display text-lg font-bold text-paper mb-3">VaakMirror</h2>
-                <div className="flex flex-col gap-2.5 mb-8">
-                  {data.categories.vaakmirror.map((cat, i) => (
-                    <Card key={i} className="flex items-center justify-between gap-4 py-4">
-                      <div>
-                        <p className="text-paper text-sm font-semibold">
-                          {cat.category_name.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
-                        </p>
-                        <p className="text-paper/35 text-xs mt-0.5">
-                          {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
-                        </p>
-                      </div>
-                      <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
-                    </Card>
-                  ))}
-                </div>
-              </>
-            )}
+            {/* VaakMirror -- no stars concept, shown as pass-rate instead.
+                Always shown, even with no sessions yet -- BreathQuest's
+                fixed level list always renders something, so a bare
+                empty-array games disappearing entirely made the app look
+                BreathQuest-only rather than just "not tried yet". */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">VaakMirror</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.vaakmirror?.length > 0 ? (
+                data.categories.vaakmirror.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">
+                        {cat.category_name.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
+                      </p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried VaakMirror yet.</p>
+                </Card>
+              )}
+            </div>
 
-            {/* Flashcards -- per-phoneme mastery, no stars/levels either. */}
-            {data.categories?.flashcards?.length > 0 && (
-              <>
-                <h2 className="font-display text-lg font-bold text-paper mb-3">Flashcards</h2>
-                <div className="flex flex-col gap-2.5 mb-8">
-                  {data.categories.flashcards.map((cat, i) => (
-                    <Card key={i} className="flex items-center justify-between gap-4 py-4">
-                      <div>
-                        <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
-                        <p className="text-paper/35 text-xs mt-0.5">
-                          {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
-                        </p>
-                      </div>
-                      <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
-                    </Card>
-                  ))}
-                </div>
-              </>
-            )}
+            {/* Flashcards -- per-phoneme mastery, no stars/levels either.
+                Same always-visible treatment as VaakMirror above. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">Flashcards</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.flashcards?.length > 0 ? (
+                data.categories.flashcards.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried Flashcards yet.</p>
+                </Card>
+              )}
+            </div>
           </>
         )}
       </div>
