@@ -223,7 +223,10 @@ async def get_guided_activity(
         select(Attempt.sound_id, Attempt.outcome)
         .join(VaakMirrorSession, Attempt.session_id == VaakMirrorSession.id)
         .where(
-            VaakMirrorSession.patient_id == patient.id,
+            # VaakMirrorSession.patient_id is a loose String column, not a
+            # real FK -- must compare as str(patient.id), same pattern as
+            # get_parent_progress's pid_str and weekly_summary.py.
+            VaakMirrorSession.patient_id == str(patient.id),
             Attempt.created_at >= since,
             Attempt.sound_id.isnot(None),
         )
