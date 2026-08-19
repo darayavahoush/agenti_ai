@@ -89,8 +89,8 @@ export function Landing({ onStart }) {
               fontWeight: 900, lineHeight: 1, color: T.text, margin: "0 0 18px 0",
             }}
           >
-            Blow, speak, and <br />
-            <span style={{ color: T.primary }}>watch the world move</span>
+            Small games. <br />
+            <span style={{ color: T.primary }}>Real progress.</span>
           </h1>
 
           <p
