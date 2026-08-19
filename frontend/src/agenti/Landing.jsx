@@ -88,17 +88,17 @@ export function Landing({ onStart }) {
               fontWeight: 900, lineHeight: 1, color: T.text, margin: "0 0 18px 0",
             }}
           >
-            Let's make speaking <br />
-            <span style={{ color: T.primary }}>fun and easy</span>
+            Blow, speak, and <br />
+            <span style={{ color: T.primary }}>watch the world move</span>
           </h1>
 
           <p
             style={{
               fontSize: "19px", color: T.textMuted, lineHeight: 1.6,
-              marginBottom: "32px", fontWeight: 600,
+              marginBottom: "24px", fontWeight: 600,
             }}
           >
-            Practice your words, hear fun feedback, and grow your confidence with a smiling AI buddy.
+            Five games that turn real speech practice into play — breath, voice, and pronunciation, each adapting in real time to how your child is doing.
           </p>
 
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "22px" }}>
@@ -110,15 +110,38 @@ export function Landing({ onStart }) {
             </Button>
           </div>
 
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "22px" }}>
             <div style={{ background: "#fff", borderRadius: "18px", padding: "12px 14px", boxShadow: T.shadowSm, minWidth: "130px" }}>
-              <div style={{ fontSize: "18px", fontWeight: 800, color: T.primary }}>⭐ 98%</div>
-              <div style={{ fontSize: "13px", color: T.textMuted }}>happy learners</div>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: T.primary }}>🎮 5</div>
+              <div style={{ fontSize: "13px", color: T.textMuted }}>games, one login</div>
             </div>
             <div style={{ background: "#fff", borderRadius: "18px", padding: "12px 14px", boxShadow: T.shadowSm, minWidth: "130px" }}>
-              <div style={{ fontSize: "18px", fontWeight: 800, color: T.secondary }}>🎵 20+</div>
-              <div style={{ fontSize: "13px", color: T.textMuted }}>fun sounds</div>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: T.secondary }}>🌐 8</div>
+              <div style={{ fontSize: "13px", color: T.textMuted }}>languages</div>
             </div>
+            <div style={{ background: "#fff", borderRadius: "18px", padding: "12px 14px", boxShadow: T.shadowSm, minWidth: "130px" }}>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: "#60a5fa" }}>🧠 AI</div>
+              <div style={{ fontSize: "13px", color: T.textMuted }}>adapts difficulty live</div>
+            </div>
+          </div>
+
+          {/* What's inside -- the real breadth (5 mechanically different
+              games, not one app skinned five ways), stated plainly rather
+              than left implicit until someone signs up. */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {[
+              ["🐉", "BreathQuest"], ["🐶", "Voice Hurdle Race"], ["🪞", "VaakMirror"],
+              ["🔔", "Chime"], ["🃏", "Flashcards"],
+            ].map(([emoji, name]) => (
+              <span key={name} style={{
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                background: "rgba(255,255,255,0.7)", border: `1px solid ${T.border}`,
+                borderRadius: "999px", padding: "6px 12px", fontSize: "13px",
+                fontWeight: 700, color: T.text,
+              }}>
+                {emoji} {name}
+              </span>
+            ))}
           </div>
         </div>
 
