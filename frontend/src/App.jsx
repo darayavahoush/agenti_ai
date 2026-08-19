@@ -38,6 +38,9 @@ import ParentAuth         from './pages/parent/ParentAuth'
 import ParentDashboard    from './pages/parent/ParentDashboard'
 import ParentSettings     from './pages/parent/Settings'
 import Verify             from './pages/Verify'
+import Pricing            from './pages/Pricing'
+import Privacy            from './pages/Privacy'
+import Terms              from './pages/Terms' 
 import Billing            from './pages/Billing'
 import AuthPage           from './pages/AuthPage'
 
@@ -148,6 +151,9 @@ function AppRoutes() {
         {/* Old deep link -- still works, lands on the unified page, kid tab preset */}
         <Route path="/play-select" element={<AuthPage initialRole="kid" />} />
         <Route path="/verify" element={<Verify />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
         {/* Therapist */}
         <Route path="/therapist/login" element={

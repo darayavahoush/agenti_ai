@@ -190,6 +190,20 @@ export function Landing({ onStart }) {
           </div>
         </div>
       </div>
+
+      <div style={{
+        position: "absolute", bottom: "18px", left: 0, right: 0,
+        display: "flex", justifyContent: "center", gap: "20px", zIndex: 1,
+      }}>
+        {[["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
+          <a key={href} href={href} style={{
+            fontSize: "13px", fontWeight: 700, color: T.textMuted,
+            textDecoration: "none",
+          }}>
+            {label}
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
