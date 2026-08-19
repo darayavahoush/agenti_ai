@@ -11,7 +11,7 @@ const PLANS = [
   {
     key: 'parent_monthly',
     name: 'Family',
-    price: '$9.99',
+    price: '₹499',
     period: '/month',
     tagline: 'For parents supporting one child at home',
     features: [
@@ -27,7 +27,7 @@ const PLANS = [
   {
     key: 'therapist_monthly',
     name: 'Professional',
-    price: '$24.99',
+    price: '₹1,499',
     period: '/month',
     tagline: 'For therapists managing a caseload',
     features: [
