@@ -879,13 +879,18 @@ async def get_sound_progress(
 
     chime_events = await asyncio.to_thread(chime_data_store.get_events, child_id=str(patient_id), db_path=CHIME_DB_PATH)
     for ev in chime_events:
-        try:
-            ts = datetime.fromisoformat(ev["timestamp"])
-        except (KeyError, ValueError, TypeError):
+        # get_events() returns raw ORM column values -- timestamp is a
+        # DateTime(timezone=True) column, so this is already a datetime,
+        # not a string. The old fromisoformat(ev["timestamp"]) call threw
+        # TypeError on every single event here, silently caught below,
+        # which meant Chime never contributed a single point to this
+        # weekly sound-trend chart. Confirmed via retraining_models.py.
+        ts = ev.get("timestamp")
+        if not isinstance(ts, datetime) or not ev.get("level_id"):
             continue
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
-        if ts < since or not ev.get("level_id"):
+        if ts < since:
             continue
         week_label, week_start_dt = _iso_week_bucket(ts)
         wk = buckets.setdefault(ev["level_id"], {}).setdefault(week_label, [0, 0, week_start_dt])

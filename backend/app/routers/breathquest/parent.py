@@ -144,6 +144,31 @@ async def get_parent_progress(
         ) for m in fc_mastery
     ]
 
+    # --- Chime -- Postgres-backed RLTrainingEvent rows, grouped by level_id.
+    # level_id here is actually a sound/phoneme id (same key dashboard.py's
+    # weekly-trend buckets already group VaakMirror + Chime together on),
+    # not a BreathQuest level number -- so no LEVEL_NAMES lookup, mirror
+    # Flashcards' bare-id-as-category_name treatment instead. No stars
+    # concept, same as VaakMirror/Flashcards.
+    chime_events = await asyncio.to_thread(
+        chime_data_store.get_events, child_id=pid_str, db_path=chime_data_store.DEFAULT_DB_PATH
+    )
+    chime_by_sound = defaultdict(list)
+    for ev in chime_events:
+        level_id = ev.get("level_id")
+        if not level_id:
+            continue
+        chime_by_sound[level_id].append(ev)
+    chime_categories = [
+        CategoryProgress(
+            category_name=sound_id,
+            attempts=len(evs),
+            accuracy_pct=round(100 * len([e for e in evs if e.get("is_valid_attempt")]) / len(evs), 1),
+            last_played=max(e["timestamp"] for e in evs),
+            stars=None,
+        ) for sound_id, evs in chime_by_sound.items()
+    ]
+
     trend = None
     if len(completed) >= 6:
         recent = [s.stars_earned or 0 for s in completed[:5]]
@@ -181,6 +206,7 @@ async def get_parent_progress(
             "voicehurdlerace": vhr_categories,
             "vaakmirror": vm_categories,
             "flashcards": fc_categories,
+            "chime": chime_categories,
         },
         weekly_summary=WeeklySummaryOut(**weekly_data),
         recommended_action=recommended_action,
