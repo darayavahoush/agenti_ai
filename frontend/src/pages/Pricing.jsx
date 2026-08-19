@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft, Check, Heart, Stethoscope } from 'lucide-react'
 import { Button } from '../components/ui'
 
 // Prices here are illustrative placeholders (Netflix-style tier pricing,
@@ -11,6 +11,9 @@ const PLANS = [
   {
     key: 'parent_monthly',
     name: 'Family',
+    icon: Heart,
+    badgeClass: 'bg-coral/15 border-coral/25 text-coral-light',
+    glowClass: 'hover:shadow-coral/10',
     price: '₹499',
     period: '/month',
     tagline: 'For parents supporting one child at home',
@@ -27,6 +30,9 @@ const PLANS = [
   {
     key: 'therapist_monthly',
     name: 'Professional',
+    icon: Stethoscope,
+    badgeClass: 'bg-mint/15 border-mint/25 text-mint-light',
+    glowClass: 'hover:shadow-mint/10',
     price: '₹1,499',
     period: '/month',
     tagline: 'For therapists managing a caseload',
@@ -60,27 +66,35 @@ export default function Pricing() {
         </p>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {PLANS.map((plan) => (
-            <div key={plan.key} className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 flex flex-col">
-              <h2 className="font-display text-xl font-bold text-paper mb-1">{plan.name}</h2>
-              <p className="text-paper/40 text-sm mb-6">{plan.tagline}</p>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="font-display text-4xl font-bold text-paper">{plan.price}</span>
-                <span className="text-paper/40 text-sm">{plan.period}</span>
+          {PLANS.map((plan) => {
+            const Icon = plan.icon
+            return (
+              <div key={plan.key}
+                   className={`rounded-3xl border border-white/10 bg-white/[0.03] p-8 flex flex-col
+                               transition-shadow duration-300 hover:shadow-2xl ${plan.glowClass}`}>
+                <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center mb-5 ${plan.badgeClass}`}>
+                  <Icon className="w-6 h-6" />
+                </div>
+                <h2 className="font-display text-xl font-bold text-paper mb-1">{plan.name}</h2>
+                <p className="text-paper/40 text-sm mb-6">{plan.tagline}</p>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="font-display text-4xl font-bold text-paper">{plan.price}</span>
+                  <span className="text-paper/40 text-sm">{plan.period}</span>
+                </div>
+                <ul className="flex flex-col gap-3 mb-8 flex-1">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-paper/70 text-sm">
+                      <Check className="w-4 h-4 text-mint shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Button onClick={() => navigate(plan.to)} className="w-full">
+                  {plan.cta}
+                </Button>
               </div>
-              <ul className="flex flex-col gap-3 mb-8 flex-1">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-paper/70 text-sm">
-                    <Check className="w-4 h-4 text-mint shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Button onClick={() => navigate(plan.to)} className="w-full">
-                {plan.cta}
-              </Button>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <p className="text-paper/25 text-xs text-center mt-10">
