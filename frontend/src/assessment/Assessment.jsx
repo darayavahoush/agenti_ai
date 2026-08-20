@@ -7,8 +7,9 @@ import "./Assessment.css";
 // this file predates that client and still uses plain fetch() throughout.
 // VITE_API_URL is shared with that axios client, though, which expects
 // it to end in /api/v1 (see api/client.js's own default). This file's
-// own routes (routes/assessment.py, routes/patient.py) are mounted at
-// the bare /assessment and /patients prefixes with no /api/v1 -- so if
+// own routes (routes/assessment.py mounted at /assessment, plus the
+// inline /patients/* routes defined directly in main.py) sit at the
+// bare /assessment and /patients prefixes with no /api/v1 -- so if
 // VITE_API_URL includes /api/v1 (as it does in this project's
 // frontend/.env), every fetch in this file 404'd against a path one
 // level too deep. Stripping a trailing /api/v1 here, rather than
