@@ -13,7 +13,7 @@ only recognizes the canonical table's tokens -- the old endpoints here
 issued tokens those routes could never actually accept.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timezone
@@ -39,6 +39,10 @@ from app.breathquest_core.security import (
     hash_password, verify_password, create_parent_token,
 )
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
+# IP-based limiter (distinct from the per-identifier login_throttle above):
+# registration abuse is many different emails from one source, not repeated
+# attempts against one account, so this is the right tool here instead.
+from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.breathquest_core.parental_consent import check_parental_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
 from sqlalchemy import delete as sa_delete
@@ -119,7 +123,8 @@ def kid_candidates():
         sync_db.close()
 
 @router.post("/kid-register", response_model=KidTokenResponse, status_code=201)
-async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
+async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
+    check_ip_rate_limit(request)
     """Brand-new self-serve kid signup — no prior Assessment record
     required. This is what frontend/src/context/AuthContext.jsx's
     registerKid() (used by pages/kid/Play.jsx's signup form) actually
@@ -171,7 +176,8 @@ async def kid_register(data: KidRegisterRequest, db: AsyncSession = Depends(get_
 
 
 @router.post("/parent-kid-register", response_model=ParentTokenResponse, status_code=201)
-async def parent_kid_register(data: ParentKidRegisterRequest, db: AsyncSession = Depends(get_db)):
+async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, db: AsyncSession = Depends(get_db)):
+    check_ip_rate_limit(request)
     """Parent-initiated combined signup, no therapist -- creates the kid
     account and links a parent account to it in one transaction. See
     ParentKidRegisterRequest's docstring for how this differs from the
@@ -421,7 +427,8 @@ def _make_parent_token_response(parent: Parent, child_first_name: str) -> Parent
 
 
 @router.post("/parent-register", response_model=ParentTokenResponse, status_code=201)
-async def register_parent(data: ParentRegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register_parent(request: Request, data: ParentRegisterRequest, db: AsyncSession = Depends(get_db)):
+    check_ip_rate_limit(request)
     if not data.player_code and not data.invite_code:
         raise HTTPException(status_code=400, detail="A player code or invite code is required")
     if data.invite_code:
