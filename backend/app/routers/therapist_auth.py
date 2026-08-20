@@ -4,7 +4,7 @@ accounts. See app/models/therapist.py's docstring for why this is separate
 from the retiring breathquest_therapists table.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -22,13 +22,15 @@ from app.breathquest_core.deps import get_current_therapist
 # had no brute-force protection at all before this -- unlike kid-login's
 # 4-digit PIN, which was the threat this module was originally written for.
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
+from app.breathquest_core.rate_limit import check_ip_rate_limit
 from sqlalchemy import delete as sa_delete, update as sa_update
 
 router = APIRouter(prefix="/auth", tags=["therapist-auth"])
 
 
 @router.post("/register", response_model=TherapistTokenResponse, status_code=status.HTTP_201_CREATED)
-async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends(get_db)):
+async def register_therapist(request: Request, data: TherapistRegister, db: AsyncSession = Depends(get_db)):
+    check_ip_rate_limit(request)
     # Same recently-verified-email gate as kid-register (see
     # parental_consent.py) -- a therapist signing up standalone has no
     # adult/org already vouching for them, same "no one else in the loop"
