@@ -61,10 +61,12 @@ except ImportError as e:
     build_patient_report_pdf = None
     _PDF_EXPORT_IMPORT_ERROR = str(e)
 
-# Top-level retraining/ and agent/ packages, not app.retraining /
-# app.breathquest_agent -- these are the copies breath_agent.py actually
-# imports and that write the RLTrainingEvent rows this router reads back
-# (see retraining/data_store.py's docstring on call sites).
+# Top-level retraining/ and agent/ packages (not app.retraining, which
+# weekly_summary.py uses separately for its own read-side queries) --
+# these are what breath_agent.py actually imports and what write the
+# RLTrainingEvent rows this router reads back (see retraining/data_store.py's
+# docstring on call sites). app.breathquest_agent was an unused duplicate
+# of this package and has been removed.
 from retraining import data_store as chime_data_store
 from agent.service import AgentService
 
