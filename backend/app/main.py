@@ -59,9 +59,27 @@ import os as _os
 _os.makedirs("uploads/avatars", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+# CORS_ORIGINS env var: comma-separated list of allowed prod origins, e.g.
+# "https://app.example.com,https://www.example.com" -- set this in the
+# deploy environment. Falls back to local dev origins only when unset, so
+# a missing env var fails safe (no origin allowed) rather than silently
+# reopening this to everyone the way the old "*" wildcard did.
+#
+# Previously this list mixed explicit origins with "*" while
+# allow_credentials=True was also set. Per the CORS spec, credentialed
+# requests can't use a literal "*" -- browsers instead reflect whatever
+# Origin the request sent, which combined with allow_credentials=True
+# meant every origin was effectively trusted with cookies/auth headers,
+# not just the intended localhost dev servers. Removed the wildcard
+# entirely rather than relying on browsers to save us from it.
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+_prod_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+_dev_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
+_allowed_origins = _prod_origins or _dev_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -152,27 +170,26 @@ app.include_router(flashcards_router, prefix="/api/v1")
 AUDIO_DIR = Path("assets/audio")
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-Base.metadata.create_all(bind=engine)
-
-# create_all() only creates missing tables, it does NOT alter existing
-# ones. The _ensure_*_column() calls below are the old stopgap for
-# that: safe, idempotent ADD COLUMN IF NOT EXISTS for columns added
-# after their table already existed in a deployed DB.
+# Removed 2026-08-20: Base.metadata.create_all(bind=engine) used to run
+# here. Alembic (backend/alembic/) has been the source of truth for
+# schema changes since 2026-08-12 (see the removed comment this
+# replaces, preserved below for context), but create_all() was never
+# actually taken out -- it kept running underneath Alembic, silently
+# creating any new *table* (not just column) the moment its model
+# class was imported, regardless of whether a migration for it existed
+# yet. That's what caused the breathquest_refresh_tokens duplicate-
+# table conflict on 2026-08-20: create_all() created the table from
+# the model before `alembic upgrade head` ever ran, so the real
+# migration then failed with DuplicateTable.
 #
-# Added 2026-08-12: Alembic now exists (see backend/alembic/) and is
-# the correct way to add any *new* column going forward -- don't add
-# another _ensure_*_column() below this comment. The existing ones are
-# left as-is (not retroactively converted) since they're already
-# idempotent and working; no need to churn them.
+# Bootstrapping a fresh DB now requires `alembic upgrade head` --
+# create_all() will no longer do it for you, on a fresh DB or an
+# existing one.
 #
-# IMPORTANT: BreathQuestPatient.assessment_completed /
-# assessment_summary (added alongside this comment) are NOT covered by
-# an _ensure_*_column() stopgap -- they're the first columns to go
-# through Alembic instead. That means `alembic upgrade head` must be
-# run against this deployment's real database before/as part of
-# deploying this change, or any query touching breathquest_patients
-# will fail against the NOT NULL assessment_completed column that
-# doesn't exist there yet. create_all() below will NOT add it for you.
+# The _ensure_*_column() calls below are unaffected -- they're a
+# separate, still-idempotent ADD COLUMN IF NOT EXISTS stopgap for
+# columns added after their table already existed in a deployed DB,
+# predating Alembic. Left as-is, not retroactively converted.
 def _ensure_patient_therapist_link_column():
     """One-time ADD COLUMN for registered_therapist_id -- patients table
     already existed before this column was added to the model (0 rows as

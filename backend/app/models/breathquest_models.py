@@ -358,4 +358,61 @@ class KidLoginThrottle(Base):
     failed_attempts: Mapped[int]              = mapped_column(Integer, nullable=False, default=0)
     first_failed_at: Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
     last_failed_at:  Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
+    # Fixed 2026-08-20: this column is live on the actual table and read/
+    # written directly by login_throttle.py's check_throttle/record_failure
+    # (row.locked_until), but was never mapped here -- an unmapped attribute
+    # never persists via the ORM, and worse, a freshly-constructed row (the
+    # very first failed attempt on any new identifier) has no such attribute
+    # at all yet, so record_failure's `row.locked_until` read on that first
+    # attempt would raise AttributeError before ever reaching a commit.
     locked_until:    Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
+
+
+class RefreshToken(Base):
+    """Revocable refresh tokens for therapist/parent/kid sessions.
+
+    Access tokens (create_access_token/create_kid_token/create_parent_token
+    in security.py) stayed as short-lived JWTs -- deps.py keeps validating
+    those with zero DB lookups per request, unchanged. This table is the
+    other half: a long-lived, revocable credential that gets exchanged for
+    fresh access tokens via POST /auth/refresh, and can be killed early via
+    POST /auth/logout -- which access-token JWTs alone could never support,
+    since a JWT is valid everywhere it's presented until it naturally
+    expires with no way to invalidate it early short of rotating the
+    signing key for everyone.
+
+    Stored as a SHA-256 hash of the actual token (token_hash), never the
+    raw value -- same reasoning as password storage: this table being read
+    (backup leak, SQL injection, etc.) shouldn't hand out live credentials.
+    The raw token is generated with secrets.token_urlsafe and returned to
+    the client exactly once, at login/register/refresh time.
+
+    owner_kind + owner_id (not three separate nullable FK columns) because
+    a refresh token belongs to exactly one of therapist/parent/patient and
+    those are three different tables -- a real FK would need three nullable
+    columns with a check constraint, more complexity than the lookup-by-
+    string-plus-id this table's only consumer (auth.py's refresh/logout
+    endpoints) actually needs.
+
+    No unique index on token_hash: SHA-256 collisions are cryptographically
+    negligible, and the lookup path is always by token_hash equality (fast
+    via the index) then a Python-level check that revoked_at is null and
+    expires_at is in the future, mirroring KidLoginThrottle's
+    check-then-mutate-outside-a-transaction-boundary pattern above."""
+    __tablename__ = "breathquest_refresh_tokens"
+
+    id:          Mapped[uuid.UUID]        = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
+    token_hash:  Mapped[str]              = mapped_column(String(64), nullable=False, index=True)
+    owner_kind:  Mapped[str]              = mapped_column(String(16), nullable=False)  # "therapist" | "parent" | "patient"
+    owner_id:    Mapped[uuid.UUID]        = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    created_at:  Mapped[datetime]         = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    expires_at:  Mapped[datetime]         = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at:  Mapped[datetime | None]  = mapped_column(DateTime(timezone=True))
+    # Removed 2026-08-20: locked_until was never legitimately part of this
+    # model -- it belongs to KidLoginThrottle. It ended up mapped here too,
+    # apparently from an early copy/paste between the two adjacent classes
+    # in this file, and was never caught because nothing in app/ code ever
+    # read or wrote RefreshToken.locked_until (confirmed via grep). The
+    # stray column on the live table itself was already dropped by
+    # migration 71ec5364b35a; this removes the matching stray mapping from
+    # the model so the two are back in sync.

@@ -15,13 +15,16 @@ export default function MyProgress() {
   const [progress, setProgress] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
 
-  useEffect(() => {
+  const fetchProgress = () => {
+    setStatus('loading')
     let cancelled = false
     meAPI.progress()
       .then(({ data }) => { if (!cancelled) { setProgress(data); setStatus('ready') } })
       .catch(() => { if (!cancelled) setStatus('error') })
     return () => { cancelled = true }
-  }, [])
+  }
+
+  useEffect(() => fetchProgress(), [])
 
   const starPct = progress ? Math.min(100, Math.round((progress.total_stars / Math.max(1, progress.max_possible_stars)) * 100)) : 0
 
@@ -42,7 +45,12 @@ export default function MyProgress() {
         {status === 'error' && (
           <div className="text-center py-20">
             <p className="text-white/50 mb-2">Couldn't load your progress right now.</p>
-            <p className="text-white/30 text-sm">Try again in a bit!</p>
+            <button
+              onClick={fetchProgress}
+              className="text-white/60 hover:text-white text-sm underline underline-offset-2 transition-colors"
+            >
+              Try again
+            </button>
           </div>
         )}
 

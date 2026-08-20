@@ -157,7 +157,9 @@ export default function GamePicker() {
                 key={app.id}
                 onClick={() => navigate(app.path)}
                 className={`group relative text-left rounded-3xl overflow-hidden transition-all duration-500
-                           hover:-translate-y-1.5 ${isWide ? 'sm:col-span-2' : ''} ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+                           hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-2
+                           focus-visible:ring-white/70 focus-visible:ring-offset-2
+                           focus-visible:ring-offset-[#12142E] ${isWide ? 'sm:col-span-2' : ''} ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
                 style={{ transitionDelay: mounted ? `${i * 90}ms` : '0ms' }}
               >
                 <div

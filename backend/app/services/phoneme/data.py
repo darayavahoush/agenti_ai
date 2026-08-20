@@ -212,6 +212,16 @@ PHONEME_DATA = {
         "common_errors": ["S", "F"],  # D substitution is standard Indian English variant, not flagged
         "category": "fricative"
     },
+    "DH": {
+        "ipa": "ð",
+        "name": "th sound (this)",
+        "example_word": "this",
+        "tip": "Put the tip of your tongue gently between your teeth and turn your voice on — same shape as TH, but buzzing.",
+        "mouth_shape": "tongue_between_teeth_voiced",
+        "acoustic_target": {"min_duration_ms": 150, "voiced": True},
+        "common_errors": ["D", "Z"],  # "stopping" (this/that -> dis/dat) is the most frequent substitution pattern
+        "category": "fricative"
+    },
     # ─── VOWELS ───────────────────────────────────────────────────
     "AE": {
         "ipa": "æ",
@@ -272,6 +282,66 @@ PHONEME_DATA = {
         "acoustic_target": {"f1_range": [200, 400], "f2_range": [700, 1100]},
         "common_errors": ["UH", "OW"],
         "category": "vowel"
+    },
+    "AH": {
+        "ipa": "ʌ",
+        "name": "uh sound (cup)",
+        "example_word": "cup",
+        "tip": "Relax your mouth and jaw halfway open. Short and relaxed, like a little grunt.",
+        "mouth_shape": "mouth_relaxed_open",
+        "acoustic_target": {"f1_range": [600, 800], "f2_range": [1100, 1500]},
+        "common_errors": ["AE", "AO"],
+        "category": "vowel"
+    },
+    "UH": {
+        "ipa": "ʊ",
+        "name": "oo sound (book)",
+        "example_word": "book",
+        "tip": "Round your lips gently, more relaxed than the 'oo' in moon.",
+        "mouth_shape": "lips_rounded_relaxed",
+        "acoustic_target": {"f1_range": [350, 550], "f2_range": [800, 1300]},
+        "common_errors": ["UW"],
+        "category": "vowel"
+    },
+    "OW": {
+        "ipa": "oʊ",
+        "name": "oh sound (go)",
+        "example_word": "go",
+        "tip": "Start with lips relaxed and round them slowly as the sound glides.",
+        "mouth_shape": "lips_rounding_glide",
+        "acoustic_target": {"f1_range": [400, 650], "f2_range": [700, 1100]},
+        "common_errors": ["AO", "UW"],
+        "category": "diphthong"
+    },
+    "EY": {
+        "ipa": "eɪ",
+        "name": "ay sound (day)",
+        "example_word": "day",
+        "tip": "Start with your mouth half open and spread your lips slightly as the sound glides up.",
+        "mouth_shape": "lips_spread_glide",
+        "acoustic_target": {"f1_range": [400, 600], "f2_range": [1900, 2400]},
+        "common_errors": ["EH", "IY"],
+        "category": "diphthong"
+    },
+    "AY": {
+        "ipa": "aɪ",
+        "name": "eye sound (my)",
+        "example_word": "my",
+        "tip": "Open your mouth wide, then glide your tongue up and forward as you finish the sound.",
+        "mouth_shape": "mouth_wide_glide_close",
+        "acoustic_target": {"f1_range": [700, 950], "f2_range": [1200, 1800]},
+        "common_errors": ["AE", "IY"],
+        "category": "diphthong"
+    },
+    "ER": {
+        "ipa": "ɝ",
+        "name": "er sound (bird)",
+        "example_word": "bird",
+        "tip": "Curl your tongue tip slightly back without touching the roof of your mouth, like the R shape.",
+        "mouth_shape": "tongue_curled_mid",
+        "acoustic_target": {"f1_range": [400, 600], "f2_range": [1200, 1600]},
+        "common_errors": ["AH", "R"],
+        "category": "rhotic-vowel"
     },
     # ─── INDIAN-SPECIFIC ──────────────────────────────────────────
     "RT": {
