@@ -15,6 +15,13 @@ from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, Therap
 from app.breathquest_core.security import hash_password, verify_password, create_access_token
 from app.breathquest_core.parental_consent import check_email_consent
 from app.breathquest_core.deps import get_current_therapist
+# Same throttle module kid-login uses (see login_throttle.py's docstring) --
+# it's identifier-agnostic (just a string key), so it works equally well
+# keyed on a therapist's email as on a kid's name/player_code. Therapist
+# accounts guard real patient clinical data behind a real password, and
+# had no brute-force protection at all before this -- unlike kid-login's
+# 4-digit PIN, which was the threat this module was originally written for.
+from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 from sqlalchemy import delete as sa_delete, update as sa_update
 
 router = APIRouter(prefix="/auth", tags=["therapist-auth"])
@@ -61,14 +68,30 @@ async def register_therapist(data: TherapistRegister, db: AsyncSession = Depends
 
 @router.post("/login", response_model=TherapistTokenResponse)
 async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_db)):
+    # Throttle check happens before touching hashed_password at all -- a
+    # locked-out email gets 429 regardless of whether the password sent is
+    # even close, matching kid-login's same reasoning: a locked-out
+    # attacker learns nothing from further guesses.
+    throttle = await check_throttle(data.email, db)
+    if throttle.locked:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Please try again later.",
+            headers={"Retry-After": str(throttle.retry_after_seconds)},
+        )
+
     result = await db.execute(select(Therapist).where(Therapist.email == data.email))
     therapist = result.scalar_one_or_none()
 
     if not therapist or not verify_password(data.password, therapist.hashed_password):
+        await record_failure(data.email, db)
+        await db.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not therapist.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
+    await record_success(data.email, db)
+    await db.commit()
     token = create_access_token(str(therapist.id))
     return TherapistTokenResponse(
         access_token=token, therapist_id=str(therapist.id),
