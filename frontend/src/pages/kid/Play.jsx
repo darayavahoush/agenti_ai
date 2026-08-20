@@ -113,7 +113,9 @@ function PinPad({ onDigit, onDelete }) {
         <button key={i}
           onClick={() => d === '⌫' ? onDelete() : d !== '' ? onDigit(String(d)) : null}
           disabled={d === ''}
+          aria-label={d === '⌫' ? 'Delete digit' : d === '' ? undefined : `Digit ${d}`}
           className={`h-14 rounded-xl font-vm-display text-xl font-bold transition-all active:scale-95
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
             ${d === '' ? 'invisible' : d === '⌫' ? 'bg-white/5 text-white/50 hover:bg-white/10'
               : 'bg-white/10 text-white hover:bg-brand-green/20 hover:text-brand-green'}`}>
           {d}
@@ -156,14 +158,18 @@ export default function KidPlay() {
     return () => clearTimeout(t)
   }, [])
 
-  useEffect(() => {
-    if (mode !== 'assessment' || candidates.length > 0 || candidatesLoading) return
+  const fetchCandidates = () => {
     setCandidatesLoading(true)
     setCandidatesError('')
     authAPI.kidCandidates()
       .then(({ data }) => setCandidates(data.patients || []))
       .catch(e => setCandidatesError(getErrorMessage(e)))
       .finally(() => setCandidatesLoading(false))
+  }
+
+  useEffect(() => {
+    if (mode !== 'assessment' || candidates.length > 0 || candidatesLoading) return
+    fetchCandidates()
   }, [mode])
 
   // Verbal instructions on this screen are manual, tap-to-hear only — no
@@ -223,8 +229,8 @@ export default function KidPlay() {
     try {
       await loginKid(playerCode.trim().toUpperCase(), pin)
       navigate('/play/levels')
-    } catch {
-      setError('Wrong code or PIN — try again!')
+    } catch (e) {
+      setError(getErrorMessage(e, 'Wrong code or PIN — try again!'))
       setPin('')
     } finally {
       setLoading(false)
@@ -340,6 +346,7 @@ export default function KidPlay() {
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
                          bg-gradient-to-br from-brand-amber/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-amber/40
                          hover:border-brand-amber hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-amber/20
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-amber focus-visible:ring-offset-2 focus-visible:ring-offset-[#12142E]
                          transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
               style={{ transitionDelay: mounted ? '0ms' : '0ms' }}>
               <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-brand-amber/10 blur-2xl
@@ -359,6 +366,7 @@ export default function KidPlay() {
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
                          bg-gradient-to-br from-brand-green/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-green/40
                          hover:border-brand-green hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-green/20
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 focus-visible:ring-offset-[#12142E]
                          transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
               style={{ transitionDelay: mounted ? '90ms' : '0ms' }}>
               <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-brand-green/10 blur-2xl
@@ -378,6 +386,7 @@ export default function KidPlay() {
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
                          bg-gradient-to-br from-brand-coral/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-coral/40
                          hover:border-brand-coral hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-coral/20
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-coral focus-visible:ring-offset-2 focus-visible:ring-offset-[#12142E]
                          transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
               style={{ transitionDelay: mounted ? '180ms' : '0ms' }}>
               <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-brand-coral/10 blur-2xl
@@ -419,8 +428,10 @@ export default function KidPlay() {
                 key={g.key}
                 type="button"
                 onClick={() => setActiveGame(cur => cur === g.key ? null : g.key)}
+                aria-expanded={activeGame === g.key}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
                             hover:-translate-y-0.5 active:scale-95 whitespace-nowrap ${g.badgeClass}
+                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
                             ${activeGame === g.key ? 'ring-2 ring-white/40' : ''}`}
               >
                 {g.emoji} {g.name}
@@ -449,7 +460,7 @@ export default function KidPlay() {
       {/* Register */}
       {mode === 'register' && registerStep === 'form' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail(''); setOtpCode('') }}
+          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail(''); setParentPhone('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -468,8 +479,9 @@ export default function KidPlay() {
           <label className="text-sm text-white/50 block mb-3">Pick your character</label>
           <div className="grid grid-cols-3 gap-3 mb-6">
             {AVATARS.map(av => (
-              <button key={av} onClick={() => setAvatar(av)}
-                className="flex flex-col items-center gap-1.5 group">
+              <button key={av} onClick={() => setAvatar(av)} aria-pressed={avatar === av}
+                className="flex flex-col items-center gap-1.5 group rounded-2xl
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
                 <div className={`rounded-full p-1 transition-all
                   ${avatar === av ? 'ring-2 ring-brand-green scale-110 shadow-lg shadow-brand-green/30' : 'ring-2 ring-transparent group-hover:ring-white/20'}`}>
                   <Avatar avatar={av} size="lg" />
@@ -579,7 +591,14 @@ export default function KidPlay() {
 
           {candidatesLoading && <p className="text-white/40 text-center text-sm mb-4">Loading…</p>}
           {!candidatesLoading && candidatesError && (
-            <p className="text-brand-coral text-sm text-center mb-4">{candidatesError}</p>
+            <div className="text-center mb-4">
+              <p className="text-brand-coral text-sm mb-2">{candidatesError}</p>
+              <button onClick={fetchCandidates}
+                      className="text-white/50 hover:text-white text-xs underline underline-offset-2 transition-colors
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded">
+                Try again
+              </button>
+            </div>
           )}
           {!candidatesLoading && !candidatesError && candidates.length === 0 && (
             <p className="text-white/40 text-center text-sm mb-4">No names found yet. Ask your therapist!</p>
@@ -602,7 +621,9 @@ export default function KidPlay() {
               <label className="text-sm text-white/50 block mb-3">Pick your character</label>
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {AVATARS.map(av => (
-                  <button key={av} onClick={() => setAvatar(av)} className="flex flex-col items-center gap-1.5 group">
+                  <button key={av} onClick={() => setAvatar(av)} aria-pressed={avatar === av}
+                          className="flex flex-col items-center gap-1.5 group rounded-2xl
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
                     <div className={`rounded-full p-1 transition-all
                       ${avatar === av ? 'ring-2 ring-brand-green scale-110 shadow-lg shadow-brand-green/30' : 'ring-2 ring-transparent group-hover:ring-white/20'}`}>
                       <Avatar avatar={av} size="lg" />

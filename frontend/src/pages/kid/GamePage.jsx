@@ -34,6 +34,7 @@ export default function GamePage() {
   const difficultyRef = useRef(DEFAULT_DIFFICULTY)
 
   const [phase,       setPhase]       = useState('ready')
+  const [errorReason, setErrorReason] = useState(null) // 'session' | 'mic' | null
   const [calProgress, setCalProgress] = useState(0)
   const [result,      setResult]      = useState(null)
   const [earnedStars, setEarnedStars] = useState(0)
@@ -62,7 +63,16 @@ export default function GamePage() {
     try {
       const { data } = await sessionsAPI.start({ level_id: levelId })
       sessionRef.current = data.id
-    } catch {}
+    } catch {
+      // Session creation failed - bail instead of playing a session-less
+      // round that would score the kid but never write to
+      // rl_training_events (start/end/logEvents all silently no-op on an
+      // undefined session id). Surface it as the existing 'error' phase so
+      // GamePage's error UI (whatever that already renders) picks it up.
+      setErrorReason('session')
+      setPhase('error')
+      return
+    }
 
     // Ask the same adaptive-difficulty agent Chime's phoneme levels use
     // (routers/breath_agent.py -> agent.service.AgentService) whether to
@@ -108,7 +118,7 @@ export default function GamePage() {
 
     setPhase('calibrating')
     try { await engine.start() }
-    catch { setPhase('error') }
+    catch { setErrorReason('mic'); setPhase('error') }
 
     const calTick = () => {
       if (engine.calibrating) { setCalProgress(engine.calProgress); requestAnimationFrame(calTick) }
@@ -466,9 +476,13 @@ export default function GamePage() {
             <div className="flex flex-col items-center justify-center text-center py-20 rounded-2xl"
                  style={{ minHeight: H, background: 'linear-gradient(135deg, #1a1a2e, #12122A)' }}>
               <div className="text-6xl mb-4">😕</div>
-              <p className="text-white/60 mb-2 text-lg">Couldn't access microphone</p>
-              <p className="text-white/30 text-sm mb-8">Check mic permissions in your browser</p>
-              <button onClick={() => setPhase('ready')}
+              <p className="text-white/60 mb-2 text-lg">
+                {errorReason === 'session' ? "Couldn't start this level" : "Couldn't access microphone"}
+              </p>
+              <p className="text-white/30 text-sm mb-8">
+                {errorReason === 'session' ? 'Check your internet connection and try again' : 'Check mic permissions in your browser'}
+              </p>
+              <button onClick={() => { setErrorReason(null); setPhase('ready') }}
                 className="px-8 py-3 rounded-xl font-bold hover:bg-opacity-90 transition-all"
                 style={{ background: meta.color, color: '#12122A' }}>
                 Try Again
