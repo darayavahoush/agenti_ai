@@ -36,3 +36,17 @@
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+/* Visible keyboard focus, app-wide. Several custom rounded card buttons
+   use overflow-hidden, which clips the browser's native focus outline
+   right where it would otherwise draw -- this restores a visible ring on
+   keyboard focus without showing anything on a mouse click. Kid-facing
+   screens especially need this since a lot of navigation there is just
+   big card buttons with no other affordance for keyboard/switch users. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid rgba(255,255,255,0.85);
+  outline-offset: 2px;
+}
+

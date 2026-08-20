@@ -71,7 +71,9 @@ export default function LevelSelect() {
                 onMouseEnter={() => setHovering(level.id)}
                 onMouseLeave={() => setHovering(null)}
                 disabled={!unlocked}
-                className="relative text-left rounded-2xl overflow-hidden transition-all duration-200"
+                className="relative text-left rounded-2xl overflow-hidden transition-all duration-200
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
+                           focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d1a]"
                 style={{
                   background: 'linear-gradient(135deg, #1E1E3F, #12122A)',
                   border: `2px solid ${unlocked ? (isHover ? theme.border : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.08)'}`,

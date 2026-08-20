@@ -23,15 +23,20 @@ export default function MyAccount() {
   const [pickingAvatar, setPickingAvatar] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [profileError, setProfileError] = useState('')
   const [cropImageSrc, setCropImageSrc] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
-  useEffect(() => {
+  const fetchProgress = () => {
+    setStatus('loading')
     let cancelled = false
     meAPI.progress()
       .then(({ data }) => { if (!cancelled) { setProgress(data); setStatus('ready') } })
       .catch(() => { if (!cancelled) setStatus('error') })
     return () => { cancelled = true }
-  }, [])
+  }
+
+  useEffect(() => fetchProgress(), [])
 
   const displayName = patient?.first_name || progress?.first_name
   const displayAvatar = patient?.avatar || progress?.avatar
@@ -69,15 +74,17 @@ export default function MyAccount() {
 
   async function saveProfile(fields) {
     setSaving(true)
+    setProfileError('')
     try {
       const { data } = await meAPI.updateProfile(fields)
       // Keep AuthContext's patient object (and localStorage, if
       // AuthContext persists there) in sync so the new name/avatar
       // shows immediately across the app, not just this page.
       updatePatient(data)
+      return true
     } catch {
-      // Swallow -- picker/name field just won't reflect the change;
-      // a toast/error banner can be added later if this proves confusing.
+      setProfileError("Couldn't save that -- try again.")
+      return false
     } finally {
       setSaving(false)
     }
@@ -91,7 +98,8 @@ export default function MyAccount() {
   async function confirmNameEdit() {
     const trimmed = nameDraft.trim()
     if (trimmed && trimmed !== displayName) {
-      await saveProfile({ first_name: trimmed })
+      const ok = await saveProfile({ first_name: trimmed })
+      if (!ok) return // keep the editor open so they can retry without retyping
     }
     setEditingName(false)
   }
@@ -122,7 +130,12 @@ export default function MyAccount() {
         {status === 'error' && (
           <div className="text-center py-20">
             <p className="text-white/50 mb-2">Couldn't load your account right now.</p>
-            <p className="text-white/30 text-sm">Try again in a bit!</p>
+            <button
+              onClick={fetchProgress}
+              className="text-white/60 hover:text-white text-sm underline underline-offset-2 transition-colors"
+            >
+              Try again
+            </button>
           </div>
         )}
 
@@ -179,6 +192,9 @@ export default function MyAccount() {
               {uploadError && (
                 <p className="text-brand-amber text-xs mt-2 text-center">{uploadError}</p>
               )}
+              {profileError && (
+                <p className="text-brand-amber text-xs mt-2 text-center">{profileError}</p>
+              )}
 
               <div className="mt-5 flex items-center justify-center gap-2">
                 {editingName ? (
@@ -192,10 +208,10 @@ export default function MyAccount() {
                       className="font-vm-display text-3xl font-bold text-white bg-white/5 border border-white/20
                                  rounded-xl px-3 py-1 text-center focus:outline-none focus:border-white/40"
                     />
-                    <button onClick={confirmNameEdit} disabled={saving} className="text-brand-green hover:text-brand-green/70">
+                    <button onClick={confirmNameEdit} disabled={saving} className="text-brand-green hover:text-brand-green/70" aria-label="Save name">
                       <Check size={20} />
                     </button>
-                    <button onClick={() => setEditingName(false)} className="text-white/30 hover:text-white/60">
+                    <button onClick={() => setEditingName(false)} className="text-white/30 hover:text-white/60" aria-label="Cancel editing name">
                       <X size={20} />
                     </button>
                   </>
@@ -293,10 +309,12 @@ export default function MyAccount() {
                 disabled={deleting}
                 onClick={async () => {
                   setDeleting(true)
+                  setDeleteError('')
                   try {
                     await deleteKidAccount()
                     navigate('/')
                   } catch {
+                    setDeleteError("Couldn't delete your account -- try again.")
                     setDeleting(false)
                   }
                 }}
@@ -305,6 +323,9 @@ export default function MyAccount() {
                 {deleting ? 'Deleting…' : 'Yes, delete it'}
               </button>
             </div>
+            {deleteError && (
+              <p className="text-brand-coral text-xs mt-3">{deleteError}</p>
+            )}
           </div>
         )}
       </div>
