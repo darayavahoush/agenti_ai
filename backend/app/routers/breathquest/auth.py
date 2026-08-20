@@ -456,12 +456,24 @@ async def register_parent(data: ParentRegisterRequest, db: AsyncSession = Depend
 
 @router.post("/parent-login", response_model=ParentTokenResponse)
 async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_db)):
+    throttle = await check_throttle(data.email, db)
+    if throttle.locked:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Please try again later.",
+            headers={"Retry-After": str(throttle.retry_after_seconds)},
+        )
+
     result = await db.execute(select(Parent).where(Parent.email == data.email))
     parent = result.scalar_one_or_none()
     if not parent or not verify_password(data.password, parent.hashed_password):
+        await record_failure(data.email, db)
+        await db.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not parent.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
+
+    await record_success(data.email, db)
 
     child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     child = child_result.scalar_one_or_none()
