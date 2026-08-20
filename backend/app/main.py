@@ -59,9 +59,27 @@ import os as _os
 _os.makedirs("uploads/avatars", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+# CORS_ORIGINS env var: comma-separated list of allowed prod origins, e.g.
+# "https://app.example.com,https://www.example.com" -- set this in the
+# deploy environment. Falls back to local dev origins only when unset, so
+# a missing env var fails safe (no origin allowed) rather than silently
+# reopening this to everyone the way the old "*" wildcard did.
+#
+# Previously this list mixed explicit origins with "*" while
+# allow_credentials=True was also set. Per the CORS spec, credentialed
+# requests can't use a literal "*" -- browsers instead reflect whatever
+# Origin the request sent, which combined with allow_credentials=True
+# meant every origin was effectively trusted with cookies/auth headers,
+# not just the intended localhost dev servers. Removed the wildcard
+# entirely rather than relying on browsers to save us from it.
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+_prod_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+_dev_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
+_allowed_origins = _prod_origins or _dev_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
