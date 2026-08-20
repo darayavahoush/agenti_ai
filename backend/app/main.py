@@ -1,7 +1,8 @@
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from uuid import UUID
 import os
@@ -46,7 +47,15 @@ class PatientCreate(BaseModel):
     therapist_name: Optional[str] = None
     parent_name: Optional[str] = None
     parent_contact: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    # Mirrors the frontend's own validateContactNumber regex
+    # (assessment/Assessment.jsx) so client and server enforce the same rule.
+    @validator("parent_contact")
+    def validate_parent_contact(cls, v):
+        if v is not None and v != "" and not re.match(r"^[0-9]{10}$", v):
+            raise ValueError("parent_contact must be exactly 10 digits")
+        return v
 
 class PatientLogin(BaseModel):
     name: str
@@ -284,7 +293,15 @@ def get_all_patients():
 
 @app.post("/patients/")
 def create_patient(data: PatientCreate):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
+    # Re-enabled -- this is the live, only path for the assessment flow's
+    # self-serve patient signup (frontend/src/assessment/Assessment.jsx).
+    # The 2026-08-07 retirement note claimed a port-8001 standalone
+    # breathquest backend superseded this, but that service doesn't
+    # actually run anywhere in this repo (Procfile/start_server.sh both
+    # only run app.main:app on port 8000), and .env.production points
+    # straight at this same endpoint -- so disabling it just broke real
+    # signups with a 410. Restored, with EmailStr/phone validation added
+    # to close the gap that was the actual original concern.
     db = SessionLocal()
     try:
         patient = Patient(
@@ -321,7 +338,8 @@ def create_patient(data: PatientCreate):
 
 @app.post("/patients/login")
 def login_patient(data: PatientLogin):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
+    # Re-enabled -- see create_patient's comment above; same live-endpoint
+    # situation applies here.
     db = SessionLocal()
     try:
         # Search for patient by name and date of birth
