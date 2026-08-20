@@ -20,6 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models import breathquest_models  # noqa: F401 -- registers breathquest_patients (this file's FK target below) with Base before RLTrainingEvent's mapper is configured. Without this, anything that imports this module without having imported breathquest_models first (a standalone script, a test, a future retraining worker) hits NoReferencedTableError on first query -- this makes the module self-sufficient regardless of import order elsewhere.
 
 
 def utcnow():
