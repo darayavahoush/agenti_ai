@@ -218,9 +218,28 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       }
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to save patient details:", errorText);
-        throw new Error('Failed to save patient details');
+        // FastAPI validation errors (422) return detail as a list of
+        // {loc, msg, type} objects, not a plain string -- extract a
+        // readable message instead of showing/throwing a generic one, so
+        // the parent_contact/email validation added server-side actually
+        // reaches the person filling out the form.
+        let message = 'Failed to save patient details. Please try again.';
+        try {
+          const errorData = await response.json();
+          if (typeof errorData.detail === 'string') {
+            message = errorData.detail;
+          } else if (Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+            message = errorData.detail
+              .map((e) => (typeof e.msg === 'string' ? e.msg.replace(/^Value error,\s*/, '') : null))
+              .filter(Boolean)
+              .join(' ') || message;
+          }
+        } catch {
+          // Response wasn't JSON (network error, HTML error page, etc.) --
+          // fall back to the generic message set above.
+        }
+        console.error("Failed to save patient details:", message);
+        throw new Error(message);
       }
 
       const result = await response.json();
@@ -1194,8 +1213,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                   await savePatientDetails();
                   setSection("home");
                 } catch (error) {
-                  setFormError("Failed to save patient details. Please try again.");
-                  console.error(error);
+                  setFormError(error.message || "Failed to save patient details. Please try again.");
                 }
               }}
               style={{
