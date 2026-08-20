@@ -56,10 +56,13 @@ export default function Flashcards() {
 
   const [wordData, setWordData] = useState(null);
   const [loadingWord, setLoadingWord] = useState(false);
+  const [wordError, setWordError] = useState(null);
+  const [themeError, setThemeError] = useState(null);
   const [sessionId] = useState(() => crypto.randomUUID());
   const [attemptNumber, setAttemptNumber] = useState(1);
   const [attemptHistory, setAttemptHistory] = useState([]);
   const [result, setResult] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
 
   const [phase, setPhase] = useState("listen");
   const [playingChar, setPlayingChar] = useState(false);
@@ -70,13 +73,15 @@ export default function Flashcards() {
 
   const th = character ? getTheme(character, false) : null;
 
-  useEffect(() => {
+  const fetchThemeNames = () => {
+    setThemeError(null);
     getThemes().then(d => {
       const map = {};
       d.themes.forEach(t => { map[t.id] = t; });
       setThemeNames(map);
-    }).catch(() => {});
-  }, []);
+    }).catch(() => setThemeError("Couldn't load topics."));
+  };
+  useEffect(() => { fetchThemeNames(); }, []);
 
   useEffect(() => {
     if (th) {
@@ -87,6 +92,7 @@ export default function Flashcards() {
 
   const loadNextWord = async (wordOverride) => {
     setLoadingWord(true);
+    setWordError(null);
     setResult(null);
     setPhase("listen");
     reset();
@@ -95,6 +101,11 @@ export default function Flashcards() {
       setWordData(data);
     } catch (err) {
       console.error("Failed to load word", err);
+      // Don't leave a stale word on screen while silently failing to
+      // refresh it -- clear it so the error state below is unambiguous
+      // about needing a retry, rather than looking like nothing happened.
+      setWordData(null);
+      setWordError("Couldn't load a card. Check your connection and try again.");
     } finally {
       setLoadingWord(false);
     }
@@ -133,12 +144,14 @@ export default function Flashcards() {
   };
 
   const handleRecord = async () => {
+    setSubmitError(null);
     setPhase("record");
     await startRecording();
   };
 
   const handleSubmit = async () => {
-    if (!audioBlob) return;
+    if (!audioBlob || !wordData) return;
+    setSubmitError(null);
     setPhase("loading");
     try {
       const res = await evaluateAttempt({
@@ -155,6 +168,7 @@ export default function Flashcards() {
       setPhase("result");
     } catch (err) {
       console.error(err);
+      setSubmitError("Couldn't check that recording. Check your connection and try again.");
       setPhase("record");
     }
   };
@@ -200,7 +214,7 @@ export default function Flashcards() {
     : "🎲 Any topic";
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" data-fc-root>
       <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
       <div className="flex-1 flex flex-col" style={{ background: th?.bg || '#0d0d1a' }}>
 
@@ -213,6 +227,17 @@ export default function Flashcards() {
         ) : loadingWord ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <p style={{ color: th.text, fontFamily: "Nunito, sans-serif" }}>Loading a card…</p>
+          </div>
+        ) : wordError ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "14px", padding: "24px", textAlign: "center" }}>
+            <p style={{ color: th?.text || "#fff", fontFamily: "Nunito, sans-serif", fontSize: "1rem" }}>{wordError}</p>
+            <button onClick={() => loadNextWord()} style={{ background: th?.accent || "#A78BFA", border: "none", borderRadius: "14px", padding: "12px 24px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
+              Try again
+            </button>
+          </div>
+        ) : !wordData ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <p style={{ color: th?.text || "#fff", fontFamily: "Nunito, sans-serif" }}>Loading a card…</p>
           </div>
         ) : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", position: "relative" }}>
@@ -236,6 +261,14 @@ export default function Flashcards() {
               {showTopicSwitcher && (
                 <div style={{ background: getSurface(false, 0.9), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "14px", boxShadow: `0 4px 20px ${th.accent}18` }}>
                   <p style={{ color: th.sub, fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px 0" }}>Switch topic</p>
+                  {themeError && Object.keys(themeNames).length === 0 && (
+                    <div style={{ marginBottom: "10px" }}>
+                      <p style={{ color: "#FF6B6B", fontSize: "0.7rem", margin: "0 0 6px 0" }}>{themeError}</p>
+                      <button onClick={fetchThemeNames} style={{ background: "transparent", border: `1px solid ${th.accent}66`, borderRadius: "8px", padding: "4px 10px", color: th.accent, fontSize: "0.68rem", cursor: "pointer", fontWeight: 700, fontFamily: "Nunito, sans-serif" }}>
+                        Retry
+                      </button>
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <button onClick={() => handleSwitchTheme(null)} style={{ display: "flex", alignItems: "center", gap: "6px", background: !selectedTheme ? th.card : "transparent", border: `1.5px solid ${!selectedTheme ? th.accent : "rgba(0,0,0,0.08)"}`, borderRadius: "10px", padding: "8px 12px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700, color: th.text, fontFamily: "Nunito, sans-serif" }}>
                       🎲 Any topic
@@ -327,6 +360,11 @@ export default function Flashcards() {
 
               {phase === "record" && !isRecording && audioBlob && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {submitError && (
+                    <p style={{ color: "#FF6B6B", fontSize: "0.8rem", textAlign: "center", margin: 0, fontWeight: 600 }}>
+                      {submitError}
+                    </p>
+                  )}
                   <div style={{ background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "14px", display: "flex", gap: "10px" }}>
                     <button onClick={playChildAudio} disabled={playingChild} style={{ flex: 1, background: "transparent", border: `1.5px solid ${th.accent}44`, borderRadius: "10px", padding: "10px", color: th.sub, fontSize: "0.8rem", cursor: "pointer", fontWeight: 700, fontFamily: "Nunito, sans-serif" }}>
                       {playingChild ? "Playing..." : "Hear yourself"}
@@ -338,7 +376,7 @@ export default function Flashcards() {
                   <button onClick={handleSubmit} style={{ background: th.accent, border: "none", borderRadius: "16px", padding: "20px", fontFamily: "Nunito, sans-serif", fontSize: "1.1rem", fontWeight: 900, color: "#fff", cursor: "pointer", boxShadow: `0 4px 20px ${th.accent}44` }}>
                     Check my answer! ✨
                   </button>
-                  <button onClick={() => { reset(); setPhase("record"); startRecording(); }} style={{ background: "transparent", border: `1.5px solid ${th.accent}44`, borderRadius: "12px", padding: "12px", color: th.sub, fontSize: "0.85rem", cursor: "pointer", fontFamily: "Nunito, sans-serif", fontWeight: 600 }}>
+                  <button onClick={() => { setSubmitError(null); reset(); setPhase("record"); startRecording(); }} style={{ background: "transparent", border: `1.5px solid ${th.accent}44`, borderRadius: "12px", padding: "12px", color: th.sub, fontSize: "0.85rem", cursor: "pointer", fontFamily: "Nunito, sans-serif", fontWeight: 600 }}>
                     Try again
                   </button>
                 </div>
