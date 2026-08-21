@@ -2,6 +2,34 @@ import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
+// Deduped silent-refresh: if several requests 401 around the same moment
+// (e.g. a burst of parallel calls right as the access token expires), they
+// must share ONE in-flight refresh call, not each fire their own --
+// /auth/refresh rotates the refresh token on every use (old one revoked),
+// so a second concurrent call using the same stored token would 401 and
+// force a full logout even though the session is actually still good.
+let _refreshPromise = null
+
+async function _attemptSilentRefresh() {
+  if (_refreshPromise) return _refreshPromise
+  const refreshToken = localStorage.getItem('bq_refresh_token')
+  if (!refreshToken) return null
+
+  // Plain axios, not the `api` instance below -- avoids recursing back
+  // through this file's own interceptors, and /auth/refresh doesn't need
+  // (or want) the expired access token attached as an Authorization header.
+  _refreshPromise = axios.post(`${BASE_URL}/auth/refresh`, { refresh_token: refreshToken })
+    .then(({ data }) => {
+      localStorage.setItem('bq_token', data.access_token)
+      localStorage.setItem('bq_refresh_token', data.refresh_token)
+      return data.access_token
+    })
+    .catch(() => null)
+    .finally(() => { _refreshPromise = null })
+
+  return _refreshPromise
+}
+
 // A pagehide-safe way to fire a final request when the kid actually closes
 // the tab or navigates off-site — regular axios/fetch calls can get
 // cancelled mid-flight the instant the page unloads, silently dropping
@@ -53,10 +81,29 @@ api.interceptors.request.use((config) => {
 // legitimate 401 with no session to invalidate, not a dead-session signal.
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.startsWith('/auth/')) {
+  async (error) => {
+    const originalRequest = error.config
+    const isAuthEndpoint = originalRequest?.url?.startsWith('/auth/')
+
+    // First 401 on a non-auth request: try one silent refresh-and-retry
+    // before treating this as a dead session. _retried guards against a
+    // request that 401s AGAIN even after a successful refresh (a real dead
+    // session, not just an expired access token) from looping forever.
+    if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retried) {
+      originalRequest._retried = true
+      const newAccessToken = await _attemptSilentRefresh()
+      if (newAccessToken) {
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        return api(originalRequest)
+      }
+      // Refresh itself failed (no refresh token stored, or it's also
+      // expired/revoked) -- fall through to the hard-logout path below.
+    }
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       const userType = localStorage.getItem('bq_user_type')
       localStorage.removeItem('bq_token')
+      localStorage.removeItem('bq_refresh_token')
       localStorage.removeItem('bq_user_type')
       localStorage.removeItem('bq_user_data')
 
@@ -103,6 +150,9 @@ export const authAPI = {
   deleteParentAccount: () => api.delete('/auth/parent-account'),
   deleteKidAccount:    () => api.delete('/auth/kid-account'),
   deleteTherapistAccount: () => api.delete('/auth/account'),
+
+  refresh: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }),
+  logout:  (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }),
 }
 
 // Kid-authenticated wrapper around the Assessment flow (see

@@ -32,18 +32,20 @@ export function AuthProvider({ children }) {
 
   const loginTherapist = async (email, password) => {
     const { data } = await authAPI.login({ email, password })
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'therapist')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'therapist')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setTherapist(data); setPatient(null); setParent(null)
     return data
   }
 
   const registerTherapist = async (formData) => {
     const { data } = await authAPI.register(formData)
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'therapist')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'therapist')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setTherapist(data); setPatient(null); setParent(null)
     return data
   }
@@ -53,27 +55,30 @@ export function AuthProvider({ children }) {
       first_name: firstName, avatar, pin,
       parent_email: parentEmail, parent_phone: parentPhone,
     })
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'patient')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'patient')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
 
   const setupKidPin = async (assessmentPatientId, avatar, pin) => {
     const { data } = await authAPI.kidPinSetup({ patient_id: assessmentPatientId, avatar, pin })
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'patient')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'patient')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
 
   const loginKid = async (playerCode, pin) => {
     const { data } = await authAPI.kidLogin({ player_code: playerCode, pin })
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'patient')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'patient')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
@@ -109,18 +114,20 @@ export function AuthProvider({ children }) {
   // recover the therapist's session after the patient's overwrites it.
   const startSupervisedSession = async (breathQuestPatientId) => {
     const backup = {
-      token:    localStorage.getItem('bq_token'),
-      userType: localStorage.getItem('bq_user_type'),
-      userData: localStorage.getItem('bq_user_data'),
+      token:        localStorage.getItem('bq_token'),
+      refreshToken: localStorage.getItem('bq_refresh_token'),
+      userType:     localStorage.getItem('bq_user_type'),
+      userData:     localStorage.getItem('bq_user_data'),
     }
     const { data } = await patientsAPI.startSession(breathQuestPatientId)
 
     localStorage.setItem('bq_supervisor_backup', JSON.stringify(backup))
     setSupervisorBackup(backup)
 
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'patient')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'patient')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
@@ -131,8 +138,10 @@ export function AuthProvider({ children }) {
   // error is worse than a harmless no-op.
   const endSupervisedSession = () => {
     if (!supervisorBackup) return
-    const { token, userType, userData } = supervisorBackup
-    if (token)    localStorage.setItem('bq_token', token)
+    const { token, refreshToken, userType, userData } = supervisorBackup
+    if (token)        localStorage.setItem('bq_token', token)
+    if (refreshToken) localStorage.setItem('bq_refresh_token', refreshToken)
+    else              localStorage.removeItem('bq_refresh_token')
     if (userType) localStorage.setItem('bq_user_type', userType)
     if (userData) localStorage.setItem('bq_user_data', userData)
     localStorage.removeItem('bq_supervisor_backup')
@@ -161,9 +170,10 @@ export function AuthProvider({ children }) {
         email, password, full_name: fullName, phone,
       }
       const { data } = await authAPI.parentKidRegister(payload)
-      localStorage.setItem('bq_token',     data.access_token)
-      localStorage.setItem('bq_user_type', 'parent')
-      localStorage.setItem('bq_user_data', JSON.stringify(data))
+      localStorage.setItem('bq_token',         data.access_token)
+      localStorage.setItem('bq_refresh_token', data.refresh_token)
+      localStorage.setItem('bq_user_type',     'parent')
+      localStorage.setItem('bq_user_data',     JSON.stringify(data))
       setParent(data); setTherapist(null); setPatient(null)
       return data
     }
@@ -172,9 +182,10 @@ export function AuthProvider({ children }) {
       [codeType === 'invite' ? 'invite_code' : 'player_code']: code,
     }
     const { data } = await authAPI.parentRegister(payload)
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'parent')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'parent')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setParent(data); setTherapist(null); setPatient(null)
     return data
   }
@@ -185,6 +196,7 @@ export function AuthProvider({ children }) {
   // cleanup logout() already does).
   const _clearSession = () => {
     localStorage.removeItem('bq_token')
+    localStorage.removeItem('bq_refresh_token')
     localStorage.removeItem('bq_user_type')
     localStorage.removeItem('bq_user_data')
     setParent(null); setTherapist(null); setPatient(null)
@@ -207,9 +219,10 @@ export function AuthProvider({ children }) {
 
   const loginParent = async (email, password) => {
     const { data } = await authAPI.parentLogin({ email, password })
-    localStorage.setItem('bq_token',     data.access_token)
-    localStorage.setItem('bq_user_type', 'parent')
-    localStorage.setItem('bq_user_data', JSON.stringify(data))
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'parent')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setParent(data); setTherapist(null); setPatient(null)
     return data
   }
@@ -230,8 +243,17 @@ export function AuthProvider({ children }) {
     })
   }
 
-  const logout = () => {
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('bq_refresh_token')
+    if (refreshToken) {
+      // Best-effort server-side revoke -- logout must still succeed locally
+      // even if this call fails (network down, refresh token already
+      // expired/rotated elsewhere, etc.), so failures are swallowed rather
+      // than surfaced to the caller.
+      try { await authAPI.logout(refreshToken) } catch { /* ignore */ }
+    }
     localStorage.removeItem('bq_token')
+    localStorage.removeItem('bq_refresh_token')
     localStorage.removeItem('bq_user_type')
     localStorage.removeItem('bq_user_data')
     localStorage.removeItem('bq_supervisor_backup')
