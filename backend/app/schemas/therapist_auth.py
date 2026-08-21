@@ -17,6 +17,7 @@ class TherapistLogin(BaseModel):
 
 class TherapistTokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     therapist_id: str
     full_name: str

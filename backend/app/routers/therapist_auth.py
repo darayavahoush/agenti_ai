@@ -23,6 +23,7 @@ from app.breathquest_core.deps import get_current_therapist
 # 4-digit PIN, which was the threat this module was originally written for.
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 from app.breathquest_core.rate_limit import check_ip_rate_limit
+from app.breathquest_core.security import create_refresh_token
 from sqlalchemy import delete as sa_delete, update as sa_update
 
 router = APIRouter(prefix="/auth", tags=["therapist-auth"])
@@ -61,8 +62,10 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
     await db.flush()
 
     token = create_access_token(str(therapist.id))
+    refresh_token = await create_refresh_token(db, "therapist", str(therapist.id))
+    await db.commit()
     return TherapistTokenResponse(
-        access_token=token, therapist_id=str(therapist.id),
+        access_token=token, refresh_token=refresh_token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
         phone=therapist.phone,
     )
@@ -93,10 +96,11 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=403, detail="Account deactivated")
 
     await record_success(data.email, db)
-    await db.commit()
     token = create_access_token(str(therapist.id))
+    refresh_token = await create_refresh_token(db, "therapist", str(therapist.id))
+    await db.commit()
     return TherapistTokenResponse(
-        access_token=token, therapist_id=str(therapist.id),
+        access_token=token, refresh_token=refresh_token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
         phone=therapist.phone,
     )

@@ -24,8 +24,8 @@ from app.schemas.voicehurdlerace_schemas import (
     LeaderboardEntryOut,
 )
 from app.breathquest_core.deps import get_current_patient, get_current_therapist
-from agent.service import AgentService
-from retraining import data_store
+from app.breathquest_agent.service import AgentService
+from app.retraining import data_store
 
 router = APIRouter(prefix="/voicehurdlerace", tags=["voicehurdlerace"])
 logger = logging.getLogger(__name__)
