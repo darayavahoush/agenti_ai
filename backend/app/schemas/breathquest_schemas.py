@@ -136,6 +136,7 @@ class KidLoginRequest(BaseModel):
 
 class KidTokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     patient_id: str
     first_name: str
@@ -483,12 +484,23 @@ class ParentLoginRequest(BaseModel):
 
 class ParentTokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     parent_id: str
     patient_id: str
     child_first_name: str
     email: str
     phone: str | None = None
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 
 class ParentInviteCodeOut(BaseModel):

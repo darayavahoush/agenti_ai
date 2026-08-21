@@ -65,8 +65,8 @@ except ImportError as e:
 # app.breathquest_agent -- these are the copies breath_agent.py actually
 # imports and that write the RLTrainingEvent rows this router reads back
 # (see retraining/data_store.py's docstring on call sites).
-from retraining import data_store as chime_data_store
-from agent.service import AgentService
+from app.retraining import data_store as chime_data_store
+from app.breathquest_agent.service import AgentService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 

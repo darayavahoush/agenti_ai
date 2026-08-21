@@ -9,7 +9,7 @@ import numpy as np
 from fastapi import APIRouter, File, HTTPException, UploadFile, Depends
 from pydantic import BaseModel
 
-from retraining import data_store
+from app.retraining import data_store
 from word_level.asr_match import score_word_attempt
 
 router = APIRouter(tags=["PhoneMeQuest"])
