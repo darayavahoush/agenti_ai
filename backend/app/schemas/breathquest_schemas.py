@@ -482,6 +482,32 @@ class ParentLoginRequest(BaseModel):
     password: str
 
 
+class ParentGoogleLoginRequest(BaseModel):
+    """For an already-existing Parent account (password or previously-
+    linked Google) signing in with Google. See ParentGoogleRegisterRequest
+    for the brand-new-account case -- split the same way parent-login/
+    parent-register already are, since (unlike therapist-google) a new
+    Parent can't be created from the Google token alone: it always needs
+    a child to link to."""
+    id_token: str
+
+
+class ParentGoogleRegisterRequest(BaseModel):
+    """Google equivalent of ParentRegisterRequest -- links a new parent
+    account (identified by the Google token, not a password) to an
+    existing child via player_code/invite_code. Deliberately does NOT
+    cover ParentKidRegisterRequest's "new child, no therapist" combined
+    flow: that path requires phone OTP verification (COPPA dual-factor
+    consent, see check_parental_consent), which doesn't yet have a
+    Google-auth equivalent designed -- follow-up, not in scope here.
+    """
+    player_code: Optional[str] = None
+    invite_code: Optional[str] = None
+    id_token: str
+    # Collected, not verified -- see Parent.phone's comment.
+    phone: Optional[str] = None
+
+
 class ParentTokenResponse(BaseModel):
     access_token: str
     refresh_token: str
