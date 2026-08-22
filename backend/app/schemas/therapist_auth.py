@@ -15,6 +15,14 @@ class TherapistLogin(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    """The frontend gets this token directly from Google Identity
+    Services and hands it to us as-is -- see google_oauth.py for the
+    server-side verification. Nothing else needed: on first sign-in we
+    pull full_name/email straight from the verified token."""
+    id_token: str
+
+
 class TherapistTokenResponse(BaseModel):
     access_token: str
     refresh_token: str

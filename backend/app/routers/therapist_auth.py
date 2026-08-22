@@ -11,8 +11,10 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.therapist import Therapist
 from app.models.breathquest_models import BreathQuestPatient, Subscription
-from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse
+from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse, GoogleAuthRequest
 from app.breathquest_core.security import hash_password, verify_password, create_access_token
+from app.breathquest_core.google_oauth import verify_google_id_token
+from datetime import datetime, timezone
 from app.breathquest_core.parental_consent import check_email_consent
 from app.breathquest_core.deps import get_current_therapist
 # Same throttle module kid-login uses (see login_throttle.py's docstring) --
@@ -121,3 +123,68 @@ async def delete_therapist_account(
     await db.execute(sa_delete(Subscription).where(Subscription.owner_therapist_id == therapist.id))
     await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
     await db.commit()
+
+
+@router.post("/google", response_model=TherapistTokenResponse)
+async def google_login_or_register_therapist(
+    request: Request, data: GoogleAuthRequest, db: AsyncSession = Depends(get_db)
+):
+    """Combined login-or-register, unlike the password flow's separate
+    /register and /login -- a therapist account has no other required
+    field (unlike Parent, which needs a linked child, see
+    breathquest/auth.py's parent-google-* split), so there's nothing
+    register would need that we don't already have from the verified
+    Google token.
+
+    Three cases, in order:
+    1. google_sub already on file -> this is a returning Google user, log in.
+    2. No google_sub match, but email matches an existing (password)
+       account -> first time this therapist has used Google; link it,
+       so they can use either method from now on. Requires
+       email_verified from Google, since linking on email alone would
+       let anyone claim an existing account just by controlling an
+       unverified address at signup time.
+    3. Neither matches -> brand new therapist, auto-register.
+    """
+    check_ip_rate_limit(request)
+    google_user = verify_google_id_token(data.id_token)
+
+    result = await db.execute(select(Therapist).where(Therapist.google_sub == google_user.sub))
+    therapist = result.scalar_one_or_none()
+
+    if therapist is None and google_user.email:
+        result = await db.execute(select(Therapist).where(Therapist.email == google_user.email))
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            if not google_user.email_verified:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Google account email isn't verified -- can't link to an existing account",
+                )
+            existing.google_sub = google_user.sub
+            therapist = existing
+
+    if therapist is None:
+        if not google_user.email_verified:
+            raise HTTPException(status_code=403, detail="Google account email isn't verified")
+        therapist = Therapist(
+            email=google_user.email,
+            hashed_password=None,
+            full_name=google_user.name or google_user.email.split("@")[0],
+            google_sub=google_user.sub,
+        )
+        db.add(therapist)
+        await db.flush()
+
+    if not therapist.is_active:
+        raise HTTPException(status_code=403, detail="Account deactivated")
+
+    therapist.last_login = datetime.now(timezone.utc)
+    token = create_access_token(str(therapist.id))
+    refresh_token = await create_refresh_token(db, "therapist", str(therapist.id))
+    await db.commit()
+    return TherapistTokenResponse(
+        access_token=token, refresh_token=refresh_token, therapist_id=str(therapist.id),
+        full_name=therapist.full_name, email=therapist.email,
+        phone=therapist.phone,
+    )
