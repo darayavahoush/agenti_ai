@@ -394,6 +394,43 @@ def get_all_sessions():
     finally:
         db.close()
 
+@app.get("/patients/{patient_id}")
+def get_patient(patient_id: UUID):
+    # Added -- assessment/Assessment.jsx's loadPatientDetails() has always
+    # called this bare route (used to pre-fill the edit form for a
+    # returning self-serve patient), but no matching route existed
+    # anywhere in this file or app/routers/therapist_patients.py's
+    # /api/v1-prefixed one (different prefix, and auth-gated besides).
+    # This was a plain 404 on every "Edit Details" load, separate from
+    # the 2026-08-07 retirement of the other /patients/* routes above --
+    # unlike those, this route was never implemented at all. Registered
+    # last among the /patients/* GET routes on general principle (a
+    # single-segment {patient_id} param can't actually collide with the
+    # other routes here, which are all longer paths, but keeping literal
+    # paths first is the safer default if that ever changes).
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        return {
+            "id": str(patient.id),
+            "name": patient.name,
+            "age": patient.age,
+            "date_of_birth": patient.date_of_birth,
+            "language": patient.language,
+            "gender": patient.gender,
+            "diagnosis": patient.diagnosis,
+            "therapist_name": patient.therapist_name,
+            "parent_name": patient.parent_name,
+            "parent_contact": patient.parent_contact,
+            "email": patient.email,
+            "is_active": patient.is_active,
+            "created_at": patient.created_at,
+        }
+    finally:
+        db.close()
+
 # -----------------------------------
 # Assessment Endpoints (Minimal)
 # -----------------------------------
