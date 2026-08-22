@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage } from '../../api/client'
+import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
 import {
   Heart, LineChart, MessageCircle,
   Mail, Lock, User, KeyRound, Phone, Eye, EyeOff, ArrowLeft,
@@ -31,7 +32,7 @@ function Field({ icon: Icon, rightElement, ...props }) {
 
 export default function ParentAuth() {
   const navigate = useNavigate()
-  const { loginParent, registerParent } = useAuth()
+  const { loginParent, registerParent, loginParentGoogle, registerParentGoogle } = useAuth()
   const [mode, setMode] = useState('login')
   const [codeType, setCodeType] = useState('player_code')
   const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '', kidFirstName: '', kidAvatar: 'chick', kidPin: '' })
@@ -56,6 +57,30 @@ export default function ParentAuth() {
           fullName: form.fullName, phone: form.phone,
           kidFirstName: form.kidFirstName, kidAvatar: form.kidAvatar, kidPin: form.kidPin,
         })
+      }
+      navigate('/parent/dashboard')
+    } catch (err) {
+      setError(getErrorMessage(err, 'Something went wrong — please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Google sign-in has no email/password step, so there's nothing to
+  // "submit" a form around -- called directly from GoogleAuthButton's
+  // onIdToken. Login just needs the token; register additionally needs
+  // a player/invite code (see registerParentGoogle's docstring on why
+  // "new child, no therapist" isn't supported here), so the button is
+  // gated on that field being filled in register mode -- see disabled
+  // prop below.
+  async function handleGoogle(idToken) {
+    setError('')
+    setBusy(true)
+    try {
+      if (mode === 'login') {
+        await loginParentGoogle(idToken)
+      } else {
+        await registerParentGoogle({ idToken, code: form.code, codeType, phone: form.phone })
       }
       navigate('/parent/dashboard')
     } catch (err) {
@@ -135,6 +160,17 @@ export default function ParentAuth() {
               ))}
             </div>
 
+            {mode === 'login' && (
+              <>
+                <GoogleAuthButton onIdToken={handleGoogle} onError={setError} disabled={busy} />
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-white/10" />
+                  <span className="text-paper/30 text-xs font-medium">or</span>
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
+              </>
+            )}
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               {mode === 'register' && (
                 <>
@@ -179,6 +215,23 @@ export default function ParentAuth() {
                       <Field icon={KeyRound} type="text" required
                         placeholder={codeType === 'player_code' ? "Child's player code (e.g. CHICK42)" : 'Invite code from your therapist'}
                         value={form.code} onChange={update('code')} />
+
+                      {/* Google-register only covers the code-linked path
+                          above, not "new child, no therapist" (that one
+                          needs phone OTP consent with no Google-auth
+                          equivalent yet) -- so the button lives here,
+                          gated on a code actually being entered, rather
+                          than at the top of the form. */}
+                      <GoogleAuthButton
+                        onIdToken={handleGoogle}
+                        onError={setError}
+                        disabled={busy || !form.code.trim()}
+                      />
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-paper/30 text-xs font-medium">or set a password</span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
                     </>
                   )}
 
