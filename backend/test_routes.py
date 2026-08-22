@@ -20,8 +20,8 @@ except Exception as e:
     print(f"   ❌ Failed: {e}")
 
 try:
-    print("\n3. Importing speech router...")
-    from app.routes.speech import router as speech_router
+    print("\n3. Importing speech router (archived, unmounted -- see backend/app/_legacy/README.md)...")
+    from app._legacy.speech_pipeline.routes.speech import router as speech_router
     print(f"   ✅ Speech router loaded: {speech_router.prefix}")
     print(f"   Routes: {len(speech_router.routes)}")
 except Exception as e:

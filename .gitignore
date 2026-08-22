@@ -3,7 +3,6 @@ venv/
 env/
 .venv/
 speak_easy/
-Lib/
 Scripts/
 Include/
 share/
@@ -22,7 +21,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -82,4 +80,22 @@ out/
 backend/breathquest/
 
 # Vosk models (optional - can be large)
-vosk-models/
+vosk-models/.env
+.env.*
+venv/
+**/venv/
+__pycache__/
+*.pyc
+node_modules/
+*.db
+*.sqlite3
+*.zip
+quest-games/breathquest/backend/venv/
+quest-games/breathquest/frontend/node_modules/
+*.zip
+data/images/
+backend/assets/audio/
+
+# Editor/script backups
+*.bak
+*.bak_*

@@ -1,6 +1,58 @@
 import axios from 'axios'
 
-const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/v1'
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+
+// Deduped silent-refresh: if several requests 401 around the same moment
+// (e.g. a burst of parallel calls right as the access token expires), they
+// must share ONE in-flight refresh call, not each fire their own --
+// /auth/refresh rotates the refresh token on every use (old one revoked),
+// so a second concurrent call using the same stored token would 401 and
+// force a full logout even though the session is actually still good.
+let _refreshPromise = null
+
+async function _attemptSilentRefresh() {
+  if (_refreshPromise) return _refreshPromise
+  const refreshToken = localStorage.getItem('bq_refresh_token')
+  if (!refreshToken) return null
+
+  // Plain axios, not the `api` instance below -- avoids recursing back
+  // through this file's own interceptors, and /auth/refresh doesn't need
+  // (or want) the expired access token attached as an Authorization header.
+  _refreshPromise = axios.post(`${BASE_URL}/auth/refresh`, { refresh_token: refreshToken })
+    .then(({ data }) => {
+      localStorage.setItem('bq_token', data.access_token)
+      localStorage.setItem('bq_refresh_token', data.refresh_token)
+      return data.access_token
+    })
+    .catch(() => null)
+    .finally(() => { _refreshPromise = null })
+
+  return _refreshPromise
+}
+
+// A pagehide-safe way to fire a final request when the kid actually closes
+// the tab or navigates off-site — regular axios/fetch calls can get
+// cancelled mid-flight the instant the page unloads, silently dropping
+// session-end and agent-quit events. `keepalive: true` is a browser
+// guarantee that the request still gets sent even after the page is gone.
+// No response is read (the page may already be gone by the time it would
+// arrive) — this is fire-and-forget by design.
+export function beaconPost(path, body, method = 'POST') {
+  const token = localStorage.getItem('bq_token')
+  try {
+    fetch(`${BASE_URL}${path}`, {
+      method,
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    // best-effort — nothing to do if even starting the request throws
+  }
+}
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -16,22 +68,53 @@ api.interceptors.request.use((config) => {
 
 // A 401 here means the backend has rejected the token itself (expired,
 // invalid, or the patient/therapist/parent record it points to no longer
-// exists) — not a per-endpoint permission issue. Skip this for the auth
-// endpoints themselves — a wrong PIN/password is a legitimate 401 with no
-// session to invalidate, not a dead-session signal.
+// exists) — not a per-endpoint permission issue. Before this, that state was
+// invisible: AuthContext only checks whether *something* is in localStorage
+// to decide isKid/isTherapist/isParent, it never re-validates the token, so
+// the UI kept acting "logged in" while every real request quietly failed and
+// each caller improvised its own fallback (e.g. Chime's level-unlock check
+// silently treating "couldn't reach the backend" the same as "nothing
+// passed yet", which looks exactly like a stuck next-level bug rather than
+// what it actually is — a dead session). Handle it once, here, instead.
+//
+// Skip this for the auth endpoints themselves — a wrong PIN/password is a
+// legitimate 401 with no session to invalidate, not a dead-session signal.
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.startsWith('/auth/')) {
+  async (error) => {
+    const originalRequest = error.config
+    const isAuthEndpoint = originalRequest?.url?.startsWith('/auth/')
+
+    // First 401 on a non-auth request: try one silent refresh-and-retry
+    // before treating this as a dead session. _retried guards against a
+    // request that 401s AGAIN even after a successful refresh (a real dead
+    // session, not just an expired access token) from looping forever.
+    if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retried) {
+      originalRequest._retried = true
+      const newAccessToken = await _attemptSilentRefresh()
+      if (newAccessToken) {
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        return api(originalRequest)
+      }
+      // Refresh itself failed (no refresh token stored, or it's also
+      // expired/revoked) -- fall through to the hard-logout path below.
+    }
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       const userType = localStorage.getItem('bq_user_type')
       localStorage.removeItem('bq_token')
+      localStorage.removeItem('bq_refresh_token')
       localStorage.removeItem('bq_user_type')
       localStorage.removeItem('bq_user_data')
 
       const loginPath = userType === 'therapist' ? '/therapist/login'
         : userType === 'parent' ? '/parent/login'
-        : '/play'
+        : '/play' // kid landing — mirrors ProtectedKid's own redirect target
 
+      // Full reload, not a router push: this file has no router context (it's
+      // a plain axios instance, not a component), and a hard reload is exactly
+      // what's needed anyway to clear any in-memory AuthContext/game state left
+      // over from the dead session.
       if (window.location.pathname !== loginPath) {
         window.location.href = loginPath
       }
@@ -44,11 +127,41 @@ api.interceptors.response.use(
 //  Auth                                                                //
 // ------------------------------------------------------------------ //
 
+export const verifyAPI = {
+  request: (data) => api.post('/verify/request', data),
+  confirm: (data) => api.post('/verify/confirm', data),
+  phoneRequest: (data) => api.post('/verify/phone/request', data),
+  phoneConfirm: (data) => api.post('/verify/phone/confirm', data),
+}
+
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login:    (data) => api.post('/auth/login', data),
   kidRegister: (data) => api.post('/auth/kid-register', data),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
+  parentRegister: (data) => api.post('/auth/parent-register', data),
+  parentKidRegister: (data) => api.post('/auth/parent-kid-register', data),
+  parentLogin:    (data) => api.post('/auth/parent-login', data),
+
+  therapistCandidates: () => api.get('/auth/therapist-candidates'),
+  kidCandidates:       () => api.get('/auth/kid-candidates'),
+  kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),
+
+  deleteParentAccount: () => api.delete('/auth/parent-account'),
+  deleteKidAccount:    () => api.delete('/auth/kid-account'),
+  deleteTherapistAccount: () => api.delete('/auth/account'),
+
+  refresh: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }),
+  logout:  (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }),
+}
+
+// Kid-authenticated wrapper around the Assessment flow (see
+// routers/breathquest/assessment.py) -- lets AssessmentGate.jsx bootstrap
+// Assessment.jsx against the logged-in kid's own identity instead of its
+// own separate name+DOB gate.
+export const assessmentAPI = {
+  start:    () => api.post('/assessment/start'),
+  complete: (data) => api.post('/assessment/complete', data),
 }
 
 // ------------------------------------------------------------------ //
@@ -56,11 +169,16 @@ export const authAPI = {
 // ------------------------------------------------------------------ //
 
 export const patientsAPI = {
-  list:   ()           => api.get('/patients'),
-  get:    (id)         => api.get(`/patients/${id}`),
-  create: (data)       => api.post('/patients', data),
-  update: (id, data)   => api.patch(`/patients/${id}`, data),
-  delete: (id)         => api.delete(`/patients/${id}`),
+  list:   ()           => api.get('/breathquest/patients'),
+  get:    (id)         => api.get(`/breathquest/patients/${id}`),
+  create: (data)       => api.post('/breathquest/patients', data),
+  update: (id, data)   => api.patch(`/breathquest/patients/${id}`, data),
+  delete: (id)         => api.delete(`/breathquest/patients/${id}`),
+  generateParentInviteCode: (id) => api.post(`/breathquest/patients/${id}/parent-invite-code`),
+  // Therapist-launched entry point into Assessment/Live Therapy (see
+  // AuthContext.jsx's startSupervisedSession) -- mints a real kid token
+  // for this patient without needing their PIN.
+  startSession: (id)   => api.post(`/breathquest/patients/${id}/start-session`),
 }
 
 // ------------------------------------------------------------------ //
@@ -81,56 +199,56 @@ export const sessionsAPI = {
 export const dashboardAPI = {
   summary:     ()           => api.get('/dashboard/summary'),
   progress:    (patientId)  => api.get(`/dashboard/patients/${patientId}/progress`),
+  agentStatus: (patientId, levelId, policy = 'tabular_q') =>
+    api.get(`/breath/agent/status/${patientId}`, { params: { level_id: levelId, policy } }),
   createNote:  (patientId, data) => api.post(`/dashboard/patients/${patientId}/notes`, data),
   listNotes:   (patientId)       => api.get(`/dashboard/patients/${patientId}/notes`),
   updateNote:  (noteId, data)    => api.patch(`/dashboard/notes/${noteId}`, data),
   deleteNote:  (noteId)          => api.delete(`/dashboard/notes/${noteId}`),
-}
 
-export default api
+  // Assignments ("homework")
+  createAssignment: (patientId, data) => api.post(`/dashboard/patients/${patientId}/assignments`, data),
+  listAssignments:  (patientId)       => api.get(`/dashboard/patients/${patientId}/assignments`),
+  updateAssignment: (assignmentId, data) => api.patch(`/dashboard/assignments/${assignmentId}`, data),
+  deleteAssignment: (assignmentId)       => api.delete(`/dashboard/assignments/${assignmentId}`),
 
-// ------------------------------------------------------------------ //
-//  Beacon (fire-and-forget, page-unload-safe request)
-// ------------------------------------------------------------------ //
+  // Goals
+  createGoal: (patientId, data) => api.post(`/dashboard/patients/${patientId}/goals`, data),
+  listGoals:  (patientId)       => api.get(`/dashboard/patients/${patientId}/goals`),
+  updateGoal: (goalId, data)    => api.patch(`/dashboard/goals/${goalId}`, data),
+  deleteGoal: (goalId)          => api.delete(`/dashboard/goals/${goalId}`),
 
-export function beaconPost(path, body, method = 'POST') {
-  const token = localStorage.getItem('bq_token')
-  try {
-    fetch(`${BASE_URL}${path}`, {
-      method,
-      keepalive: true,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    })
-  } catch {
-    // best-effort — nothing to do if even starting the request throws
-  }
-}
+  // Messages (therapist <-> parent log)
+  createMessage:    (patientId, data) => api.post(`/dashboard/patients/${patientId}/messages`, data),
+  listMessages:     (patientId)       => api.get(`/dashboard/patients/${patientId}/messages`),
+  markMessageRead:  (messageId)       => api.post(`/dashboard/messages/${messageId}/read`),
 
-// ------------------------------------------------------------------ //
-//  Verify
-// ------------------------------------------------------------------ //
+  // Home practice log (manual, parent-reported)
+  createHomePractice: (patientId, data) => api.post(`/dashboard/patients/${patientId}/home-practice`, data),
+  listHomePractice:   (patientId)       => api.get(`/dashboard/patients/${patientId}/home-practice`),
 
-export const verifyAPI = {
-  request: (data) => api.post('/verify/request', data),
-  confirm: (data) => api.post('/verify/confirm', data),
-  phoneRequest: (data) => api.post('/verify/phone/request', data),
-  phoneConfirm: (data) => api.post('/verify/phone/confirm', data),
-}
+  // Multi-child alert view
+  listAlerts: (inactiveDays) => api.get('/dashboard/alerts', { params: inactiveDays ? { inactive_days: inactiveDays } : {} }),
 
-// Kid-authenticated wrapper around the Assessment flow — lets
-// AssessmentGate.jsx bootstrap Assessment.jsx against the logged-in kid's
-// own identity instead of its own separate name+DOB gate.
-export const assessmentAPI = {
-  start:    () => api.post('/assessment/start'),
-  complete: (data) => api.post('/assessment/complete', data),
+  // Weekly summary (rule-based, no LLM calls)
+  weeklySummary: (patientId, weekOffset) =>
+    api.get(`/dashboard/patients/${patientId}/weekly-summary`, { params: weekOffset ? { week_offset: weekOffset } : {} }),
+
+  // ICF-style PDF report export
+  getReport: (patientId) => api.get(`/dashboard/patients/${patientId}/report`, { responseType: 'blob' }),
+
+  // Sound-accuracy-over-time (real data only — no vocab/fluency tracking exists in this app)
+  getSoundProgress: (patientId, weeks) =>
+    api.get(`/dashboard/patients/${patientId}/sound-progress`, { params: weeks ? { weeks } : {} }),
+
+  // 50-item home practice ideas library, filterable by condition/goal
+  listHomePracticeIdeas: (condition, goal) =>
+    api.get('/dashboard/home-practice-ideas', { params: { ...(condition && { condition }), ...(goal && { goal }) } }),
 }
 
 // ------------------------------------------------------------------ //
-//  Chime (therapist-facing)
+//  Chime (therapist-facing) — chime.py itself is otherwise entirely
+//  kid-token-gated; get_patient_events is the one therapist endpoint.
 // ------------------------------------------------------------------ //
 
 export const chimeAPI = {
@@ -139,7 +257,7 @@ export const chimeAPI = {
 }
 
 // ------------------------------------------------------------------ //
-//  VaakMirror (therapist-facing)
+//  VaakMirror (therapist-facing)                                      //
 // ------------------------------------------------------------------ //
 
 export const vaakmirrorAPI = {
@@ -151,16 +269,25 @@ export const vaakmirrorAPI = {
 }
 
 // ------------------------------------------------------------------ //
-//  Kid-facing "my progress"
+//  Kid-facing "my progress" — deliberately minimal endpoint, no scores //
 // ------------------------------------------------------------------ //
 
 export const meAPI = {
-  progress: () => api.get('/me/progress'),
-  access:   () => api.get('/me/access'),
+  progress:        () => api.get('/me/progress'),
+  access:          () => api.get('/me/access'),
+  latestAssessment: () => api.get('/assessment/me/latest'),
+  updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),
+  uploadProfilePhoto: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/breathquest/patients/me/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 // ------------------------------------------------------------------ //
-//  Parent-facing
+//  Parent-facing                                                      //
 // ------------------------------------------------------------------ //
 
 export const billingAPI = {
@@ -175,9 +302,15 @@ export const parentAPI = {
   guidedActivity: () => api.get('/parent/guided-activity'),
 }
 
-// FastAPI's `detail` field is a plain string for most HTTPExceptions, but
-// automatic Pydantic request-validation failures (422s) return an *array*
-// of {type, loc, msg, input, ctx} objects instead. Normalize once, here.
+// FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.
+// "Invalid email or password"), but automatic Pydantic request-validation
+// failures (422s — e.g. an email that fails EmailStr's format check) return
+// an *array* of {type, loc, msg, input, ctx} objects instead. Every login/
+// register form does `setError(err.response?.data?.detail || fallback)` and
+// renders `error` directly as JSX text; when detail is that array, React
+// tries to render objects as children and the whole page crashes (React
+// error #31), not just the form. Normalize once, here, instead of leaving
+// every call site to assume detail is always a string.
 export function getErrorMessage(err, fallback = 'Something went wrong') {
   const detail = err?.response?.data?.detail
   if (!detail) return fallback
@@ -188,3 +321,5 @@ export function getErrorMessage(err, fallback = 'Something went wrong') {
   }
   return fallback
 }
+
+export default api

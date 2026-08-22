@@ -5,8 +5,10 @@
 
 import { useEffect, useState } from 'react';
 import { LEVELS, LevelProgress, getLevelProgress } from './levels';
-import { useAuth } from '../breathquest/context/AuthContext';
-import { Avatar, Badge, Card, StarRating, Button } from '../breathquest/components/ui';
+import { Badge, StarRating, Button } from '../components/ui';
+import { Sidebar } from '../components/ui';
+import { KID_SIDEBAR_ITEMS } from '../lib/kidSidebarItems';
+import { useAuth } from '../context/AuthContext';
 
 interface LevelSelectionProps {
   onSelectLevel: (levelId: number) => void;
@@ -21,7 +23,6 @@ const CARD_THEMES = [
 ];
 
 export default function LevelSelection({ onSelectLevel, onBack }: LevelSelectionProps) {
-  const { patient, logout } = useAuth();
   const [levelProgress, setLevelProgress] = useState<LevelProgress[]>([]);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
@@ -32,36 +33,21 @@ export default function LevelSelection({ onSelectLevel, onBack }: LevelSelection
   const totalStars = levelProgress.reduce((sum, p) => sum + (p.stars || 0), 0);
   const maxStars = LEVELS.length * 3;
 
+  const { patient, logout } = useAuth();
+
   return (
-    <div className="min-h-screen text-white flex flex-col font-sans" style={{
-      background: 'radial-gradient(ellipse at 50% -10%, #1e3a8a 0%, #0d0d1a 60%)'
-    }}>
-      {/* Top status bar consistent with BreathQuest */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-brand-dark/30 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <Avatar avatar={patient?.avatar || 'chick'} size="sm" />
-          <div className="flex flex-col">
-            <span className="font-display font-bold text-white leading-tight">
-              {patient?.first_name || 'Player'}
-            </span>
-            <span className="text-white/30 text-[10px] tracking-wide mt-0.5">
-              {patient?.player_code ? `#${patient.player_code}` : '#GUEST'}
-            </span>
-          </div>
-        </div>
-        {/* Total stars */}
-        <div className="flex items-center gap-2">
-          <span className="text-brand-amber font-bold text-sm">⭐ {totalStars} / {maxStars}</span>
-          {totalStars === maxStars && (
-            <span className="text-[10px] bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full font-bold">Perfect!</span>
-          )}
-        </div>
-        <button 
-          onClick={() => { logout(); onBack(); }} 
-          className="text-white/30 hover:text-white/60 text-xs font-semibold transition-colors"
-        >
-          Switch player
-        </button>
+    <div className="flex min-h-screen">
+      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <div className="flex-1 text-white flex flex-col font-sans overflow-y-auto" style={{
+        background: 'radial-gradient(ellipse at 50% -10%, #1e3a8a 0%, #0d0d1a 60%)'
+      }}>
+
+      {/* Stats strip — total stars is unique to this page, not shown in GameNavbar */}
+      <div className="flex items-center justify-center gap-2 px-6 py-2.5 border-b border-white/5 bg-black/10">
+        <span className="text-brand-amber font-bold text-sm">⭐ {totalStars} / {maxStars}</span>
+        {totalStars === maxStars && (
+          <span className="text-[10px] bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full font-bold">Perfect!</span>
+        )}
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-10 w-full flex-1">
@@ -117,9 +103,7 @@ export default function LevelSelection({ onSelectLevel, onBack }: LevelSelection
                   <div className="flex items-start justify-between mb-3">
                     <span className="text-5xl">{theme.emoji}</span>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-green/20 text-brand-green border border-brand-green/30">
-                        {level.duration}s Race
-                      </span>
+                      <Badge color="green">{level.duration}s Race</Badge>
                     </div>
                   </div>
 
@@ -170,6 +154,7 @@ export default function LevelSelection({ onSelectLevel, onBack }: LevelSelection
             ← Back to Portal Select
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );

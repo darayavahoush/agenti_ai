@@ -34,7 +34,7 @@ export default function ParentAuth() {
   const { loginParent, registerParent } = useAuth()
   const [mode, setMode] = useState('login')
   const [codeType, setCodeType] = useState('player_code')
-  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '' })
+  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '', kidFirstName: '', kidAvatar: 'chick', kidPin: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -51,7 +51,11 @@ export default function ParentAuth() {
       if (mode === 'login') {
         await loginParent(form.email, form.password)
       } else {
-        await registerParent({ code: form.code, codeType, email: form.email, password: form.password, fullName: form.fullName, phone: form.phone })
+        await registerParent({
+          code: form.code, codeType, email: form.email, password: form.password,
+          fullName: form.fullName, phone: form.phone,
+          kidFirstName: form.kidFirstName, kidAvatar: form.kidAvatar, kidPin: form.kidPin,
+        })
       }
       navigate('/parent/dashboard')
     } catch (err) {
@@ -134,23 +138,57 @@ export default function ParentAuth() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               {mode === 'register' && (
                 <>
+                  {/* Top-level choice: link to an existing child vs. create
+                      a brand-new one with no therapist involved. The
+                      player_code/invite sub-choice only matters within
+                      "existing child", so it's nested below rather than
+                      flattened into one 3-way row. */}
                   <div className="flex rounded-full bg-ink p-1 border border-white/10 text-xs font-semibold">
                     <button type="button" onClick={() => setCodeType('player_code')}
-                      className={`flex-1 rounded-full py-2 transition-colors ${codeType === 'player_code' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
-                      My child's game code
+                      className={`flex-1 rounded-full py-2 transition-colors ${codeType !== 'new_child' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
+                      I have a code
                     </button>
-                    <button type="button" onClick={() => setCodeType('invite')}
-                      className={`flex-1 rounded-full py-2 transition-colors ${codeType === 'invite' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
-                      Code from therapist
+                    <button type="button" onClick={() => setCodeType('new_child')}
+                      className={`flex-1 rounded-full py-2 transition-colors ${codeType === 'new_child' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
+                      New child, no therapist
                     </button>
                   </div>
-                  <Field icon={KeyRound} type="text" required
-                    placeholder={codeType === 'player_code' ? "Child's player code (e.g. CHICK42)" : 'Invite code from your therapist'}
-                    value={form.code} onChange={update('code')} />
+
+                  {codeType === 'new_child' ? (
+                    <>
+                      <Field icon={User} type="text" required placeholder="Your child's first name"
+                        value={form.kidFirstName} onChange={update('kidFirstName')} />
+                      <Field icon={KeyRound} type="text" required inputMode="numeric"
+                        pattern="\d{4}" maxLength={4} title="PIN must be exactly 4 digits"
+                        placeholder="Set a 4-digit PIN for your child"
+                        value={form.kidPin}
+                        onChange={(e) => setForm((f) => ({ ...f, kidPin: e.target.value.replace(/\D/g, '').slice(0, 4) }))} />
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex gap-4 px-1 text-xs font-medium">
+                        <button type="button" onClick={() => setCodeType('player_code')}
+                          className={`transition-colors ${codeType === 'player_code' ? 'text-coral-light' : 'text-paper/40 hover:text-paper/60'}`}>
+                          My child's game code
+                        </button>
+                        <button type="button" onClick={() => setCodeType('invite')}
+                          className={`transition-colors ${codeType === 'invite' ? 'text-coral-light' : 'text-paper/40 hover:text-paper/60'}`}>
+                          Code from therapist
+                        </button>
+                      </div>
+                      <Field icon={KeyRound} type="text" required
+                        placeholder={codeType === 'player_code' ? "Child's player code (e.g. CHICK42)" : 'Invite code from your therapist'}
+                        value={form.code} onChange={update('code')} />
+                    </>
+                  )}
+
                   <Field icon={User} type="text" placeholder="Your name (optional)"
                     value={form.fullName} onChange={update('fullName')} />
-                  {/* Collected, not verified — no SMS provider wired up yet. */}
-                  <Field icon={Phone} type="tel" placeholder="Phone (optional)"
+                  {/* Required for new_child (dual-factor parental consent) --
+                      optional otherwise, since no SMS provider is wired up
+                      yet for those paths and phone was never enforced. */}
+                  <Field icon={Phone} type="tel" required={codeType === 'new_child'}
+                    placeholder={codeType === 'new_child' ? 'Your phone number' : 'Phone (optional)'}
                     value={form.phone} onChange={update('phone')} />
                 </>
               )}

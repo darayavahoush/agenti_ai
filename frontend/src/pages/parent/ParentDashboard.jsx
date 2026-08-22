@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard } from 'lucide-react'
+import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar } from '../../components/ui'
+import { useNavigate } from 'react-router-dom'
 import { parentAPI } from '../../api/client'
 
 function formatDate(iso) {
@@ -18,7 +19,10 @@ function formatDate(iso) {
 // LevelProgress in parent.py), no clinical notes. That's therapist-only,
 // via a completely separate dashboard.py + therapist token.
 export default function ParentDashboard() {
-  const { parent, logout } = useAuth()
+  const { parent, logout, deleteParentAccount } = useAuth()
+  const navigate = useNavigate()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [data, setData] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [activity, setActivity] = useState(null)
@@ -52,6 +56,7 @@ export default function ParentDashboard() {
         items={[
           { label: 'Progress', icon: TrendingUp, to: '/parent/dashboard' },
           { label: 'Billing', icon: CreditCard, to: '/parent/billing' },
+          { label: 'Settings', icon: Settings, to: '/parent/settings' },
         ]}
         name={(data?.child_first_name || parent?.child_first_name) ? `${data?.child_first_name || parent?.child_first_name}'s Progress` : undefined}
         onLogout={logout}
@@ -59,7 +64,24 @@ export default function ParentDashboard() {
 
       <div className="relative flex-1 min-w-0 max-w-3xl mx-auto px-6 py-10">
         {status === 'loading' && (
-          <div className="text-center py-20 text-paper/40">Loading progress…</div>
+          <div className="animate-pulse">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-8 h-8 rounded-full bg-white/[0.06]" />
+              <div className="h-3 w-40 rounded-full bg-white/[0.06]" />
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4 h-24" />
+              ))}
+            </div>
+            <div className="rounded-2xl bg-white/[0.04] border border-white/[0.06] h-20 mb-8" />
+            <div className="h-3 w-28 rounded-full bg-white/[0.06] mb-3" />
+            <div className="flex flex-col gap-2.5">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="rounded-2xl bg-white/[0.04] border border-white/[0.06] h-16" />
+              ))}
+            </div>
+          </div>
         )}
 
         {status === 'error' && (
@@ -71,11 +93,44 @@ export default function ParentDashboard() {
 
         {status === 'ready' && data && (
           <>
+            {/* Today's difficulty recommendation -- same adaptive-difficulty
+                agent decision therapists already see, now surfaced for
+                parents too. Only renders when there's an actual decision
+                on file (recommended_action is null otherwise). */}
+            {data.recommended_action && (
+              <Card className="border-brand-amber/25 mb-6 flex items-center gap-3">
+                <span className="text-xl">
+                  {data.recommended_action === 'raise' ? '🔼' : data.recommended_action === 'lower' ? '🔽' : '➡️'}
+                </span>
+                <div>
+                  <p className="text-paper text-sm font-semibold">
+                    Today's difficulty: {data.recommended_action === 'raise' ? 'stepped up' : data.recommended_action === 'lower' ? 'eased back' : 'holding steady'}
+                  </p>
+                  {data.recommendation_message && (
+                    <p className="text-paper/40 text-xs mt-0.5">{data.recommendation_message}</p>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Weekly summary — dense numbers/chips only, no narrative prose.
                 stats/highlights both come from the rule-based (no LLM)
                 generator dashboard.py already builds for therapists too. */}
             <Card className="border-mint/20 mb-6">
-              <p className="font-mono text-xs uppercase tracking-widest text-mint mb-4">This week</p>
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-mono text-xs uppercase tracking-widest text-mint">This week</p>
+                {/* Transparency note -- this summary is deterministic, built
+                    from actual session data, not an LLM guessing. Worth
+                    saying explicitly for an audience wary of AI summaries. */}
+                <span className="group relative">
+                  <span className="text-paper/25 text-xs cursor-help">ⓘ How we write this</span>
+                  <span className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-ink border border-white/10
+                                    p-3 text-paper/60 text-xs leading-relaxed opacity-0 group-hover:opacity-100
+                                    pointer-events-none transition-opacity z-20">
+                    Generated from your child's actual session data — not AI guessing. Same numbers every time, for the same week.
+                  </span>
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-x-4 gap-y-4 mb-5">
                 {[
                   ['BreathQuest', data.weekly_summary.stats.bq_sessions],
@@ -138,10 +193,11 @@ export default function ParentDashboard() {
               )}
             </div>
 
-            {/* Total stars bar */}
+            {/* Total stars bar -- now BreathQuest + VoiceHurdleRace combined,
+                the two games that actually have a stars concept. */}
             <Card className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-paper/60 text-sm font-medium">Total stars (BreathQuest)</span>
+                <span className="text-paper/60 text-sm font-medium">Total stars</span>
                 <span className="text-paper/40 text-xs">{data.total_stars} / {data.max_possible_stars}</span>
               </div>
               <div className="h-3 rounded-full bg-white/[0.06] overflow-hidden">
@@ -152,22 +208,34 @@ export default function ParentDashboard() {
               </div>
             </Card>
 
-            {/* Per-level breakdown -- best stars and last played, no raw
-                scores (avg_breath_strength always comes back null here on
-                purpose from the backend). */}
-            <h2 className="font-display text-lg font-bold text-paper mb-3">By level</h2>
-            <div className="flex flex-col gap-2.5">
-              {data.level_progress.map((lvl) => (
-                <Card key={lvl.level_id} className="flex items-center justify-between gap-4 py-4">
+            {/* Breath-consistency trend -- session-level data that was never
+                aggregated for parents before now. Only shows once there's
+                enough data to be meaningful. */}
+            {data.avg_breath_consistency != null && (
+              <Card className="mb-8 flex items-center justify-between">
+                <span className="text-paper/60 text-sm font-medium">Breath consistency</span>
+                <span className="text-mint-light text-sm font-semibold">
+                  {Math.round(data.avg_breath_consistency * 100)}%
+                </span>
+              </Card>
+            )}
+
+            {/* BreathQuest -- always renders all 6 fixed levels regardless
+                of data (see bq_categories loop over LEVEL_NAMES server-side),
+                so this section alone was never the empty-state problem. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">BreathQuest</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {(data.categories?.breathquest ?? []).map((cat, i) => (
+                <Card key={i} className="flex items-center justify-between gap-4 py-4">
                   <div>
-                    <p className="text-paper text-sm font-semibold">{lvl.level_name}</p>
+                    <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
                     <p className="text-paper/35 text-xs mt-0.5">
-                      {lvl.attempts} attempt{lvl.attempts === 1 ? '' : 's'} · last played {formatDate(lvl.last_played)}
+                      {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {Array.from({ length: 3 }, (_, j) => (
-                      <span key={j} className="text-lg" style={{ color: j < lvl.best_stars ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
+                      <span key={j} className="text-lg" style={{ color: j < (cat.stars ?? 0) ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
                         ★
                       </span>
                     ))}
@@ -176,9 +244,114 @@ export default function ParentDashboard() {
               ))}
             </div>
 
-            <p className="text-paper/25 text-xs text-center mt-10">
-              Showing BreathQuest progress. Ask your child's therapist about progress in other games.
-            </p>
+            {/* VoiceHurdleRace -- split out of the old merged BreathQuest+VHR
+                list. Its category list is built from actual session rows
+                (vhr_by_level server-side), so on zero sessions it was
+                silently contributing nothing to the merged list and
+                vanishing -- same always-visible + empty-state treatment as
+                VaakMirror/Flashcards below. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">VoiceHurdleRace</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.voicehurdlerace?.length > 0 ? (
+                data.categories.voicehurdlerace.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {Array.from({ length: 3 }, (_, j) => (
+                        <span key={j} className="text-lg" style={{ color: j < (cat.stars ?? 0) ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried VoiceHurdleRace yet.</p>
+                </Card>
+              )}
+            </div>
+
+            {/* VaakMirror -- no stars concept, shown as pass-rate instead.
+                Always shown, even with no sessions yet -- BreathQuest's
+                fixed level list always renders something, so a bare
+                empty-array games disappearing entirely made the app look
+                BreathQuest-only rather than just "not tried yet". */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">VaakMirror</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.vaakmirror?.length > 0 ? (
+                data.categories.vaakmirror.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">
+                        {cat.category_name.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
+                      </p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried VaakMirror yet.</p>
+                </Card>
+              )}
+            </div>
+
+            {/* Flashcards -- per-phoneme mastery, no stars/levels either.
+                Same always-visible treatment as VaakMirror above. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">Flashcards</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.flashcards?.length > 0 ? (
+                data.categories.flashcards.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried Flashcards yet.</p>
+                </Card>
+              )}
+            </div>
+
+            {/* Chime -- new category, previously only surfaced as a single
+                aggregate number (chime_attempts) in the weekly stats grid
+                with no per-sound breakdown. Same pass-rate treatment as
+                VaakMirror/Flashcards since Chime has no stars concept. */}
+            <h2 className="font-display text-lg font-bold text-paper mb-3">Chime</h2>
+            <div className="flex flex-col gap-2.5 mb-8">
+              {data.categories?.chime?.length > 0 ? (
+                data.categories.chime.map((cat, i) => (
+                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
+                      <p className="text-paper/35 text-xs mt-0.5">
+                        {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
+                      </p>
+                    </div>
+                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                  </Card>
+                ))
+              ) : (
+                <Card className="py-4">
+                  <p className="text-paper/40 text-sm">Hasn't tried Chime yet.</p>
+                </Card>
+              )}
+            </div>
           </>
         )}
       </div>

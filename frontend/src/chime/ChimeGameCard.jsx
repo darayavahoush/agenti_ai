@@ -47,7 +47,7 @@ export default function ChimeGameCard({
       {/* ambient glow wash, only alive on unlocked cards */}
       {live && (
         <div
-          className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-25 group-hover:opacity-40 transition-opacity duration-300"
+          className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-0 group-hover:opacity-35 transition-opacity duration-300"
           style={{ backgroundColor: accent }}
         />
       )}

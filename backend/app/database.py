@@ -2,9 +2,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Explicit path, not the bare load_dotenv() this used to be -- that
+# searches from the CURRENT PROCESS's cwd, which silently breaks now
+# that this module gets cross-imported from quest-games' backend (see
+# the 2026-08-11 agenti_ai <-> quest-games merge). A bare load_dotenv()
+# call from that context loaded QUEST-GAMES' .env into this process's
+# os.environ instead, corrupting SECRET_KEY resolution anywhere else in
+# the process that also reads os.environ (discovered via
+# core/deps.py's therapist-token verification silently using the wrong
+# secret). Always load this file's own .env, regardless of caller.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 

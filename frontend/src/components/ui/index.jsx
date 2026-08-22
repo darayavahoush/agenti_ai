@@ -1,4 +1,5 @@
 // Shared UI primitives
+import { Creature, CREATURE_ACCENTS } from './Creatures'
 
 export function Button({ children, variant = 'primary', size = 'md', className = '', ...props }) {
   const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed'
@@ -20,24 +21,39 @@ export function Button({ children, variant = 'primary', size = 'md', className =
   )
 }
 
-export function Card({ children, className = '', ...props }) {
+export function Card({ children, className = '', as: Tag = 'div', ...props }) {
   return (
-    <div className={`bg-brand-card border border-white/10 rounded-2xl p-6 ${className}`} {...props}>
+    <Tag
+      className={`bg-gradient-to-b from-white/[0.045] to-white/[0.015] border border-white/[0.08]
+        rounded-2xl p-6 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_4px_20px_-6px_rgba(0,0,0,0.4)]
+        ${className}`}
+      {...props}
+    >
       {children}
-    </div>
+    </Tag>
   )
 }
 
-export function Input({ label, error, className = '', ...props }) {
+export function Input({ label, error, icon: Icon, rightElement, className = '', ...props }) {
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-white/70">{label}</label>}
-      <input
-        className={`w-full bg-white/5 border ${error ? 'border-brand-coral' : 'border-white/15'}
-          rounded-xl px-4 py-3 text-white placeholder-white/30
-          focus:outline-none focus:border-brand-green transition-colors ${className}`}
-        {...props}
-      />
+      <div className="relative">
+        {Icon && (
+          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+        )}
+        <input
+          className={`w-full bg-white/5 border ${error ? 'border-brand-coral' : 'border-white/15'}
+            rounded-xl px-4 py-3 ${Icon ? 'pl-10' : ''} ${rightElement ? 'pr-10' : ''} text-white placeholder-white/30
+            focus:outline-none focus:border-brand-green transition-colors ${className}`}
+          {...props}
+        />
+        {rightElement && (
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+            {rightElement}
+          </div>
+        )}
+      </div>
       {error && <span className="text-xs text-brand-coral">{error}</span>}
     </div>
   )
@@ -45,14 +61,14 @@ export function Input({ label, error, className = '', ...props }) {
 
 export function Badge({ children, color = 'green' }) {
   const colors = {
-    green:  'bg-brand-green/20 text-brand-green',
-    amber:  'bg-brand-amber/20 text-brand-amber',
-    coral:  'bg-brand-coral/20 text-brand-coral',
-    purple: 'bg-brand-purple/20 text-purple-300',
-    gray:   'bg-white/10 text-white/60',
+    green:  'bg-brand-green/15 text-brand-green border-brand-green/25',
+    amber:  'bg-brand-amber/15 text-brand-amber border-brand-amber/25',
+    coral:  'bg-brand-coral/15 text-brand-coral border-brand-coral/25',
+    purple: 'bg-brand-purple/15 text-purple-300 border-brand-purple/25',
+    gray:   'bg-white/[0.06] text-white/60 border-white/10',
   }
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${colors[color]}`}>
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${colors[color]}`}>
       {children}
     </span>
   )
@@ -76,27 +92,33 @@ export function StarRating({ stars = 0, max = 3, size = 'md' }) {
   )
 }
 
-export function Avatar({ avatar = 'chick', size = 'md', name = '' }) {
-  const AVATARS = {
-    chick:  { emoji: '🐥', bg: 'from-yellow-400 to-orange-400' },
-    dragon: { emoji: '🐉', bg: 'from-green-500 to-teal-500' },
-    cloud:  { emoji: '☁️',  bg: 'from-blue-400 to-indigo-400' },
-    star:   { emoji: '⭐', bg: 'from-yellow-300 to-amber-400' },
-    rocket: { emoji: '🚀', bg: 'from-purple-500 to-pink-500' },
-    fish:   { emoji: '🐠', bg: 'from-cyan-400 to-blue-500' },
-  }
+export function Avatar({ avatar = 'chick', photoUrl = null, size = 'md', name = '' }) {
   const sizes = {
-    sm:  'w-8 h-8 text-base',
-    md:  'w-12 h-12 text-2xl',
-    lg:  'w-16 h-16 text-3xl',
-    xl:  'w-24 h-24 text-5xl',
+    sm:  'w-8 h-8',
+    md:  'w-12 h-12',
+    lg:  'w-16 h-16',
+    xl:  'w-24 h-24',
   }
-  const av = AVATARS[avatar] || AVATARS.chick
+
+  // Custom uploaded photo takes priority over the creature species art
+  // wherever it's set -- see MyAccount.jsx's upload flow.
+  if (photoUrl) {
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1$/, '')
+    return (
+      <div className={`${sizes[size]} rounded-full flex-shrink-0 overflow-hidden`} title={name}>
+        <img src={`${apiBase}${photoUrl}`} alt={name} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
+
+  const accent = CREATURE_ACCENTS[avatar] || CREATURE_ACCENTS.chick
   return (
-    <div className={`${sizes[size]} rounded-full bg-gradient-to-br ${av.bg}
-      flex items-center justify-center flex-shrink-0`}
-      title={name}>
-      {av.emoji}
+    <div
+      className={`${sizes[size]} rounded-full flex items-center justify-center flex-shrink-0 p-1`}
+      style={{ background: `linear-gradient(160deg, ${accent.from}33, ${accent.to}22)` }}
+      title={name}
+    >
+      <Creature species={avatar} className="w-full h-full" />
     </div>
   )
 }
@@ -112,6 +134,9 @@ export function PageLoader() {
   )
 }
 
+// Real lucide icon in a colored badge + a big, tight-tracked number —
+// replaces the bare Card+emoji+number pattern dashboards otherwise
+// reach for independently.
 export function StatCard({ icon: Icon, value, label, accent = '#2FB8A6' }) {
   return (
     <Card className="flex flex-col gap-3">
