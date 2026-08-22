@@ -15,11 +15,10 @@ export default function AssessmentReport() {
   const navigate = useNavigate()
   const { patient } = useAuth()
   const location = useLocation()
-  const summary = location.state?.summary || {}
-  const wordsAttempted = summary.wordsAttempted ?? 0
-  const severity = summary.severityClassification
+  const routedSummary = location.state?.summary
 
   const [access, setAccess] = useState(null) // null = loading
+  const [latest, setLatest] = useState(null) // fallback when no router state
 
   useEffect(() => {
     let cancelled = false
@@ -28,6 +27,23 @@ export default function AssessmentReport() {
       .catch(() => { if (!cancelled) setAccess({ has_access: false, reason: 'unknown' }) })
     return () => { cancelled = true }
   }, [])
+
+  // No router state means we weren't routed here right after finishing an
+  // assessment (e.g. tapped "My Results" from GamePicker instead) -- fetch
+  // the kid's most recent result directly.
+  useEffect(() => {
+    if (routedSummary) return
+    let cancelled = false
+    meAPI.latestAssessment()
+      .then(({ data }) => { if (!cancelled) setLatest(data) })
+      .catch(() => { if (!cancelled) setLatest(null) })
+    return () => { cancelled = true }
+  }, [routedSummary])
+
+  // wordsAttempted only exists on the just-finished-assessment path -- the
+  // stored session record doesn't track it, so it's unknown on revisit.
+  const wordsAttempted = routedSummary?.wordsAttempted ?? null
+  const severity = routedSummary?.severityClassification ?? latest?.severity_classification
 
   const trialDaysLeft = access?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(access.trial_ends_at) - new Date()) / 86400000))
@@ -55,10 +71,12 @@ export default function AssessmentReport() {
             <span className="text-white font-semibold text-sm">Your free preview</span>
           </div>
           <div className="space-y-2 text-sm text-white/70">
-            <div className="flex justify-between">
-              <span>Words attempted</span>
-              <span className="text-white font-medium">{wordsAttempted}</span>
-            </div>
+            {wordsAttempted !== null && (
+              <div className="flex justify-between">
+                <span>Words attempted</span>
+                <span className="text-white font-medium">{wordsAttempted}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span>Early read</span>
               <span className="text-white font-medium">{severity || 'Looking good so far'}</span>

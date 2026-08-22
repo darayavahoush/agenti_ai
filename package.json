@@ -1,0 +1,10 @@
+{
+  "name": "agenti-ai-dev",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
+}

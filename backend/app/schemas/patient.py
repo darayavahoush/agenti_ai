@@ -33,6 +33,7 @@ class PatientOut(BaseModel):
     email: Optional[str] = None  # 'email' to match database
     is_active: Optional[bool] = True
     created_at: Optional[datetime] = None
+    registered_therapist_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True

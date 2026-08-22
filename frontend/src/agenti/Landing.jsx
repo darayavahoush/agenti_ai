@@ -1,5 +1,6 @@
 import { T } from "../assessment/constants";
 import { Button, BunnyMascot } from "./UI";
+import { PartyPopper, Gamepad2, Globe, Brain, Flame, PawPrint, Mic2, Bell, Layers, Sparkles, Sparkle, Target } from "lucide-react";
 
 export function Landing({ onStart }) {
   return (
@@ -76,7 +77,7 @@ export function Landing({ onStart }) {
               borderRadius: "999px", boxShadow: T.shadowSm, marginBottom: "18px",
             }}
           >
-            <span style={{ fontSize: "18px" }}>🎉</span>
+            <PartyPopper size={18} color={T.primary} />
             <span style={{ fontSize: "15px", fontWeight: 800, color: T.primary }}>
               Speech Adventure Time
             </span>
@@ -88,17 +89,17 @@ export function Landing({ onStart }) {
               fontWeight: 900, lineHeight: 1, color: T.text, margin: "0 0 18px 0",
             }}
           >
-            Let's make speaking <br />
-            <span style={{ color: T.primary }}>fun and easy</span>
+            Small games. <br />
+            <span style={{ color: T.primary }}>Real progress.</span>
           </h1>
 
           <p
             style={{
               fontSize: "19px", color: T.textMuted, lineHeight: 1.6,
-              marginBottom: "32px", fontWeight: 600,
+              marginBottom: "24px", fontWeight: 600,
             }}
           >
-            Practice your words, hear fun feedback, and grow your confidence with a smiling AI buddy.
+            Five games that turn real speech practice into play — breath, voice, and pronunciation, each adapting in real time to how your child is doing.
           </p>
 
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "22px" }}>
@@ -110,15 +111,38 @@ export function Landing({ onStart }) {
             </Button>
           </div>
 
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "22px" }}>
             <div style={{ background: "#fff", borderRadius: "18px", padding: "12px 14px", boxShadow: T.shadowSm, minWidth: "130px" }}>
-              <div style={{ fontSize: "18px", fontWeight: 800, color: T.primary }}>⭐ 98%</div>
-              <div style={{ fontSize: "13px", color: T.textMuted }}>happy learners</div>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: T.primary, display: "flex", alignItems: "center", gap: "6px" }}><Gamepad2 size={18} /> 5</div>
+              <div style={{ fontSize: "13px", color: T.textMuted }}>games, one login</div>
             </div>
             <div style={{ background: "#fff", borderRadius: "18px", padding: "12px 14px", boxShadow: T.shadowSm, minWidth: "130px" }}>
-              <div style={{ fontSize: "18px", fontWeight: 800, color: T.secondary }}>🎵 20+</div>
-              <div style={{ fontSize: "13px", color: T.textMuted }}>fun sounds</div>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: T.secondary, display: "flex", alignItems: "center", gap: "6px" }}><Globe size={18} /> 8</div>
+              <div style={{ fontSize: "13px", color: T.textMuted }}>languages</div>
             </div>
+            <div style={{ background: "#fff", borderRadius: "18px", padding: "12px 14px", boxShadow: T.shadowSm, minWidth: "130px" }}>
+              <div style={{ fontSize: "18px", fontWeight: 800, color: "#60a5fa", display: "flex", alignItems: "center", gap: "6px" }}><Brain size={18} /> AI</div>
+              <div style={{ fontSize: "13px", color: T.textMuted }}>adapts difficulty live</div>
+            </div>
+          </div>
+
+          {/* What's inside -- the real breadth (5 mechanically different
+              games, not one app skinned five ways), stated plainly rather
+              than left implicit until someone signs up. */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {[
+              [Flame, "BreathQuest"], [PawPrint, "Voice Hurdle Race"], [Mic2, "VaakMirror"],
+              [Bell, "Chime"], [Layers, "Flashcards"],
+            ].map(([Icon, name]) => (
+              <span key={name} style={{
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                background: "rgba(255,255,255,0.7)", border: `1px solid ${T.border}`,
+                borderRadius: "999px", padding: "6px 12px", fontSize: "13px",
+                fontWeight: 700, color: T.text,
+              }}>
+                <Icon size={14} /> {name}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -138,7 +162,7 @@ export function Landing({ onStart }) {
                 fontWeight: 800, color: T.text, animation: "float-fast 4s ease-in-out infinite",
               }}
             >
-              YAY! 🎈
+              YAY! <Sparkles size={14} style={{ verticalAlign: "-2px" }} />
             </div>
             <div
               style={{
@@ -148,24 +172,37 @@ export function Landing({ onStart }) {
               }}
             >
               <div style={{ fontSize: "12px", fontWeight: 800, color: T.primary, marginBottom: "4px" }}>Today's Goal</div>
-              <div style={{ fontSize: "14px", color: T.text, fontWeight: 700 }}>Say "apple" 🎯</div>
+              <div style={{ fontSize: "14px", color: T.text, fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>Say "apple" <Target size={14} /></div>
             </div>
             <div style={{ position: "absolute", top: "0%", left: "8%", display: "flex", gap: "8px" }}>
-              {['✨', '🌟', '💫'].map((icon, index) => (
-                <span
+              {[0, 1, 2].map((index) => (
+                <Sparkle
                   key={index}
+                  size={index === 1 ? 24 : 18}
+                  color={T.primary}
                   style={{
-                    fontSize: index === 1 ? "24px" : "18px",
                     animation: `bubble-drift ${3 + index}s ease-out infinite ${index * 0.6}s`,
                   }}
-                >
-                  {icon}
-                </span>
+                />
               ))}
             </div>
             <BunnyMascot size={430} mood="happy" style={{ position: "relative", zIndex: 2 }} />
           </div>
         </div>
+      </div>
+
+      <div style={{
+        position: "absolute", bottom: "18px", left: 0, right: 0,
+        display: "flex", justifyContent: "center", gap: "20px", zIndex: 1,
+      }}>
+        {[["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
+          <a key={href} href={href} style={{
+            fontSize: "13px", fontWeight: 700, color: T.textMuted,
+            textDecoration: "none",
+          }}>
+            {label}
+          </a>
+        ))}
       </div>
     </div>
   );

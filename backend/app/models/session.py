@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Float, Integer, TIMESTAMP, String, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
 from datetime import datetime
@@ -33,6 +33,15 @@ class Session(Base):
     session_type = Column(String, default="word_practice")
 
     trs_score = Column(Integer)
+
+    # Diagnostic findings from the assessment LangGraph pipeline
+    # (ArticulationDiagnosticAgent + DiagnosticReporterAgent). Nullable —
+    # only word_practice sessions run through the full assessment graph
+    # populate these; ordinary gameplay sessions leave them null.
+    severity_classification = Column(String)  # e.g. "Mild to Moderate Articulation Delay"
+    error_patterns = Column(JSONB)            # list[str], e.g. ["Velar Fronting (...)"]
+    targeted_quests = Column(JSONB)            # list[str] of single-letter codes, e.g. ["K", "R"]
+    diagnostic_report = Column(String)
 
     created_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 

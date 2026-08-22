@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { sessionsAPI } from '../../api/client'
+import { Volume2 } from 'lucide-react'
+import { sessionsAPI, beaconPost } from '../../api/client'
 import { BreathEngine } from '../../game/engine/BreathEngine.js'
 import { LEVEL_FACTORIES, LEVEL_META } from '../../game/index.js'
 import { calcStars, saveScore, loadScores, isUnlocked, LEVEL_ORDER } from '../../game/scoring/index.js'
+import { getBreathAgentDecision, logBreathEvent } from '../../game/lib/api.js'
+import {
+  DEFAULT_DIFFICULTY, applyAction, loadStoredDifficulty, saveStoredDifficulty,
+  loadAttemptNumber, saveAttemptNumber,
+} from '../../game/lib/difficulty.js'
+import { useSpokenInstruction } from '../../lib/speech'
 
 const W = 800, H = 580
 
 export default function GamePage() {
   const { levelId } = useParams()
   const navigate    = useNavigate()
-  const { patient } = useAuth()
   const meta        = LEVEL_META[levelId]
 
   const canvasRef   = useRef(null)
@@ -22,50 +27,85 @@ export default function GamePage() {
   const breathLog   = useRef([])
   const eventBatch  = useRef([])
   const flushTimer  = useRef(null)
+  const breatheTimer = useRef(null)
   const lastTime    = useRef(null)
   const metricsRef  = useRef({ timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 })
   const startTime   = useRef(null)
+  const difficultyRef = useRef(DEFAULT_DIFFICULTY)
 
-  const [phase,        setPhase]        = useState('ready')
-  const [calProgress,  setCalProgress]  = useState(0)
-  const [breathVal,    setBreathVal]    = useState(0)
-  const [result,       setResult]       = useState(null)
-  const [earnedStars,  setEarnedStars]  = useState(0)
-  const [starAnim,     setStarAnim]     = useState(0)
-  const [debug,        setDebug]        = useState({ raw: 0, floor: 0, above: 0, breath: 0 })
-  const [sessionError, setSessionError] = useState('')
+  const [phase,       setPhase]       = useState('ready')
+  const [errorReason, setErrorReason] = useState(null) // 'session' | 'mic' | null
+  const [calProgress, setCalProgress] = useState(0)
+  const [result,      setResult]      = useState(null)
+  const [earnedStars, setEarnedStars] = useState(0)
+  const [starAnim,    setStarAnim]    = useState(0)
+  const [debug,       setDebug]       = useState({ raw: 0, floor: 0, above: 0, breath: 0 })
 
   // Check unlock
-  const scores   = loadScores(patient?.player_code)
+  const scores   = loadScores()
   const unlocked = isUnlocked(levelId, scores)
   const bestStars = scores[levelId]?.stars || 0
 
+  // Verbal instructions: speak the level's tagline once each time the
+  // "ready" screen is (re-)entered (only once it's actually unlocked — no
+  // point narrating a level the kid can't play yet), and the breathe-in
+  // cue once each time that phase comes up — it recurs every attempt, and
+  // useSpokenInstruction correctly re-speaks on every re-entry into an
+  // enabled state, not just the first time ever (see its doc comment).
+  const replayReady = useSpokenInstruction(meta?.tagline, { enabled: phase === 'ready' && unlocked })
+  const replayBreathe = useSpokenInstruction(
+    'Take a big breath in! Fill up your belly like a balloon, then get ready to blow.',
+    { enabled: phase === 'breathe' },
+  )
+
   const startGame = async () => {
     if (!unlocked) return
-    setSessionError('')
-
     try {
       const { data } = await sessionsAPI.start({ level_id: levelId })
       sessionRef.current = data.id
     } catch {
-      // Session tracking is optional for play. Keep the game available when
-      // the analytics service is temporarily unavailable; local scores still
-      // save as usual and API logging resumes on the next successful session.
-      setSessionError('Connection issue — your game will still play and save on this device.')
+      // Session creation failed - bail instead of playing a session-less
+      // round that would score the kid but never write to
+      // rl_training_events (start/end/logEvents all silently no-op on an
+      // undefined session id). Surface it as the existing 'error' phase so
+      // GamePage's error UI (whatever that already renders) picks it up.
+      setErrorReason('session')
+      setPhase('error')
+      return
     }
+
+    // Ask the same adaptive-difficulty agent Chime's phoneme levels use
+    // (routers/breath_agent.py -> agent.service.AgentService) whether to
+    // raise/hold/lower this level's difficulty, then nudge our locally
+    // stored value accordingly. Falls back to last-known difficulty if the
+    // backend call fails, so a flaky connection never blocks play.
+    const priorDifficulty = loadStoredDifficulty(levelId)
+    let nextDifficulty = priorDifficulty
+    try {
+      const decision = await getBreathAgentDecision(levelId)
+      nextDifficulty = applyAction(priorDifficulty, decision.action)
+    } catch {}
+    difficultyRef.current = nextDifficulty
+    saveStoredDifficulty(levelId, nextDifficulty)
 
     const engine = new BreathEngine()
     engineRef.current = engine
 
     engine.onCalibrated = () => {
-      setPhase('playing')
-      startTime.current = performance.now()
-      startGameLoop()
-      flushTimer.current = setInterval(flushEvents, 2500)
+      // Give the kid a beat to take a big breath in before the level starts
+      // scoring their exhale — the in-breath is what actually powers a
+      // strong, controlled out-breath, so cueing it explicitly matters more
+      // here than in a typical "ready, set, go" countdown.
+      setPhase('breathe')
+      breatheTimer.current = setTimeout(() => {
+        setPhase('playing')
+        startTime.current = performance.now()
+        startGameLoop()
+        flushTimer.current = setInterval(flushEvents, 2500)
+      }, 2200)
     }
 
     engine.onBreath = (v) => {
-      setBreathVal(v)
       breathLog.current.push(v)
       eventBatch.current.push({ event_type: 'breath_sample', breath_value: v })
       setDebug({
@@ -78,7 +118,7 @@ export default function GamePage() {
 
     setPhase('calibrating')
     try { await engine.start() }
-    catch { setPhase('error') }
+    catch { setErrorReason('mic'); setPhase('error') }
 
     const calTick = () => {
       if (engine.calibrating) { setCalProgress(engine.calProgress); requestAnimationFrame(calTick) }
@@ -89,7 +129,7 @@ export default function GamePage() {
   const startGameLoop = () => {
     const factory = LEVEL_FACTORIES[levelId]
     if (!factory) { setPhase('error'); return }
-    levelRef.current = factory()
+    levelRef.current = factory(difficultyRef.current)
     lastTime.current = performance.now()
 
     const ctx = canvasRef.current?.getContext('2d')
@@ -127,7 +167,7 @@ export default function GamePage() {
     m.progress = 1
 
     const stars = calcStars(levelId, m)
-    saveScore(levelId, stars, patient?.player_code)
+    saveScore(levelId, stars)
     setEarnedStars(stars)
     setResult(res)
     setPhase('complete')
@@ -152,6 +192,22 @@ export default function GamePage() {
         })
       } catch {}
     }
+
+    // Feed this play back to the same adaptive-difficulty agent that just
+    // picked this level's difficulty — score is stars/3 so it lines up with
+    // the same >=0.6-is-a-success convention Chime's events already use.
+    const attemptNumber = loadAttemptNumber(levelId) + 1
+    saveAttemptNumber(levelId, attemptNumber)
+    try {
+      await logBreathEvent({
+        level_id: levelId,
+        attempt_number: attemptNumber,
+        score: stars / 3,
+        is_valid_attempt: true,
+        threshold_at_time: difficultyRef.current,
+        quit_flag: false,
+      })
+    } catch {}
   }, [levelId])
 
   const flushEvents = async () => {
@@ -164,30 +220,74 @@ export default function GamePage() {
   const cleanup = () => {
     cancelAnimationFrame(rafRef.current)
     clearInterval(flushTimer.current)
+    clearTimeout(breatheTimer.current)
     engineRef.current?.stop()
-    engineRef.current = null
   }
+
+  // Kept in sync with `phase` state so the pagehide handler below — which
+  // has to be registered once and can't re-subscribe on every phase change
+  // — always reads the *current* phase instead of whatever it was when the
+  // listener was first attached.
+  const phaseRef = useRef(phase)
+  useEffect(() => { phaseRef.current = phase }, [phase])
+
+  // Backing out mid-level (or the tab just closing — see the pagehide
+  // handler below) is a real signal for the difficulty agent, same idea as
+  // the quit_flag Chime logs. This used to only log the agent event and
+  // never actually closed the GameSession row itself, leaving it open
+  // forever (started_at set, ended_at null) — skewing completion-rate
+  // stats and the weekly summary. Now closes both.
+  const logQuitIfPlaying = () => {
+    if (phase !== 'playing' && phase !== 'breathe' && phase !== 'calibrating') return
+    if (sessionRef.current) {
+      sessionsAPI.end(sessionRef.current, { stars_earned: 0, completed: false }).catch(() => {})
+    }
+    const attemptNumber = loadAttemptNumber(levelId) + 1
+    saveAttemptNumber(levelId, attemptNumber)
+    logBreathEvent({
+      level_id: levelId,
+      attempt_number: attemptNumber,
+      score: 0,
+      is_valid_attempt: false,
+      threshold_at_time: difficultyRef.current,
+      quit_flag: true,
+    }).catch(() => {})
+  }
+
+  // The above only covers backing out *within* the SPA. If the kid just
+  // closes the tab, hits browser-back off the site, or the browser dies,
+  // neither logQuitIfPlaying nor any other in-app handler ever runs — a
+  // regular axios call gets cancelled mid-flight the instant the page
+  // unloads. `pagehide` + a keepalive beacon is the one combination
+  // browsers guarantee still gets sent after the page is gone.
+  useEffect(() => {
+    const handlePageHide = () => {
+      const p = phaseRef.current
+      if (p !== 'playing' && p !== 'breathe' && p !== 'calibrating') return
+      if (sessionRef.current) {
+        beaconPost(`/sessions/${sessionRef.current}/end`, { stars_earned: 0, completed: false })
+      }
+      const attemptNumber = loadAttemptNumber(levelId) + 1
+      saveAttemptNumber(levelId, attemptNumber)
+      beaconPost('/breath/events', {
+        level_id: levelId,
+        attempt_number: attemptNumber,
+        score: 0,
+        is_valid_attempt: false,
+        threshold_at_time: difficultyRef.current,
+        quit_flag: true,
+      })
+    }
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
+  }, [levelId])
 
   const replay = () => {
     cleanup()
     breathLog.current = []; eventBatch.current = []
     metricsRef.current = { timeSeconds:0, mistakes:0, targetHits:0, puffs:0, progress:0 }
-    setPhase('ready'); setResult(null); setBreathVal(0); setStarAnim(0)
+    setPhase('ready'); setResult(null); setStarAnim(0)
   }
-
-  useEffect(() => {
-    cleanup()
-    breathLog.current = []
-    eventBatch.current = []
-    metricsRef.current = { timeSeconds:0, mistakes:0, targetHits:0, puffs:0, progress:0 }
-    setPhase('ready')
-    setCalProgress(0)
-    setResult(null)
-    setEarnedStars(0)
-    setStarAnim(0)
-    setBreathVal(0)
-    sessionRef.current = null
-  }, [levelId])
 
   useEffect(() => () => cleanup(), [])
 
@@ -201,7 +301,7 @@ export default function GamePage() {
     <div className="min-h-screen flex flex-col bg-brand-dark">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
-        <button onClick={() => { cleanup(); navigate('/breathquest/play/levels') }}
+        <button onClick={() => { logQuitIfPlaying(); cleanup(); navigate('/play/levels') }}
                 className="text-white/40 hover:text-white/70 text-sm transition-colors">
           ← Levels
         </button>
@@ -230,24 +330,24 @@ export default function GamePage() {
                 {meta.emoji}
               </div>
               <h2 className="font-display text-4xl font-black text-white mb-1">{meta.name}</h2>
-              <p className="text-white/40 mb-2">{meta.tagline}</p>
+              <p className="text-white/40 mb-2 flex items-center justify-center gap-1.5">
+                {meta.tagline}
+                <button onClick={replayReady} className="text-white/25 hover:text-white/50 transition-colors" aria-label="Hear this again">
+                  <Volume2 size={14} />
+                </button>
+              </p>
 
               {!unlocked ? (
                 <div className="mt-6 text-center">
                   <div className="text-5xl mb-3">🔒</div>
                   <p className="text-white/50">Complete the previous level first!</p>
-                  <button onClick={() => navigate('/breathquest/play/levels')}
+                  <button onClick={() => navigate('/play/levels')}
                     className="mt-4 px-6 py-2 rounded-xl border border-white/20 text-white/60 hover:bg-white/10 text-sm">
                     Back to levels
                   </button>
                 </div>
               ) : (
                 <>
-                  {sessionError && (
-                    <div className="mb-4 rounded-2xl border border-brand-coral/30 bg-brand-coral/10 p-4 text-sm text-brand-coral">
-                      {sessionError}
-                    </div>
-                  )}
                   {bestStars > 0 && (
                     <div className="flex gap-1 mb-6">
                       {Array.from({length:3},(_,i) => (
@@ -281,6 +381,26 @@ export default function GamePage() {
                      style={{ width: `${calProgress * 100}%`, background: meta.color }} />
               </div>
               <p className="text-white/20 text-xs">Filtering background noise…</p>
+            </div>
+          )}
+
+          {/* BREATHE — cue the inhale before scoring starts */}
+          {phase === 'breathe' && (
+            <div className="flex flex-col items-center justify-center text-center py-16 rounded-2xl"
+                 style={{ minHeight: H, background: 'linear-gradient(135deg, #1a1a2e, #12122A)',
+                          border: `2px solid ${meta.color}33` }}>
+              <div className="text-8xl mb-6" style={{ animation: 'breatheIn 2.2s ease-in-out' }}>
+                👃
+              </div>
+              <h2 className="font-display text-3xl font-black text-white mb-2">
+                Take a big breath in!
+              </h2>
+              <p className="text-white/40 flex items-center justify-center gap-1.5">
+                Fill up your belly like a balloon… then get ready to blow 💨
+                <button onClick={replayBreathe} className="text-white/25 hover:text-white/50 transition-colors" aria-label="Hear this again">
+                  <Volume2 size={14} />
+                </button>
+              </p>
             </div>
           )}
 
@@ -337,13 +457,13 @@ export default function GamePage() {
                   Play Again
                 </button>
                 {nextId && (
-                  <button onClick={() => { cleanup(); navigate(`/breathquest/play/game/${nextId}`) }}
+                  <button onClick={() => { cleanup(); navigate(`/play/game/${nextId}`) }}
                     className="px-8 py-3 rounded-xl font-display font-black text-brand-dark transition-all active:scale-95 text-sm"
                     style={{ background: meta.color }}>
                     Next Level →
                   </button>
                 )}
-                <button onClick={() => { cleanup(); navigate('/breathquest/play/levels') }}
+                <button onClick={() => { cleanup(); navigate('/play/levels') }}
                   className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition-all font-semibold text-sm">
                   All Levels
                 </button>
@@ -356,9 +476,13 @@ export default function GamePage() {
             <div className="flex flex-col items-center justify-center text-center py-20 rounded-2xl"
                  style={{ minHeight: H, background: 'linear-gradient(135deg, #1a1a2e, #12122A)' }}>
               <div className="text-6xl mb-4">😕</div>
-              <p className="text-white/60 mb-2 text-lg">Couldn't access microphone</p>
-              <p className="text-white/30 text-sm mb-8">Check mic permissions in your browser</p>
-              <button onClick={() => setPhase('ready')}
+              <p className="text-white/60 mb-2 text-lg">
+                {errorReason === 'session' ? "Couldn't start this level" : "Couldn't access microphone"}
+              </p>
+              <p className="text-white/30 text-sm mb-8">
+                {errorReason === 'session' ? 'Check your internet connection and try again' : 'Check mic permissions in your browser'}
+              </p>
+              <button onClick={() => { setErrorReason(null); setPhase('ready') }}
                 className="px-8 py-3 rounded-xl font-bold hover:bg-opacity-90 transition-all"
                 style={{ background: meta.color, color: '#12122A' }}>
                 Try Again
@@ -366,8 +490,10 @@ export default function GamePage() {
             </div>
           )}
 
-          {/* Debug panel */}
-          {phase === 'playing' && (
+          {/* Debug panel — raw mic/breath values, dev-only. Never shown to
+              kids or parents in production; import.meta.env.DEV is false
+              in any built/deployed bundle. */}
+          {import.meta.env.DEV && phase === 'playing' && (
             <div className="mt-2 bg-black/50 border border-white/10 rounded-xl p-2.5 font-mono text-xs flex gap-4 flex-wrap">
               <span>🎤 Raw:<span className={debug.raw > debug.floor ? ' text-green-400' : ' text-red-400'}> {debug.raw}</span></span>
               <span>〰 Base:<span className="text-yellow-400"> {debug.floor}</span></span>
@@ -384,6 +510,7 @@ export default function GamePage() {
 
       <style>{`
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        @keyframes breatheIn { 0%{transform:scale(0.85)} 70%{transform:scale(1.25)} 100%{transform:scale(1.15)} }
       `}</style>
     </div>
   )

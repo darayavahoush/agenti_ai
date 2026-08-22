@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Sidebar } from '../../components/ui'
+import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar } from '../../components/ui'
 import { loadScores, isUnlocked, LEVEL_ORDER, DIFFICULTY } from '../../game/scoring/index.js'
 
 const LEVELS = [
@@ -23,41 +24,27 @@ const CARD_THEMES = [
 ]
 
 export default function LevelSelect() {
-  const { patient, logout } = useAuth()
   const navigate = useNavigate()
   const [scores, setScores] = useState({})
   const [hovering, setHovering] = useState(null)
 
-  useEffect(() => { 
-    if (patient?.player_code) {
-      setScores(loadScores(patient.player_code))
-    }
-  }, [patient?.player_code])
+  useEffect(() => { setScores(loadScores()) }, [])
 
   const totalStars = LEVEL_ORDER.reduce((sum, id) => sum + (scores[id]?.stars || 0), 0)
   const maxStars   = LEVEL_ORDER.length * 3
 
+  const { patient, logout } = useAuth()
+
   return (
-    <div className="min-h-screen" style={{
-      background: 'radial-gradient(ellipse at 50% -10%, #1a2a4a 0%, #0d0d1a 60%)'
-    }}>
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <Avatar avatar={patient?.avatar} size="sm" />
-          <div>
-            <span className="font-display font-bold text-white">{patient?.first_name}</span>
-            <span className="text-white/30 text-xs ml-2">#{patient?.player_code}</span>
-          </div>
-        </div>
-        {/* Total stars */}
-        <div className="flex items-center gap-2">
-          <span className="text-brand-amber font-bold text-sm">⭐ {totalStars} / {maxStars}</span>
-          {totalStars === maxStars && <span className="text-xs bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full">Perfect!</span>}
-        </div>
-        <button onClick={logout} className="text-white/30 hover:text-white/60 text-sm transition-colors">
-          Switch player
-        </button>
+    <div className="flex min-h-screen">
+      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <div className="flex-1 overflow-y-auto" style={{
+        background: 'radial-gradient(ellipse at 50% -10%, #1a2a4a 0%, #0d0d1a 60%)'
+      }}>
+      {/* Stars sub-bar — unique to this page, kept alongside the shared navbar */}
+      <div className="flex items-center justify-center gap-2 px-6 py-2 border-b border-white/10">
+        <span className="text-brand-amber font-bold text-sm">⭐ {totalStars} / {maxStars}</span>
+        {totalStars === maxStars && <span className="text-xs bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full">Perfect!</span>}
       </div>
 
       <div className="max-w-3xl mx-auto px-6 py-8">
@@ -80,14 +67,16 @@ export default function LevelSelect() {
 
             return (
               <button key={level.id}
-                onClick={() => unlocked && navigate(`/breathquest/play/game/${level.id}`)}
+                onClick={() => unlocked && navigate(`/play/game/${level.id}`)}
                 onMouseEnter={() => setHovering(level.id)}
                 onMouseLeave={() => setHovering(null)}
                 disabled={!unlocked}
-                className="relative text-left rounded-2xl overflow-hidden transition-all duration-200"
+                className="relative text-left rounded-2xl overflow-hidden transition-all duration-200
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
+                           focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d1a]"
                 style={{
-                  background: `linear-gradient(135deg, ${theme.from}, #12122A)`,
-                  border: `2px solid ${unlocked ? theme.border : 'rgba(255,255,255,0.08)'}`,
+                  background: 'linear-gradient(135deg, #1E1E3F, #12122A)',
+                  border: `2px solid ${unlocked ? (isHover ? theme.border : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.08)'}`,
                   boxShadow: isHover && unlocked ? `0 0 30px ${theme.glow}` : 'none',
                   transform: isHover && unlocked ? 'scale(1.03)' : 'scale(1)',
                   opacity: unlocked ? 1 : 0.5,
@@ -151,7 +140,7 @@ export default function LevelSelect() {
                     <div className="h-full transition-all duration-700"
                          style={{
                            width: `${(stars/3)*100}%`,
-                           background: `linear-gradient(90deg, ${theme.border}88, ${theme.border})`,
+                           background: 'linear-gradient(90deg, #FAC77588, #FAC775)',
                          }} />
                   </div>
                 )}
@@ -172,6 +161,7 @@ export default function LevelSelect() {
         <p className="text-center text-white/20 text-xs mt-8">
           Make sure your microphone is allowed! 🎤
         </p>
+      </div>
       </div>
     </div>
   )

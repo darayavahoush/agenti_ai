@@ -4,22 +4,19 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { meAPI } from './api/client'
 import { PageLoader, SupervisedBanner } from './components/ui'
 
-import AuthPage           from './pages/AuthPage'
-                                                        // chooser -- renamed at the import site only;
-                                                        // moved off "/" to make room for agenti_ai's
-                                                        // Landing there instead (see routes below)
 import { Landing as AgentiLanding } from './agenti/Landing'
 import TherapistLogin     from './pages/therapist/Login'
 import TherapistDashboard from './pages/therapist/Dashboard'
 import PatientDetail      from './pages/therapist/PatientDetail'
 import AgentInsight        from './pages/therapist/AgentInsight'
+import TherapistSettings  from './pages/therapist/Settings'
 import KidPlay            from './pages/kid/Play'
 import AssessmentGate      from './pages/kid/AssessmentGate'
 import AssessmentReport    from './pages/kid/AssessmentReport'
 import LevelSelect        from './pages/kid/LevelSelect'
 import GamePage           from './pages/kid/GamePage'
 import GamePicker         from './pages/kid/GamePicker'
-import MyProgress         from './pages/kid/MyProgress'
+import MyAccount          from './pages/kid/MyAccount'
 import VaakMirrorHome     from './vaakmirror/VaakMirrorHome'
 import MirrorMirror       from './vaakmirror/MirrorMirror'
 import TongueTamer        from './vaakmirror/TongueTamer'
@@ -35,11 +32,17 @@ import BubbleWrapPop      from './chime/BubbleWrapPop'
 import XylophoneTower    from './chime/XylophoneTower'
 import LionsRoar          from './chime/LionsRoar'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
+import Flashcards from './pages/kid/Flashcards'
 import VoiceHurdleRace    from './voiceHurdleRace/VoiceHurdleRace'
 import ParentAuth         from './pages/parent/ParentAuth'
 import ParentDashboard    from './pages/parent/ParentDashboard'
+import ParentSettings     from './pages/parent/Settings'
 import Verify             from './pages/Verify'
+import Pricing            from './pages/Pricing'
+import Privacy            from './pages/Privacy'
+import Terms              from './pages/Terms' 
 import Billing            from './pages/Billing'
+import AuthPage           from './pages/AuthPage'
 
 // Lets Quest Hub hand off a logged-in session by linking here with
 // ?token=&kind=&id=&name=&data= — adopts it into BreathQuest's OWN
@@ -74,7 +77,7 @@ function adoptHubHandoffIfPresent() {
     return
   }
 
-  // Strip  /the params from the URL/history without needing react-router
+  // Strip the params from the URL/history without needing react-router
   // (this runs before BrowserRouter has mounted).
   const cleanUrl = window.location.pathname + window.location.hash
   window.history.replaceState({}, '', cleanUrl)
@@ -138,13 +141,19 @@ function AppRoutes() {
     <>
       <SupervisedBanner />
       <Routes>
-        <Route path="/" element={<AgentiLanding onStart={(target) => navigate(
-          target.startsWith('play-select') ? `/${target}`  // preserves ?mode=signin, if present
-            : '/play-select'
-        )} />} />
+        <Route path="/" element={<AgentiLanding onStart={(target) => {
+          // target is "play-select" or "play-select?mode=signin" -- carry
+          // mode through to the unified page, same as before.
+          const mode = target.includes('mode=signin') ? '&mode=signin' : ''
+          navigate(`/auth?role=kid${mode}`)
+        }} />} />
         <Route path="/auth" element={<AuthPage />} />
+        {/* Old deep link -- still works, lands on the unified page, kid tab preset */}
         <Route path="/play-select" element={<AuthPage initialRole="kid" />} />
         <Route path="/verify" element={<Verify />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
         {/* Therapist */}
         <Route path="/therapist/login" element={
@@ -162,6 +171,9 @@ function AppRoutes() {
         <Route path="/therapist/billing" element={
           <ProtectedTherapist><Billing role="therapist" /></ProtectedTherapist>
         } />
+        <Route path="/therapist/settings" element={
+          <ProtectedTherapist><TherapistSettings /></ProtectedTherapist>
+        } />
 
         {/* Kid */}
         <Route path="/play" element={
@@ -176,8 +188,8 @@ function AppRoutes() {
         <Route path="/play/levels" element={
           <ProtectedKid><LevelSelect /></ProtectedKid>
         } />
-        <Route path="/play/progress" element={
-          <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
+        <Route path="/play/account" element={
+          <ProtectedKid requireEntitlement={false}><MyAccount /></ProtectedKid>
         } />
         <Route path="/play/game/:levelId" element={
           <ProtectedKid><GamePage /></ProtectedKid>
@@ -227,6 +239,9 @@ function AppRoutes() {
         <Route path="/play/voice-hurdle-race" element={
           <ProtectedKid><VoiceHurdleRace /></ProtectedKid>
         } />
+        <Route path="/play/flashcards" element={
+          <ProtectedKid><Flashcards /></ProtectedKid>
+        } />
 
         {/* Parent */}
         <Route path="/parent/login" element={<ParentAuth />} />
@@ -235,6 +250,9 @@ function AppRoutes() {
         } />
         <Route path="/parent/billing" element={
           <ProtectedParent><Billing role="parent" /></ProtectedParent>
+        } />
+        <Route path="/parent/settings" element={
+          <ProtectedParent><ParentSettings /></ProtectedParent>
         } />
 
         <Route path="*" element={

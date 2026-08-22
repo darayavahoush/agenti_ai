@@ -8,12 +8,13 @@ email-validator
 
 # Database
 sqlalchemy
+alembic
 psycopg2-binary
 asyncpg
 
 # Authentication & Security
 passlib
-bcrypt
+bcrypt==4.0.1
 python-jose[cryptography]
 python-multipart
 
@@ -35,7 +36,7 @@ vosk
 pyaudio
 
 # Machine Learning
-torch
+torch==2.13.0
 transformers<5
 sentence-transformers
 scikit-learn
@@ -64,4 +65,12 @@ deep-translator
 
 # Streamlit (for admin tools)
 streamlit
-streamlit-mic-recorderlanggraph>=1.2.7
+streamlit-mic-recorder
+# Added for agent/retraining/simulator merge (BreathQuest RL stack)
+gymnasium==1.3.0
+stable-baselines3==2.9.0
+sb3-contrib==2.9.0
+pydub
+langgraph
+greenlet
+azure-communication-sms>=1.1.0
