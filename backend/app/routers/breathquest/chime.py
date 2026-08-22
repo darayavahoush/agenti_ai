@@ -21,8 +21,8 @@ from app.models.breathquest_models import BreathQuestPatient, Therapist
 from app.breathquest_core.deps import get_current_patient, get_current_therapist
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from retraining import data_store
-from retraining.scheduler import run_retrain_if_due
+from app.retraining import data_store
+from app.retraining.scheduler import run_retrain_if_due
 from agent.diagnostic_client import get_diagnostic_context
 from word_level.asr_match import score_word_attempt
 from audio_features import EXTRACTORS

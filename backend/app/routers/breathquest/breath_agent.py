@@ -33,8 +33,8 @@ from app.models.breathquest_models import BreathQuestPatient as Patient
 from app.models.therapist import Therapist
 from app.breathquest_core.deps import get_current_patient, get_current_therapist
 
-from retraining import data_store
-from retraining.scheduler import run_retrain_if_due
+from app.retraining import data_store
+from app.retraining.scheduler import run_retrain_if_due
 from agent.diagnostic_client import get_diagnostic_context
 from agent.service import AgentService
 

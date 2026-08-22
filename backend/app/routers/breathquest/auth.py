@@ -36,13 +36,15 @@ from app.schemas.breathquest_schemas import (
 )
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
-    hash_password, verify_password, create_parent_token,
+    hash_password, verify_password, create_parent_token, create_access_token,
+    create_refresh_token, get_valid_refresh_token, revoke_refresh_token,
 )
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 # IP-based limiter (distinct from the per-identifier login_throttle above):
 # registration abuse is many different emails from one source, not repeated
 # attempts against one account, so this is the right tool here instead.
 from app.breathquest_core.rate_limit import check_ip_rate_limit
+from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
 from app.breathquest_core.parental_consent import check_parental_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
 from sqlalchemy import delete as sa_delete
@@ -164,8 +166,11 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     await db.commit()
     await db.refresh(patient)
     token = create_kid_token(patient.id)
+    refresh_token = await create_refresh_token(db, "patient", str(patient.id))
+    await db.commit()
     return KidTokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
@@ -223,7 +228,7 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
     await db.commit()
     await db.refresh(parent)
 
-    return _make_parent_token_response(parent, patient.first_name)
+    return await _make_parent_token_response(db, parent, patient.first_name)
 
 
 @router.delete("/parent-account", status_code=204)
@@ -381,10 +386,12 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Account deactivated")
 
     token = create_kid_token(patient.id)
+    refresh_token = await create_refresh_token(db, "patient", str(patient.id))
     await record_success(identifier, db)
     await db.commit()
     return KidTokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
@@ -414,10 +421,13 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
 # 501 for now; player_code (fully real -- BreathQuestPatient.player_code)
 # is the only working path today.
 
-def _make_parent_token_response(parent: Parent, child_first_name: str) -> ParentTokenResponse:
+async def _make_parent_token_response(db: AsyncSession, parent: Parent, child_first_name: str) -> ParentTokenResponse:
     token = create_parent_token(str(parent.id))
+    refresh_token = await create_refresh_token(db, "parent", str(parent.id))
+    await db.commit()
     return ParentTokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         parent_id=str(parent.id),
         patient_id=str(parent.patient_id),
         email=parent.email,
@@ -458,7 +468,7 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
     db.add(parent)
     await db.commit()
     await db.refresh(parent)
-    return _make_parent_token_response(parent, child.first_name)
+    return await _make_parent_token_response(db, parent, child.first_name)
 
 
 @router.post("/parent-login", response_model=ParentTokenResponse)
@@ -487,4 +497,46 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
 
     parent.last_login = datetime.now(timezone.utc)
     await db.commit()
-    return _make_parent_token_response(parent, child.first_name if child else "")
+    return await _make_parent_token_response(db, parent, child.first_name if child else "")
+
+
+# ------------------------------------------------------------------ #
+#  Refresh / logout (shared across all owner kinds)                    #
+# ------------------------------------------------------------------ #
+# Single pair of endpoints for therapist/parent/patient alike -- the
+# refresh token itself carries owner_kind (see RefreshToken model), so the
+# client never needs to specify which account type it's refreshing.
+# Refresh rotates the token (old one revoked, new one issued) rather than
+# reusing it -- standard practice so a leaked-then-used refresh token is
+# only usable once before the legitimate client's next refresh silently
+# invalidates it.
+
+_ACCESS_TOKEN_FACTORIES = {
+    "therapist": lambda owner_id: create_access_token(owner_id),
+    "parent": lambda owner_id: create_parent_token(owner_id),
+    "patient": lambda owner_id: create_kid_token(owner_id),
+}
+
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+async def refresh_access_token(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    token = await get_valid_refresh_token(db, data.refresh_token)
+    if token is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    factory = _ACCESS_TOKEN_FACTORIES.get(token.owner_kind)
+    if factory is None:
+        raise HTTPException(status_code=500, detail="Unknown token owner kind")
+
+    token.revoked_at = datetime.now(timezone.utc)
+    new_refresh_token = await create_refresh_token(db, token.owner_kind, str(token.owner_id))
+    new_access_token = factory(str(token.owner_id))
+    await db.commit()
+
+    return RefreshTokenResponse(access_token=new_access_token, refresh_token=new_refresh_token)
+
+
+@router.post("/logout", status_code=204)
+async def logout(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    await revoke_refresh_token(db, data.refresh_token)
+    await db.commit()
