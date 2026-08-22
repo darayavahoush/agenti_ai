@@ -67,7 +67,7 @@ except ImportError as e:
 # RLTrainingEvent rows this router reads back (see retraining/data_store.py's
 # docstring on call sites). app.breathquest_agent was an unused duplicate
 # of this package and has been removed.
-from retraining import data_store as chime_data_store
+from app.retraining import data_store as chime_data_store
 from agent.service import AgentService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])

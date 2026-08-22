@@ -15,7 +15,7 @@ from app.database import get_db
 from app.models.patient import Patient
 from app.models.breathquest_models import GameSession
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
-from retraining import data_store as chime_data_store  # top-level package, see try/except below
+from app.retraining import data_store as chime_data_store
 
 # vaakmirror lives outside breathquest/backend (sibling package under the repo
 # root) and isn't guaranteed to be on the Python path in every deploy config —
