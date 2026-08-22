@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import { meAPI } from './api/client'
 import { PageLoader, SupervisedBanner } from './components/ui'
 
@@ -273,9 +274,15 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      {/* Empty client ID is a valid no-op state for @react-oauth/google
+          (the provider just won't be able to mint tokens) -- lets the
+          app still run locally before VITE_GOOGLE_CLIENT_ID is set,
+          rather than crashing at boot. */}
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </GoogleOAuthProvider>
     </BrowserRouter>
   )
 }

@@ -226,11 +226,19 @@ class Parent(Base):
     id:               Mapped[uuid.UUID]    = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
     patient_id:       Mapped[uuid.UUID]    = mapped_column(ForeignKey("breathquest_patients.id"), unique=True, nullable=False)
     email:            Mapped[str]           = mapped_column(String(255), unique=True, nullable=False)
-    hashed_password:  Mapped[str]           = mapped_column(String(255), nullable=False)
+    # Nullable as of 2026-08-22: a Google-only account (google_sub set,
+    # never set a password) has nothing to put here -- same reasoning as
+    # Therapist.hashed_password, see that column's comment.
+    hashed_password:  Mapped[str | None]    = mapped_column(String(255), nullable=True)
     full_name:        Mapped[str | None]    = mapped_column(String(255), nullable=True)
     # Added 2026-08-13: collected on signup, not verified (no SMS provider
     # wired up yet). Nullable since existing accounts predate this field.
     phone:            Mapped[str | None]    = mapped_column(String(50), nullable=True)
+    # Added 2026-08-22 for Google Sign-In -- Google's stable per-account
+    # "sub" claim, not the email (survives the user changing their
+    # Google account's email later). See Therapist.google_sub's comment
+    # for the same nullable/unique reasoning.
+    google_sub:       Mapped[str | None]    = mapped_column(String(255), unique=True, nullable=True, index=True)
     is_active:        Mapped[bool]          = mapped_column(Boolean, default=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login:       Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
