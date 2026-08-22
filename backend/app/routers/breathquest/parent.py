@@ -16,7 +16,7 @@ from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut,
 from app.breathquest_core.deps import get_current_parent
 from app.services.weekly_summary import generate_weekly_summary
 from app.services.home_practice_ideas import IDEAS, filter_ideas
-from retraining import data_store as chime_data_store
+from app.retraining import data_store as chime_data_store
 from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH
 # vaakmirror lives outside this backend's Python path in some deploy
 # configs -- degrade to None rather than crashing app startup, same
