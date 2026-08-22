@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 
 from app.database import Base, engine, SessionLocal
+from app.config import settings
 from app.models.patient import Patient
 from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
@@ -81,10 +82,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # meant every origin was effectively trusted with cookies/auth headers,
 # not just the intended localhost dev servers. Removed the wildcard
 # entirely rather than relying on browsers to save us from it.
-_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-_prod_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
-_dev_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
-_allowed_origins = _prod_origins or _dev_origins
+_allowed_origins = settings.CORS_ORIGINS
 
 app.add_middleware(
     CORSMiddleware,

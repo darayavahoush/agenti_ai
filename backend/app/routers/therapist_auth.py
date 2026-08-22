@@ -179,7 +179,7 @@ async def google_login_or_register_therapist(
     if not therapist.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
-    therapist.last_login = datetime.now(timezone.utc)
+    therapist.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
     token = create_access_token(str(therapist.id))
     refresh_token = await create_refresh_token(db, "therapist", str(therapist.id))
     await db.commit()
