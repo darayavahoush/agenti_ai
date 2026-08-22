@@ -34,7 +34,6 @@ silero-vad
 
 # Speech Recognition
 vosk
-pyaudio
 
 # Machine Learning
 torch==2.13.0

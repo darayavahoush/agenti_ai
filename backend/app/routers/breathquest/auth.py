@@ -496,7 +496,7 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
     child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     child = child_result.scalar_one_or_none()
 
-    parent.last_login = datetime.now(timezone.utc)
+    parent.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     return await _make_parent_token_response(db, parent, child.first_name if child else "")
 
@@ -548,7 +548,7 @@ async def login_parent_google(data: ParentGoogleLoginRequest, db: AsyncSession =
     child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     child = child_result.scalar_one_or_none()
 
-    parent.last_login = datetime.now(timezone.utc)
+    parent.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     return await _make_parent_token_response(db, parent, child.first_name if child else "")
 
