@@ -5,6 +5,10 @@ import wave
 import subprocess
 import tempfile
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
 _cache = {}
@@ -74,7 +78,7 @@ def _apply_ffmpeg(raw_bytes: bytes, filters: str) -> bytes:
         with open(out_tmp.name, "rb") as f:
             return f.read()
     except subprocess.CalledProcessError as e:
-        print(f"ffmpeg error: {e.stderr.decode()}")
+        logger.info(f"ffmpeg error: {e.stderr.decode()}")
         return raw_bytes
     finally:
         os.unlink(in_tmp.name)
@@ -132,6 +136,6 @@ def precache_words(words):
     for word in words:
         try:
             speak_word(word)
-            print(f"Cached: {word}")
+            logger.info(f"Cached: {word}")
         except Exception as e:
-            print(f"Failed: {word} — {e}")
+            logger.info(f"Failed: {word} — {e}")

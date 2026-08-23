@@ -11,6 +11,7 @@ POST endpoints are explicit 501s until a provider (Razorpay/Stripe) is
 picked -- no fake success responses, no silent no-ops.
 """
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -23,8 +24,10 @@ from app.models.therapist import Therapist
 from app.schemas.breathquest_schemas import SubscriptionOut
 from app.breathquest_core.deps import get_current_therapist, get_current_parent
 from app.breathquest_core.billing_provider import get_billing_provider, BillingProvider
+from app.breathquest_core.config import get_breathquest_settings
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/subscription", response_model=SubscriptionOut)
@@ -73,7 +76,26 @@ async def get_parent_subscription(
 # calling the real provider and letting /billing/webhook flip the status
 # once Razorpay/Stripe is wired up -- don't leave this bypass in place
 # past that point.
+#
+# Guard: this free-grant path refuses to run once PAYMENTS_LIVE=true, so
+# flipping that flag on without also removing this bypass fails loudly
+# (500) instead of quietly giving every paying customer a free account.
 async def _mark_active(db: AsyncSession, owner_col, owner_id, plan_type: str) -> None:
+    settings = get_breathquest_settings()
+    if settings.PAYMENTS_LIVE:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "PAYMENTS_LIVE is true but billing.py still uses the free-grant "
+                "bypass -- wire _mark_active up to the real provider before "
+                "enabling this flag."
+            ),
+        )
+    logger.warning(
+        "Billing bypass active: granting '%s' to %s=%s without payment "
+        "(no provider configured yet, see billing_provider.py)",
+        plan_type, owner_col.key, owner_id,
+    )
     result = await db.execute(select(Subscription).where(owner_col == owner_id))
     sub = result.scalar_one_or_none()
     if sub:

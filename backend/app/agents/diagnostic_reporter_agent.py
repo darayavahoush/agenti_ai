@@ -1,6 +1,10 @@
 import os
 import json
 from app.state.assessment_state import AssessmentState
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 class DiagnosticReporterAgent:
@@ -54,7 +58,7 @@ class DiagnosticReporterAgent:
                     "diagnostic_report": data.get("diagnostic_report")
                 }
             except Exception as e:
-                print(f"OpenAI Diagnostic Reporter Error: {e}. Falling back to Expert System.")
+                logger.info(f"OpenAI Diagnostic Reporter Error: {e}. Falling back to Expert System.")
 
         # Expert System Fallback Report Compiler
         report_sections = []
