@@ -1,5 +1,9 @@
 import numpy as np
 from app.state.assessment_state import AssessmentState
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 class VocalAcousticAgent:
@@ -35,7 +39,7 @@ class VocalAcousticAgent:
                 shimmer_val = float(shimmer_val)
             except Exception as e:
                 # Fallback to simulated/estimated voice metrics using pitch stability
-                print(f"Parselmouth acoustic calculation fallback: {e}")
+                logger.info(f"Parselmouth acoustic calculation fallback: {e}")
                 jitter_val = float(np.random.uniform(0.1, 0.9))
                 shimmer_val = float(np.random.uniform(0.15, 0.82))
 

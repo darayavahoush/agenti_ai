@@ -13,6 +13,10 @@ import librosa
 import numpy as np
 import pandas as pd
 import imageio_ffmpeg
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ===============================================
 # FOLDER PATH
@@ -130,12 +134,12 @@ for file in os.listdir(folder_path):
 # ===============================================
 df = pd.DataFrame(results)
 
-print("\n========= AUDIO ANALYSIS RESULTS =========\n")
-print(df.to_string(index=False))
+logger.info("\n========= AUDIO ANALYSIS RESULTS =========\n")
+logger.info(df.to_string(index=False))
 
 # ===============================================
 # SAVE EXCEL
 # ===============================================
 df.to_excel("audio_analysis_results.xlsx", index=False)
 
-print("\nSaved: audio_analysis_results.xlsx")
+logger.info("\nSaved: audio_analysis_results.xlsx")

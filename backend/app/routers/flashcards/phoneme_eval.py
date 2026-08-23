@@ -1,6 +1,10 @@
 import torch
 import torchaudio
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 MODEL_IDS = {
     "hindi": "ai4bharat/indicwav2vec-hindi",
@@ -21,7 +25,7 @@ def _get_model(language: str):
 
     # Evict whatever's currently loaded to keep memory footprint to one model at a time
     if _current_language is not None and _current_language in _models:
-        print(f"Unloading {_current_language} phoneme model to load {language}")
+        logger.info(f"Unloading {_current_language} phoneme model to load {language}")
         del _models[_current_language]
         del _processors[_current_language]
         gc.collect()

@@ -9,25 +9,29 @@ import torch
 from fastapi import UploadFile
 from pydub import AudioSegment
 from silero_vad import get_speech_timestamps, load_silero_vad
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------
 # LOAD MODELS
 # ---------------------------------------------------
 try:
     vad_model = load_silero_vad()
-    print("✅ Silero VAD loaded")
+    logger.info("✅ Silero VAD loaded")
 except Exception as e:
     vad_model = None
-    print("❌ VAD error:", e)
+    logger.error(f"❌ VAD error: {e}")
 
 
 # ---------------------------------------------------
 # SAVE AUDIO
 # ---------------------------------------------------
 def save_audio(file: UploadFile) -> str:
-    print("📁 Filename:", file.filename)
-    print("📋 Content-Type:", file.content_type)
-    print("📊 File size:", file.file.getbuffer().nbytes if hasattr(file.file, 'getbuffer') else "unknown")
+    logger.info(f"📁 Filename: {file.filename}")
+    logger.info(f"📋 Content-Type: {file.content_type}")
+    logger.info(f"📊 File size: {file.file.getbuffer().nbytes if hasattr(file.file, 'getbuffer') else 'unknown'}")
 
     # The browser's MediaRecorder actually records WebM/Opus (Chrome/Edge)
     # or MP4/AAC (Safari) no matter what filename/content-type the frontend
@@ -49,14 +53,14 @@ def save_audio(file: UploadFile) -> str:
         audio = AudioSegment.from_file(tmp_in_path)  # ffmpeg sniffs real format
         audio.export(path, format="wav")
     except Exception as e:
-        print("❌ Transcode error:", e)
+        logger.error(f"❌ Transcode error: {e}")
         raise
     finally:
         if os.path.exists(tmp_in_path):
             os.remove(tmp_in_path)
 
-    print("💾 Saved as:", path)
-    print("📏 Saved file size:", os.path.getsize(path), "bytes")
+    logger.info(f"💾 Saved as: {path}")
+    logger.info(f"📏 Saved file size: {os.path.getsize(path)} bytes")
     return path
 
 
@@ -67,9 +71,9 @@ def load_audio(
     path: str,
     sr: int = 16000
 ) -> Tuple[np.ndarray, int]:
-    print("🔊 Loading audio from:", path, "with sample rate:", sr)
+    logger.info(f"🔊 Loading audio from: {path} with sample rate: {sr}")
     y, loaded_sr = librosa.load(path, sr=sr)
-    print("📊 Loaded audio shape:", y.shape, "actual sample rate:", loaded_sr)
+    logger.info(f"📊 Loaded audio shape: {y.shape} actual sample rate: {loaded_sr}")
     return y, loaded_sr
 
 
@@ -148,7 +152,7 @@ def select_child_segment(y: np.ndarray, sr: int) -> np.ndarray:
     if best_audio is None:
         return y
 
-    print(f"🎯 Selected segment score: {best_score:.2f}")
+    logger.info(f"🎯 Selected segment score: {best_score:.2f}")
     return best_audio
 
 
@@ -178,4 +182,4 @@ def delete_audio(path: str) -> None:
         if os.path.exists(path):
             os.remove(path)
     except OSError as e:
-        print(f"Failed to delete {path}: {e}")
+        logger.info(f"Failed to delete {path}: {e}")
