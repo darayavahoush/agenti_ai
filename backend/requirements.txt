@@ -44,6 +44,7 @@ scikit-learn
 # NLP & Phonetics
 nltk
 g2p_en
+epitran
 
 # Text-to-Speech
 coqui-tts
