@@ -3,13 +3,6 @@ sys.path.insert(0, '.')
 
 print("Testing route imports...")
 
-try:
-    print("\n1. Importing patient router...")
-    from app.routes.patient import router as patient_router
-    print(f"   ✅ Patient router loaded: {patient_router.prefix}")
-    print(f"   Routes: {len(patient_router.routes)}")
-except Exception as e:
-    print(f"   ❌ Failed: {e}")
 
 try:
     print("\n2. Importing assessment router...")
