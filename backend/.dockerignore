@@ -8,7 +8,6 @@ __pycache__
 
 uploads
 generated_audio
-audio_features
 
 *.wav
 *.mp3

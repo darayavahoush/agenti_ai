@@ -27,6 +27,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code and runtime dependencies
 COPY app ./app
+COPY agent ./agent
+COPY audio_features ./audio_features
 COPY assets ./assets
 COPY data ./data
 COPY schemas ./schemas
