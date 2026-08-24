@@ -18,7 +18,12 @@ class Therapist(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, nullable=False, unique=True, index=True)
-    hashed_password = Column(String, nullable=False)
+    # Nullable as of 2026-08-22: a Google-only account (google_sub set,
+    # never set a password) has nothing to put here. verify_password is
+    # never called for such an account -- login_therapist's password
+    # branch and google_login_or_register's branch are mutually
+    # exclusive per-request, not merged.
+    hashed_password = Column(String, nullable=True)
     full_name = Column(String, nullable=False)
     clinic_name = Column(String)
     is_active = Column(Boolean, default=True)
@@ -32,3 +37,10 @@ class Therapist(Base):
     # path for the one place phone verification does exist). Nullable
     # since existing accounts predate this field.
     phone = Column(String, nullable=True)
+    # Added 2026-08-22 for Google Sign-In. Google's stable per-account
+    # identifier ("sub" claim) -- not the email, since a user could
+    # change their Google account's email later and we want the link to
+    # survive that. Nullable/unique: most rows won't have one (password
+    # accounts that never linked Google), but any row that does must be
+    # unique so a Google identity can't front two different therapists.
+    google_sub = Column(String, nullable=True, unique=True, index=True)

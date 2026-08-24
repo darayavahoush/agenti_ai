@@ -158,6 +158,11 @@ class AssessmentStartOut(BaseModel):
     assessment_patient_id: str
     first_name: str
     already_completed: bool
+    # Set only when already_completed is True -- when the cooldown (see
+    # assessment.py's RETAKE_COOLDOWN_DAYS) is still active, this is the
+    # timestamp it lifts. None either means never completed, or completed
+    # but already eligible to retake right now.
+    retake_available_at: Optional[datetime] = None
 
 
 class AssessmentCompleteRequest(BaseModel):
@@ -287,8 +292,8 @@ class SessionOut(BaseModel):
     class Config:
         from_attributes = True
 
-    id: str
-    patient_id: str
+    id: UUID
+    patient_id: UUID
     level_id: str
     started_at: datetime
     ended_at: datetime | None
@@ -482,6 +487,32 @@ class ParentLoginRequest(BaseModel):
     password: str
 
 
+class ParentGoogleLoginRequest(BaseModel):
+    """For an already-existing Parent account (password or previously-
+    linked Google) signing in with Google. See ParentGoogleRegisterRequest
+    for the brand-new-account case -- split the same way parent-login/
+    parent-register already are, since (unlike therapist-google) a new
+    Parent can't be created from the Google token alone: it always needs
+    a child to link to."""
+    id_token: str
+
+
+class ParentGoogleRegisterRequest(BaseModel):
+    """Google equivalent of ParentRegisterRequest -- links a new parent
+    account (identified by the Google token, not a password) to an
+    existing child via player_code/invite_code. Deliberately does NOT
+    cover ParentKidRegisterRequest's "new child, no therapist" combined
+    flow: that path requires phone OTP verification (COPPA dual-factor
+    consent, see check_parental_consent), which doesn't yet have a
+    Google-auth equivalent designed -- follow-up, not in scope here.
+    """
+    player_code: Optional[str] = None
+    invite_code: Optional[str] = None
+    id_token: str
+    # Collected, not verified -- see Parent.phone's comment.
+    phone: Optional[str] = None
+
+
 class ParentTokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -578,6 +609,19 @@ class KidProgressOut(BaseModel):
     max_possible_stars: int
     games_played_this_week: int
     current_streak_days: int
+
+
+class KidHistoryEntry(BaseModel):
+    """One row in the kid's own combined assessment+game timeline
+    (GET /me/history). Same no-scores, no-clinical-language ethos as
+    KidProgressOut: an assessment entry says an assessment happened and
+    when, not its severity_classification/diagnostic findings -- those
+    stay therapist/parent-only, same as everywhere else in this app."""
+    kind: str            # "assessment" | "game"
+    game: str | None = None   # None for assessment entries
+    title: str
+    detail: str | None = None
+    date: datetime | None = None
 
 
 # ------------------------------------------------------------------ #

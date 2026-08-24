@@ -89,7 +89,6 @@ export default function TherapistDashboard() {
         role="therapist"
         items={[
           { label: 'Dashboard', icon: LayoutDashboard, to: '/therapist/dashboard' },
-          { label: 'Billing', icon: CreditCard, to: '/therapist/billing' },
           { label: 'Settings', icon: Settings, to: '/therapist/settings' },
         ]}
         name={therapist?.full_name}

@@ -32,8 +32,9 @@ from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
-    ParentKidRegisterRequest,
+    ParentKidRegisterRequest, ParentGoogleLoginRequest, ParentGoogleRegisterRequest,
 )
+from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
     hash_password, verify_password, create_parent_token, create_access_token,
@@ -395,6 +396,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
     )
@@ -495,9 +497,102 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
     child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     child = child_result.scalar_one_or_none()
 
-    parent.last_login = datetime.now(timezone.utc)
+    parent.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     return await _make_parent_token_response(db, parent, child.first_name if child else "")
+
+
+# ------------------------------------------------------------------ #
+#  Parent auth via Google                                              #
+# ------------------------------------------------------------------ #
+# Split into google-login / google-register the same way the password
+# flow is split into parent-login / parent-register (see that section's
+# comment) -- and for the same reason: Parent.patient_id is required, so
+# a Google identity alone is never enough to create an account, only to
+# authenticate one that's already linked to a child.
+
+async def _find_parent_by_google(db: AsyncSession, google_user):
+    """Looks up an existing Parent by google_sub first, then by email
+    (linking it if found and Google-verified) -- same two-step lookup
+    therapist_auth.py's /auth/google uses, see that endpoint's docstring
+    for why email-linking requires email_verified."""
+    result = await db.execute(select(Parent).where(Parent.google_sub == google_user.sub))
+    parent = result.scalar_one_or_none()
+    if parent is not None or not google_user.email:
+        return parent
+
+    result = await db.execute(select(Parent).where(Parent.email == google_user.email))
+    existing = result.scalar_one_or_none()
+    if existing is None:
+        return None
+    if not google_user.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Google account email isn't verified -- can't link to an existing account",
+        )
+    existing.google_sub = google_user.sub
+    return existing
+
+
+@router.post("/parent-google-login", response_model=ParentTokenResponse)
+async def login_parent_google(data: ParentGoogleLoginRequest, db: AsyncSession = Depends(get_db)):
+    google_user = verify_google_id_token(data.id_token)
+    parent = await _find_parent_by_google(db, google_user)
+    if parent is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No parent account is linked to this Google email yet -- register with your child's player code first",
+        )
+    if not parent.is_active:
+        raise HTTPException(status_code=403, detail="Account deactivated")
+
+    child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
+    child = child_result.scalar_one_or_none()
+
+    parent.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
+    await db.commit()
+    return await _make_parent_token_response(db, parent, child.first_name if child else "")
+
+
+@router.post("/parent-google-register", response_model=ParentTokenResponse, status_code=201)
+async def register_parent_google(request: Request, data: ParentGoogleRegisterRequest, db: AsyncSession = Depends(get_db)):
+    check_ip_rate_limit(request)
+    if not data.player_code and not data.invite_code:
+        raise HTTPException(status_code=400, detail="A player code or invite code is required")
+    if data.invite_code:
+        raise HTTPException(status_code=501, detail="Invite codes aren't available yet — use your child's player code instead")
+
+    google_user = verify_google_id_token(data.id_token)
+    if not google_user.email_verified:
+        raise HTTPException(status_code=403, detail="Google account email isn't verified")
+
+    existing = await _find_parent_by_google(db, google_user)
+    if existing is not None:
+        raise HTTPException(status_code=400, detail="An account already exists for this Google email — sign in instead")
+
+    result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.player_code == data.player_code.strip().upper())
+    )
+    child = result.scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=404, detail="No child found with that player code")
+
+    existing_link = await db.execute(select(Parent).where(Parent.patient_id == child.id))
+    if existing_link.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="This child already has a linked parent account")
+
+    parent = Parent(
+        patient_id=child.id,
+        email=google_user.email,
+        hashed_password=None,
+        full_name=google_user.name,
+        phone=data.phone,
+        google_sub=google_user.sub,
+    )
+    db.add(parent)
+    await db.commit()
+    await db.refresh(parent)
+    return await _make_parent_token_response(db, parent, child.first_name)
 
 
 # ------------------------------------------------------------------ #

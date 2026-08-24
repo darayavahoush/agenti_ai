@@ -40,6 +40,20 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // Combined login-or-register, matching the backend's single POST
+  // /auth/google endpoint -- unlike password auth there's no separate
+  // registerTherapistGoogle, since a therapist account needs nothing
+  // beyond what the verified Google token already gives us.
+  const loginTherapistGoogle = async (idToken) => {
+    const { data } = await authAPI.googleAuthTherapist(idToken)
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'therapist')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    setTherapist(data); setPatient(null); setParent(null)
+    return data
+  }
+
   const registerTherapist = async (formData) => {
     const { data } = await authAPI.register(formData)
     localStorage.setItem('bq_token',         data.access_token)
@@ -227,6 +241,37 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // Split into login/register like loginParent/registerParent above --
+  // a Google identity alone can't create a Parent account (it still
+  // needs a child to link via player_code), so unlike therapist-google
+  // this can't be one combined call. registerParentGoogle only covers
+  // the "I have a code" path, not "new child, no therapist" -- that
+  // combined flow needs phone OTP consent that doesn't have a
+  // Google-auth equivalent yet (see backend schema's docstring).
+  const loginParentGoogle = async (idToken) => {
+    const { data } = await authAPI.parentGoogleLogin(idToken)
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'parent')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    setParent(data); setTherapist(null); setPatient(null)
+    return data
+  }
+
+  const registerParentGoogle = async ({ idToken, code, codeType, phone }) => {
+    const payload = {
+      id_token: idToken, phone,
+      [codeType === 'invite' ? 'invite_code' : 'player_code']: code,
+    }
+    const { data } = await authAPI.parentGoogleRegister(payload)
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     'parent')
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    setParent(data); setTherapist(null); setPatient(null)
+    return data
+  }
+
   // Merges partial patient updates (e.g. from MyAccount.jsx's profile
   // edit) into both React state and the localStorage blob AuthContext
   // itself reads on mount, so a refresh doesn't lose the new name/avatar.
@@ -264,10 +309,11 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       therapist, patient, parent, loading,
-      loginTherapist, registerTherapist, loginKid, registerKid, setupKidPin,
+      loginTherapist, registerTherapist, loginTherapistGoogle,
+      loginKid, registerKid, setupKidPin,
       markAssessmentComplete,
       startSupervisedSession, endSupervisedSession,
-      loginParent, registerParent, logout,
+      loginParent, registerParent, loginParentGoogle, registerParentGoogle, logout,
       deleteParentAccount, deleteKidAccount, deleteTherapistAccount,
       updatePatient,
       isTherapist: !!therapist,
