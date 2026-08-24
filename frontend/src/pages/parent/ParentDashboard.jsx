@@ -55,7 +55,6 @@ export default function ParentDashboard() {
         role="parent"
         items={[
           { label: 'Progress', icon: TrendingUp, to: '/parent/dashboard' },
-          { label: 'Billing', icon: CreditCard, to: '/parent/billing' },
           { label: 'Settings', icon: Settings, to: '/parent/settings' },
         ]}
         name={(data?.child_first_name || parent?.child_first_name) ? `${data?.child_first_name || parent?.child_first_name}'s Progress` : undefined}

@@ -95,6 +95,13 @@ class BreathQuestPatient(Base):
     # own Session rows, looked up via assessment_patient_id).
     assessment_completed: Mapped[bool]       = mapped_column(Boolean, default=False)
     assessment_summary:   Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Added 2026-08-24 to support retake-with-cooldown (see
+    # routers/breathquest/assessment.py's _retake_available_at):
+    # assessment_completed alone can't say *when* it happened, which is
+    # needed to compute "eligible to retake in N days". Nullable --
+    # existing rows completed before this column existed have no value
+    # here, treated as immediately eligible rather than blocked forever.
+    assessment_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Added 2026-08-12 for COPPA: POST /auth/kid-register (the only path with
     # no adult already in the loop -- see breathquest_core/parental_consent.py)
     # now requires a recently-verified parent email before it will create an

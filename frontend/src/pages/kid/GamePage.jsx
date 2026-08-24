@@ -490,21 +490,6 @@ export default function GamePage() {
             </div>
           )}
 
-          {/* Debug panel — raw mic/breath values, dev-only. Never shown to
-              kids or parents in production; import.meta.env.DEV is false
-              in any built/deployed bundle. */}
-          {import.meta.env.DEV && phase === 'playing' && (
-            <div className="mt-2 bg-black/50 border border-white/10 rounded-xl p-2.5 font-mono text-xs flex gap-4 flex-wrap">
-              <span>🎤 Raw:<span className={debug.raw > debug.floor ? ' text-green-400' : ' text-red-400'}> {debug.raw}</span></span>
-              <span>〰 Base:<span className="text-yellow-400"> {debug.floor}</span></span>
-              <span>📊 Above:<span className={debug.above > 0.028 ? ' text-green-400' : ' text-white/30'}> {debug.above}</span></span>
-              <span>💨 Breath:<span className={debug.breath > 0.05 ? ' text-green-400 font-bold' : ' text-white/30'}> {debug.breath}</span></span>
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-green-400"
-                     style={{ width:`${debug.breath*100}%`, transition:'none' }} />
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

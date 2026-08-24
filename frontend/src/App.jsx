@@ -18,6 +18,7 @@ import LevelSelect        from './pages/kid/LevelSelect'
 import GamePage           from './pages/kid/GamePage'
 import GamePicker         from './pages/kid/GamePicker'
 import MyAccount          from './pages/kid/MyAccount'
+import AccountHistory     from './pages/kid/AccountHistory'
 import VaakMirrorHome     from './vaakmirror/VaakMirrorHome'
 import MirrorMirror       from './vaakmirror/MirrorMirror'
 import TongueTamer        from './vaakmirror/TongueTamer'
@@ -169,9 +170,10 @@ function AppRoutes() {
         <Route path="/therapist/patients/:id/agent" element={
           <ProtectedTherapist><AgentInsight /></ProtectedTherapist>
         } />
-        <Route path="/therapist/billing" element={
+        {/* Unrouted for now -- billing.py is a 501 stub, bringing back in v2 */}
+        {/* <Route path="/therapist/billing" element={
           <ProtectedTherapist><Billing role="therapist" /></ProtectedTherapist>
-        } />
+        } /> */}
         <Route path="/therapist/settings" element={
           <ProtectedTherapist><TherapistSettings /></ProtectedTherapist>
         } />
@@ -191,6 +193,9 @@ function AppRoutes() {
         } />
         <Route path="/play/account" element={
           <ProtectedKid requireEntitlement={false}><MyAccount /></ProtectedKid>
+        } />
+        <Route path="/play/account/history" element={
+          <ProtectedKid requireEntitlement={false}><AccountHistory /></ProtectedKid>
         } />
         <Route path="/play/game/:levelId" element={
           <ProtectedKid><GamePage /></ProtectedKid>
@@ -249,9 +254,10 @@ function AppRoutes() {
         <Route path="/parent/dashboard" element={
           <ProtectedParent><ParentDashboard /></ProtectedParent>
         } />
-        <Route path="/parent/billing" element={
+        {/* Unrouted for now -- billing.py is a 501 stub, bringing back in v2 */}
+        {/* <Route path="/parent/billing" element={
           <ProtectedParent><Billing role="parent" /></ProtectedParent>
-        } />
+        } /> */}
         <Route path="/parent/settings" element={
           <ProtectedParent><ParentSettings /></ProtectedParent>
         } />

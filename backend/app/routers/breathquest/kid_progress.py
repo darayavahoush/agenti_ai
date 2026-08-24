@@ -11,29 +11,29 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.patient import Patient
 from app.models.breathquest_models import GameSession
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.retraining import data_store as chime_data_store
-
-# vaakmirror lives outside breathquest/backend (sibling package under the repo
-# root) and isn't guaranteed to be on the Python path in every deploy config —
-# Render's root directory here is breathquest/backend, so it structurally
-# cannot import this in production. Degrade to a 0 count rather than crashing
-# app startup; fix properly later by exposing this via an API/shared DB
-# instead of a cross-package model import.
-try:
-    from vaakmirror.models import GameSession as VaakMirrorSession
-except ImportError:
-    VaakMirrorSession = None
-from app.schemas.breathquest_schemas import KidProgressOut
+from app.models.vaakmirror_models import VaakMirrorSession
+from app.models.flashcards_models import FlashcardAttempt
+from app.models.session import Session as AssessmentSession
+from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry
 from app.breathquest_core.deps import get_current_patient
+from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
+from app.models.vaakmirror_models import GameName as VMGameName
 
 router = APIRouter(prefix="/me", tags=["kid-progress"])
 
 CHIME_DB_PATH = chime_data_store.DEFAULT_DB_PATH
 LEVELS_PER_STAR_CAP = 6  # matches len(dashboard.LEVEL_NAMES) — max_possible_stars basis
+
+VM_GAME_LABELS = {
+    VMGameName.mirror_mirror.value: "Mirror, Mirror",
+    VMGameName.tongue_tamer.value: "Tongue Tamer",
+    VMGameName.lip_sync_hero.value: "Lip Sync Hero",
+}
 
 
 @router.get("/progress", response_model=KidProgressOut)
@@ -60,14 +60,18 @@ async def get_my_progress(
             and_(VoiceHurdleRaceSession.patient_id == patient.id, VoiceHurdleRaceSession.created_at >= week_ago)
         )
     )).scalar() or 0
-    if VaakMirrorSession is not None:
-        vm_week = (await db.execute(
-            select(func.count(VaakMirrorSession.id)).where(
-                and_(VaakMirrorSession.patient_id == patient.id, VaakMirrorSession.started_at >= week_ago)
-            )
-        )).scalar() or 0
-    else:
-        vm_week = 0
+    # patient_id here is a plain String column (VaakMirrorSession rows are
+    # written via a str(patient.id) elsewhere -- see
+    # routers/vaakmirror/sessions.py's create_session), not a UUID column
+    # like the other three tables queried on this page. Comparing it
+    # directly against patient.id (a UUID object) either mismatches
+    # silently or errors depending on the driver's type coercion --
+    # str() it explicitly rather than relying on that.
+    vm_week = (await db.execute(
+        select(func.count(VaakMirrorSession.id)).where(
+            and_(VaakMirrorSession.patient_id == str(patient.id), VaakMirrorSession.started_at >= week_ago)
+        )
+    )).scalar() or 0
     # chime_data_store.* is synchronous SQLite I/O — thread it off since
     # this route is `async def` (same class of bug fixed across
     # dashboard.py/parent.py/chime.py's get_patient_events in this pass:
@@ -102,3 +106,121 @@ async def get_my_progress(
         games_played_this_week=games_played_this_week,
         current_streak_days=streak,
     )
+
+
+@router.get("/history", response_model=list[KidHistoryEntry])
+async def get_my_history(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Combined, chronological (newest first) list of every assessment
+    and every game session this kid has, across all four games plus the
+    Assessment flow -- for pages/kid/AccountHistory.jsx, linked from
+    MyAccount.jsx. Same no-raw-scores framing as /me/progress; game
+    entries say what was played and when, not the underlying accuracy
+    numbers, and assessment entries say one happened, not its
+    severity_classification/diagnostic findings (therapist/parent-only,
+    same as the rest of this app)."""
+    entries: list[KidHistoryEntry] = []
+
+    # --- Assessments (Assessment side's `sessions` table, session_type
+    # "word_practice" -- see assessment_lookup.py's own note on why this
+    # table/query shape). Sync SessionLocal to match that file's pattern.
+    if patient.assessment_patient_id:
+        def _fetch_assessments():
+            sync_db = SessionLocal()
+            try:
+                return (
+                    sync_db.query(AssessmentSession)
+                    .filter(
+                        AssessmentSession.patient_id == patient.assessment_patient_id,
+                        AssessmentSession.session_type == "word_practice",
+                    )
+                    .order_by(AssessmentSession.created_at.desc())
+                    .all()
+                )
+            finally:
+                sync_db.close()
+
+        for s in await asyncio.to_thread(_fetch_assessments):
+            entries.append(KidHistoryEntry(
+                kind="assessment",
+                title="Pronunciation Assessment",
+                detail="Completed",
+                date=s.created_at,
+            ))
+
+    # --- BreathQuest
+    bq_rows = (await db.execute(
+        select(GameSession).where(GameSession.patient_id == patient.id)
+    )).scalars().all()
+    for g in bq_rows:
+        level_name = BQ_LEVEL_NAMES.get(g.level_id, g.level_id)
+        detail = f"{g.stars_earned} star{'s' if g.stars_earned != 1 else ''}" if g.completed else "Not completed"
+        entries.append(KidHistoryEntry(
+            kind="game", game="BreathQuest",
+            title=f"BreathQuest — {level_name}",
+            detail=detail,
+            date=g.started_at,
+        ))
+
+    # --- VoiceHurdleRace
+    vhr_rows = (await db.execute(
+        select(VoiceHurdleRaceSession).where(VoiceHurdleRaceSession.patient_id == patient.id)
+    )).scalars().all()
+    for v in vhr_rows:
+        entries.append(KidHistoryEntry(
+            kind="game", game="VoiceHurdleRace",
+            title=f"VoiceHurdleRace — {v.level_name}",
+            detail=f"{v.stars} star{'s' if v.stars != 1 else ''}",
+            date=v.created_at,
+        ))
+
+    # --- VaakMirror. patient_id is a plain String column here (see the
+    # str(patient.id) note on /progress's own VaakMirror query above).
+    vm_rows = (await db.execute(
+        select(VaakMirrorSession).where(VaakMirrorSession.patient_id == str(patient.id))
+    )).scalars().all()
+    for m in vm_rows:
+        game_label = VM_GAME_LABELS.get(m.game.value if hasattr(m.game, "value") else m.game, str(m.game))
+        entries.append(KidHistoryEntry(
+            kind="game", game="VaakMirror",
+            title=f"VaakMirror — {game_label}",
+            detail="Completed" if m.ended_at else "In progress",
+            date=m.started_at,
+        ))
+
+    # --- Chime/Flashcards. One row per attempted word -- grouped by
+    # session_id into one history entry per playthrough, same as a kid
+    # would think of "a round" rather than seeing one line per word.
+    chime_rows = (await db.execute(
+        select(
+            FlashcardAttempt.session_id,
+            func.min(FlashcardAttempt.created_at).label("started_at"),
+            func.max(FlashcardAttempt.theme_id).label("theme_id"),
+            func.count(FlashcardAttempt.id).label("word_count"),
+        )
+        .where(FlashcardAttempt.patient_id == patient.id)
+        .group_by(FlashcardAttempt.session_id)
+    )).all()
+    for session_id, started_at, theme_id, word_count in chime_rows:
+        entries.append(KidHistoryEntry(
+            kind="game", game="Chime",
+            title=f"Chime — {theme_id or 'Practice'}",
+            detail=f"{word_count} word{'s' if word_count != 1 else ''} practiced",
+            date=started_at,
+        ))
+
+    def _sort_key(entry: KidHistoryEntry):
+        # Mixed sources here: the Assessment side's `sessions` table uses
+        # a naive TIMESTAMP (app/models/session.py), while the four game
+        # tables use timezone-aware DateTime -- sorting a naive/aware mix
+        # directly raises TypeError. Strip tzinfo for the sort key only;
+        # the actual `date` field returned to the client keeps whatever
+        # the DB gave it.
+        if entry.date is None:
+            return datetime.min
+        return entry.date.replace(tzinfo=None) if entry.date.tzinfo else entry.date
+
+    entries.sort(key=_sort_key, reverse=True)
+    return entries
