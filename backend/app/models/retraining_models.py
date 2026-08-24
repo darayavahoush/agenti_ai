@@ -7,7 +7,8 @@ one is FK'd to GameSession and stores generic real-time gameplay telemetry
 for session detail views. This table is a purpose-built RL training log
 (score, severity_numeric, policy_used, downgrade_reason, etc.) written by
 BreathQuest/Chime/VoiceHurdleRace alike, read by the adaptive-difficulty
-agent (app/breathquest_agent/service.py).
+agent (top-level agent/service.py -- not app/breathquest_agent, which
+was an unused duplicate and has been removed).
 
 child_id FKs to breathquest_patients.id (not quest-games' own standalone
 patients.id) -- that's who actually plays these games in agenti_ai.
@@ -20,6 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models import breathquest_models  # noqa: F401 -- registers breathquest_patients (this file's FK target below) with Base before RLTrainingEvent's mapper is configured. Without this, anything that imports this module without having imported breathquest_models first (a standalone script, a test, a future retraining worker) hits NoReferencedTableError on first query -- this makes the module self-sufficient regardless of import order elsewhere.
 
 
 def utcnow():

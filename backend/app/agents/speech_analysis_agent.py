@@ -1,3 +1,5 @@
+import logging
+
 from app.state.speech_state import SpeechState
 from app.tools.audio_tool import (
     load_audio,
@@ -25,6 +27,8 @@ from app.tools.multilang_phoneme_tool import (
 from app.services.phoneme.scoring import score_phonemes
 from rapidfuzz import fuzz
 
+logger = logging.getLogger(__name__)
+
 
 class SpeechAnalysisAgent:
     """
@@ -40,7 +44,7 @@ class SpeechAnalysisAgent:
         try:
             # Get language parameter (default to English)
             language = state.get("language", "en")
-            print("🌐 Speech analysis with language:", language)
+            logger.info(f"🌐 Speech analysis with language: {language}")
             
             # Load audio
             y, sr = load_audio(path)
@@ -48,29 +52,29 @@ class SpeechAnalysisAgent:
 
             # Normalize audio
             y = normalize_audio(y)
-            print("📊 Normalized audio shape:", y.shape)
+            logger.info(f"📊 Normalized audio shape: {y.shape}")
 
             # Trim silence
             y = trim_audio(y, top_db=10)
-            print("✂️ Trimmed audio shape:", y.shape)
+            logger.info(f"✂️ Trimmed audio shape: {y.shape}")
 
             # Child segment selection
             y_child = select_child_segment(y, sr)
-            print("👶 Child segment shape:", y_child.shape if y_child is not None else "None")
+            logger.info(f"👶 Child segment shape: {y_child.shape if y_child is not None else 'None'}")
 
             # Fallback safety
             if y_child is None or len(y_child) < 300:
-                print("⚠️ Using full audio as fallback")
+                logger.warning("⚠️ Using full audio as fallback")
                 y_child = y
 
             # Transcribe with language support
             target_word = state.get("target_word", "")
-            print("🎯 Target word:", target_word)
+            logger.info(f"🎯 Target word: {target_word}")
             transcript_child = transcribe(y_child, sr, prompt=target_word, language=language)
             transcript_full = transcribe(y, sr, prompt=target_word, language=language)
 
-            print("📝 Child transcript:", transcript_child)
-            print("📝 Full transcript:", transcript_full)
+            logger.info(f"📝 Child transcript: {transcript_child}")
+            logger.info(f"📝 Full transcript: {transcript_full}")
 
             target = normalize_text(target_word)
 
@@ -115,21 +119,21 @@ class SpeechAnalysisAgent:
 
             spoken = normalize_text(spoken)
             state["spoken_word"] = spoken if spoken else "No speech detected"
-            print("🗣️ Final spoken word:", state["spoken_word"])
+            logger.info(f"🗣️ Final spoken word: {state['spoken_word']}")
 
             # Phoneme analysis with multi-language support
             expected_phonemes = get_basic_phonemes_multilang(target_word, language)
             spoken_phonemes = get_basic_phonemes_multilang(spoken, language)
             
-            print("🔊 Expected phonemes:", expected_phonemes)
-            print("🔊 Spoken phonemes:", spoken_phonemes)
+            logger.info(f"🔊 Expected phonemes: {expected_phonemes}")
+            logger.info(f"🔊 Spoken phonemes: {spoken_phonemes}")
 
             state["expected_phonemes"] = expected_phonemes
             state["spoken_phonemes"] = spoken_phonemes
 
             # Use multi-language phoneme comparison
             phoneme_result = compare_phonemes_multilang(expected_phonemes, spoken_phonemes, language)
-            print("📊 Phoneme accuracy:", phoneme_result["accuracy"])
+            logger.info(f"📊 Phoneme accuracy: {phoneme_result['accuracy']}")
             state["phoneme_accuracy"] = phoneme_result["accuracy"]
             state["phoneme_matches"] = phoneme_result["matches"]
 

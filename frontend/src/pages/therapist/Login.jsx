@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage } from '../../api/client'
 import { Button, Input, Card } from '../../components/ui'
+import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
 import {
   ClipboardList, LineChart, ShieldCheck,
   Mail, Lock, User, Building2, Phone, Eye, EyeOff, ArrowLeft, Stethoscope,
@@ -20,7 +21,7 @@ export default function TherapistLogin() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { loginTherapist, registerTherapist } = useAuth()
+  const { loginTherapist, registerTherapist, loginTherapistGoogle } = useAuth()
   const navigate = useNavigate()
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -35,6 +36,19 @@ export default function TherapistLogin() {
       } else {
         await registerTherapist(form)
       }
+      navigate('/therapist/dashboard')
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const submitGoogle = async (idToken) => {
+    setError('')
+    setLoading(true)
+    try {
+      await loginTherapistGoogle(idToken)
       navigate('/therapist/dashboard')
     } catch (err) {
       setError(getErrorMessage(err))
@@ -108,6 +122,17 @@ export default function TherapistLogin() {
                   {m === 'login' ? 'Sign In' : 'Register'}
                 </button>
               ))}
+            </div>
+
+            {/* Google covers both modes: login-or-register happens
+                server-side in one call (see /auth/google's docstring),
+                so this button doesn't change with `mode`. */}
+            <GoogleAuthButton onIdToken={submitGoogle} onError={setError} disabled={loading} />
+
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-white/30 text-xs font-medium">or</span>
+              <div className="flex-1 h-px bg-white/10" />
             </div>
 
             <form onSubmit={submit} className="flex flex-col gap-4">

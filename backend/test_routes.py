@@ -13,15 +13,7 @@ except Exception as e:
     print(f"   ❌ Failed: {e}")
 
 try:
-    print("\n3. Importing speech router (archived, unmounted -- see backend/app/_legacy/README.md)...")
-    from app._legacy.speech_pipeline.routes.speech import router as speech_router
-    print(f"   ✅ Speech router loaded: {speech_router.prefix}")
-    print(f"   Routes: {len(speech_router.routes)}")
-except Exception as e:
-    print(f"   ❌ Failed: {e}")
-
-try:
-    print("\n4. Importing audio router...")
+    print("\n2. Importing audio router...")
     from app.routers.audio import router as audio_router
     print(f"   ✅ Audio router loaded: {audio_router.prefix}")
     print(f"   Routes: {len(audio_router.routes)}")
@@ -29,7 +21,7 @@ except Exception as e:
     print(f"   ❌ Failed: {e}")
 
 try:
-    print("\n5. Importing main app...")
+    print("\n3. Importing main app...")
     from app.main import app
     print(f"   ✅ App loaded")
     print(f"   Total routes: {len(app.routes)}")

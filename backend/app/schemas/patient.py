@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -17,7 +18,15 @@ class PatientCreate(BaseModel):
     therapist_name: Optional[str] = None
     parent_name: Optional[str] = None
     parent_contact: Optional[str] = None
-    email: Optional[str] = None  # 'email' to match database
+    email: Optional[EmailStr] = None  # 'email' to match database
+
+    # Mirrors the frontend's own validateContactNumber regex
+    # (assessment/Assessment.jsx) so client and server enforce the same rule.
+    @validator("parent_contact")
+    def validate_parent_contact(cls, v):
+        if v is not None and v != "" and not re.match(r"^[0-9]{10}$", v):
+            raise ValueError("parent_contact must be exactly 10 digits")
+        return v
 
 class PatientOut(BaseModel):
     id: UUID

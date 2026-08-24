@@ -6,6 +6,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 from rapidfuzz import process, fuzz
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "images"
 INDEX_PATH = DATA_DIR / "index.json"
@@ -56,7 +60,7 @@ def semantic_match(word: str) -> str | None:
         if best_score > 0.5:
             return words_in_index[best_idx]
     except Exception as e:
-        print(f"Semantic match error: {e}")
+        logger.info(f"Semantic match error: {e}")
     return None
 
 
@@ -79,7 +83,7 @@ def fetch_from_arasaac(word: str) -> str | None:
                     save_index()
                     return filename
     except Exception as e:
-        print(f"ARASAAC fetch error for {word}: {e}")
+        logger.info(f"ARASAAC fetch error for {word}: {e}")
     return None
 
 def fetch_from_arasaac_colored(word: str, color: str) -> str | None:
@@ -101,7 +105,7 @@ def fetch_from_arasaac_colored(word: str, color: str) -> str | None:
                         f.write(img_res.content)
                     return filename
     except Exception as e:
-        print(f"ARASAAC color fetch error for {word}: {e}")
+        logger.info(f"ARASAAC color fetch error for {word}: {e}")
     return None
 
 
@@ -137,12 +141,12 @@ def fetch_from_wikimedia(word: str) -> str | None:
                     if img is None:
                         continue
                     cv2.imwrite(str(filepath), img)
-                    print(f"Wikimedia image for: {word}")
+                    logger.info(f"Wikimedia image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Wikimedia error for {word}: {e}")
+        logger.info(f"Wikimedia error for {word}: {e}")
     return None
 
 def fetch_from_openclipart(word: str) -> str | None:
@@ -170,7 +174,7 @@ def fetch_from_openclipart(word: str) -> str | None:
                             f.write(png_bytes)
                         _index[word] = filename
                         save_index()
-                        print(f"OpenClipart image for: {word}")
+                        logger.info(f"OpenClipart image for: {word}")
                         return filename
                     except ImportError:
                         # cairosvg not available — save SVG directly and convert with cv2
@@ -193,7 +197,7 @@ def fetch_from_openclipart(word: str) -> str | None:
             except Exception:
                 continue
     except Exception as e:
-        print(f"OpenClipart error for {word}: {e}")
+        logger.info(f"OpenClipart error for {word}: {e}")
     return None
 
 
@@ -226,12 +230,12 @@ def fetch_from_web(word: str) -> str | None:
                     cv2.imwrite(str(filepath), img)
                     _index[word] = filename
                     save_index()
-                    print(f"Web scraped image for: {word}")
+                    logger.info(f"Web scraped image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Web scrape error for {word}: {e}")
+        logger.info(f"Web scrape error for {word}: {e}")
     return None
 
 
@@ -266,12 +270,12 @@ def fetch_from_pixabay_hq(word: str) -> str | None:
                     if img is None:
                         continue
                     cv2.imwrite(str(filepath), img)
-                    print(f"Pixabay HQ image for: {word}")
+                    logger.info(f"Pixabay HQ image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Pixabay HQ error for {word}: {e}")
+        logger.info(f"Pixabay HQ error for {word}: {e}")
     return None
 
 def fetch_from_pixabay(word: str) -> str | None:
@@ -302,12 +306,12 @@ def fetch_from_pixabay(word: str) -> str | None:
                     cv2.imwrite(str(filepath), img)
                     _index[word] = filename
                     save_index()
-                    print(f"Pixabay image for: {word}")
+                    logger.info(f"Pixabay image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Pixabay error for {word}: {e}")
+        logger.info(f"Pixabay error for {word}: {e}")
     return None
 
 def _make_text_image(word: str):

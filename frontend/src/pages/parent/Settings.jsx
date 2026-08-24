@@ -21,7 +21,6 @@ export default function ParentSettings() {
         role="parent"
         items={[
           { label: 'Progress', icon: TrendingUp, to: '/parent/dashboard' },
-          { label: 'Billing', icon: CreditCard, to: '/parent/billing' },
         ]}
         name={parent?.child_first_name ? `${parent.child_first_name}'s Progress` : undefined}
         onLogout={logout}

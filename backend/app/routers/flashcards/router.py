@@ -26,6 +26,10 @@ from .scorer import build_attempt_result
 from .grapheme_to_phoneme import get_phonemes
 from . import themes as themes_module
 from . import mastery
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 _DATA_DIR = Path(__file__).resolve().parents[3] / 'data' / 'flashcard_images'
 _INDEX_PATH = _DATA_DIR / 'index.json'
@@ -176,7 +180,7 @@ async def evaluate(
         try:
             await mastery.record_attempt(db, uuid.UUID(patient_id), result, theme_id=theme)
         except Exception as e:
-            print(f"mastery.record_attempt failed (non-fatal): {e}")
+            logger.info(f"mastery.record_attempt failed (non-fatal): {e}")
 
         return result
     finally:

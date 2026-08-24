@@ -6,6 +6,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 from rapidfuzz import process, fuzz
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "images"
 INDEX_PATH = DATA_DIR / "index.json"
@@ -68,7 +72,7 @@ def semantic_match(word: str) -> str | None:
         if best_score > 0.5:
             return words_in_index[best_idx]
     except Exception as e:
-        print(f"Semantic match error: {e}")
+        logger.info(f"Semantic match error: {e}")
     return None
 
 
@@ -91,7 +95,7 @@ def fetch_from_arasaac(word: str) -> str | None:
                     save_index()
                     return filename
     except Exception as e:
-        print(f"ARASAAC fetch error for {word}: {e}")
+        logger.info(f"ARASAAC fetch error for {word}: {e}")
     return None
 
 
@@ -124,12 +128,12 @@ def fetch_from_web(word: str) -> str | None:
                     cv2.imwrite(str(filepath), img)
                     _index[word] = filename
                     save_index()
-                    print(f"Web scraped image for: {word}")
+                    logger.info(f"Web scraped image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Web scrape error for {word}: {e}")
+        logger.info(f"Web scrape error for {word}: {e}")
     return None
 
 
@@ -163,12 +167,12 @@ def fetch_from_pixabay(word: str) -> str | None:
                     cv2.imwrite(str(filepath), img)
                     _index[word] = filename
                     save_index()
-                    print(f"Pixabay image for: {word}")
+                    logger.info(f"Pixabay image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Pixabay error for {word}: {e}")
+        logger.info(f"Pixabay error for {word}: {e}")
     return None
 
 def _make_text_image(word: str):
@@ -444,7 +448,7 @@ def get_image_for_phrase(phrase: str) -> dict:
                     "match_type": match["match_type"]
                 })
         except Exception as e:
-            print(f"Error serving raw image {match['path']}: {e}")
+            logger.info(f"Error serving raw image {match['path']}: {e}")
 
     if not images:
         return {"found": False, "phrase": phrase, "match_type": "none", "image_bytes": None, "images": []}

@@ -7,8 +7,9 @@ import "./Assessment.css";
 // this file predates that client and still uses plain fetch() throughout.
 // VITE_API_URL is shared with that axios client, though, which expects
 // it to end in /api/v1 (see api/client.js's own default). This file's
-// own routes (routes/assessment.py, routes/patient.py) are mounted at
-// the bare /assessment and /patients prefixes with no /api/v1 -- so if
+// own routes (routes/assessment.py mounted at /assessment, plus the
+// inline /patients/* routes defined directly in main.py) sit at the
+// bare /assessment and /patients prefixes with no /api/v1 -- so if
 // VITE_API_URL includes /api/v1 (as it does in this project's
 // frontend/.env), every fetch in this file 404'd against a path one
 // level too deep. Stripping a trailing /api/v1 here, rather than
@@ -108,6 +109,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   // Validation States
   const [contactNumberError, setContactNumberError] = useState("");
   const [emailAddressError, setEmailAddressError] = useState("");
+  const [formError, setFormError] = useState("");
 
   // Validation Functions
   const validateContactNumber = (number) => {
@@ -144,7 +146,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   // Function to login existing patient
   const loginPatient = async () => {
     try {
-      console.log("Attempting login with:", { loginName, loginDOB, API_URL });
       setLoginError("");
       
       if (!loginName || !loginDOB) {
@@ -163,7 +164,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
         })
       });
 
-      console.log("Login response status:", response.status);
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Login failed:", errorData);
@@ -171,7 +171,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       }
 
       const result = await response.json();
-      console.log("Login successful:", result);
       setCurrentPatientId(result.id);
       setPatientName(result.name);
       setPatientDOB(result.date_of_birth ? result.date_of_birth.split('T')[0] : "");
@@ -179,7 +178,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       setContactNumber(result.parent_contact || "");
       setEmailAddress(result.email || "");
       setSection("home");
-      console.log("Redirected to home section");
       return result;
     } catch (error) {
       console.error('Error logging in patient:', error);
@@ -191,7 +189,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   // Function to save patient details
   const savePatientDetails = async () => {
     try {
-      console.log("Saving patient details...", { patientName, patientDOB, parentName, contactNumber, emailAddress });
       const patientData = {
         name: patientName,
         age: patientDOB ? new Date().getFullYear() - new Date(patientDOB).getFullYear() : null,
@@ -208,11 +205,9 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       let response;
       if (currentPatientId) {
         // Update existing patient (not currently supported in backend)
-        console.log("Update not supported, skipping");
         return { id: currentPatientId };
       } else {
         // Create new patient
-        console.log("Creating new patient with API:", API_URL);
         response = await fetch(`${API_URL}/patients/`, {
           method: 'POST',
           headers: {
@@ -222,15 +217,32 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
         });
       }
 
-      console.log("Response status:", response.status);
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to save patient details:", errorText);
-        throw new Error('Failed to save patient details');
+        // FastAPI validation errors (422) return detail as a list of
+        // {loc, msg, type} objects, not a plain string -- extract a
+        // readable message instead of showing/throwing a generic one, so
+        // the parent_contact/email validation added server-side actually
+        // reaches the person filling out the form.
+        let message = 'Failed to save patient details. Please try again.';
+        try {
+          const errorData = await response.json();
+          if (typeof errorData.detail === 'string') {
+            message = errorData.detail;
+          } else if (Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+            message = errorData.detail
+              .map((e) => (typeof e.msg === 'string' ? e.msg.replace(/^Value error,\s*/, '') : null))
+              .filter(Boolean)
+              .join(' ') || message;
+          }
+        } catch {
+          // Response wasn't JSON (network error, HTML error page, etc.) --
+          // fall back to the generic message set above.
+        }
+        console.error("Failed to save patient details:", message);
+        throw new Error(message);
       }
 
       const result = await response.json();
-      console.log("Patient saved successfully:", result);
       setCurrentPatientId(result.id);
       return result;
     } catch (error) {
@@ -302,7 +314,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
 
   async function loadRandomWord() {
-    console.log("Loading random word...");
     setSection("word");
     setWordLoading(true);
     setImageLoading(true);
@@ -315,12 +326,9 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
     setAudioExists(false);
 
     try {
-      console.log("Fetching random word from:", `${API_URL}/assessment/words/random`);
       const response = await fetch(`${API_URL}/assessment/words/random`);
-      console.log("Random word response status:", response.status);
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Could not load a word");
-      console.log("Random word loaded:", data);
       setWord(data);
     } catch (requestError) {
       console.error("Error loading random word:", requestError);
@@ -384,7 +392,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       setCustomRecording(true);
     } catch (err) {
       console.error(err);
-      alert("Microphone access denied");
+      setError("Microphone access denied");
     }
   };
 
@@ -436,7 +444,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
     const langCode = selectedLanguage.split('-')[0];
     
     if (!audioExists) {
-      alert(`No audio found for ${word.word} in ${INDIAN_LANGUAGES.find(l => l.code === selectedLanguage)?.name}. Please record it first.`);
+      setError(`No audio found for ${word.word} in ${INDIAN_LANGUAGES.find(l => l.code === selectedLanguage)?.name}. Please record it first.`);
       return;
     }
 
@@ -463,14 +471,14 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       audio.onerror = () => {
         setPlayingAudio(false);
         URL.revokeObjectURL(audioUrl);
-        alert("Failed to play audio");
+        setError("Failed to play audio");
       };
       
       audio.play();
     } catch (err) {
       console.error(err);
       setPlayingAudio(false);
-      alert("Failed to play audio: " + err.message);
+      setError("Failed to play audio: " + err.message);
     }
   };
 
@@ -511,7 +519,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       setRecording(true);
     } catch (err) {
       console.error(err);
-      alert("Microphone access denied");
+      setError("Microphone access denied");
     }
   };
 
@@ -523,7 +531,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
 
   const analyzeSpeech = async () => {
     if (!audioBlob || !word) {
-      alert("Please record audio first");
+      setError("Please record audio first");
       return;
     }
     setLoading(true);
@@ -540,20 +548,12 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       const langCode = selectedLanguage.split('-')[0];
       formData.append("language", langCode);
       
-      console.log("Sending assessment request with:", {
-        patient_name: patientName || "Student",
-        patient_id: currentPatientId || "",
-        target_word: word.word,
-        language: langCode
-      });
-      
       const response = await fetch(`${API_URL}/assessment/analyze`, {
         method: "POST",
         body: formData,
       });
 
       const data = await response.json();
-      console.log("Assessment response:", data);
 
       if (!response.ok || data.error || data.detail) {
         throw new Error(data.error || JSON.stringify(data.detail || data));
@@ -1177,40 +1177,43 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
           </section>
 
           {/* Submit Button */}
+          {formError && (
+            <div style={{ padding: "12px", background: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca", color: "#991b1b", fontSize: "14px", fontWeight: 600, textAlign: "center", marginTop: "6px" }}>
+              {formError}
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "6px" }}>
             <button
               onClick={async () => {
+                setFormError("");
                 if (!patientName || !patientDOB) {
-                  alert("Please fill in required fields (Child's Name and Date of Birth)");
+                  setFormError("Please fill in required fields (Child's Name and Date of Birth)");
                   return;
                 }
                 if (isDiagnosed === "yes" && !diagnosisDetails) {
-                  alert("Please provide diagnosis details");
+                  setFormError("Please provide diagnosis details");
                   return;
                 }
-                
+
                 // Validate contact number
                 const contactError = validateContactNumber(contactNumber);
                 if (contactError) {
                   setContactNumberError(contactError);
-                  alert(contactError);
                   return;
                 }
-                
+
                 // Validate email address
                 const emailError = validateEmailAddress(emailAddress);
                 if (emailError) {
                   setEmailAddressError(emailError);
-                  alert(emailError);
                   return;
                 }
-                
+
                 try {
                   await savePatientDetails();
                   setSection("home");
                 } catch (error) {
-                  alert("Failed to save patient details. Please try again.");
-                  console.error(error);
+                  setFormError(error.message || "Failed to save patient details. Please try again.");
                 }
               }}
               style={{

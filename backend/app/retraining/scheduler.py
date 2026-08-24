@@ -23,6 +23,10 @@ import threading
 
 from . import data_store
 from simulator.simulator_calibration import calibrate_from_events
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 GLOBAL_RETRAIN_THRESHOLD = 200  # pooled real events across all children
 
@@ -81,8 +85,8 @@ def run_retrain_if_due(db_path=None):
     try:
         result = maybe_retrain_shared_policy(**kwargs)
         if result.get("retrained"):
-            print(f"[retraining] auto-retrain complete — {result.get('n_events_used')} events used")
+            logger.info(f"[retraining] auto-retrain complete — {result.get('n_events_used')} events used")
     except Exception as exc:
-        print(f"[retraining] auto-retrain failed: {exc}")
+        logger.info(f"[retraining] auto-retrain failed: {exc}")
     finally:
         _retrain_in_progress = False

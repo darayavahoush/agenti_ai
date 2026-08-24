@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, Volume2, Sparkles } from 'lucide-react'
+import { TrendingUp, Volume2, Sparkles, Mic } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar } from '../../components/ui'
+import { Avatar, Sidebar } from '../../components/ui'
+import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { speak } from '../../lib/speech'
 
 const APPS = [
@@ -113,7 +114,9 @@ export default function GamePicker() {
   const replayGreeting = () => { if (spokenGreeting) speak(spokenGreeting) }
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #12142E 0%, #1E1E3F 100%)' }}>
+    <div className="flex min-h-screen">
+      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <div className="flex-1" style={{ background: 'linear-gradient(180deg, #12142E 0%, #1E1E3F 100%)' }}>
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           <Avatar avatar={patient?.avatar} photoUrl={patient?.avatar_photo_url} size="sm" />
@@ -125,6 +128,9 @@ export default function GamePicker() {
         <div className="flex items-center gap-5">
           <button onClick={() => navigate('/play/account')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
             <TrendingUp size={15} /> My Account
+          </button>
+          <button onClick={() => navigate('/assessment')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
+            <Mic size={15} /> Assessment
           </button>
           <button onClick={() => navigate('/assessment/report')} className="flex items-center gap-1.5 text-white/40 hover:text-white text-sm transition-colors">
             <Sparkles size={15} /> My Results
@@ -214,6 +220,7 @@ export default function GamePicker() {
             )
           })}
         </div>
+      </div>
       </div>
     </div>
   )

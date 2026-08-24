@@ -1,13 +1,15 @@
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from uuid import UUID
 import os
 from pathlib import Path
 
 from app.database import Base, engine, SessionLocal
+from app.config import settings
 from app.models.patient import Patient
 from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
@@ -46,7 +48,15 @@ class PatientCreate(BaseModel):
     therapist_name: Optional[str] = None
     parent_name: Optional[str] = None
     parent_contact: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    # Mirrors the frontend's own validateContactNumber regex
+    # (assessment/Assessment.jsx) so client and server enforce the same rule.
+    @validator("parent_contact")
+    def validate_parent_contact(cls, v):
+        if v is not None and v != "" and not re.match(r"^[0-9]{10}$", v):
+            raise ValueError("parent_contact must be exactly 10 digits")
+        return v
 
 class PatientLogin(BaseModel):
     name: str
@@ -72,10 +82,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # meant every origin was effectively trusted with cookies/auth headers,
 # not just the intended localhost dev servers. Removed the wildcard
 # entirely rather than relying on browsers to save us from it.
-_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-_prod_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
-_dev_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
-_allowed_origins = _prod_origins or _dev_origins
+_allowed_origins = settings.CORS_ORIGINS
 
 app.add_middleware(
     CORSMiddleware,
@@ -284,7 +291,15 @@ def get_all_patients():
 
 @app.post("/patients/")
 def create_patient(data: PatientCreate):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
+    # Re-enabled -- this is the live, only path for the assessment flow's
+    # self-serve patient signup (frontend/src/assessment/Assessment.jsx).
+    # The 2026-08-07 retirement note claimed a port-8001 standalone
+    # breathquest backend superseded this, but that service doesn't
+    # actually run anywhere in this repo (Procfile/start_server.sh both
+    # only run app.main:app on port 8000), and .env.production points
+    # straight at this same endpoint -- so disabling it just broke real
+    # signups with a 410. Restored, with EmailStr/phone validation added
+    # to close the gap that was the actual original concern.
     db = SessionLocal()
     try:
         patient = Patient(
@@ -321,7 +336,8 @@ def create_patient(data: PatientCreate):
 
 @app.post("/patients/login")
 def login_patient(data: PatientLogin):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
+    # Re-enabled -- see create_patient's comment above; same live-endpoint
+    # situation applies here.
     db = SessionLocal()
     try:
         # Search for patient by name and date of birth
@@ -373,6 +389,43 @@ def get_all_sessions():
             }
             for s in sessions
         ]
+    finally:
+        db.close()
+
+@app.get("/patients/{patient_id}")
+def get_patient(patient_id: UUID):
+    # Added -- assessment/Assessment.jsx's loadPatientDetails() has always
+    # called this bare route (used to pre-fill the edit form for a
+    # returning self-serve patient), but no matching route existed
+    # anywhere in this file or app/routers/therapist_patients.py's
+    # /api/v1-prefixed one (different prefix, and auth-gated besides).
+    # This was a plain 404 on every "Edit Details" load, separate from
+    # the 2026-08-07 retirement of the other /patients/* routes above --
+    # unlike those, this route was never implemented at all. Registered
+    # last among the /patients/* GET routes on general principle (a
+    # single-segment {patient_id} param can't actually collide with the
+    # other routes here, which are all longer paths, but keeping literal
+    # paths first is the safer default if that ever changes).
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        return {
+            "id": str(patient.id),
+            "name": patient.name,
+            "age": patient.age,
+            "date_of_birth": patient.date_of_birth,
+            "language": patient.language,
+            "gender": patient.gender,
+            "diagnosis": patient.diagnosis,
+            "therapist_name": patient.therapist_name,
+            "parent_name": patient.parent_name,
+            "parent_contact": patient.parent_contact,
+            "email": patient.email,
+            "is_active": patient.is_active,
+            "created_at": patient.created_at,
+        }
     finally:
         db.close()
 
