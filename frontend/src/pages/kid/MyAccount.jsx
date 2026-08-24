@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X } from 'lucide-react'
+import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X, History, Camera } from 'lucide-react'
 import { Avatar } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { meAPI } from '../../api/client'
@@ -176,10 +176,19 @@ export default function MyAccount() {
                       <Creature species={species} className="w-full h-full" />
                     </button>
                   ))}
-                  <label className="w-14 h-14 rounded-full border-2 border-dashed border-white/20 flex items-center
-                                     justify-center cursor-pointer hover:border-white/40 transition-colors">
+                  <label
+                    className="relative w-14 h-14 rounded-full flex items-center justify-center cursor-pointer
+                               border-2 transition-all duration-200 hover:scale-110 active:scale-95 group"
+                    style={{
+                      borderColor: 'rgba(168,255,111,0.5)',
+                      background: 'linear-gradient(160deg, rgba(168,255,111,0.22) 0%, rgba(30,30,63,0.5) 100%)',
+                      boxShadow: '0 0 0 rgba(168,255,111,0)',
+                    }}
+                  >
+                    <div className="absolute inset-0 rounded-full motion-safe:animate-pulse-slow"
+                         style={{ boxShadow: '0 0 12px 2px rgba(168,255,111,0.35)' }} />
                     <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" disabled={saving} />
-                    <span className="text-white/40 text-[10px] text-center leading-tight px-1">Upload<br/>photo</span>
+                    <Camera size={20} className="relative text-[#A8FF6F] group-hover:scale-110 transition-transform" />
                   </label>
                   <button
                     onClick={() => setPickingAvatar(false)}
@@ -278,6 +287,22 @@ export default function MyAccount() {
                 </p>
               )}
             </div>
+
+            <button
+              onClick={() => navigate('/play/account/history')}
+              className="w-full mt-4 rounded-2xl p-4 border border-white/10 bg-white/5 hover:bg-white/10
+                         flex items-center justify-between transition-colors group"
+            >
+              <span className="flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-sky/15 flex items-center justify-center">
+                  <History className="w-4 h-4 text-sky" />
+                </span>
+                <span className="text-white text-sm font-medium">My History</span>
+              </span>
+              <span className="text-white/30 text-xs group-hover:text-white/50 transition-colors">
+                Assessments &amp; games →
+              </span>
+            </button>
 
             {progress.current_streak_days === 0 && (
               <p className="text-white/30 text-xs text-center mt-8">

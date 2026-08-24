@@ -19,7 +19,6 @@ export default function TherapistSettings() {
         role="therapist"
         items={[
           { label: 'Dashboard', icon: LayoutDashboard, to: '/therapist/dashboard' },
-          { label: 'Billing', icon: CreditCard, to: '/therapist/billing' },
         ]}
         name={therapist?.full_name}
         subtitle={therapist?.clinic_name}

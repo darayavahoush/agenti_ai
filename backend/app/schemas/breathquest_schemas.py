@@ -158,6 +158,11 @@ class AssessmentStartOut(BaseModel):
     assessment_patient_id: str
     first_name: str
     already_completed: bool
+    # Set only when already_completed is True -- when the cooldown (see
+    # assessment.py's RETAKE_COOLDOWN_DAYS) is still active, this is the
+    # timestamp it lifts. None either means never completed, or completed
+    # but already eligible to retake right now.
+    retake_available_at: Optional[datetime] = None
 
 
 class AssessmentCompleteRequest(BaseModel):
@@ -287,8 +292,8 @@ class SessionOut(BaseModel):
     class Config:
         from_attributes = True
 
-    id: str
-    patient_id: str
+    id: UUID
+    patient_id: UUID
     level_id: str
     started_at: datetime
     ended_at: datetime | None
@@ -604,6 +609,19 @@ class KidProgressOut(BaseModel):
     max_possible_stars: int
     games_played_this_week: int
     current_streak_days: int
+
+
+class KidHistoryEntry(BaseModel):
+    """One row in the kid's own combined assessment+game timeline
+    (GET /me/history). Same no-scores, no-clinical-language ethos as
+    KidProgressOut: an assessment entry says an assessment happened and
+    when, not its severity_classification/diagnostic findings -- those
+    stay therapist/parent-only, same as everywhere else in this app."""
+    kind: str            # "assessment" | "game"
+    game: str | None = None   # None for assessment entries
+    title: str
+    detail: str | None = None
+    date: datetime | None = None
 
 
 # ------------------------------------------------------------------ #

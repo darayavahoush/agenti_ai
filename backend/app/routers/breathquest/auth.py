@@ -396,6 +396,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
     )
