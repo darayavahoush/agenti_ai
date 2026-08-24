@@ -137,11 +137,14 @@ export const verifyAPI = {
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login:    (data) => api.post('/auth/login', data),
+  googleAuthTherapist: (idToken) => api.post('/auth/google', { id_token: idToken }),
   kidRegister: (data) => api.post('/auth/kid-register', data),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
   parentRegister: (data) => api.post('/auth/parent-register', data),
   parentKidRegister: (data) => api.post('/auth/parent-kid-register', data),
   parentLogin:    (data) => api.post('/auth/parent-login', data),
+  parentGoogleLogin:    (idToken) => api.post('/auth/parent-google-login', { id_token: idToken }),
+  parentGoogleRegister: (data) => api.post('/auth/parent-google-register', data),
 
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidCandidates:       () => api.get('/auth/kid-candidates'),
@@ -274,6 +277,7 @@ export const vaakmirrorAPI = {
 
 export const meAPI = {
   progress:        () => api.get('/me/progress'),
+  history:         () => api.get('/me/history'),
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
   updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),
