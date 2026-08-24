@@ -36,7 +36,7 @@ from app.breathquest_core.deps import get_current_patient, get_current_therapist
 from app.retraining import data_store
 from app.retraining.scheduler import run_retrain_if_due
 from agent.diagnostic_client import get_diagnostic_context
-from app.breathquest_agent.service import AgentService
+from agent.service import AgentService
 
 router = APIRouter(prefix="/breath", tags=["breath-agent"])
 
