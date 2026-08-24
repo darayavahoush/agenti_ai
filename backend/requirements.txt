@@ -82,8 +82,9 @@ scikit-learn==1.9.0
 epitran==1.35.2
 
 # NLP & Phonetics
-nltk==3.10.3
-g2p_en==2.1.0
+nltk
+g2p_en
+epitran
 
 # Text-to-Speech
 coqui-tts==0.27.5

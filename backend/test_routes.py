@@ -3,8 +3,9 @@ sys.path.insert(0, '.')
 
 print("Testing route imports...")
 
+
 try:
-    print("\n1. Importing assessment router...")
+    print("\n2. Importing assessment router...")
     from app.routes.assessment import router as assessment_router
     print(f"   ✅ Assessment router loaded: {assessment_router.prefix}")
     print(f"   Routes: {len(assessment_router.routes)}")
