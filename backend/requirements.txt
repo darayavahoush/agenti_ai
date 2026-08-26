@@ -57,7 +57,7 @@ silero-vad==6.2.1
 vosk==0.3.44
 
 # Machine Learning
-torch==2.13.0
+# PyTorch is installed explicitly in Dockerfile as CPU-only.
 transformers==4.57.6
 # Pinned to the last sentence-transformers release compatible with the
 # transformers 4.x line above -- 5.0.0+ requires transformers>=5, which
@@ -82,8 +82,8 @@ scikit-learn==1.9.0
 epitran==1.35.2
 
 # NLP & Phonetics
-nltk==3.10.3
-g2p_en==2.1.0
+nltk
+g2p_en
 
 # Text-to-Speech
 coqui-tts==0.27.5
