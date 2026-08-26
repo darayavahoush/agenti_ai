@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 import re
 from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
@@ -82,7 +82,11 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # meant every origin was effectively trusted with cookies/auth headers,
 # not just the intended localhost dev servers. Removed the wildcard
 # entirely rather than relying on browsers to save us from it.
-_allowed_origins = settings.CORS_ORIGINS
+_allowed_origins = [
+    origin.strip()
+    for origin in settings.CORS_ORIGINS.split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -203,6 +207,8 @@ def _ensure_patient_therapist_link_column():
     of this migration, so purely additive, no backfill needed)."""
     from sqlalchemy import text
     with engine.begin() as conn:
+        if not inspect(conn).has_table("patients"):
+            return
         conn.execute(text(
             "ALTER TABLE patients ADD COLUMN IF NOT EXISTS registered_therapist_id UUID"
         ))
@@ -215,6 +221,8 @@ def _ensure_therapist_last_login_column():
     canonical Assessment-native Therapist (see models/therapist.py)."""
     from sqlalchemy import text
     with engine.begin() as conn:
+        if not inspect(conn).has_table("therapists"):
+            return
         conn.execute(text(
             "ALTER TABLE therapists ADD COLUMN IF NOT EXISTS last_login TIMESTAMP"
         ))
@@ -224,6 +232,8 @@ _ensure_therapist_last_login_column()
 def _ensure_session_diagnostic_columns():
     from sqlalchemy import text
     with engine.begin() as conn:
+        if not inspect(conn).has_table("sessions"):
+            return
         conn.execute(text(
             "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS severity_classification VARCHAR"
         ))
