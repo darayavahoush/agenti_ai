@@ -37,7 +37,9 @@ jobs:
 
       - name: Build application
         working-directory: frontend
-        run: npm run build
+        run: |
+          npm run build
+          cp staticwebapp.config.json dist/staticwebapp.config.json
 
       - name: Deploy to Azure Static Web Apps
         uses: azure/static-web-apps-deploy@v1
