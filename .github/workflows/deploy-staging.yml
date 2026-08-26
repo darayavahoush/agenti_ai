@@ -24,6 +24,31 @@ jobs:
       - name: Checkout staging
         uses: actions/checkout@v4
 
+      - name: Download Vosk models
+        working-directory: backend
+        run: |
+          mkdir -p vosk_models
+
+          echo "Downloading small Hindi Vosk model..."
+          wget -q --show-progress https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip -O /tmp/vosk-hi.zip
+          unzip -q /tmp/vosk-hi.zip -d vosk_models
+          rm /tmp/vosk-hi.zip
+
+          echo "Downloading Telugu Vosk model..."
+          wget -q --show-progress https://alphacephei.com/vosk/models/vosk-model-small-te-0.42.zip -O /tmp/vosk-te.zip
+          unzip -q /tmp/vosk-te.zip -d vosk_models
+          rm /tmp/vosk-te.zip
+
+          echo "Downloading Kannada Vosk model..."
+          wget -q --show-progress https://alphacephei.com/vosk/models/vosk-model-small-ka-0.42.zip -O /tmp/vosk-ka.zip
+          unzip -q /tmp/vosk-ka.zip -d vosk_models
+          rm /tmp/vosk-ka.zip
+
+          echo "Vosk models available for Docker build:"
+          du -sh vosk_models/*
+          echo "Total Vosk model size:"
+          du -sh vosk_models
+
       - name: Azure Login
         uses: azure/login@v2
         with:

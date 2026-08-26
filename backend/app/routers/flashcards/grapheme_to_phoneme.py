@@ -8,10 +8,41 @@ anything already in the app.
 """
 from g2p_en import G2p
 import epitran
+import pandas as pd
 
 _g2p = G2p()
-_epi_hindi = epitran.Epitran("hin-Deva")
-_epi_kannada = epitran.Epitran("kan-Knda")
+
+
+def _create_epitran(code: str):
+    """Work around Panphon reading its UTF-8 data with the Windows locale."""
+    original_read_csv = pd.read_csv
+
+    def read_csv_with_utf8(*args, **kwargs):
+        source = args[0] if args else kwargs.get("filepath_or_buffer")
+        source_name = getattr(source, "name", "")
+        if "panphon" in source_name and "feature_weights.csv" in source_name:
+            kwargs["encoding"] = "cp1252"
+            if args:
+                args = (source_name, *args[1:])
+            else:
+                kwargs["filepath_or_buffer"] = source_name
+        elif "panphon" in source_name:
+            kwargs["encoding"] = "utf-8"
+            if args:
+                args = (source_name, *args[1:])
+            else:
+                kwargs["filepath_or_buffer"] = source_name
+        return original_read_csv(*args, **kwargs)
+
+    pd.read_csv = read_csv_with_utf8
+    try:
+        return epitran.Epitran(code)
+    finally:
+        pd.read_csv = original_read_csv
+
+
+_epi_hindi = _create_epitran("hin-Deva")
+_epi_kannada = _create_epitran("kan-Knda")
 
 
 def get_phonemes(word: str, language: str) -> list:

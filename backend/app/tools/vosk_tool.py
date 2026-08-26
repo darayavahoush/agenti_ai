@@ -16,7 +16,7 @@ VOSK_MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "vosk_mode
 
 # Language to Vosk model mapping (based on available models)
 VOSK_LANG_MODELS = {
-    "hi": "vosk-model-hi-0.22",  # Hindi
+    "hi": "vosk-model-small-hi-0.22",  # Hindi
     "te": "vosk-model-small-te-0.42",  # Telugu  
     "kn": "vosk-model-small-ka-0.42",  # Kannada (Note: ka=Georgian, may not work)
     "ta": "vosk-model-ta-0.22",  # Tamil (not available)
