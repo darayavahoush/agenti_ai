@@ -19,11 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema."""
-    op.add_column(
-        "breathquest_patients",
-        sa.Column("avatar_photo_url", sa.String(255), nullable=True),
-    )
+    """Already included in 000baseline0_baseline_schema.py."""
+    pass
 
 
 def downgrade() -> None:
