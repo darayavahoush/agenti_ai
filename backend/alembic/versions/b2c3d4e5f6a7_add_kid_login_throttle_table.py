@@ -28,25 +28,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "breathquest_kid_login_throttle",
-        sa.Column("id", PGUUID(as_uuid=True), primary_key=True),
-        sa.Column("identifier", sa.String(255), nullable=False, unique=True),
-        sa.Column("failed_attempts", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("first_failed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_failed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index(
-        "ix_breathquest_kid_login_throttle_identifier",
-        "breathquest_kid_login_throttle",
-        ["identifier"],
-    )
+    # This table is already part of the 000baseline0 baseline schema.
+    pass
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_breathquest_kid_login_throttle_identifier",
-        table_name="breathquest_kid_login_throttle",
-    )
-    op.drop_table("breathquest_kid_login_throttle")
+    # This table belongs to the baseline schema and must not be removed
+    # by this migration.
+    pass
