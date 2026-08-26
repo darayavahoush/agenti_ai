@@ -24,15 +24,15 @@ jobs:
       - name: Checkout staging
         uses: actions/checkout@v4
 
-      - name: Download Vosk models
+            - name: Download Vosk models
         working-directory: backend
         run: |
           mkdir -p vosk_models
 
           echo "Downloading small Hindi Vosk model..."
-	  wget -q --show-progress \
-  	   https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip \
-  	   -O /tmp/vosk-hi.zip
+          wget -q --show-progress \
+            https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip \
+            -O /tmp/vosk-hi.zip
           unzip -q /tmp/vosk-hi.zip -d vosk_models
           rm /tmp/vosk-hi.zip
 
