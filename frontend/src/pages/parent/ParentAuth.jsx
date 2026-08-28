@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, getErrorMessage } from '../../api/client'
@@ -43,6 +43,26 @@ export default function ParentAuth() {
   const [recoveryEmail, setRecoveryEmail] = useState('')
   const [recoveryStatus, setRecoveryStatus] = useState('') // '' | 'sending' | 'sent'
 
+  // Restore an in-progress new_child registration after the /verify
+  // round-trip (see handleSubmit's 403 branch below, which saves this
+  // before redirecting). Password is intentionally never persisted here
+  // -- see this file's patch-script docstring -- so the parent re-enters
+  // just that one field; everything else comes back pre-filled.
+  useEffect(() => {
+    const raw = localStorage.getItem('bq_pending_parent_kid_register')
+    if (!raw) return
+    try {
+      const pending = JSON.parse(raw)
+      setMode('register')
+      setCodeType('new_child')
+      setForm((f) => ({ ...f, ...pending, password: '' }))
+    } catch {
+      // Malformed/stale entry -- ignore rather than block the page.
+    } finally {
+      localStorage.removeItem('bq_pending_parent_kid_register')
+    }
+  }, [])
+
   function update(field) {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
   }
@@ -61,8 +81,22 @@ export default function ParentAuth() {
           kidFirstName: form.kidFirstName, kidAvatar: form.kidAvatar, kidPin: form.kidPin,
         })
       }
+      localStorage.removeItem('bq_pending_parent_kid_register')
       navigate('/parent/dashboard')
     } catch (err) {
+      // A 403 here specifically means parent_kid_register's email-consent
+      // gate rejected us (see backend's TEMPORARY 2026-08-28 comment on
+      // that route) -- rather than showing a dead-end error, send the
+      // parent to the existing /verify page to actually prove the email,
+      // then bring them back here to finish registering. Any other error
+      // status (400 dup email, 500, network) falls through to the normal
+      // inline message instead, since those aren't fixed by verifying.
+      if (err?.response?.status === 403 && mode === 'register' && codeType === 'new_child') {
+        const { password, ...toPersist } = form
+        localStorage.setItem('bq_pending_parent_kid_register', JSON.stringify(toPersist))
+        navigate(`/verify?dest=${encodeURIComponent('/auth?role=parent')}`)
+        return
+      }
       setError(getErrorMessage(err, 'Something went wrong — please try again.'))
     } finally {
       setBusy(false)

@@ -48,7 +48,7 @@ from app.breathquest_core.login_throttle import check_throttle, record_failure, 
 # attempts against one account, so this is the right tool here instead.
 from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
-from app.breathquest_core.parental_consent import check_parental_consent
+from app.breathquest_core.parental_consent import check_parental_consent, check_email_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
 from sqlalchemy import delete as sa_delete
 
@@ -189,16 +189,26 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
     """Parent-initiated combined signup, no therapist -- creates the kid
     account and links a parent account to it in one transaction. See
     ParentKidRegisterRequest's docstring for how this differs from the
-    existing kid-register -> parent-register two-step flow."""
-    consent = await check_parental_consent(data.email, data.phone, db)
+    existing kid-register -> parent-register two-step flow.
+
+    TEMPORARY 2026-08-28: only email consent is required here, not the
+    full dual (email + phone) check check_parental_consent enforces
+    elsewhere. Phone verification depends on a real SMS provider --
+    ACS is configured but doesn't support Indian numbers, and no
+    alternative (e.g. Twilio) is wired up yet -- so requiring it here
+    would make this route permanently unusable for real parents in the
+    meantime. This is a deliberate, scoped loosening of the COPPA
+    dual-consent model for THIS route only; check_parental_consent
+    (both factors) still gates POST /auth/kid-register unchanged.
+    Switch back to check_parental_consent (and restore the phone_*
+    reasons below) once real phone/SMS verification exists."""
+    consent = await check_email_consent(data.email, db)
     if not consent.granted:
         detail_by_reason = {
-            "email_not_verified": "Please verify your email before registering",
-            "email_expired": "Please verify your email again before registering",
-            "phone_not_verified": "Please verify your phone number before registering",
-            "phone_expired": "Please verify your phone number again before registering",
+            "not_verified": "Please verify your email before registering",
+            "expired": "Please verify your email again before registering",
         }
-        detail = detail_by_reason.get(consent.reason, "Please verify your email and phone before registering")
+        detail = detail_by_reason.get(consent.reason, "Please verify your email before registering")
         raise HTTPException(status_code=403, detail=detail)
 
     existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
