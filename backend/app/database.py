@@ -26,13 +26,24 @@ if not DATABASE_URL:
     pg_database = os.getenv("PGDATABASE") or "postgres"
     DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
 
-# Convert to async URL for BreathQuest
+# The sync engine must use a regular psycopg2-compatible PostgreSQL URL,
+# while the async engine needs the asyncpg driver. Reusing the same
+# asyncpg URL for both creates the import-time `MissingGreenlet` crash
+# seen when app.main connects during startup. Azure/.env values also use
+# the asyncpg form (`ssl=require`), which psycopg2 rejects outright; convert
+# that query flag to `sslmode=require` for the sync engine.
+_sync_db_url = DATABASE_URL
+if _sync_db_url.startswith("postgresql+asyncpg://"):
+    _sync_db_url = _sync_db_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+if "ssl=" in _sync_db_url:
+    _sync_db_url = _sync_db_url.replace("ssl=", "sslmode=", 1)
+
 _async_db_url = DATABASE_URL
 if _async_db_url.startswith("postgresql://"):
     _async_db_url = _async_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 engine = create_engine(
-    DATABASE_URL,
+    _sync_db_url,
     pool_pre_ping=True
 )
 
