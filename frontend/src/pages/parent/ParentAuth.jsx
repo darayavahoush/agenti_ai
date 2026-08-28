@@ -94,7 +94,7 @@ export default function ParentAuth() {
       if (err?.response?.status === 403 && mode === 'register' && codeType === 'new_child') {
         const { password, ...toPersist } = form
         localStorage.setItem('bq_pending_parent_kid_register', JSON.stringify(toPersist))
-        navigate(`/verify?dest=${encodeURIComponent('/auth?role=parent')}`)
+        navigate(`/verify?dest=${encodeURIComponent('/auth?role=parent')}&email=${encodeURIComponent(form.email)}`)
         return
       }
       setError(getErrorMessage(err, 'Something went wrong — please try again.'))
