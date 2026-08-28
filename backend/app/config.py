@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     
     # CORS Configuration
     CORS_ORIGINS: str = Field(
-        default="http://localhost:5173,http://localhost:3000",
+        default="http://localhost:5173,http://localhost:3000,https://vaaksudhi.manaslearning.com",
         description="Allowed CORS origins, comma-separated"
     )
     # OpenAI API (optional, for enhanced features)
