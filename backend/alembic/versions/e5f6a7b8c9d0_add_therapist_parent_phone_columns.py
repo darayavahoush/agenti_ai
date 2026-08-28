@@ -36,15 +36,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "therapists",
-        sa.Column("phone", sa.String(), nullable=True),
-    )
-    op.add_column(
-        "breathquest_parents",
-        sa.Column("phone", sa.String(50), nullable=True),
-    )
-
+    # Already included in 000baseline0_baseline_schema.py.
+    pass
 
 def downgrade() -> None:
     op.drop_column("breathquest_parents", "phone")
