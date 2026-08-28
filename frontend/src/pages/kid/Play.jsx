@@ -183,7 +183,7 @@ export default function KidPlay() {
   // that's instructional, not just narration of a menu.
   const CHOOSE_TXT     = 'Ready to play? Tap New Player to create an account, or I have a code to log back in.'
   const REGISTER_TXT   = 'Create your account. Type your name, pick your character, and choose a 4 digit PIN.'
-  const LOGIN_TXT      = 'Welcome back! Enter your player code and your PIN.'
+  const LOGIN_TXT      = 'Welcome back! Enter your name or player code, and your PIN.'
   const ASSESSMENT_TXT = 'Find your name in the list, pick your character, and choose a 4 digit PIN.'
   const registeredText = registered
     ? `You're in, ${AVATAR_NAMES[avatar]}! Write down your player code and your PIN so you can log back in.`
@@ -287,7 +287,7 @@ export default function KidPlay() {
   }
 
   const handleLogin = async () => {
-    if (!playerCode.trim()) { setError('Enter your player code'); return }
+    if (!playerCode.trim()) { setError('Enter your name or player code'); return }
     if (pin.length < 4)     { setError('Enter your PIN'); return }
     setError(''); setLoading(true)
     try {
@@ -691,12 +691,15 @@ export default function KidPlay() {
             Welcome Back! <SpeakButton onClick={replayLogin} className="text-white/25 hover:text-white/50" />
           </h1>
 
-          <div className="mb-5">
-            <label className="text-sm text-white/50 block mb-1">Your Player Code</label>
+          <div className="mb-2">
+            <label className="text-sm text-white/50 block mb-1">Your Name or Player Code</label>
             <input className="input text-center text-xl font-bold tracking-widest uppercase"
-                   placeholder="e.g. CHICK42"
+                   placeholder="e.g. CHICK42 or your name"
                    value={playerCode} onChange={e => setPlayerCode(e.target.value.toUpperCase())} />
           </div>
+          <p className="text-white/30 text-xs text-center mb-4">
+            Lost your player code? Just type your name instead!
+          </p>
 
           <label className="text-sm text-white/50 block mb-2">Your PIN</label>
           <PinDots length={pin.length} />
