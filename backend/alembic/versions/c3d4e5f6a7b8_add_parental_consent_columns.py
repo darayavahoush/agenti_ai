@@ -31,21 +31,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "breathquest_email_verifications",
-        sa.Column("verified_at", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.add_column(
-        "breathquest_patients",
-        sa.Column("parent_email", sa.String(255), nullable=True),
-    )
-    op.add_column(
-        "breathquest_patients",
-        sa.Column("parent_consent_verified_at", sa.DateTime(timezone=True), nullable=True),
-    )
+    # These columns are already present in the baseline schema.
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("breathquest_patients", "parent_consent_verified_at")
-    op.drop_column("breathquest_patients", "parent_email")
-    op.drop_column("breathquest_email_verifications", "verified_at")
+    # Columns are owned by the baseline schema; do not remove them here.
+    pass

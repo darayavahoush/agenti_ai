@@ -14,11 +14,10 @@ class Settings(BaseSettings):
     API_PORT: int = Field(default=8000, description="API port")
     
     # CORS Configuration
-    CORS_ORIGINS: list[str] = Field(
-        default=["http://localhost:5173", "http://localhost:3000"],
-        description="Allowed CORS origins"
+    CORS_ORIGINS: str = Field(
+        default="http://localhost:5173,http://localhost:3000,https://vaaksudhi.manaslearning.com",
+        description="Allowed CORS origins, comma-separated"
     )
-    
     # OpenAI API (optional, for enhanced features)
     OPENAI_API_KEY: str = Field(default="", description="OpenAI API key for enhanced features")
 
