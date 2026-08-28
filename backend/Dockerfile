@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir \
 # Install remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download required NLTK resources
+RUN python -m nltk.downloader averaged_perceptron_tagger_eng averaged_perceptron_tagger punkt punkt_tab
+
 # Application code and runtime dependencies
 COPY app ./app
 COPY alembic ./alembic
