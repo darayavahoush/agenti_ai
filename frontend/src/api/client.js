@@ -145,6 +145,7 @@ export const authAPI = {
   parentLogin:    (data) => api.post('/auth/parent-login', data),
   parentGoogleLogin:    (idToken) => api.post('/auth/parent-google-login', { id_token: idToken }),
   parentGoogleRegister: (data) => api.post('/auth/parent-google-register', data),
+  forgotPlayerCode: (data) => api.post('/auth/forgot-player-code', data),
 
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidCandidates:       () => api.get('/auth/kid-candidates'),
