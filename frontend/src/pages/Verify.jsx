@@ -1,35 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { verifyAPI, getErrorMessage } from '../api/client'
 
 // Full-page email-OTP gate. Reached from PlaySelect after picking a role
-// (?dest=/play | /therapist/login | /parent/login). On success, navigates
-// to `dest` regardless of first_time — the destination itself (kid login,
+// (?dest=/play | /therapist/login | /parent/login), or from a flow that
+// already knows the email (?dest=...&email=...) -- e.g. ParentAuth's
+// new-child registration, which hits a 403 needing email consent and
+// sends the parent here with their email already typed in. When `email`
+// is present we skip the "what's your email" step entirely and fire the
+// code request automatically, since asking them to retype what they just
+// typed would be a pointless extra step. On success, navigates to `dest`
+// regardless of first_time -- the destination itself (kid login,
 // therapist login, parent login) is where real identity gets established;
 // this just proves the email is real before any of that.
 export default function Verify() {
   const [searchParams] = useSearchParams()
   const dest = searchParams.get('dest') || '/play-select'
+  const emailParam = searchParams.get('email') || ''
   const navigate = useNavigate()
 
   const [step, setStep] = useState('email') // 'email' | 'code'
-  const [email, setEmail] = useState(() => localStorage.getItem('bq_verified_email') || '')
+  const [email, setEmail] = useState(() => emailParam || localStorage.getItem('bq_verified_email') || '')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const autoSentRef = useRef(false)
 
-  async function handleRequestCode(e) {
-    e.preventDefault()
+  async function requestCode(targetEmail) {
     setError('')
     setLoading(true)
     try {
-      await verifyAPI.request({ email })
+      await verifyAPI.request({ email: targetEmail })
       setStep('code')
     } catch (err) {
       setError(getErrorMessage(err, "Couldn't send code — try again"))
+      // If the auto-send failed, fall back to showing the email step so
+      // the parent isn't stuck on a dead end with no way to retry.
+      setStep('email')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Auto-send when we arrived with a known email -- only once, so a
+  // failed send (which falls back to 'email' step above) doesn't loop.
+  useEffect(() => {
+    if (emailParam && !autoSentRef.current) {
+      autoSentRef.current = true
+      requestCode(emailParam)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailParam])
+
+  async function handleRequestCode(e) {
+    e.preventDefault()
+    requestCode(email)
   }
 
   async function handleConfirmCode(e) {
@@ -93,7 +118,11 @@ export default function Verify() {
         {step === 'code' && (
           <form onSubmit={handleConfirmCode}>
             <h1 className="font-vm-display text-2xl font-bold text-paper mb-2">Enter your code</h1>
-            <p className="text-paper/50 text-sm mb-5">Sent to {email} — check your inbox.</p>
+            <p className="text-paper/50 text-sm mb-1">Sent to {email} — check your inbox.</p>
+            <p className="text-paper/40 text-xs mb-5">
+              Don't see it? Check your spam/junk folder — verification emails sometimes land there.
+              It can also take a minute or two to arrive.
+            </p>
             <input
               type="text"
               required
@@ -114,8 +143,16 @@ export default function Verify() {
             </button>
             <button
               type="button"
+              onClick={() => requestCode(email)}
+              disabled={loading}
+              className="w-full text-paper/50 text-sm mt-3 disabled:opacity-50"
+            >
+              Didn't get it? Resend code
+            </button>
+            <button
+              type="button"
               onClick={() => { setStep('email'); setCode(''); setError('') }}
-              className="w-full text-paper/40 text-sm mt-4"
+              className="w-full text-paper/40 text-sm mt-2"
             >
               Wrong email? Go back
             </button>
