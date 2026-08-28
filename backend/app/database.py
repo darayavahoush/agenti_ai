@@ -33,7 +33,9 @@ if _async_db_url.startswith("postgresql://"):
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
 )
 
 # Async engine for BreathQuest
@@ -41,8 +43,8 @@ async_engine = create_async_engine(
     _async_db_url,
     echo=False,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
 )
 
 SessionLocal = sessionmaker(

@@ -16,7 +16,25 @@ from datetime import datetime, timezone
 from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.database import SessionLocal
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.database import DATABASE_URL
+
+# Small dedicated engine, separate from database.py's shared `engine` --
+# this file's traffic (RL event logging, checkpoints) is low-volume and
+# doesn't need to compete for headroom in the shared pool. Capped total
+# of 5 connections (pool_size + max_overflow).
+_retraining_engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=2,
+    max_overflow=3,
+)
+RetrainingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=_retraining_engine,
+)
 from app.models.retraining_models import RLTrainingEvent, RetrainCheckpoint
 
 # Vestigial -- kept only because ported call sites (chime.py, breath_agent.py,
@@ -34,7 +52,7 @@ def add_event(child_id, level_id: str, attempt_number: int, score: float,
               policy_used: str = None, downgrade_reason: str = None,
               recommended_action: str = None, recommendation_message: str = None,
               db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         event = RLTrainingEvent(
             child_id=child_id,
             timestamp=datetime.now(timezone.utc),
@@ -58,7 +76,7 @@ def add_event(child_id, level_id: str, attempt_number: int, score: float,
 
 
 def get_events(child_id=None, since_id: int = None, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(RLTrainingEvent)
         if child_id is not None:
             query = query.where(RLTrainingEvent.child_id == child_id)
@@ -73,7 +91,7 @@ def get_events(child_id=None, since_id: int = None, db_path=None):
 
 
 def get_latest_decision(child_id, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = (
             select(RLTrainingEvent)
             .where(RLTrainingEvent.child_id == child_id)
@@ -88,7 +106,7 @@ def get_latest_decision(child_id, db_path=None):
 
 
 def count_events(child_id=None, db_path=None) -> int:
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(func.count()).select_from(RLTrainingEvent)
         if child_id is not None:
             query = query.where(RLTrainingEvent.child_id == child_id)
@@ -99,7 +117,7 @@ def count_events_since(child_ids: list, since_iso: str, db_path=None) -> int:
     if not child_ids:
         return 0
     since_dt = datetime.fromisoformat(since_iso)
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(func.count()).select_from(RLTrainingEvent).where(
             RLTrainingEvent.timestamp >= since_dt,
             RLTrainingEvent.child_id.in_(child_ids),
@@ -108,7 +126,7 @@ def count_events_since(child_ids: list, since_iso: str, db_path=None) -> int:
 
 
 def last_event_time(child_id, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(func.max(RLTrainingEvent.timestamp)).where(
             RLTrainingEvent.child_id == child_id
         )
@@ -119,7 +137,7 @@ def last_event_time(child_id, db_path=None):
 
 
 def get_checkpoint(scope: str, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(RetrainCheckpoint).where(RetrainCheckpoint.scope == scope)
         row = session.execute(query).scalar_one_or_none()
         if row is None:
@@ -132,7 +150,7 @@ def get_checkpoint(scope: str, db_path=None):
 
 
 def set_checkpoint(scope: str, event_count: int, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         stmt = pg_insert(RetrainCheckpoint).values(
             scope=scope,
             last_retrained_at=datetime.now(timezone.utc),
