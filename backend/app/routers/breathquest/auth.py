@@ -161,9 +161,9 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
         pin_hash=hash_pin(data.pin),
         player_code=player_code,
         parent_email=data.parent_email,
-        parent_consent_verified_at=consent.email_verified_at,
+        parent_consent_verified_at=consent.verified_at,
         parent_phone=data.parent_phone,
-        parent_phone_consent_verified_at=consent.phone_verified_at,
+        parent_phone_consent_verified_at=None,
     )
     db.add(patient)
     await db.commit()
@@ -223,9 +223,9 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
         pin_hash=hash_pin(data.pin),
         player_code=player_code,
         parent_email=data.email,
-        parent_consent_verified_at=consent.email_verified_at,
+        parent_consent_verified_at=consent.verified_at,
         parent_phone=data.phone,
-        parent_phone_consent_verified_at=consent.phone_verified_at,
+        parent_phone_consent_verified_at=None,
     )
     db.add(patient)
     await db.flush()  # get patient.id without committing yet
