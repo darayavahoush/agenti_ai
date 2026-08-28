@@ -201,53 +201,17 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 # separate, still-idempotent ADD COLUMN IF NOT EXISTS stopgap for
 # columns added after their table already existed in a deployed DB,
 # predating Alembic. Left as-is, not retroactively converted.
-def _ensure_patient_therapist_link_column():
-    """One-time ADD COLUMN for registered_therapist_id -- patients table
-    already existed before this column was added to the model (0 rows as
-    of this migration, so purely additive, no backfill needed)."""
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        if not inspect(conn).has_table("patients"):
-            return
-        conn.execute(text(
-            "ALTER TABLE patients ADD COLUMN IF NOT EXISTS registered_therapist_id UUID"
-        ))
-
-_ensure_patient_therapist_link_column()
-
-def _ensure_therapist_last_login_column():
-    """One-time ADD COLUMN for last_login -- added 2026-08-11 as part of
-    collapsing quest-games' separate Therapist table into this one,
-    canonical Assessment-native Therapist (see models/therapist.py)."""
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        if not inspect(conn).has_table("therapists"):
-            return
-        conn.execute(text(
-            "ALTER TABLE therapists ADD COLUMN IF NOT EXISTS last_login TIMESTAMP"
-        ))
-
-_ensure_therapist_last_login_column()
-
-def _ensure_session_diagnostic_columns():
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        if not inspect(conn).has_table("sessions"):
-            return
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS severity_classification VARCHAR"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error_patterns JSONB"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS targeted_quests JSONB"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS diagnostic_report VARCHAR"
-        ))
-
-_ensure_session_diagnostic_columns()
+# _ensure_patient_therapist_link_column, _ensure_therapist_last_login_column,
+# and _ensure_session_diagnostic_columns were removed 2026-08-28 -- all
+# columns they added (patients.registered_therapist_id, therapists.last_login,
+# sessions.severity_classification/error_patterns/targeted_quests/
+# diagnostic_report) are already present in alembic/versions/
+# 000baseline0_baseline_schema.py, making these three functions permanent
+# no-ops that ran on every container startup. Worse, registered_therapist_id
+# in particular was re-added here as a bare UUID with no FK constraint or
+# index, unlike baseline's version -- a landmine if that column were ever
+# dropped and these functions recreated it without baseline's integrity
+# constraints. Schema changes now go through Alembic exclusively.
 
 @app.get("/")
 def home():
