@@ -29,6 +29,9 @@ _retraining_engine = create_engine(
     pool_pre_ping=True,
     pool_size=2,
     max_overflow=3,
+    connect_args={
+        "options": "-c statement_timeout=30000 -c idle_in_transaction_session_timeout=30000"
+    },
 )
 RetrainingSessionLocal = sessionmaker(
     autocommit=False,
