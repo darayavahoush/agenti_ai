@@ -33,13 +33,15 @@ from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
     ParentKidRegisterRequest, ParentGoogleLoginRequest, ParentGoogleRegisterRequest,
-)
+    ForgotEmailRequest,
+    ForgotPlayerCodeRequest,)
 from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
     hash_password, verify_password, create_parent_token, create_access_token,
     create_refresh_token, get_valid_refresh_token, revoke_refresh_token,
 )
+from app.services.email import send_account_reminder_email, send_player_code_email
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 # IP-based limiter (distinct from the per-identifier login_throttle above):
 # registration abuse is many different emails from one source, not repeated
@@ -344,6 +346,50 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
     )
+
+@router.post("/forgot-email", status_code=202)
+async def forgot_email(request: Request, data: ForgotEmailRequest, db: AsyncSession = Depends(get_db)):
+    """A parent who forgot which email they registered with provides
+    their child's player code; if a linked Parent account exists, we
+    email that account's own address as a reminder. Always returns
+    the same generic response either way -- a response that varied
+    by whether the code matched would let this endpoint be used to
+    enumerate valid player codes."""
+    check_ip_rate_limit(request)
+    identifier = data.player_code.strip().upper()
+    result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.player_code == identifier)
+    )
+    patient = result.scalar_one_or_none()
+    if patient:
+        parent_result = await db.execute(select(Parent).where(Parent.patient_id == patient.id))
+        parent = parent_result.scalar_one_or_none()
+        if parent:
+            send_account_reminder_email(parent.email, patient.player_code)
+    return {"message": "If that player code has a linked parent account, a reminder has been sent to the registered email."}
+
+
+@router.post("/forgot-player-code", status_code=202)
+async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db: AsyncSession = Depends(get_db)):
+    """A parent who forgot their child's player code provides their own
+    login email; if a linked BreathQuestPatient exists, we email that
+    account's player code to the address on file. Always returns the
+    same generic response either way -- a response that varied by
+    whether the email matched would let this endpoint be used to
+    enumerate registered parent emails."""
+    check_ip_rate_limit(request)
+    email = data.email.strip().lower()
+    result = await db.execute(select(Parent).where(Parent.email == email))
+    parent = result.scalar_one_or_none()
+    if parent:
+        patient_result = await db.execute(
+            select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id)
+        )
+        patient = patient_result.scalar_one_or_none()
+        if patient:
+            send_player_code_email(parent.email, patient.player_code)
+    return {"message": "If that email has a linked account, a reminder has been sent with the player code."}
+
 
 @router.post("/kid-login", response_model=KidTokenResponse)
 async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
