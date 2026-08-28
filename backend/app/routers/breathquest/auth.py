@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timezone
 
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.models.breathquest_models import (
     BreathQuestPatient, Parent, Subscription,
     TherapistNote, Assignment, Goal, Message, HomePracticeLog,
@@ -97,20 +97,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ------------------------------------------------------------------ #
 
 @router.get("/therapist-candidates")
-def therapist_candidates():
+async def therapist_candidates(db: AsyncSession = Depends(get_db)):
     """Return unique therapist names already recorded during Assessment."""
-    sync_db = SessionLocal()
-    try:
-        names = (
-            sync_db.query(Patient.therapist_name)
-            .filter(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
-            .distinct()
-            .order_by(Patient.therapist_name)
-            .all()
-        )
-        return [name for (name,) in names]
-    finally:
-        sync_db.close()
+    result = await db.execute(
+        select(Patient.therapist_name)
+        .where(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
+        .distinct()
+        .order_by(Patient.therapist_name)
+    )
+    return list(result.scalars().all())
 
 
 # ------------------------------------------------------------------ #
@@ -118,14 +113,13 @@ def therapist_candidates():
 # ------------------------------------------------------------------ #
 
 @router.get("/kid-candidates")
-def kid_candidates():
+async def kid_candidates(db: AsyncSession = Depends(get_db)):
     """Return children already created through Assessment for PIN setup."""
-    sync_db = SessionLocal()
-    try:
-        patients = sync_db.query(Patient).filter(Patient.is_active.is_(True)).order_by(Patient.name).all()
-        return [{"id": str(patient.id), "name": patient.name} for patient in patients]
-    finally:
-        sync_db.close()
+    result = await db.execute(
+        select(Patient).where(Patient.is_active.is_(True)).order_by(Patient.name)
+    )
+    patients = result.scalars().all()
+    return [{"id": str(patient.id), "name": patient.name} for patient in patients]
 
 @router.post("/kid-register", response_model=KidTokenResponse, status_code=201)
 async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -281,20 +275,13 @@ async def delete_therapist_account(
         .where(Subscription.owner_therapist_id == therapist.id)
         .values(owner_therapist_id=None)
     )
+    await db.execute(
+        Patient.__table__.update()
+        .where(Patient.registered_therapist_id == therapist.id)
+        .values(registered_therapist_id=None)
+    )
     await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
     await db.commit()
-
-    # Patient (Assessment's model) lives on a separate sync session, same
-    # as kid_pin_setup's main_patient lookup above -- not part of the
-    # async `db` session at all.
-    sync_db = SessionLocal()
-    try:
-        sync_db.query(Patient).filter(
-            Patient.registered_therapist_id == therapist.id
-        ).update({Patient.registered_therapist_id: None})
-        sync_db.commit()
-    finally:
-        sync_db.close()
 
 
 @router.delete("/kid-account", status_code=204)
@@ -315,11 +302,7 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
     AuthContext.jsx's setupKidPin() calls -- it used to point at a route
     that didn't exist at all (404 on every call), since this logic
     previously lived under /auth/kid-register instead."""
-    sync_db = SessionLocal()
-    try:
-        main_patient = sync_db.get(Patient, data.patient_id)
-    finally:
-        sync_db.close()
+    main_patient = await db.get(Patient, data.patient_id)
 
     if not main_patient or not main_patient.is_active:
         raise HTTPException(status_code=404, detail="Registered child not found")
