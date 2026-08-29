@@ -133,18 +133,29 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     POST /auth/kid-pin-setup instead.
 
     COPPA: this is the only kid-account path with no adult already in the
-    loop, so it's gated on a recently-verified parent email AND phone
-    (both required, see breathquest_core/parental_consent.py) before it
-    will touch the DB at all."""
-    consent = await check_parental_consent(data.parent_email, data.parent_phone, db)
+    loop, so it's gated on a recently-verified parent email before it
+    will touch the DB at all.
+
+    TEMPORARY 2026-08-29: only email consent is required here, not the
+    full dual (email + phone) check check_parental_consent implements --
+    same reasoning as parent_kid_register's identical loosening (see that
+    endpoint's comment): ACS is configured but doesn't support Indian
+    numbers, and no alternative SMS provider is wired up yet, so requiring
+    phone here would make this route permanently unusable for real parents
+    in the meantime. This also fixes a live bug: check_parental_consent
+    returns a DualConsentStatus (only .email_verified_at/.phone_verified_at),
+    but the field mapping below already expected check_email_consent's
+    ConsentStatus shape (.verified_at) since f0e135c -- so this path would
+    have crashed with an AttributeError the moment both factors were ever
+    actually granted. Switch back to check_parental_consent (and restore
+    the phone_* reasons below) once real phone/SMS verification exists."""
+    consent = await check_email_consent(data.parent_email, db)
     if not consent.granted:
         detail_by_reason = {
-            "email_not_verified": "A parent needs to verify their email before creating this account",
-            "email_expired": "Please verify the parent's email again before creating the account",
-            "phone_not_verified": "A parent needs to verify their phone number before creating this account",
-            "phone_expired": "Please verify the parent's phone number again before creating the account",
+            "not_verified": "A parent needs to verify their email before creating this account",
+            "expired": "Please verify the parent's email again before creating the account",
         }
-        detail = detail_by_reason.get(consent.reason, "A parent needs to verify their email and phone before creating this account")
+        detail = detail_by_reason.get(consent.reason, "A parent needs to verify their email before creating this account")
         raise HTTPException(status_code=403, detail=detail)
 
     player_code = await generate_unique_player_code(db, data.avatar)
