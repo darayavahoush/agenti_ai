@@ -48,7 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.breathquest_models import EmailVerification, PhoneVerification
 
 CONSENT_WINDOW_MINUTES = 30
-AUTO_VERIFY_CONSENT = True
+AUTO_VERIFY_CONSENT = False
 
 
 @dataclass

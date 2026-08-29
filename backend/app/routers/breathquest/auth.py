@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timezone
 
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.models.breathquest_models import (
     BreathQuestPatient, Parent, Subscription,
     TherapistNote, Assignment, Goal, Message, HomePracticeLog,
@@ -33,20 +33,22 @@ from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
     ParentKidRegisterRequest, ParentGoogleLoginRequest, ParentGoogleRegisterRequest,
-)
+    ForgotEmailRequest,
+    ForgotPlayerCodeRequest,)
 from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
     hash_password, verify_password, create_parent_token, create_access_token,
     create_refresh_token, get_valid_refresh_token, revoke_refresh_token,
 )
+from app.services.email import send_account_reminder_email, send_player_code_email
 from app.breathquest_core.login_throttle import check_throttle, record_failure, record_success
 # IP-based limiter (distinct from the per-identifier login_throttle above):
 # registration abuse is many different emails from one source, not repeated
 # attempts against one account, so this is the right tool here instead.
 from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
-from app.breathquest_core.parental_consent import check_parental_consent
+from app.breathquest_core.parental_consent import check_parental_consent, check_email_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
 from sqlalchemy import delete as sa_delete
 
@@ -95,20 +97,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ------------------------------------------------------------------ #
 
 @router.get("/therapist-candidates")
-def therapist_candidates():
+async def therapist_candidates(db: AsyncSession = Depends(get_db)):
     """Return unique therapist names already recorded during Assessment."""
-    sync_db = SessionLocal()
-    try:
-        names = (
-            sync_db.query(Patient.therapist_name)
-            .filter(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
-            .distinct()
-            .order_by(Patient.therapist_name)
-            .all()
-        )
-        return [name for (name,) in names]
-    finally:
-        sync_db.close()
+    result = await db.execute(
+        select(Patient.therapist_name)
+        .where(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
+        .distinct()
+        .order_by(Patient.therapist_name)
+    )
+    return list(result.scalars().all())
 
 
 # ------------------------------------------------------------------ #
@@ -116,14 +113,13 @@ def therapist_candidates():
 # ------------------------------------------------------------------ #
 
 @router.get("/kid-candidates")
-def kid_candidates():
+async def kid_candidates(db: AsyncSession = Depends(get_db)):
     """Return children already created through Assessment for PIN setup."""
-    sync_db = SessionLocal()
-    try:
-        patients = sync_db.query(Patient).filter(Patient.is_active.is_(True)).order_by(Patient.name).all()
-        return [{"id": str(patient.id), "name": patient.name} for patient in patients]
-    finally:
-        sync_db.close()
+    result = await db.execute(
+        select(Patient).where(Patient.is_active.is_(True)).order_by(Patient.name)
+    )
+    patients = result.scalars().all()
+    return [{"id": str(patient.id), "name": patient.name} for patient in patients]
 
 @router.post("/kid-register", response_model=KidTokenResponse, status_code=201)
 async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -159,9 +155,9 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
         pin_hash=hash_pin(data.pin),
         player_code=player_code,
         parent_email=data.parent_email,
-        parent_consent_verified_at=consent.email_verified_at,
+        parent_consent_verified_at=consent.verified_at,
         parent_phone=data.parent_phone,
-        parent_phone_consent_verified_at=consent.phone_verified_at,
+        parent_phone_consent_verified_at=None,
     )
     db.add(patient)
     await db.commit()
@@ -187,16 +183,26 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
     """Parent-initiated combined signup, no therapist -- creates the kid
     account and links a parent account to it in one transaction. See
     ParentKidRegisterRequest's docstring for how this differs from the
-    existing kid-register -> parent-register two-step flow."""
-    consent = await check_parental_consent(data.email, data.phone, db)
+    existing kid-register -> parent-register two-step flow.
+
+    TEMPORARY 2026-08-28: only email consent is required here, not the
+    full dual (email + phone) check check_parental_consent enforces
+    elsewhere. Phone verification depends on a real SMS provider --
+    ACS is configured but doesn't support Indian numbers, and no
+    alternative (e.g. Twilio) is wired up yet -- so requiring it here
+    would make this route permanently unusable for real parents in the
+    meantime. This is a deliberate, scoped loosening of the COPPA
+    dual-consent model for THIS route only; check_parental_consent
+    (both factors) still gates POST /auth/kid-register unchanged.
+    Switch back to check_parental_consent (and restore the phone_*
+    reasons below) once real phone/SMS verification exists."""
+    consent = await check_email_consent(data.email, db)
     if not consent.granted:
         detail_by_reason = {
-            "email_not_verified": "Please verify your email before registering",
-            "email_expired": "Please verify your email again before registering",
-            "phone_not_verified": "Please verify your phone number before registering",
-            "phone_expired": "Please verify your phone number again before registering",
+            "not_verified": "Please verify your email before registering",
+            "expired": "Please verify your email again before registering",
         }
-        detail = detail_by_reason.get(consent.reason, "Please verify your email and phone before registering")
+        detail = detail_by_reason.get(consent.reason, "Please verify your email before registering")
         raise HTTPException(status_code=403, detail=detail)
 
     existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
@@ -211,9 +217,9 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
         pin_hash=hash_pin(data.pin),
         player_code=player_code,
         parent_email=data.email,
-        parent_consent_verified_at=consent.email_verified_at,
+        parent_consent_verified_at=consent.verified_at,
         parent_phone=data.phone,
-        parent_phone_consent_verified_at=consent.phone_verified_at,
+        parent_phone_consent_verified_at=None,
     )
     db.add(patient)
     await db.flush()  # get patient.id without committing yet
@@ -269,20 +275,13 @@ async def delete_therapist_account(
         .where(Subscription.owner_therapist_id == therapist.id)
         .values(owner_therapist_id=None)
     )
+    await db.execute(
+        Patient.__table__.update()
+        .where(Patient.registered_therapist_id == therapist.id)
+        .values(registered_therapist_id=None)
+    )
     await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
     await db.commit()
-
-    # Patient (Assessment's model) lives on a separate sync session, same
-    # as kid_pin_setup's main_patient lookup above -- not part of the
-    # async `db` session at all.
-    sync_db = SessionLocal()
-    try:
-        sync_db.query(Patient).filter(
-            Patient.registered_therapist_id == therapist.id
-        ).update({Patient.registered_therapist_id: None})
-        sync_db.commit()
-    finally:
-        sync_db.close()
 
 
 @router.delete("/kid-account", status_code=204)
@@ -303,11 +302,7 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
     AuthContext.jsx's setupKidPin() calls -- it used to point at a route
     that didn't exist at all (404 on every call), since this logic
     previously lived under /auth/kid-register instead."""
-    sync_db = SessionLocal()
-    try:
-        main_patient = sync_db.get(Patient, data.patient_id)
-    finally:
-        sync_db.close()
+    main_patient = await db.get(Patient, data.patient_id)
 
     if not main_patient or not main_patient.is_active:
         raise HTTPException(status_code=404, detail="Registered child not found")
@@ -344,6 +339,50 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
     )
+
+@router.post("/forgot-email", status_code=202)
+async def forgot_email(request: Request, data: ForgotEmailRequest, db: AsyncSession = Depends(get_db)):
+    """A parent who forgot which email they registered with provides
+    their child's player code; if a linked Parent account exists, we
+    email that account's own address as a reminder. Always returns
+    the same generic response either way -- a response that varied
+    by whether the code matched would let this endpoint be used to
+    enumerate valid player codes."""
+    check_ip_rate_limit(request)
+    identifier = data.player_code.strip().upper()
+    result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.player_code == identifier)
+    )
+    patient = result.scalar_one_or_none()
+    if patient:
+        parent_result = await db.execute(select(Parent).where(Parent.patient_id == patient.id))
+        parent = parent_result.scalar_one_or_none()
+        if parent:
+            send_account_reminder_email(parent.email, patient.player_code)
+    return {"message": "If that player code has a linked parent account, a reminder has been sent to the registered email."}
+
+
+@router.post("/forgot-player-code", status_code=202)
+async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db: AsyncSession = Depends(get_db)):
+    """A parent who forgot their child's player code provides their own
+    login email; if a linked BreathQuestPatient exists, we email that
+    account's player code to the address on file. Always returns the
+    same generic response either way -- a response that varied by
+    whether the email matched would let this endpoint be used to
+    enumerate registered parent emails."""
+    check_ip_rate_limit(request)
+    email = data.email.strip().lower()
+    result = await db.execute(select(Parent).where(Parent.email == email))
+    parent = result.scalar_one_or_none()
+    if parent:
+        patient_result = await db.execute(
+            select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id)
+        )
+        patient = patient_result.scalar_one_or_none()
+        if patient:
+            send_player_code_email(parent.email, patient.player_code)
+    return {"message": "If that email has a linked account, a reminder has been sent with the player code."}
+
 
 @router.post("/kid-login", response_model=KidTokenResponse)
 async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
