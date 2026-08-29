@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail, Phone } from 'lucide-react'
+import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
 import { Button, Avatar } from '../../components/ui'
@@ -135,17 +135,14 @@ export default function KidPlay() {
   const [loading, setLoading]   = useState(false)
   const [registered, setRegistered] = useState(null)  // {player_code, first_name}
   // COPPA: New Player signup can't create an account without a parent's
-  // email and phone (both required, see parental_consent.py). 'form'
-  // collects the kid's own details first so a parent isn't asked for
-  // contact info before there's even an account to consent to.
-  // TEMPORARY 2026-08-12: no OTP round-trip right now -- 'parentContact'
-  // registers immediately once both fields are filled in. See
-  // handleFinishRegistration's comment.
-  const [registerStep, setRegisterStep] = useState('form')  // form | parentContact | verifyEmail | verifyPhone
+  // email (see parental_consent.py). 'form' collects the kid's own
+  // details first so a parent isn't asked for contact info before
+  // there's even an account to consent to. 'parentContact' sends the
+  // email code; confirming it registers immediately (see
+  // handleConfirmEmailCode).
+  const [registerStep, setRegisterStep] = useState('form')  // form | parentContact | verifyEmail
   const [parentEmail, setParentEmail]   = useState('')
-  const [parentPhone, setParentPhone]   = useState('')
   const [emailCode, setEmailCode]       = useState('')
-  const [phoneCode, setPhoneCode]       = useState('')
   const [resendMsg, setResendMsg]       = useState('')
   const [mounted, setMounted]   = useState(false)
   const [activeGame, setActiveGame] = useState(null)  // key of the badge tapped for a quick info popover, or null
@@ -203,10 +200,9 @@ export default function KidPlay() {
     setError(''); setRegisterStep('parentContact')
   }
 
-  // Step 1: parent fills in email + phone -> send the email code.
+  // Step 1: parent fills in email -> send the email code.
   const handleSendParentContact = async () => {
     if (!parentEmail.trim()) { setError("Enter a parent's email"); return }
-    if (!parentPhone.trim()) { setError("Enter a parent's phone number"); return }
     setError(''); setResendMsg(''); setLoading(true)
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
@@ -231,41 +227,12 @@ export default function KidPlay() {
   }
 
   // Step 2: parent enters the emailed code -> confirm it, then
-  // immediately kick off the phone code so there's no extra tap.
+  // immediately create the account.
   const handleConfirmEmailCode = async () => {
     if (emailCode.trim().length !== 6) { setError('Enter the 6-digit code'); return }
     setError(''); setLoading(true)
     try {
       await verifyAPI.confirm({ email: parentEmail.trim(), code: emailCode.trim() })
-      await verifyAPI.phoneRequest({ phone: parentPhone.trim() })
-      setPhoneCode(''); setResendMsg('')
-      setRegisterStep('verifyPhone')
-    } catch (e) {
-      setError(getErrorMessage(e, "That code didn't work — try again"))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleResendPhoneCode = async () => {
-    setError(''); setResendMsg(''); setLoading(true)
-    try {
-      await verifyAPI.phoneRequest({ phone: parentPhone.trim() })
-      setResendMsg('Code resent!')
-    } catch (e) {
-      setError(getErrorMessage(e, "Couldn't resend the code — try again"))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Step 3: parent enters the texted code -> confirm it, then
-  // finally create the account.
-  const handleConfirmPhoneCode = async () => {
-    if (phoneCode.trim().length !== 6) { setError('Enter the 6-digit code'); return }
-    setError(''); setLoading(true)
-    try {
-      await verifyAPI.phoneConfirm({ phone: parentPhone.trim(), code: phoneCode.trim() })
     } catch (e) {
       setError(getErrorMessage(e, "That code didn't work — try again"))
       setLoading(false)
@@ -277,7 +244,7 @@ export default function KidPlay() {
   const handleFinishRegistration = async () => {
     setError(''); setLoading(true)
     try {
-      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim(), parentPhone.trim())
+      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim())
       setRegistered({ player_code: data.player_code, first_name: data.first_name })
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't create the account — try again"))
@@ -524,7 +491,7 @@ export default function KidPlay() {
       {/* Register */}
       {mode === 'register' && registerStep === 'form' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail(''); setParentPhone('') }}
+          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -570,40 +537,31 @@ export default function KidPlay() {
         </GlassPanel>
       )}
 
-      {/* Register — parent contact info (COPPA: a parent's email + phone
-          are required before we create the account). Sends the email OTP
-          once both fields are filled; the phone OTP is requested right
-          after the email code is confirmed (see the verifyEmail/verifyPhone
-          steps below). */}
+      {/* Register — parent contact info (COPPA: a parent's email is
+          required before we create the account). Sends the email OTP;
+          confirming it (see the verifyEmail step below) creates the
+          account right away. */}
       {mode === 'register' && registerStep === 'parentContact' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
           <button onClick={() => { setRegisterStep('form'); setError('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
-          <div className="flex justify-center gap-2 mb-4">
+          <div className="flex justify-center mb-4">
             <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
               <Mail className="w-6 h-6 text-brand-amber" />
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
-              <Phone className="w-6 h-6 text-brand-amber" />
             </div>
           </div>
           <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
             Almost there, {firstName.trim() || 'friend'}!
           </h1>
           <p className="text-white/50 text-sm text-center mb-6">
-            We need a parent's email and phone number to finish creating your account.
+            We need a parent's email to finish creating your account.
           </p>
-          <div className="mb-4">
+          <div className="mb-5">
             <label className="text-sm text-white/50 block mb-1">Parent's email</label>
             <input type="email" className="input text-lg" placeholder="parent@example.com"
                    value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
-          </div>
-          <div className="mb-5">
-            <label className="text-sm text-white/50 block mb-1">Parent's phone number</label>
-            <input type="tel" className="input text-lg" placeholder="+1 555 123 4567"
-                   value={parentPhone} onChange={e => setParentPhone(e.target.value)} />
           </div>
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
           <Button className="w-full gap-2" size="lg" onClick={handleSendParentContact} disabled={loading}>
@@ -639,41 +597,9 @@ export default function KidPlay() {
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
           {resendMsg && !error && <p className="text-mint-light text-sm text-center mb-3">{resendMsg}</p>}
           <Button className="w-full gap-2 mb-3" size="lg" onClick={handleConfirmEmailCode} disabled={loading}>
-            {loading ? 'Checking…' : <>Verify Code <ArrowRight className="w-4 h-4" /></>}
-          </Button>
-          <button onClick={handleResendEmailCode} disabled={loading}
-                  className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors">
-            Resend code
-          </button>
-        </GlassPanel>
-      )}
-
-      {/* Register — verify parent phone (code requested right after email confirms) */}
-      {mode === 'register' && registerStep === 'verifyPhone' && (
-        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
-              <Phone className="w-6 h-6 text-brand-amber" />
-            </div>
-          </div>
-          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
-            One more code!
-          </h1>
-          <p className="text-white/50 text-sm text-center mb-6">
-            We texted a 6-digit code to {parentPhone.trim()}. Ask a parent to enter it below.
-          </p>
-          <div className="mb-5">
-            <label className="text-sm text-white/50 block mb-1">Verification code</label>
-            <input type="text" inputMode="numeric" maxLength={6} className="input text-lg tracking-widest text-center"
-                   placeholder="123456" value={phoneCode}
-                   onChange={e => setPhoneCode(e.target.value.replace(/\D/g, ''))} />
-          </div>
-          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
-          {resendMsg && !error && <p className="text-mint-light text-sm text-center mb-3">{resendMsg}</p>}
-          <Button className="w-full gap-2 mb-3" size="lg" onClick={handleConfirmPhoneCode} disabled={loading}>
             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
           </Button>
-          <button onClick={handleResendPhoneCode} disabled={loading}
+          <button onClick={handleResendEmailCode} disabled={loading}
                   className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors">
             Resend code
           </button>
