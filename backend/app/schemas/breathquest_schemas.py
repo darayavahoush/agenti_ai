@@ -53,22 +53,17 @@ class KidRegisterRequest(BaseModel):
     The email must already have a recently-confirmed code from POST
     /verify/confirm before this endpoint will accept it.
 
-    parent_phone added 2026-08-12: phone is a second required factor
-    alongside email (not an alternative -- both must be independently
-    verified), same recently-confirmed-code requirement via
-    POST /verify/phone/confirm."""
+    parent_phone: collected but not verified. Was a second required
+    consent factor alongside email (via POST /verify/phone/confirm) until
+    2026-08-29, when phone consent was removed (no real SMS provider was
+    ever wired up -- see breathquest_core/parental_consent.py). Same
+    "collected, not verified" shape as Parent.phone/Therapist.phone
+    elsewhere."""
     first_name: str
     avatar: str = "chick"
     pin: str
     parent_email: EmailStr
-    parent_phone: str
-
-    @validator("parent_phone")
-    def parent_phone_present(cls, v):
-        v = v.strip()
-        if not v:
-            raise ValueError("Enter a parent's phone number")
-        return v
+    parent_phone: Optional[str] = None
 
     @validator("first_name")
     def first_name_present(cls, v):
@@ -426,12 +421,13 @@ class ParentKidRegisterRequest(BaseModel):
     separate parent-register using the resulting player_code) -- this is
     for the parent-initiated case where they're doing both at once.
 
-    Reuses kid-register's COPPA gate: email/phone must already be
-    recently verified via POST /verify/confirm + /verify/phone/confirm
-    (see check_parental_consent) before this will touch the DB. The
-    parent's email/phone here ARE their login credentials AND the
-    consent-check subject -- unlike kid-register where parent_email is
-    only used for consent and no Parent account gets created."""
+    Reuses kid-register's COPPA gate: email must already be recently
+    verified via POST /verify/confirm (see check_email_consent) before
+    this will touch the DB. The parent's email here IS their login
+    credential AND the consent-check subject -- unlike kid-register
+    where parent_email is only used for consent and no Parent account
+    gets created. phone is collected but not verified (see
+    KidRegisterRequest.parent_phone's comment)."""
     # -- kid fields --
     first_name: str
     avatar: str = "chick"
@@ -502,9 +498,8 @@ class ParentGoogleRegisterRequest(BaseModel):
     account (identified by the Google token, not a password) to an
     existing child via player_code/invite_code. Deliberately does NOT
     cover ParentKidRegisterRequest's "new child, no therapist" combined
-    flow: that path requires phone OTP verification (COPPA dual-factor
-    consent, see check_parental_consent), which doesn't yet have a
-    Google-auth equivalent designed -- follow-up, not in scope here.
+    flow, which doesn't yet have a Google-auth equivalent designed --
+    follow-up, not in scope here.
     """
     player_code: Optional[str] = None
     invite_code: Optional[str] = None
@@ -648,22 +643,6 @@ class VerifyConfirmIn(BaseModel):
 class VerifyConfirmOut(BaseModel):
     verified: bool
     first_time: bool
-
-
-class PhoneVerifyRequestIn(BaseModel):
-    phone: str
-
-    @validator("phone")
-    def phone_present(cls, v):
-        v = v.strip()
-        if not v:
-            raise ValueError("Enter a phone number")
-        return v
-
-
-class PhoneVerifyConfirmIn(BaseModel):
-    phone: str
-    code: str
 
 
 # ------------------------------------------------------------------ #
