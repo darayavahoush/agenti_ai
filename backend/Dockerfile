@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir \
 # Install remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download NLTK data needed by nltk.pos_tag() at runtime (not bundled with pip package)
+RUN python -m nltk.downloader -d /usr/local/nltk_data averaged_perceptron_tagger averaged_perceptron_tagger_eng punkt
+
 # Application code and runtime dependencies
 COPY app ./app
 COPY alembic ./alembic
