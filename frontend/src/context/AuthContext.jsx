@@ -64,6 +64,10 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // parentPhone is optional -- collected but not verified (phone consent
+  // was removed 2026-08-29, see backend parental_consent.py). Kept as a
+  // trailing param rather than dropped in case a caller ever wants to
+  // pass it through.
   const registerKid = async (firstName, avatar, pin, parentEmail, parentPhone) => {
     const { data } = await authAPI.kidRegister({
       first_name: firstName, avatar, pin,
