@@ -42,9 +42,20 @@ _async_db_url = DATABASE_URL
 if _async_db_url.startswith("postgresql://"):
     _async_db_url = _async_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# statement_timeout kills any single query running longer than 30s;
+# idle_in_transaction_session_timeout kills a connection left open in an
+# uncommitted transaction (e.g. an exception between execute() and
+# commit()/rollback() that isn't caught) -- without these, either failure
+# mode holds a pool connection forever, which matters more now that the
+# pool is deliberately small.
 engine = create_engine(
     _sync_db_url,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
+    connect_args={
+        "options": "-c statement_timeout=30000 -c idle_in_transaction_session_timeout=30000"
+    },
 )
 
 # Async engine for BreathQuest
@@ -52,8 +63,14 @@ async_engine = create_async_engine(
     _async_db_url,
     echo=False,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
+    connect_args={
+        "server_settings": {
+            "statement_timeout": "30000",
+            "idle_in_transaction_session_timeout": "30000",
+        }
+    },
 )
 
 SessionLocal = sessionmaker(

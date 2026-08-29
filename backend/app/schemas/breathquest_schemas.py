@@ -628,6 +628,14 @@ class KidHistoryEntry(BaseModel):
 #  Email verification                                                  #
 # ------------------------------------------------------------------ #
 
+class ForgotEmailRequest(BaseModel):
+    player_code: str
+
+
+class ForgotPlayerCodeRequest(BaseModel):
+    email: EmailStr
+
+
 class VerifyRequestIn(BaseModel):
     email: EmailStr
 
