@@ -1,4 +1,4 @@
-﻿name: Deploy VaakSiddhi Backend
+name: Deploy VaakSiddhi Backend
 
 on:
   push:
@@ -77,4 +77,4 @@ jobs:
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --set-env-vars CORS_ORIGINS=https://vaaksudhi.manaslearning.com
+            --set-env-vars CORS_ORIGINS=https://vaaksudhi.manaslearning.com GOOGLE_CLIENT_ID=1088227083197-50cv8i40hq4qcta48t2haf2o22klp53u.apps.googleusercontent.com
