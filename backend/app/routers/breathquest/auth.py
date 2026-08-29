@@ -48,7 +48,7 @@ from app.breathquest_core.login_throttle import check_throttle, record_failure, 
 # attempts against one account, so this is the right tool here instead.
 from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
-from app.breathquest_core.parental_consent import check_parental_consent, check_email_consent
+from app.breathquest_core.parental_consent import check_email_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
 from sqlalchemy import delete as sa_delete
 
@@ -133,18 +133,24 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     POST /auth/kid-pin-setup instead.
 
     COPPA: this is the only kid-account path with no adult already in the
-    loop, so it's gated on a recently-verified parent email AND phone
-    (both required, see breathquest_core/parental_consent.py) before it
-    will touch the DB at all."""
-    consent = await check_parental_consent(data.parent_email, data.parent_phone, db)
+    loop, so it's gated on a recently-verified parent email (see
+    breathquest_core/parental_consent.py) before it will touch the DB at
+    all. Phone was previously a second required factor here
+    (check_parental_consent) -- removed 2026-08-29, see
+    parental_consent.py's module docstring for why. This also incidentally
+    fixed a live bug: check_parental_consent returned a DualConsentStatus
+    (only .email_verified_at/.phone_verified_at), but the field mapping
+    below already expected check_email_consent's ConsentStatus shape
+    (.verified_at) since f0e135c -- so this path would have crashed with
+    an AttributeError the moment both factors were ever actually
+    granted."""
+    consent = await check_email_consent(data.parent_email, db)
     if not consent.granted:
         detail_by_reason = {
-            "email_not_verified": "A parent needs to verify their email before creating this account",
-            "email_expired": "Please verify the parent's email again before creating the account",
-            "phone_not_verified": "A parent needs to verify their phone number before creating this account",
-            "phone_expired": "Please verify the parent's phone number again before creating the account",
+            "not_verified": "A parent needs to verify their email before creating this account",
+            "expired": "Please verify the parent's email again before creating the account",
         }
-        detail = detail_by_reason.get(consent.reason, "A parent needs to verify their email and phone before creating this account")
+        detail = detail_by_reason.get(consent.reason, "A parent needs to verify their email before creating this account")
         raise HTTPException(status_code=403, detail=detail)
 
     player_code = await generate_unique_player_code(db, data.avatar)
@@ -185,17 +191,11 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
     ParentKidRegisterRequest's docstring for how this differs from the
     existing kid-register -> parent-register two-step flow.
 
-    TEMPORARY 2026-08-28: only email consent is required here, not the
-    full dual (email + phone) check check_parental_consent enforces
-    elsewhere. Phone verification depends on a real SMS provider --
-    ACS is configured but doesn't support Indian numbers, and no
-    alternative (e.g. Twilio) is wired up yet -- so requiring it here
-    would make this route permanently unusable for real parents in the
-    meantime. This is a deliberate, scoped loosening of the COPPA
-    dual-consent model for THIS route only; check_parental_consent
-    (both factors) still gates POST /auth/kid-register unchanged.
-    Switch back to check_parental_consent (and restore the phone_*
-    reasons below) once real phone/SMS verification exists."""
+    Only email consent is required here (see
+    breathquest_core/parental_consent.py) -- this used to differ from
+    kid-register's dual-factor check_parental_consent, but that phone
+    factor was removed 2026-08-29 (no real SMS provider was ever wired
+    up), so both routes now use the same email-only gate."""
     consent = await check_email_consent(data.email, db)
     if not consent.granted:
         detail_by_reason = {

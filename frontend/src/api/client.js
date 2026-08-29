@@ -130,8 +130,6 @@ api.interceptors.response.use(
 export const verifyAPI = {
   request: (data) => api.post('/verify/request', data),
   confirm: (data) => api.post('/verify/confirm', data),
-  phoneRequest: (data) => api.post('/verify/phone/request', data),
-  phoneConfirm: (data) => api.post('/verify/phone/confirm', data),
 }
 
 export const authAPI = {
