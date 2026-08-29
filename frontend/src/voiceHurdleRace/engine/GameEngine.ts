@@ -480,6 +480,18 @@ export class GameEngine {
         const requiredHeight =
           hurdle.height * 0.72;
 
+        // Only ever resolve a CLEAR here -- a miss is not decided
+        // on this frame. Deciding "hit" the instant overlap began
+        // was the bug: jumpHeight ramps up over several frames, so
+        // a jump that hadn't yet reached its peak on this exact
+        // frame got permanently marked as a hit before the puppy
+        // visually reached the hurdle, even though the same jump
+        // would have cleared it a few frames later, still within
+        // this same overlap window. Falling through instead of
+        // continuing into hitHurdle lets the loop keep re-checking
+        // every frame the puppy remains over the hurdle, giving
+        // the jump its whole overlap window to reach height, not
+        // just its first frame.
         if (
           this.state.jumpHeight >=
           requiredHeight
@@ -488,27 +500,22 @@ export class GameEngine {
             hurdle,
             currentTime
           );
-        } else {
-          this.hitHurdle(
-            hurdle,
-            currentTime
-          );
         }
 
         continue;
       }
 
-      // Safety for very large frame movement.
+      // The puppy has now fully passed this hurdle's horizontal
+      // span without ever having cleared it above -- this is the
+      // sole place a miss gets decided, once the whole overlap
+      // window has played out. Same 0.72 threshold as the clear
+      // check above (previously 0.55 here) -- this used to be a
+      // rare safety net for a skipped frame with a deliberately
+      // easier bar, but it's now the only hit-decision point, so
+      // it needs to match rather than silently grading misses on
+      // a different curve.
       if (hurdleRight < puppyLeft) {
-        if (
-          this.state.jumpHeight >=
-          hurdle.height * 0.55
-        ) {
-          this.clearHurdle(
-            hurdle,
-            currentTime
-          );
-        } else {
+        if (!hurdle.isCleared) {
           this.hitHurdle(
             hurdle,
             currentTime
