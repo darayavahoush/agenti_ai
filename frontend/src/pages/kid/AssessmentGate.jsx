@@ -157,7 +157,7 @@ export default function AssessmentGate() {
               ? onCooldown
                 ? `You can take it again on ${retakeDateLabel}. 📅`
                 : "You can retake the assessment whenever you're ready. 💪"
-              : "It only takes a few minutes, and it's a great way to start! 🚀"}
+              : "You'll answer a few speaking prompts into the mic -- about 5 minutes, no wrong answers. It's totally free, no payment needed. 🚀"}
           </p>
         </div>
 
