@@ -776,6 +776,7 @@ async def analyze_assessment_pronunciation(
             "session_id": session_id,
             "patient_name": patient_name,
             "target_word": target_word,
+            "spoken_word": result_state["spoken_word"],
             "accuracy": result_state["accuracy"],
             "phoneme_matches": result_state["phoneme_matches"],
             "expected_phonemes": result_state["expected_phonemes"],
