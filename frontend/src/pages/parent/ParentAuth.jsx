@@ -55,6 +55,15 @@ export default function ParentAuth() {
   const [forgotError, setForgotError] = useState('')
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotResendMsg, setForgotResendMsg] = useState('')
+  const [forgotCooldown, setForgotCooldown] = useState(0)
+
+  // Resend cooldown -- same pattern as Verify.jsx, prevents spamming the
+  // email-send endpoint via this "Resend code" button.
+  useEffect(() => {
+    if (forgotCooldown <= 0) return
+    const t = setInterval(() => setForgotCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [forgotCooldown])
 
   // Restore an in-progress new_child registration after the /verify
   // round-trip (see handleSubmit's 403 branch below, which saves this
@@ -158,7 +167,7 @@ export default function ParentAuth() {
 
   function resetForgotPasswordFlow() {
     setForgotStep('request'); setForgotEmail(''); setForgotCode('')
-    setNewPassword(''); setForgotError(''); setForgotResendMsg('')
+    setNewPassword(''); setForgotError(''); setForgotResendMsg(''); setForgotCooldown(0)
   }
 
   async function handleForgotPasswordSendCode(e) {
@@ -168,6 +177,7 @@ export default function ParentAuth() {
     try {
       await verifyAPI.request({ email: forgotEmail.trim() })
       setForgotStep('verify')
+      setForgotCooldown(30)
     } catch (err) {
       setForgotError(getErrorMessage(err, "Couldn't send the code — try again"))
     } finally {
@@ -180,6 +190,7 @@ export default function ParentAuth() {
     try {
       await verifyAPI.request({ email: forgotEmail.trim() })
       setForgotResendMsg('Code resent!')
+      setForgotCooldown(30)
     } catch (err) {
       setForgotError(getErrorMessage(err, "Couldn't resend the code — try again"))
     } finally {
@@ -481,9 +492,9 @@ export default function ParentAuth() {
                                  hover:bg-white/10 transition-colors disabled:opacity-50">
                       {forgotBusy ? 'Resetting…' : 'Reset password'}
                     </button>
-                    <button type="button" onClick={handleForgotPasswordResend} disabled={forgotBusy}
-                      className="text-paper/40 hover:text-paper/60 text-xs font-medium transition-colors">
-                      Resend code
+                    <button type="button" onClick={handleForgotPasswordResend} disabled={forgotBusy || forgotCooldown > 0}
+                      className="text-paper/40 hover:text-paper/60 text-xs font-medium transition-colors disabled:opacity-50">
+                      {forgotCooldown > 0 ? `Resend code (${forgotCooldown}s)` : 'Resend code'}
                     </button>
                   </form>
                 )}

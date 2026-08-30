@@ -144,6 +144,16 @@ export default function KidPlay() {
   const [parentEmail, setParentEmail]   = useState('')
   const [emailCode, setEmailCode]       = useState('')
   const [resendMsg, setResendMsg]       = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  // Shared across both OTP flows on this page (email-verify registration,
+  // forgot-PIN) -- only one is ever visible at a time, so one cooldown
+  // clock is enough. Same pattern as Verify.jsx.
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [resendCooldown])
   const [showCodeLookup, setShowCodeLookup] = useState(false)
   const [lookupEmail, setLookupEmail]       = useState('')
   const [lookupSent, setLookupSent]         = useState(false)
@@ -220,6 +230,7 @@ export default function KidPlay() {
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
       setRegisterStep('verifyEmail')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't send the verification code — try again"))
     } finally {
@@ -232,6 +243,7 @@ export default function KidPlay() {
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
       setResendMsg('Code resent!')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't resend the code — try again"))
     } finally {
@@ -301,7 +313,7 @@ export default function KidPlay() {
 
   const resetForgotPinFlow = () => {
     setForgotPinStep('request'); setForgotPinCode(''); setForgotPinEmail('')
-    setForgotPinEmailCode(''); setNewPin(''); setError(''); setResendMsg('')
+    setForgotPinEmailCode(''); setNewPin(''); setError(''); setResendMsg(''); setResendCooldown(0)
   }
 
   // Step 1: player code + the parent email on file -> send that email a
@@ -315,6 +327,7 @@ export default function KidPlay() {
     try {
       await verifyAPI.request({ email: forgotPinEmail.trim() })
       setForgotPinStep('verify')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't send the code — try again"))
     } finally {
@@ -327,6 +340,7 @@ export default function KidPlay() {
     try {
       await verifyAPI.request({ email: forgotPinEmail.trim() })
       setResendMsg('Code resent!')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't resend the code — try again"))
     } finally {
@@ -668,7 +682,7 @@ export default function KidPlay() {
       {/* Register — verify parent email (code sent by handleSendParentContact) */}
       {mode === 'register' && registerStep === 'verifyEmail' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setRegisterStep('parentContact'); setError(''); setEmailCode(''); setResendMsg('') }}
+          <button onClick={() => { setRegisterStep('parentContact'); setError(''); setEmailCode(''); setResendMsg(''); setResendCooldown(0) }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -694,9 +708,9 @@ export default function KidPlay() {
           <Button className="w-full gap-2 mb-3" size="lg" onClick={handleConfirmEmailCode} disabled={loading}>
             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
           </Button>
-          <button onClick={handleResendEmailCode} disabled={loading}
-                  className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors">
-            Resend code
+          <button onClick={handleResendEmailCode} disabled={loading || resendCooldown > 0}
+                  className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors disabled:opacity-50">
+            {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
           </button>
         </GlassPanel>
       )}
@@ -811,9 +825,9 @@ export default function KidPlay() {
               <Button className="w-full gap-2" size="lg" onClick={handleForgotPinConfirm} disabled={loading}>
                 {loading ? 'Resetting…' : 'Reset PIN'}
               </Button>
-              <button onClick={handleForgotPinResend} disabled={loading}
-                      className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors mt-3">
-                Resend code
+              <button onClick={handleForgotPinResend} disabled={loading || resendCooldown > 0}
+                      className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors mt-3 disabled:opacity-50">
+                {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
               </button>
               {resendMsg && <p className="text-mint-light text-xs text-center mt-2">{resendMsg}</p>}
             </>
