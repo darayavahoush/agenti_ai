@@ -116,6 +116,10 @@ class BreathQuestPatient(Base):
     # nullable reasoning as parent_email above.
     parent_phone:                     Mapped[str | None] = mapped_column(String(32), nullable=True)
     parent_phone_consent_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added 2026-08-30 for the weekly parent progress-update email (see
+    # app/breathquest_core/weekly_update.py). Nullable -- see that
+    # module's docstring for how a missing value is treated on first check.
+    last_weekly_email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
