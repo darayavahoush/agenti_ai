@@ -10,8 +10,9 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.therapist import Therapist
-from app.models.breathquest_models import BreathQuestPatient, Subscription
-from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse, GoogleAuthRequest
+from app.models.breathquest_models import BreathQuestPatient, Subscription, TherapistNote
+from app.models.patient import Patient
+from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse, GoogleAuthRequest, TherapistResetPasswordRequest, TherapistDeleteAccountRequest
 from app.breathquest_core.security import hash_password, verify_password, create_access_token
 from app.breathquest_core.google_oauth import verify_google_id_token
 from datetime import datetime, timezone
@@ -108,19 +109,74 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
     )
 
 
+@router.post("/reset-password", status_code=200)
+async def reset_therapist_password(request: Request, data: TherapistResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Password reset for a therapist who's locked out. Gated on the same
+    recently-verified email consent register_therapist itself requires.
+    Returns the same generic response whether or not the email has an
+    account -- matches parent-reset-password's anti-enumeration shape,
+    so this can't be used to check which emails have therapist accounts."""
+    check_ip_rate_limit(request)
+    email = data.email.strip().lower()
+
+    consent = await check_email_consent(email, db)
+    if not consent.granted:
+        detail_by_reason = {
+            "not_verified": "Please verify this email before resetting the password",
+            "expired": "Please verify this email again before resetting the password",
+        }
+        detail = detail_by_reason.get(consent.reason, "Please verify this email before resetting the password")
+        raise HTTPException(status_code=403, detail=detail)
+
+    result = await db.execute(select(Therapist).where(Therapist.email == email))
+    therapist = result.scalar_one_or_none()
+    if therapist:
+        therapist.hashed_password = hash_password(data.new_password)
+        await db.commit()
+    return {"message": "If that email has an account, its password has been reset."}
+
+
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_therapist_account(
+    data: TherapistDeleteAccountRequest,
     therapist: Therapist = Depends(get_current_therapist),
     db: AsyncSession = Depends(get_db),
 ):
-    """Deletes the therapist's own account. Does NOT cascade to their
-    patients -- BreathQuestPatient.therapist_id is nullable, so patients
-    just become unassigned (therapist_id=None) rather than being deleted,
-    matching how kid-register already creates patients with no therapist."""
+    """Deletes the therapist's own account -- an irreversible action, so
+    requires re-entering the current password first (skipped only for
+    Google-only accounts with no password ever set). Previously this was
+    a bare authenticated DELETE with no re-auth at all: anyone with a
+    few seconds of unattended access to a logged-in session could wipe
+    the account.
+
+    Does NOT cascade-delete their
+    patients -- a therapist leaving shouldn't destroy a kid's account or
+    progress. Nullable FKs (BreathQuestPatient.therapist_id,
+    Subscription.owner_therapist_id, Patient.registered_therapist_id) are
+    detached instead. TherapistNote.therapist_id is NOT nullable (notes
+    are authored content, not a loose reference), so those rows are
+    deleted outright rather than left dangling.
+
+    2026-08-30: this used to skip the TherapistNote cleanup and the
+    Patient.registered_therapist_id detachment -- both only existed in a
+    dead, unreachable duplicate of this same route in breathquest/auth.py
+    (shadowed because therapist_auth_router mounts first in main.py). Any
+    therapist who'd ever written a note would hit a DB IntegrityError
+    trying to delete their own account, since TherapistNote.therapist_id
+    has no ON DELETE CASCADE. Merged the duplicate's cleanup logic in
+    here (the live route) and removed the dead copy."""
+    if therapist.hashed_password:
+        if not data.current_password or not verify_password(data.current_password, therapist.hashed_password):
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    await db.execute(sa_delete(TherapistNote).where(TherapistNote.therapist_id == therapist.id))
     await db.execute(
         sa_update(BreathQuestPatient).where(BreathQuestPatient.therapist_id == therapist.id).values(therapist_id=None)
     )
     await db.execute(sa_delete(Subscription).where(Subscription.owner_therapist_id == therapist.id))
+    await db.execute(
+        sa_update(Patient).where(Patient.registered_therapist_id == therapist.id).values(registered_therapist_id=None)
+    )
     await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
     await db.commit()
 

@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timezone
+import logging
 
 from app.database import get_db
 from app.models.breathquest_models import (
@@ -25,16 +26,23 @@ from app.models.breathquest_models import (
     GameSession,
 )
 from app.models.patient import Patient
-from app.models.therapist import Therapist
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from app.breathquest_core.weekly_update import maybe_send_weekly_update
+from app.services.email import send_kid_registered_welcome_email
+
+logger = logging.getLogger("uvicorn.error")
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
     ParentKidRegisterRequest, ParentGoogleLoginRequest, ParentGoogleRegisterRequest,
     ForgotEmailRequest,
-    ForgotPlayerCodeRequest,)
+    ForgotPlayerCodeRequest,
+    ForgotPinRequest,
+    ParentResetPasswordRequest,
+    ParentDeleteAccountRequest,
+    KidDeleteAccountRequest,)
 from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
@@ -49,7 +57,7 @@ from app.breathquest_core.login_throttle import check_throttle, record_failure, 
 from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
 from app.breathquest_core.parental_consent import check_email_consent
-from app.breathquest_core.deps import get_current_parent, get_current_patient, get_current_therapist
+from app.breathquest_core.deps import get_current_parent, get_current_patient
 from sqlalchemy import delete as sa_delete
 
 
@@ -168,6 +176,15 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     db.add(patient)
     await db.commit()
     await db.refresh(patient)
+
+    try:
+        send_kid_registered_welcome_email(patient.parent_email, patient.first_name)
+    except Exception as exc:
+        import logging
+        logging.getLogger("uvicorn.error").warning(
+            "Kid-registered welcome email failed for %s: %s", patient.parent_email, exc
+        )
+
     token = create_kid_token(patient.id)
     refresh_token = await create_refresh_token(db, "patient", str(patient.id))
     await db.commit()
@@ -240,57 +257,38 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
 
 @router.delete("/parent-account", status_code=204)
 async def delete_parent_account(
+    data: ParentDeleteAccountRequest,
     parent: Parent = Depends(get_current_parent),
     db: AsyncSession = Depends(get_db),
 ):
     """Deletes the parent's account AND their linked child's account +
     all game data (see _delete_patient_cascade) -- a parent account has
-    no meaning without its one linked child in this app's model."""
+    no meaning without its one linked child in this app's model.
+
+    Requires re-entering the current password first (skipped only for
+    Google-only accounts with no password ever set -- see
+    Parent.hashed_password's comment) -- an irreversible action that
+    used to be a bare authenticated DELETE with no re-auth at all."""
+    if parent.hashed_password:
+        if not data.current_password or not verify_password(data.current_password, parent.hashed_password):
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
     await _delete_patient_cascade(db, parent.patient_id)
-    await db.commit()
-
-
-@router.delete("/account", status_code=204)
-async def delete_therapist_account(
-    therapist: Therapist = Depends(get_current_therapist),
-    db: AsyncSession = Depends(get_db),
-):
-    """Deletes the therapist's own account. Does NOT cascade-delete their
-    patients -- a therapist leaving shouldn't destroy a kid's account or
-    progress. Nullable FKs (BreathQuestPatient.therapist_id,
-    Subscription.owner_therapist_id, Patient.registered_therapist_id) are
-    detached instead. TherapistNote.therapist_id is NOT nullable (notes
-    are authored content, not a loose reference), so those rows are
-    deleted outright rather than left dangling."""
-    await db.execute(
-        sa_delete(TherapistNote).where(TherapistNote.therapist_id == therapist.id)
-    )
-    await db.execute(
-        BreathQuestPatient.__table__.update()
-        .where(BreathQuestPatient.therapist_id == therapist.id)
-        .values(therapist_id=None)
-    )
-    await db.execute(
-        Subscription.__table__.update()
-        .where(Subscription.owner_therapist_id == therapist.id)
-        .values(owner_therapist_id=None)
-    )
-    await db.execute(
-        Patient.__table__.update()
-        .where(Patient.registered_therapist_id == therapist.id)
-        .values(registered_therapist_id=None)
-    )
-    await db.execute(sa_delete(Therapist).where(Therapist.id == therapist.id))
     await db.commit()
 
 
 @router.delete("/kid-account", status_code=204)
 async def delete_kid_account(
+    data: KidDeleteAccountRequest,
     patient: BreathQuestPatient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ):
     """Kid deletes their own account -- also removes any linked Parent
-    row, same cascade as the parent-initiated delete above."""
+    row, same cascade as the parent-initiated delete above.
+
+    Requires re-entering the current PIN first -- an irreversible action
+    that used to be a bare authenticated DELETE with no re-auth at all."""
+    if not verify_pin(data.current_pin, patient.pin_hash):
+        raise HTTPException(status_code=401, detail="Current PIN is incorrect")
     await _delete_patient_cascade(db, patient.id)
     await db.commit()
 
@@ -384,6 +382,59 @@ async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db
     return {"message": "If that email has a linked account, a reminder has been sent with the player code."}
 
 
+@router.post("/forgot-pin", status_code=200)
+async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession = Depends(get_db)):
+    """PIN recovery for self-registered kids (POST /auth/kid-register).
+
+    /auth/kid-pin-setup can reset a PIN, but only by looking up a
+    Patient row via patient_id -- and kid_register above never creates
+    one (only a BreathQuestPatient), so that path can never reach a
+    self-registered kid. Before this endpoint, forgetting a PIN here
+    was an unrecoverable dead end: forgot-player-code only recovers the
+    code, never the PIN.
+
+    Gated the same way kid-register itself is gated (see
+    breathquest_core/parental_consent.py): the parent must have a
+    recently-confirmed OTP on the email already on file for this child
+    (POST /verify/request + /verify/confirm) before a new PIN is
+    accepted. This is the same bar kid-register already clears to
+    create the account, not a weaker one invented for resetting into
+    it -- if it's enough to prove consent to create the account, it's
+    enough to prove the right adult is resetting into it.
+
+    A code/email pair that doesn't match a self-registered account
+    (wrong player_code, wrong email, or an assessment-linked kid with
+    no parent_email on this column at all) gets the same generic
+    "needs verification" response as an email that's simply not yet
+    verified -- same anti-enumeration shape as forgot-email and
+    forgot-player-code above, so neither leaks which part was wrong."""
+    check_ip_rate_limit(request)
+    identifier = data.player_code.strip().upper()
+    email = data.parent_email.strip().lower()
+
+    result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.player_code == identifier)
+    )
+    patient = result.scalar_one_or_none()
+
+    not_verified_detail = "A parent needs to verify their email before resetting this PIN"
+    if not patient or not patient.parent_email or patient.parent_email.strip().lower() != email:
+        raise HTTPException(status_code=403, detail=not_verified_detail)
+
+    consent = await check_email_consent(email, db)
+    if not consent.granted:
+        detail_by_reason = {
+            "not_verified": not_verified_detail,
+            "expired": "Please verify the parent's email again before resetting this PIN",
+        }
+        detail = detail_by_reason.get(consent.reason, not_verified_detail)
+        raise HTTPException(status_code=403, detail=detail)
+
+    patient.pin_hash = hash_pin(data.new_pin)
+    await db.commit()
+    return {"message": "PIN has been reset. You can log in with your new PIN now."}
+
+
 @router.post("/kid-login", response_model=KidTokenResponse)
 async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     # Player codes remain supported for children who already have one. Names
@@ -429,6 +480,18 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     refresh_token = await create_refresh_token(db, "patient", str(patient.id))
     await record_success(identifier, db)
     await db.commit()
+
+    # Best-effort weekly digest/nudge -- see weekly_update.py's module
+    # docstring for why this lives here (no real job scheduler in this
+    # project) rather than a cron/Celery task. Must never block or fail
+    # login: maybe_send_weekly_update already swallows its own errors,
+    # but this try/except is an extra safety net per its documented
+    # caller contract.
+    try:
+        await maybe_send_weekly_update(patient, db)
+    except Exception as exc:
+        logger.warning("maybe_send_weekly_update failed for patient %s: %s", patient.id, exc)
+
     return KidTokenResponse(
         access_token=token,
         refresh_token=refresh_token,
@@ -510,6 +573,36 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
     await db.commit()
     await db.refresh(parent)
     return await _make_parent_token_response(db, parent, child.first_name)
+
+
+@router.post("/parent-reset-password", status_code=200)
+async def reset_parent_password(request: Request, data: ParentResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Password reset for a parent who's locked out. Gated on the same
+    recently-verified email consent (POST /verify/request + /verify/confirm)
+    that parent-register itself would need to prove -- see
+    ParentResetPasswordRequest's docstring. Returns the same generic
+    response whether or not the email has an account, matching the
+    anti-enumeration shape of forgot-email/forgot-player-code/forgot-pin
+    above: a response that varied by account existence would let this
+    endpoint be used to enumerate registered parent emails."""
+    check_ip_rate_limit(request)
+    email = data.email.strip().lower()
+
+    consent = await check_email_consent(email, db)
+    if not consent.granted:
+        detail_by_reason = {
+            "not_verified": "Please verify this email before resetting the password",
+            "expired": "Please verify this email again before resetting the password",
+        }
+        detail = detail_by_reason.get(consent.reason, "Please verify this email before resetting the password")
+        raise HTTPException(status_code=403, detail=detail)
+
+    result = await db.execute(select(Parent).where(Parent.email == email))
+    parent = result.scalar_one_or_none()
+    if parent:
+        parent.hashed_password = hash_password(data.new_password)
+        await db.commit()
+    return {"message": "If that email has an account, its password has been reset."}
 
 
 @router.post("/parent-login", response_model=ParentTokenResponse)
