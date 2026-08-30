@@ -197,3 +197,42 @@ def send_weekly_nudge_email(to_email: str, first_name: str) -> None:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
+
+
+def send_kid_registered_welcome_email(to_email: str, first_name: str) -> None:
+    """Sent right after a kid finishes self-serve signup (POST /kid-register).
+    Purely informational -- explains that a first assessment is required
+    next and that no payment is needed yet (no billing provider is wired
+    up), which is exactly the confusion parents have been hitting. This is
+    best-effort: the caller wraps it in try/except so an email failure can
+    never block account creation. Same dev-fallback pattern as
+    send_otp_email."""
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.warning(
+            "\n"
+            "==================== DEV MODE: SMTP NOT CONFIGURED ====================\n"
+            f"  Welcome/next-steps email for {to_email} ({first_name}'s account)\n"
+            "  (Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env to send real emails)\n"
+            "========================================================================"
+        )
+        return
+
+    message = MIMEText(
+        f"Hi,\n\n"
+        f"{first_name}'s BreathQuest account is set up!\n\n"
+        f"What happens next:\n"
+        f"- {first_name} will take a short first assessment the next time they log in.\n"
+        f"- That's required before the other games unlock -- it's how BreathQuest "
+        f"personalizes what comes next, not a payment gate.\n"
+        f"- There's no payment needed for any of this right now.\n\n"
+        f"If you have any questions, just reply to this email.\n"
+    )
+    message["Subject"] = f"{first_name} is ready to start on BreathQuest"
+    message["From"] = settings.SMTP_USER
+    message["To"] = to_email
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        server.starttls(context=context)
+        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        server.sendmail(settings.SMTP_USER, [to_email], message.as_string())

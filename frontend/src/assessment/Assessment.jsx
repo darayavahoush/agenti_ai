@@ -1275,7 +1275,20 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
 
       {section === "word" && (
         <section className="word-assessment-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+          <div style={{ display: "flex", justifyContent: authedPatientId ? "space-between" : "flex-end", alignItems: "center", marginBottom: "8px" }}>
+            {authedPatientId && (
+              <span style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#6d28d9",
+                background: "#f3e8ff",
+                padding: "6px 12px",
+                borderRadius: "999px",
+                whiteSpace: "nowrap"
+              }}>
+                🎯 {wordsAttempted} word{wordsAttempted === 1 ? "" : "s"} tried so far
+              </span>
+            )}
             <button
               onClick={() => setSection(authedPatientId ? "home" : "patient-details")}
               style={{
