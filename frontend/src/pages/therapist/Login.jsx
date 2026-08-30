@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage, authAPI, verifyAPI } from '../../api/client'
@@ -32,12 +32,19 @@ export default function TherapistLogin() {
   const [forgotCode, setForgotCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [resendMsg, setResendMsg] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [resendCooldown])
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const resetForgotFlow = () => {
     setForgotStep('request'); setForgotEmail(''); setForgotCode('')
-    setNewPassword(''); setError(''); setResendMsg('')
+    setNewPassword(''); setError(''); setResendMsg(''); setResendCooldown(0)
   }
 
   const handleForgotSendCode = async () => {
@@ -46,6 +53,7 @@ export default function TherapistLogin() {
     try {
       await verifyAPI.request({ email: forgotEmail.trim() })
       setForgotStep('verify')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't send the code — try again"))
     } finally {
@@ -58,6 +66,7 @@ export default function TherapistLogin() {
     try {
       await verifyAPI.request({ email: forgotEmail.trim() })
       setResendMsg('Code resent!')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't resend the code — try again"))
     } finally {
@@ -219,9 +228,9 @@ export default function TherapistLogin() {
                     <Button variant="teal" className="w-full" disabled={loading} onClick={handleForgotConfirm}>
                       {loading ? 'Resetting…' : 'Reset password'}
                     </Button>
-                    <button type="button" onClick={handleForgotResend} disabled={loading}
-                            className="text-white/40 hover:text-white text-sm transition-colors">
-                      Resend code
+                    <button type="button" onClick={handleForgotResend} disabled={loading || resendCooldown > 0}
+                            className="text-white/40 hover:text-white text-sm transition-colors disabled:opacity-50">
+                      {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
                     </button>
                   </div>
                 )}
