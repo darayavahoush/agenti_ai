@@ -623,12 +623,61 @@ class KidHistoryEntry(BaseModel):
 #  Email verification                                                  #
 # ------------------------------------------------------------------ #
 
+class ParentResetPasswordRequest(BaseModel):
+    """Password reset for parents, gated the same way ForgotPinRequest
+    gates a kid's PIN reset -- a recently-verified OTP on the account
+    email (see check_email_consent), not a mailed reset link/token,
+    since the OTP infra already exists and a link would need a second
+    new mechanism (signed tokens, expiry, a reset-confirmation page)
+    for no real benefit over what's already here."""
+    email: EmailStr
+    new_password: str
+
+    @validator("new_password")
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class ParentDeleteAccountRequest(BaseModel):
+    """Re-auth for the irreversible delete-account action. current_password
+    is required unless the account is Google-only (no password ever set --
+    see Parent.hashed_password's comment), in which case it's omitted
+    entirely rather than asking for a password that was never created.
+    Same reasoning as TherapistDeleteAccountRequest."""
+    current_password: Optional[str] = None
+
+
+class KidDeleteAccountRequest(BaseModel):
+    """Re-auth for the irreversible delete-account action -- PIN instead
+    of password, matching how kids authenticate everywhere else."""
+    current_pin: str
+
+
 class ForgotEmailRequest(BaseModel):
     player_code: str
 
 
 class ForgotPlayerCodeRequest(BaseModel):
     email: EmailStr
+
+
+class ForgotPinRequest(BaseModel):
+    """Self-registered kids (POST /auth/kid-register) have no Patient row
+    to key a reset off of -- only a BreathQuestPatient with a parent_email
+    column set directly at signup -- so this checks player_code +
+    parent_email against that column, not a therapist-side lookup like
+    kid-pin-setup's patient_id does."""
+    player_code: str
+    parent_email: EmailStr
+    new_pin: str
+
+    @validator("new_pin")
+    def pin_format(cls, v):
+        if not re.match(r"^\d{4}$", v):
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
 
 
 class VerifyRequestIn(BaseModel):

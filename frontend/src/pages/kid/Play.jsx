@@ -144,6 +144,29 @@ export default function KidPlay() {
   const [parentEmail, setParentEmail]   = useState('')
   const [emailCode, setEmailCode]       = useState('')
   const [resendMsg, setResendMsg]       = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  // Shared across both OTP flows on this page (email-verify registration,
+  // forgot-PIN) -- only one is ever visible at a time, so one cooldown
+  // clock is enough. Same pattern as Verify.jsx.
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [resendCooldown])
+  const [showCodeLookup, setShowCodeLookup] = useState(false)
+  const [lookupEmail, setLookupEmail]       = useState('')
+  const [lookupSent, setLookupSent]         = useState(false)
+  // Forgot-PIN recovery for self-registered kids (no Patient row to reset
+  // via kid-pin-setup -- see auth.py's POST /auth/forgot-pin docstring).
+  // Reuses the same email-OTP proof as registration itself: request sends
+  // a code to the parent email on file, verify confirms it and submits
+  // the new PIN in the same round trip as the reset call.
+  const [forgotPinStep, setForgotPinStep]         = useState('request')  // request | verify | done
+  const [forgotPinCode, setForgotPinCode]         = useState('')
+  const [forgotPinEmail, setForgotPinEmail]       = useState('')
+  const [forgotPinEmailCode, setForgotPinEmailCode] = useState('')
+  const [newPin, setNewPin]                       = useState('')
   const [mounted, setMounted]   = useState(false)
   const [activeGame, setActiveGame] = useState(null)  // key of the badge tapped for a quick info popover, or null
   const [candidates, setCandidates]               = useState([])
@@ -207,6 +230,7 @@ export default function KidPlay() {
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
       setRegisterStep('verifyEmail')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't send the verification code — try again"))
     } finally {
@@ -219,6 +243,7 @@ export default function KidPlay() {
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
       setResendMsg('Code resent!')
+      setResendCooldown(30)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't resend the code — try again"))
     } finally {
@@ -261,8 +286,92 @@ export default function KidPlay() {
       await loginKid(playerCode.trim().toUpperCase(), pin)
       navigate('/play/levels')
     } catch (e) {
-      setError(getErrorMessage(e, 'Wrong code or PIN — try again!'))
+      const message = getErrorMessage(e, 'Wrong code or PIN — try again!')
+      setError(message)
       setPin('')
+      // The ambiguous-match case is the one dead end the name-login
+      // fallback can't resolve on its own -- offer the existing (but
+      // previously unreachable) forgot-player-code lookup right here.
+      setShowCodeLookup(message.includes('More than one player matches'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLookupPlayerCode = async () => {
+    if (!lookupEmail.trim()) { setError("Enter a parent's email"); return }
+    setError(''); setLoading(true)
+    try {
+      await authAPI.forgotPlayerCode({ email: lookupEmail.trim() })
+      setLookupSent(true)
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send the reminder — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resetForgotPinFlow = () => {
+    setForgotPinStep('request'); setForgotPinCode(''); setForgotPinEmail('')
+    setForgotPinEmailCode(''); setNewPin(''); setError(''); setResendMsg(''); setResendCooldown(0)
+  }
+
+  // Step 1: player code + the parent email on file -> send that email a
+  // code. auth.py's forgot-pin only accepts the reset once this exact
+  // email later comes back verified, so a wrong email here just means
+  // step 2's confirm will fail -- nothing is revealed at this step.
+  const handleForgotPinSendCode = async () => {
+    if (!forgotPinCode.trim())  { setError('Enter your player code'); return }
+    if (!forgotPinEmail.trim()) { setError("Enter the parent's email on file"); return }
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: forgotPinEmail.trim() })
+      setForgotPinStep('verify')
+      setResendCooldown(30)
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send the code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPinResend = async () => {
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: forgotPinEmail.trim() })
+      setResendMsg('Code resent!')
+      setResendCooldown(30)
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't resend the code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Step 2: confirm the emailed code, then reset in the same round trip.
+  // A wrong player_code/email pairing and a not-yet-verified email get the
+  // identical backend message (see forgot-pin's docstring), so this can't
+  // tell those apart either -- it just surfaces whatever detail comes back.
+  const handleForgotPinConfirm = async () => {
+    if (forgotPinEmailCode.trim().length !== 6) { setError('Enter the 6-digit code'); return }
+    if (newPin.length < 4)                      { setError('Choose a new 4-digit PIN'); return }
+    setError(''); setLoading(true)
+    try {
+      await verifyAPI.confirm({ email: forgotPinEmail.trim(), code: forgotPinEmailCode.trim() })
+    } catch (e) {
+      setError(getErrorMessage(e, "That code didn't work — try again"))
+      setLoading(false)
+      return
+    }
+    try {
+      await authAPI.forgotPin({
+        player_code: forgotPinCode.trim().toUpperCase(),
+        parent_email: forgotPinEmail.trim(),
+        new_pin: newPin,
+      })
+      setForgotPinStep('done')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't reset the PIN — try again"))
     } finally {
       setLoading(false)
     }
@@ -311,7 +420,7 @@ export default function KidPlay() {
           </p>
           <p className="text-white/40 text-sm mb-1">Your PIN</p>
           <p className="font-vm-display text-3xl font-bold text-brand-amber tracking-widest">
-            {'•'.repeat(pin.length)}
+            {pin}
           </p>
         </GlassPanel>
         <p className="text-white/30 text-xs mb-8 relative z-10">Show this to your teacher too!</p>
@@ -573,7 +682,7 @@ export default function KidPlay() {
       {/* Register — verify parent email (code sent by handleSendParentContact) */}
       {mode === 'register' && registerStep === 'verifyEmail' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setRegisterStep('parentContact'); setError(''); setEmailCode(''); setResendMsg('') }}
+          <button onClick={() => { setRegisterStep('parentContact'); setError(''); setEmailCode(''); setResendMsg(''); setResendCooldown(0) }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -599,9 +708,9 @@ export default function KidPlay() {
           <Button className="w-full gap-2 mb-3" size="lg" onClick={handleConfirmEmailCode} disabled={loading}>
             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
           </Button>
-          <button onClick={handleResendEmailCode} disabled={loading}
-                  className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors">
-            Resend code
+          <button onClick={handleResendEmailCode} disabled={loading || resendCooldown > 0}
+                  className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors disabled:opacity-50">
+            {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
           </button>
         </GlassPanel>
       )}
@@ -635,6 +744,105 @@ export default function KidPlay() {
           <Button className="w-full gap-2" size="lg" onClick={handleLogin} disabled={loading}>
             {loading ? 'Checking…' : <>Let's Play! <ArrowRight className="w-4 h-4" /></>}
           </Button>
+
+          {showCodeLookup && !lookupSent && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-white/50 text-xs text-center mb-2">
+                A parent can look up the player code by email:
+              </p>
+              <input type="email" className="input text-sm mb-2" placeholder="parent@example.com"
+                     value={lookupEmail} onChange={e => setLookupEmail(e.target.value)} />
+              <button onClick={handleLookupPlayerCode} disabled={loading}
+                      className="w-full text-center text-sm text-brand-green hover:text-white transition-colors">
+                Email me the player code
+              </button>
+            </div>
+          )}
+          {lookupSent && (
+            <p className="text-mint-light text-xs text-center mt-4 pt-4 border-t border-white/10">
+              If that email has a linked account, a reminder is on its way.
+            </p>
+          )}
+
+          <button onClick={() => { resetForgotPinFlow(); setMode('forgotPin') }}
+                  className="w-full text-center text-xs text-white/40 hover:text-white/70 transition-colors mt-4 pt-4 border-t border-white/10">
+            Forgot your PIN?
+          </button>
+        </GlassPanel>
+      )}
+
+      {/* Forgot-PIN recovery for self-registered kids */}
+      {mode === 'forgotPin' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setMode('login'); setError('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center">
+            Forgot Your PIN?
+          </h1>
+
+          {forgotPinStep === 'request' && (
+            <>
+              <p className="text-white/50 text-xs text-center mb-4">
+                Enter your player code and the parent email on file — we'll send a code there.
+              </p>
+              <div className="mb-3">
+                <label className="text-sm text-white/50 block mb-1">Your Player Code</label>
+                <input className="input text-center text-xl font-bold tracking-widest uppercase"
+                       placeholder="e.g. CHICK42"
+                       value={forgotPinCode} onChange={e => setForgotPinCode(e.target.value.toUpperCase())} />
+              </div>
+              <div className="mb-4">
+                <label className="text-sm text-white/50 block mb-1">Parent's Email</label>
+                <input type="email" className="input" placeholder="parent@example.com"
+                       value={forgotPinEmail} onChange={e => setForgotPinEmail(e.target.value)} />
+              </div>
+              {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+              <Button className="w-full gap-2" size="lg" onClick={handleForgotPinSendCode} disabled={loading}>
+                {loading ? 'Sending…' : 'Send Code'}
+              </Button>
+            </>
+          )}
+
+          {forgotPinStep === 'verify' && (
+            <>
+              <p className="text-white/50 text-xs text-center mb-4">
+                Enter the 6-digit code sent to {forgotPinEmail}, then pick a new PIN.
+              </p>
+              <input className="input text-center text-xl font-bold tracking-widest mb-4" placeholder="000000"
+                     maxLength={6} value={forgotPinEmailCode}
+                     onChange={e => setForgotPinEmailCode(e.target.value.replace(/\D/g, ''))} />
+
+              <label className="text-sm text-white/50 block mb-2 text-center">Your New PIN</label>
+              <PinDots length={newPin.length} />
+              <PinPad
+                onDigit={d => { if (newPin.length < 4) setNewPin(p => p + d) }}
+                onDelete={() => setNewPin(p => p.slice(0, -1))}
+              />
+
+              {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+              <Button className="w-full gap-2" size="lg" onClick={handleForgotPinConfirm} disabled={loading}>
+                {loading ? 'Resetting…' : 'Reset PIN'}
+              </Button>
+              <button onClick={handleForgotPinResend} disabled={loading || resendCooldown > 0}
+                      className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors mt-3 disabled:opacity-50">
+                {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+              </button>
+              {resendMsg && <p className="text-mint-light text-xs text-center mt-2">{resendMsg}</p>}
+            </>
+          )}
+
+          {forgotPinStep === 'done' && (
+            <>
+              <p className="text-mint-light text-sm text-center mb-6">
+                Your PIN has been reset! You can log in with your new PIN now.
+              </p>
+              <Button className="w-full gap-2" size="lg" onClick={() => { resetForgotPinFlow(); setMode('login'); setPin(''); setPlayerCode('') }}>
+                Back to Login <ArrowRight className="w-4 h-4" />
+              </Button>
+            </>
+          )}
         </GlassPanel>
       )}
 
