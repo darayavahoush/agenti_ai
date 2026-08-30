@@ -220,18 +220,18 @@ export function AuthProvider({ children }) {
     setParent(null); setTherapist(null); setPatient(null)
   }
 
-  const deleteParentAccount = async () => {
-    await authAPI.deleteParentAccount()
+  const deleteParentAccount = async (currentPassword) => {
+    await authAPI.deleteParentAccount({ current_password: currentPassword })
     _clearSession()
   }
 
-  const deleteKidAccount = async () => {
-    await authAPI.deleteKidAccount()
+  const deleteKidAccount = async (currentPin) => {
+    await authAPI.deleteKidAccount({ current_pin: currentPin })
     _clearSession()
   }
 
-  const deleteTherapistAccount = async () => {
-    await authAPI.deleteTherapistAccount()
+  const deleteTherapistAccount = async (currentPassword) => {
+    await authAPI.deleteTherapistAccount({ current_password: currentPassword })
     _clearSession()
   }
 
