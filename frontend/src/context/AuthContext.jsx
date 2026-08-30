@@ -64,6 +64,10 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // parentPhone is optional -- collected but not verified (phone consent
+  // was removed 2026-08-29, see backend parental_consent.py). Kept as a
+  // trailing param rather than dropped in case a caller ever wants to
+  // pass it through.
   const registerKid = async (firstName, avatar, pin, parentEmail, parentPhone) => {
     const { data } = await authAPI.kidRegister({
       first_name: firstName, avatar, pin,
@@ -216,18 +220,18 @@ export function AuthProvider({ children }) {
     setParent(null); setTherapist(null); setPatient(null)
   }
 
-  const deleteParentAccount = async () => {
-    await authAPI.deleteParentAccount()
+  const deleteParentAccount = async (currentPassword) => {
+    await authAPI.deleteParentAccount({ current_password: currentPassword })
     _clearSession()
   }
 
-  const deleteKidAccount = async () => {
-    await authAPI.deleteKidAccount()
+  const deleteKidAccount = async (currentPin) => {
+    await authAPI.deleteKidAccount({ current_pin: currentPin })
     _clearSession()
   }
 
-  const deleteTherapistAccount = async () => {
-    await authAPI.deleteTherapistAccount()
+  const deleteTherapistAccount = async (currentPassword) => {
+    await authAPI.deleteTherapistAccount({ current_password: currentPassword })
     _clearSession()
   }
 

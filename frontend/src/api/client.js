@@ -130,8 +130,6 @@ api.interceptors.response.use(
 export const verifyAPI = {
   request: (data) => api.post('/verify/request', data),
   confirm: (data) => api.post('/verify/confirm', data),
-  phoneRequest: (data) => api.post('/verify/phone/request', data),
-  phoneConfirm: (data) => api.post('/verify/phone/confirm', data),
 }
 
 export const authAPI = {
@@ -145,14 +143,18 @@ export const authAPI = {
   parentLogin:    (data) => api.post('/auth/parent-login', data),
   parentGoogleLogin:    (idToken) => api.post('/auth/parent-google-login', { id_token: idToken }),
   parentGoogleRegister: (data) => api.post('/auth/parent-google-register', data),
+  forgotPlayerCode: (data) => api.post('/auth/forgot-player-code', data),
+  forgotPin: (data) => api.post('/auth/forgot-pin', data),
+  parentResetPassword: (data) => api.post('/auth/parent-reset-password', data),
+  therapistResetPassword: (data) => api.post('/auth/reset-password', data),
 
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidCandidates:       () => api.get('/auth/kid-candidates'),
   kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),
 
-  deleteParentAccount: () => api.delete('/auth/parent-account'),
-  deleteKidAccount:    () => api.delete('/auth/kid-account'),
-  deleteTherapistAccount: () => api.delete('/auth/account'),
+  deleteParentAccount: (data)    => api.delete('/auth/parent-account', { data }),
+  deleteKidAccount:    (data)    => api.delete('/auth/kid-account', { data }),
+  deleteTherapistAccount: (data) => api.delete('/auth/account', { data }),
 
   refresh: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }),
   logout:  (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }),
@@ -281,6 +283,7 @@ export const meAPI = {
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
   updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),
+  changePin:       (data) => api.patch('/breathquest/patients/me/change-pin', data),
   uploadProfilePhoto: (file) => {
     const formData = new FormData()
     formData.append('file', file)

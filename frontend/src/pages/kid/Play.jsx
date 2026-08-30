@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail, Phone } from 'lucide-react'
+import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { authAPI, getErrorMessage } from '../../api/client'
+import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
 import { Button, Avatar } from '../../components/ui'
 import { Creature } from '../../components/ui/Creatures'
 import { speak } from '../../lib/speech'
@@ -135,15 +135,28 @@ export default function KidPlay() {
   const [loading, setLoading]   = useState(false)
   const [registered, setRegistered] = useState(null)  // {player_code, first_name}
   // COPPA: New Player signup can't create an account without a parent's
-  // email and phone (both required, see parental_consent.py). 'form'
-  // collects the kid's own details first so a parent isn't asked for
-  // contact info before there's even an account to consent to.
-  // TEMPORARY 2026-08-12: no OTP round-trip right now -- 'parentContact'
-  // registers immediately once both fields are filled in. See
-  // handleFinishRegistration's comment.
-  const [registerStep, setRegisterStep] = useState('form')  // form | parentContact
+  // email (see parental_consent.py). 'form' collects the kid's own
+  // details first so a parent isn't asked for contact info before
+  // there's even an account to consent to. 'parentContact' sends the
+  // email code; confirming it registers immediately (see
+  // handleConfirmEmailCode).
+  const [registerStep, setRegisterStep] = useState('form')  // form | parentContact | verifyEmail
   const [parentEmail, setParentEmail]   = useState('')
-  const [parentPhone, setParentPhone]   = useState('')
+  const [emailCode, setEmailCode]       = useState('')
+  const [resendMsg, setResendMsg]       = useState('')
+  const [showCodeLookup, setShowCodeLookup] = useState(false)
+  const [lookupEmail, setLookupEmail]       = useState('')
+  const [lookupSent, setLookupSent]         = useState(false)
+  // Forgot-PIN recovery for self-registered kids (no Patient row to reset
+  // via kid-pin-setup -- see auth.py's POST /auth/forgot-pin docstring).
+  // Reuses the same email-OTP proof as registration itself: request sends
+  // a code to the parent email on file, verify confirms it and submits
+  // the new PIN in the same round trip as the reset call.
+  const [forgotPinStep, setForgotPinStep]         = useState('request')  // request | verify | done
+  const [forgotPinCode, setForgotPinCode]         = useState('')
+  const [forgotPinEmail, setForgotPinEmail]       = useState('')
+  const [forgotPinEmailCode, setForgotPinEmailCode] = useState('')
+  const [newPin, setNewPin]                       = useState('')
   const [mounted, setMounted]   = useState(false)
   const [activeGame, setActiveGame] = useState(null)  // key of the badge tapped for a quick info popover, or null
   const [candidates, setCandidates]               = useState([])
@@ -180,7 +193,7 @@ export default function KidPlay() {
   // that's instructional, not just narration of a menu.
   const CHOOSE_TXT     = 'Ready to play? Tap New Player to create an account, or I have a code to log back in.'
   const REGISTER_TXT   = 'Create your account. Type your name, pick your character, and choose a 4 digit PIN.'
-  const LOGIN_TXT      = 'Welcome back! Enter your player code and your PIN.'
+  const LOGIN_TXT      = 'Welcome back! Enter your name or player code, and your PIN.'
   const ASSESSMENT_TXT = 'Find your name in the list, pick your character, and choose a 4 digit PIN.'
   const registeredText = registered
     ? `You're in, ${AVATAR_NAMES[avatar]}! Write down your player code and your PIN so you can log back in.`
@@ -200,20 +213,51 @@ export default function KidPlay() {
     setError(''); setRegisterStep('parentContact')
   }
 
-  // TEMPORARY 2026-08-12: no live email/SMS provider is wired up yet
-  // (see breathquest_core/parental_consent.py's AUTO_VERIFY_CONSENT note),
-  // so there's no code for a parent to actually receive right now. This
-  // calls registerKid directly once both fields are filled in, instead of
-  // the request-code/confirm-code round trip. api/client.js's verifyAPI
-  // and .phoneRequest/.phoneConfirm are untouched and ready to swap back
-  // in (add the two OTP-entry steps back between this and registerKid)
-  // the moment AUTO_VERIFY_CONSENT comes off.
-  const handleFinishRegistration = async () => {
+  // Step 1: parent fills in email -> send the email code.
+  const handleSendParentContact = async () => {
     if (!parentEmail.trim()) { setError("Enter a parent's email"); return }
-    if (!parentPhone.trim()) { setError("Enter a parent's phone number"); return }
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: parentEmail.trim() })
+      setRegisterStep('verifyEmail')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send the verification code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendEmailCode = async () => {
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: parentEmail.trim() })
+      setResendMsg('Code resent!')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't resend the code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Step 2: parent enters the emailed code -> confirm it, then
+  // immediately create the account.
+  const handleConfirmEmailCode = async () => {
+    if (emailCode.trim().length !== 6) { setError('Enter the 6-digit code'); return }
     setError(''); setLoading(true)
     try {
-      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim(), parentPhone.trim())
+      await verifyAPI.confirm({ email: parentEmail.trim(), code: emailCode.trim() })
+    } catch (e) {
+      setError(getErrorMessage(e, "That code didn't work — try again"))
+      setLoading(false)
+      return
+    }
+    await handleFinishRegistration()
+  }
+
+  const handleFinishRegistration = async () => {
+    setError(''); setLoading(true)
+    try {
+      const data = await registerKid(firstName.trim(), avatar, pin, parentEmail.trim())
       setRegistered({ player_code: data.player_code, first_name: data.first_name })
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't create the account — try again"))
@@ -223,15 +267,97 @@ export default function KidPlay() {
   }
 
   const handleLogin = async () => {
-    if (!playerCode.trim()) { setError('Enter your player code'); return }
+    if (!playerCode.trim()) { setError('Enter your name or player code'); return }
     if (pin.length < 4)     { setError('Enter your PIN'); return }
     setError(''); setLoading(true)
     try {
       await loginKid(playerCode.trim().toUpperCase(), pin)
       navigate('/play/levels')
     } catch (e) {
-      setError(getErrorMessage(e, 'Wrong code or PIN — try again!'))
+      const message = getErrorMessage(e, 'Wrong code or PIN — try again!')
+      setError(message)
       setPin('')
+      // The ambiguous-match case is the one dead end the name-login
+      // fallback can't resolve on its own -- offer the existing (but
+      // previously unreachable) forgot-player-code lookup right here.
+      setShowCodeLookup(message.includes('More than one player matches'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLookupPlayerCode = async () => {
+    if (!lookupEmail.trim()) { setError("Enter a parent's email"); return }
+    setError(''); setLoading(true)
+    try {
+      await authAPI.forgotPlayerCode({ email: lookupEmail.trim() })
+      setLookupSent(true)
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send the reminder — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resetForgotPinFlow = () => {
+    setForgotPinStep('request'); setForgotPinCode(''); setForgotPinEmail('')
+    setForgotPinEmailCode(''); setNewPin(''); setError(''); setResendMsg('')
+  }
+
+  // Step 1: player code + the parent email on file -> send that email a
+  // code. auth.py's forgot-pin only accepts the reset once this exact
+  // email later comes back verified, so a wrong email here just means
+  // step 2's confirm will fail -- nothing is revealed at this step.
+  const handleForgotPinSendCode = async () => {
+    if (!forgotPinCode.trim())  { setError('Enter your player code'); return }
+    if (!forgotPinEmail.trim()) { setError("Enter the parent's email on file"); return }
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: forgotPinEmail.trim() })
+      setForgotPinStep('verify')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send the code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPinResend = async () => {
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: forgotPinEmail.trim() })
+      setResendMsg('Code resent!')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't resend the code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Step 2: confirm the emailed code, then reset in the same round trip.
+  // A wrong player_code/email pairing and a not-yet-verified email get the
+  // identical backend message (see forgot-pin's docstring), so this can't
+  // tell those apart either -- it just surfaces whatever detail comes back.
+  const handleForgotPinConfirm = async () => {
+    if (forgotPinEmailCode.trim().length !== 6) { setError('Enter the 6-digit code'); return }
+    if (newPin.length < 4)                      { setError('Choose a new 4-digit PIN'); return }
+    setError(''); setLoading(true)
+    try {
+      await verifyAPI.confirm({ email: forgotPinEmail.trim(), code: forgotPinEmailCode.trim() })
+    } catch (e) {
+      setError(getErrorMessage(e, "That code didn't work — try again"))
+      setLoading(false)
+      return
+    }
+    try {
+      await authAPI.forgotPin({
+        player_code: forgotPinCode.trim().toUpperCase(),
+        parent_email: forgotPinEmail.trim(),
+        new_pin: newPin,
+      })
+      setForgotPinStep('done')
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't reset the PIN — try again"))
     } finally {
       setLoading(false)
     }
@@ -280,7 +406,7 @@ export default function KidPlay() {
           </p>
           <p className="text-white/40 text-sm mb-1">Your PIN</p>
           <p className="font-vm-display text-3xl font-bold text-brand-amber tracking-widest">
-            {'•'.repeat(pin.length)}
+            {pin}
           </p>
         </GlassPanel>
         <p className="text-white/30 text-xs mb-8 relative z-10">Show this to your teacher too!</p>
@@ -460,7 +586,7 @@ export default function KidPlay() {
       {/* Register */}
       {mode === 'register' && registerStep === 'form' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail(''); setParentPhone('') }}
+          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setRegisterStep('form'); setParentEmail('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
@@ -506,46 +632,72 @@ export default function KidPlay() {
         </GlassPanel>
       )}
 
-      {/* Register — parent contact info (COPPA: a parent's email + phone
-          are required before we create the account). TEMPORARY 2026-08-12:
-          collects both in one step and registers immediately, no OTP
-          round trip -- see parental_consent.py's AUTO_VERIFY_CONSENT note
-          and handleFinishRegistration's comment for why, and how to
-          restore the two-step verify-then-confirm flow later. */}
+      {/* Register — parent contact info (COPPA: a parent's email is
+          required before we create the account). Sends the email OTP;
+          confirming it (see the verifyEmail step below) creates the
+          account right away. */}
       {mode === 'register' && registerStep === 'parentContact' && (
         <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
           <button onClick={() => { setRegisterStep('form'); setError('') }}
                   className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
-          <div className="flex justify-center gap-2 mb-4">
+          <div className="flex justify-center mb-4">
             <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
               <Mail className="w-6 h-6 text-brand-amber" />
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
-              <Phone className="w-6 h-6 text-brand-amber" />
             </div>
           </div>
           <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
             Almost there, {firstName.trim() || 'friend'}!
           </h1>
           <p className="text-white/50 text-sm text-center mb-6">
-            We need a parent's email and phone number to finish creating your account.
+            We need a parent's email to finish creating your account.
           </p>
-          <div className="mb-4">
+          <div className="mb-5">
             <label className="text-sm text-white/50 block mb-1">Parent's email</label>
             <input type="email" className="input text-lg" placeholder="parent@example.com"
                    value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
           </div>
+          {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+          <Button className="w-full gap-2" size="lg" onClick={handleSendParentContact} disabled={loading}>
+            {loading ? 'Sending…' : <>Continue <ArrowRight className="w-4 h-4" /></>}
+          </Button>
+        </GlassPanel>
+      )}
+
+      {/* Register — verify parent email (code sent by handleSendParentContact) */}
+      {mode === 'register' && registerStep === 'verifyEmail' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setRegisterStep('parentContact'); setError(''); setEmailCode(''); setResendMsg('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <div className="flex justify-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-brand-amber" />
+            </div>
+          </div>
+          <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
+            Check that email!
+          </h1>
+          <p className="text-white/50 text-sm text-center mb-6">
+            We sent a 6-digit code to {parentEmail.trim()}. Ask a parent to enter it below.
+          </p>
           <div className="mb-5">
-            <label className="text-sm text-white/50 block mb-1">Parent's phone number</label>
-            <input type="tel" className="input text-lg" placeholder="+1 555 123 4567"
-                   value={parentPhone} onChange={e => setParentPhone(e.target.value)} />
+            <label className="text-sm text-white/50 block mb-1">Verification code</label>
+            <input type="text" inputMode="numeric" maxLength={6} className="input text-lg tracking-widest text-center"
+                   placeholder="123456" value={emailCode}
+                   onChange={e => setEmailCode(e.target.value.replace(/\D/g, ''))} />
           </div>
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
-          <Button className="w-full gap-2" size="lg" onClick={handleFinishRegistration} disabled={loading}>
+          {resendMsg && !error && <p className="text-mint-light text-sm text-center mb-3">{resendMsg}</p>}
+          <Button className="w-full gap-2 mb-3" size="lg" onClick={handleConfirmEmailCode} disabled={loading}>
             {loading ? 'Creating…' : <>Create Account! <PartyPopper className="w-4 h-4" /></>}
           </Button>
+          <button onClick={handleResendEmailCode} disabled={loading}
+                  className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors">
+            Resend code
+          </button>
         </GlassPanel>
       )}
 
@@ -560,12 +712,15 @@ export default function KidPlay() {
             Welcome Back! <SpeakButton onClick={replayLogin} className="text-white/25 hover:text-white/50" />
           </h1>
 
-          <div className="mb-5">
-            <label className="text-sm text-white/50 block mb-1">Your Player Code</label>
+          <div className="mb-2">
+            <label className="text-sm text-white/50 block mb-1">Your Name or Player Code</label>
             <input className="input text-center text-xl font-bold tracking-widest uppercase"
-                   placeholder="e.g. CHICK42"
+                   placeholder="e.g. CHICK42 or your name"
                    value={playerCode} onChange={e => setPlayerCode(e.target.value.toUpperCase())} />
           </div>
+          <p className="text-white/30 text-xs text-center mb-4">
+            Lost your player code? Just type your name instead!
+          </p>
 
           <label className="text-sm text-white/50 block mb-2">Your PIN</label>
           <PinDots length={pin.length} />
@@ -575,6 +730,105 @@ export default function KidPlay() {
           <Button className="w-full gap-2" size="lg" onClick={handleLogin} disabled={loading}>
             {loading ? 'Checking…' : <>Let's Play! <ArrowRight className="w-4 h-4" /></>}
           </Button>
+
+          {showCodeLookup && !lookupSent && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-white/50 text-xs text-center mb-2">
+                A parent can look up the player code by email:
+              </p>
+              <input type="email" className="input text-sm mb-2" placeholder="parent@example.com"
+                     value={lookupEmail} onChange={e => setLookupEmail(e.target.value)} />
+              <button onClick={handleLookupPlayerCode} disabled={loading}
+                      className="w-full text-center text-sm text-brand-green hover:text-white transition-colors">
+                Email me the player code
+              </button>
+            </div>
+          )}
+          {lookupSent && (
+            <p className="text-mint-light text-xs text-center mt-4 pt-4 border-t border-white/10">
+              If that email has a linked account, a reminder is on its way.
+            </p>
+          )}
+
+          <button onClick={() => { resetForgotPinFlow(); setMode('forgotPin') }}
+                  className="w-full text-center text-xs text-white/40 hover:text-white/70 transition-colors mt-4 pt-4 border-t border-white/10">
+            Forgot your PIN?
+          </button>
+        </GlassPanel>
+      )}
+
+      {/* Forgot-PIN recovery for self-registered kids */}
+      {mode === 'forgotPin' && (
+        <GlassPanel accent="brand-amber" className="w-full max-w-sm relative z-10">
+          <button onClick={() => { setMode('login'); setError('') }}
+                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center">
+            Forgot Your PIN?
+          </h1>
+
+          {forgotPinStep === 'request' && (
+            <>
+              <p className="text-white/50 text-xs text-center mb-4">
+                Enter your player code and the parent email on file — we'll send a code there.
+              </p>
+              <div className="mb-3">
+                <label className="text-sm text-white/50 block mb-1">Your Player Code</label>
+                <input className="input text-center text-xl font-bold tracking-widest uppercase"
+                       placeholder="e.g. CHICK42"
+                       value={forgotPinCode} onChange={e => setForgotPinCode(e.target.value.toUpperCase())} />
+              </div>
+              <div className="mb-4">
+                <label className="text-sm text-white/50 block mb-1">Parent's Email</label>
+                <input type="email" className="input" placeholder="parent@example.com"
+                       value={forgotPinEmail} onChange={e => setForgotPinEmail(e.target.value)} />
+              </div>
+              {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+              <Button className="w-full gap-2" size="lg" onClick={handleForgotPinSendCode} disabled={loading}>
+                {loading ? 'Sending…' : 'Send Code'}
+              </Button>
+            </>
+          )}
+
+          {forgotPinStep === 'verify' && (
+            <>
+              <p className="text-white/50 text-xs text-center mb-4">
+                Enter the 6-digit code sent to {forgotPinEmail}, then pick a new PIN.
+              </p>
+              <input className="input text-center text-xl font-bold tracking-widest mb-4" placeholder="000000"
+                     maxLength={6} value={forgotPinEmailCode}
+                     onChange={e => setForgotPinEmailCode(e.target.value.replace(/\D/g, ''))} />
+
+              <label className="text-sm text-white/50 block mb-2 text-center">Your New PIN</label>
+              <PinDots length={newPin.length} />
+              <PinPad
+                onDigit={d => { if (newPin.length < 4) setNewPin(p => p + d) }}
+                onDelete={() => setNewPin(p => p.slice(0, -1))}
+              />
+
+              {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
+              <Button className="w-full gap-2" size="lg" onClick={handleForgotPinConfirm} disabled={loading}>
+                {loading ? 'Resetting…' : 'Reset PIN'}
+              </Button>
+              <button onClick={handleForgotPinResend} disabled={loading}
+                      className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors mt-3">
+                Resend code
+              </button>
+              {resendMsg && <p className="text-mint-light text-xs text-center mt-2">{resendMsg}</p>}
+            </>
+          )}
+
+          {forgotPinStep === 'done' && (
+            <>
+              <p className="text-mint-light text-sm text-center mb-6">
+                Your PIN has been reset! You can log in with your new PIN now.
+              </p>
+              <Button className="w-full gap-2" size="lg" onClick={() => { resetForgotPinFlow(); setMode('login'); setPin(''); setPlayerCode('') }}>
+                Back to Login <ArrowRight className="w-4 h-4" />
+              </Button>
+            </>
+          )}
         </GlassPanel>
       )}
 
