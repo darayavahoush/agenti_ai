@@ -87,7 +87,7 @@ g2p_en
 
 # Text-to-Speech
 coqui-tts==0.27.5
-kokoro-onnx==0.6.1
+kokoro-onnx==0.4.7
 
 # Computer Vision
 opencv-python==4.14.0.94
