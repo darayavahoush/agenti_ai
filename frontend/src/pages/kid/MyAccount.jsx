@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X, History, Camera } from 'lucide-react'
 import { Avatar } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
@@ -108,6 +109,7 @@ export default function MyAccount() {
     if (trimmed && trimmed !== displayName) {
       const ok = await saveProfile({ first_name: trimmed })
       if (!ok) return // keep the editor open so they can retry without retyping
+      toast.success('Name saved!')
     }
     setEditingName(false)
   }
@@ -175,7 +177,7 @@ export default function MyAccount() {
                 {displayPhotoUrl ? (
                   <img
                     src={`${apiBase}${displayPhotoUrl}`}
-                    alt=""
+                    alt="Your profile photo"
                     className="w-24 h-24 rounded-full object-cover border-2 border-white/10"
                   />
                 ) : (
