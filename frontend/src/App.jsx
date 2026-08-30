@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { meAPI } from './api/client'
-import { PageLoader, SupervisedBanner } from './components/ui'
+import { Toaster } from 'react-hot-toast'
+import { PageLoader, SupervisedBanner, OfflineBanner } from './components/ui'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
 
 // Route-level code splitting -- previously every page (all four apps:
@@ -149,6 +150,7 @@ function AppRoutes() {
 
   return (
     <>
+      <OfflineBanner />
       <SupervisedBanner />
       <Suspense fallback={<PageLoader />}>
       <Routes>
@@ -299,6 +301,20 @@ export default function App() {
           <AppRoutes />
         </AuthProvider>
       </GoogleOAuthProvider>
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#1f1b24',
+            color: '#f5f0e8',
+            fontSize: '0.875rem',
+            border: '1px solid rgba(255,255,255,0.08)',
+          },
+          success: { iconTheme: { primary: '#A8FF6F', secondary: '#1f1b24' } },
+          error: { iconTheme: { primary: '#ff6f6f', secondary: '#1f1b24' } },
+        }}
+      />
     </BrowserRouter>
   )
 }
