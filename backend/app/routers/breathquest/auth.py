@@ -28,6 +28,7 @@ from app.models.patient import Patient
 from app.models.therapist import Therapist
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from app.services.email import send_kid_registered_welcome_email
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
@@ -168,6 +169,15 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     db.add(patient)
     await db.commit()
     await db.refresh(patient)
+
+    try:
+        send_kid_registered_welcome_email(patient.parent_email, patient.first_name)
+    except Exception as exc:
+        import logging
+        logging.getLogger("uvicorn.error").warning(
+            "Kid-registered welcome email failed for %s: %s", patient.parent_email, exc
+        )
+
     token = create_kid_token(patient.id)
     refresh_token = await create_refresh_token(db, "patient", str(patient.id))
     await db.commit()
