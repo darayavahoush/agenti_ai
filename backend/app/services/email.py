@@ -113,3 +113,126 @@ def send_player_code_email(to_email: str, player_code: str) -> None:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
+
+
+def send_weekly_progress_email(
+    to_email: str,
+    first_name: str,
+    session_count: int,
+    levels_practiced: list[str],
+    avg_consistency: int | None,
+) -> None:
+    """Weekly digest sent when a kid had at least one completed
+    GameSession in the past week. Best-effort: caller
+    (maybe_send_weekly_update) wraps this in try/except so a failure here
+    never blocks login or corrupts the checkpoint. Same dev-fallback
+    pattern as send_otp_email."""
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.warning(
+            "\n"
+            "==================== DEV MODE: SMTP NOT CONFIGURED ====================\n"
+            f"  Weekly progress email for {to_email} ({first_name}): "
+            f"{session_count} session(s), levels {levels_practiced}, "
+            f"avg consistency {avg_consistency}\n"
+            "  (Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env to send real emails)\n"
+            "========================================================================"
+        )
+        return
+
+    levels_line = ", ".join(levels_practiced) if levels_practiced else "a few activities"
+    consistency_line = (
+        f"Their average breath consistency this week was {avg_consistency}% -- "
+        f"steady practice tends to move that number up over time.\n\n"
+        if avg_consistency is not None
+        else ""
+    )
+    message = MIMEText(
+        f"Hi,\n\n"
+        f"Here's {first_name}'s BreathQuest progress this week:\n\n"
+        f"- {session_count} session{'s' if session_count != 1 else ''} completed\n"
+        f"- Practiced: {levels_line}\n\n"
+        f"{consistency_line}"
+        f"Keep it up -- a few minutes a day adds up. If you have any questions, "
+        f"just reply to this email.\n"
+    )
+    message["Subject"] = f"{first_name}'s BreathQuest week in review"
+    message["From"] = settings.SMTP_USER
+    message["To"] = to_email
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        server.starttls(context=context)
+        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
+
+
+def send_weekly_nudge_email(to_email: str, first_name: str) -> None:
+    """Sent instead of the progress digest when a kid had zero completed
+    GameSessions in the past week -- a gentle reminder rather than
+    silence. Same best-effort/dev-fallback pattern as the functions above."""
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.warning(
+            "\n"
+            "==================== DEV MODE: SMTP NOT CONFIGURED ====================\n"
+            f"  Weekly nudge email for {to_email} ({first_name}'s account)\n"
+            "  (Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env to send real emails)\n"
+            "========================================================================"
+        )
+        return
+
+    message = MIMEText(
+        f"Hi,\n\n"
+        f"{first_name} hasn't played any BreathQuest sessions this week. "
+        f"No pressure -- just a gentle reminder that a few minutes of practice "
+        f"can make a real difference over time.\n\n"
+        f"If you have any questions or something's gotten in the way, "
+        f"just reply to this email.\n"
+    )
+    message["Subject"] = f"A gentle nudge for {first_name}'s BreathQuest practice"
+    message["From"] = settings.SMTP_USER
+    message["To"] = to_email
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        server.starttls(context=context)
+        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
+
+
+def send_kid_registered_welcome_email(to_email: str, first_name: str) -> None:
+    """Sent right after a kid finishes self-serve signup (POST /kid-register).
+    Purely informational -- explains that a first assessment is required
+    next and that no payment is needed yet (no billing provider is wired
+    up), which is exactly the confusion parents have been hitting. This is
+    best-effort: the caller wraps it in try/except so an email failure can
+    never block account creation. Same dev-fallback pattern as
+    send_otp_email."""
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.warning(
+            "\n"
+            "==================== DEV MODE: SMTP NOT CONFIGURED ====================\n"
+            f"  Welcome/next-steps email for {to_email} ({first_name}'s account)\n"
+            "  (Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env to send real emails)\n"
+            "========================================================================"
+        )
+        return
+
+    message = MIMEText(
+        f"Hi,\n\n"
+        f"{first_name}'s BreathQuest account is set up!\n\n"
+        f"What happens next:\n"
+        f"- {first_name} will take a short first assessment the next time they log in.\n"
+        f"- That's required before the other games unlock -- it's how BreathQuest "
+        f"personalizes what comes next, not a payment gate.\n"
+        f"- There's no payment needed for any of this right now.\n\n"
+        f"If you have any questions, just reply to this email.\n"
+    )
+    message["Subject"] = f"{first_name} is ready to start on BreathQuest"
+    message["From"] = settings.SMTP_USER
+    message["To"] = to_email
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        server.starttls(context=context)
+        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        server.sendmail(settings.SMTP_USER, [to_email], message.as_string())

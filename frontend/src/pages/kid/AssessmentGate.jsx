@@ -157,7 +157,7 @@ export default function AssessmentGate() {
               ? onCooldown
                 ? `You can take it again on ${retakeDateLabel}. 📅`
                 : "You can retake the assessment whenever you're ready. 💪"
-              : "It only takes a few minutes, and it's a great way to start! 🚀"}
+              : "You'll answer a few speaking prompts into the mic -- about 5 minutes, no wrong answers. It's totally free, no payment needed. 🚀"}
           </p>
         </div>
 
@@ -179,19 +179,18 @@ export default function AssessmentGate() {
             </Button>
           )}
 
+          {/* No "back to games" affordance here on purpose -- assessment
+              is mandatory before any gameplay (ProtectedKid in App.jsx
+              redirects any non-/assessment route straight back here while
+              assessment_completed is false), so a button implying a kid
+              could skip ahead and play was misleading: tapping it just
+              bounced them right back to this same screen. */}
           <button
             onClick={() => navigate('/play/account/history')}
             className="w-full flex items-center justify-center gap-2 text-white/70 hover:text-white
                        hover:scale-105 text-base font-semibold transition-all mb-3 py-2"
           >
             <History size={17} /> View my history
-          </button>
-
-          <button
-            onClick={() => navigate('/play')}
-            className="text-white/50 hover:text-white/80 text-sm transition-colors"
-          >
-            Back to games →
           </button>
         </div>
       </div>
