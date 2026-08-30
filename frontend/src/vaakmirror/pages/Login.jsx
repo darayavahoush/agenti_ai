@@ -160,7 +160,7 @@ export default function Login() {
           </p>
           <p className="text-white/40 text-sm mb-1">Your PIN</p>
           <p className="font-display text-3xl font-bold text-brand-amber tracking-widest">
-            {'•'.repeat(pin.length)}
+            {pin}
           </p>
         </div>
         <p className="text-white/30 text-xs mb-8">Show this to your therapist too!</p>
