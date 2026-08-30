@@ -7,6 +7,11 @@
   body {
     @apply bg-brand-dark text-white;
     font-family: 'Inter', sans-serif;
+    cursor: url('/cursor-default.svg') 4 2, auto;
+  }
+  a, button, [role="button"], input[type="submit"], input[type="button"],
+  select, label[for], .cursor-pointer {
+    cursor: url('/cursor-pointer.svg') 15 15, pointer;
   }
 }
 

@@ -26,6 +26,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.breathquest_models import BreathQuestPatient, Parent, Subscription
 
+# TEMPORARY 2026-08-30: no payment provider (Stripe or otherwise) is wired
+# up yet, so no Subscription row is ever created for a real user -- which
+# means _evaluate()'s documented "self-serve kid with neither [parent nor
+# therapist subscription] is unentitled by default" isn't a trial/pre-signup
+# state as originally intended, it's the permanent, only state every real
+# kid account reaches. GET /me/access (routers/breathquest/access.py) and
+# AssessmentReport.jsx's "unlocks with a parent or therapist plan" lock
+# screen were therefore blocking 100% of real signups, not gating a small
+# minority who haven't paid -- confirmed via a parent report of being stuck
+# behind a "plan required" wall with no way to actually purchase one.
+#
+# With the flag off, get_patient_entitlement short-circuits to
+# has_access=True before touching Parent/Subscription at all -- the real
+# lookup/trial-expiry logic below is untouched and ready to go the moment
+# a real billing integration exists to actually create Subscription rows.
+# Flip REQUIRE_SUBSCRIPTION back to True once that's live.
+REQUIRE_SUBSCRIPTION = False
+
 
 @dataclass
 class EntitlementStatus:
@@ -60,7 +78,14 @@ async def get_patient_entitlement(patient: BreathQuestPatient, db: AsyncSession)
     account is linked to and evaluates their Subscription. Parent takes
     priority since a parent-managed account is the more specific link --
     a therapist-created patient with no parent yet falls through to the
-    therapist's own subscription."""
+    therapist's own subscription.
+
+    See the REQUIRE_SUBSCRIPTION note above this module's top -- while
+    it's off, every patient gets has_access=True unconditionally, no
+    Parent/Subscription lookup happens at all."""
+    if not REQUIRE_SUBSCRIPTION:
+        return EntitlementStatus(has_access=True, reason="no_paywall_yet")
+
     parent_result = await db.execute(select(Parent).where(Parent.patient_id == patient.id))
     parent = parent_result.scalar_one_or_none()
     if parent is not None:
