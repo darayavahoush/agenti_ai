@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timezone
+import logging
 
 from app.database import get_db
 from app.models.breathquest_models import (
@@ -28,6 +29,9 @@ from app.models.patient import Patient
 from app.models.therapist import Therapist
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
+from app.breathquest_core.weekly_update import maybe_send_weekly_update
+
+logger = logging.getLogger("uvicorn.error")
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
@@ -429,6 +433,18 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     refresh_token = await create_refresh_token(db, "patient", str(patient.id))
     await record_success(identifier, db)
     await db.commit()
+
+    # Best-effort weekly digest/nudge -- see weekly_update.py's module
+    # docstring for why this lives here (no real job scheduler in this
+    # project) rather than a cron/Celery task. Must never block or fail
+    # login: maybe_send_weekly_update already swallows its own errors,
+    # but this try/except is an extra safety net per its documented
+    # caller contract.
+    try:
+        await maybe_send_weekly_update(patient, db)
+    except Exception as exc:
+        logger.warning("maybe_send_weekly_update failed for patient %s: %s", patient.id, exc)
+
     return KidTokenResponse(
         access_token=token,
         refresh_token=refresh_token,
