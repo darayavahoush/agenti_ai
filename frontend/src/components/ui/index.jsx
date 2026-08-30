@@ -153,6 +153,73 @@ export function StatCard({ icon: Icon, value, label, accent = '#2FB8A6' }) {
     </Card>
   )
 }
+// Shared back-navigation chrome for every game/level screen. Two taps
+// available at all times: Back (one level up -- e.g. a Chime mini-game
+// back to ChimeHome) and Home (straight to the main game picker,
+// /play/levels), so a kid deep inside e.g. Xylophone Tower is never
+// more than one tap from the hub. Replaces each screen hand-rolling its
+// own ArrowLeft + navigate() -- every game currently does this slightly
+// differently (see WindChimeGarden.jsx, MyAccount.jsx, MyProgress.jsx,
+// AssessmentGate.jsx for the inconsistent prior art this is meant to
+// replace).
+//
+// `onBack` is a callback, not a route string -- some screens need to
+// reset local state (stop a mic stream, clear a timer) before navigating
+// away, not just change the URL. Pass `null`/omit to hide the Back
+// button entirely (e.g. a hub's own top-level screen, which only needs
+// Home).
+export function GameHeader({ title, onBack, homeTo = '/play/levels', accent = 'white', className = '' }) {
+  const accentClass = accent === 'white' ? 'text-white/60 hover:text-white' : `text-${accent} hover:opacity-80`
+  return (
+    <div className={`flex items-center justify-between mb-4 ${className}`}>
+      {onBack ? (
+        <button
+          onClick={onBack}
+          className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${accentClass}
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-lg px-1 -ml-1`}
+        >
+          <ArrowLeftIcon className="w-4 h-4" /> Back
+        </button>
+      ) : <span />}
+
+      {title && (
+        <h2 className="text-sm font-semibold text-white/50 truncate px-2">{title}</h2>
+      )}
+
+      <a
+        href={homeTo}
+        className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${accentClass}
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-lg px-1 -mr-1`}
+        aria-label="Back to all games"
+      >
+        <HomeIcon className="w-4 h-4" /> Home
+      </a>
+    </div>
+  )
+}
+
+// Minimal inline icons so this file doesn't need to import lucide-react
+// just for two glyphs -- keeps GameHeader droppable into any screen
+// (including .tsx game files like VoiceHurdleRace) without adding an
+// import line there beyond the component itself.
+function ArrowLeftIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M19 12H5M12 19l-7-7 7-7" />
+    </svg>
+  )
+}
+function HomeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
+      <path d="M9 22V12h6v10" />
+    </svg>
+  )
+}
+
 export { default as Sidebar } from './Sidebar'
 export { default as AmbientGlow } from './AmbientGlow'
 export { default as SupervisedBanner } from './SupervisedBanner'
