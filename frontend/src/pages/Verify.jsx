@@ -24,7 +24,18 @@ export default function Verify() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
   const autoSentRef = useRef(false)
+
+  // Resend cooldown -- ticks down once a second whenever cooldown > 0.
+  // Prevents spamming the "Resend code" button, which would otherwise
+  // hammer the email-send endpoint with no feedback that anything's
+  // actually happening.
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [cooldown])
 
   async function requestCode(targetEmail) {
     setError('')
@@ -32,6 +43,7 @@ export default function Verify() {
     try {
       await verifyAPI.request({ email: targetEmail })
       setStep('code')
+      setCooldown(30)
     } catch (err) {
       setError(getErrorMessage(err, "Couldn't send code — try again"))
       // If the auto-send failed, fall back to showing the email step so
@@ -144,10 +156,10 @@ export default function Verify() {
             <button
               type="button"
               onClick={() => requestCode(email)}
-              disabled={loading}
+              disabled={loading || cooldown > 0}
               className="w-full text-paper/50 text-sm mt-3 disabled:opacity-50"
             >
-              Didn't get it? Resend code
+              {cooldown > 0 ? `Resend code (${cooldown}s)` : "Didn't get it? Resend code"}
             </button>
             <button
               type="button"

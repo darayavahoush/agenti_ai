@@ -38,11 +38,13 @@ export default function TherapistDashboard() {
   const [summary, setSummary]       = useState(null)
   const [alerts,  setAlerts]        = useState([])
   const [loading, setLoading]       = useState(true)
+  const [loadError, setLoadError]   = useState(false)
   const [showAdd, setShowAdd]       = useState(false)
   const [search,  setSearch]        = useState('')
   const [sortBy,  setSortBy]        = useState('attention')
 
   const load = async () => {
+    setLoadError(false)
     try {
       const [{ data: summaryData }, { data: alertsData }] = await Promise.all([
         dashboardAPI.summary(),
@@ -52,6 +54,12 @@ export default function TherapistDashboard() {
       setAlerts(alertsData.filter(a => a.flag !== 'ok'))
     } catch (e) {
       console.error(e)
+      // Previously this only logged, leaving `summary` null -- every stat
+      // below reads `summary?.x ?? 0`, so a failed fetch silently rendered
+      // as "0 patients / no patients yet, add your first one", which for a
+      // therapist looks exactly like their patient list vanished rather
+      // than like a network error. Surface it explicitly instead.
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -74,6 +82,35 @@ export default function TherapistDashboard() {
   }, [summary, search, sortBy, alertsByPatient])
 
   if (loading) return <PageLoader />
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen relative flex"
+           style={{ background: 'radial-gradient(ellipse 1400px 800px at 15% -10%, #1D9E75 0%, #16332D 35%, #12122A 70%)' }}>
+        <AmbientGlow />
+        <Sidebar
+          role="therapist"
+          items={[
+            { label: 'Dashboard', icon: LayoutDashboard, to: '/therapist/dashboard' },
+            { label: 'Settings', icon: Settings, to: '/therapist/settings' },
+          ]}
+          name={therapist?.full_name}
+          subtitle={therapist?.clinic_name}
+          onLogout={logout}
+        />
+        <div className="relative flex-1 min-w-0 max-w-6xl mx-auto px-6 py-8 flex items-center justify-center">
+          <Card className="text-center py-16 max-w-sm">
+            <div className="w-14 h-14 rounded-2xl bg-brand-amber/10 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={24} className="text-brand-amber" />
+            </div>
+            <p className="text-white/70 font-medium mb-1">Couldn't load your dashboard</p>
+            <p className="text-white/40 text-sm mb-4">Your patients are still there — this was just a connection hiccup.</p>
+            <Button onClick={load}>Try again</Button>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   const today = new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })
 
