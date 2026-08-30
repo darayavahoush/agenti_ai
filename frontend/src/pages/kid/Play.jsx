@@ -144,6 +144,9 @@ export default function KidPlay() {
   const [parentEmail, setParentEmail]   = useState('')
   const [emailCode, setEmailCode]       = useState('')
   const [resendMsg, setResendMsg]       = useState('')
+  const [showCodeLookup, setShowCodeLookup] = useState(false)
+  const [lookupEmail, setLookupEmail]       = useState('')
+  const [lookupSent, setLookupSent]         = useState(false)
   const [mounted, setMounted]   = useState(false)
   const [activeGame, setActiveGame] = useState(null)  // key of the badge tapped for a quick info popover, or null
   const [candidates, setCandidates]               = useState([])
@@ -261,8 +264,26 @@ export default function KidPlay() {
       await loginKid(playerCode.trim().toUpperCase(), pin)
       navigate('/play/levels')
     } catch (e) {
-      setError(getErrorMessage(e, 'Wrong code or PIN — try again!'))
+      const message = getErrorMessage(e, 'Wrong code or PIN — try again!')
+      setError(message)
       setPin('')
+      // The ambiguous-match case is the one dead end the name-login
+      // fallback can't resolve on its own -- offer the existing (but
+      // previously unreachable) forgot-player-code lookup right here.
+      setShowCodeLookup(message.includes('More than one player matches'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLookupPlayerCode = async () => {
+    if (!lookupEmail.trim()) { setError("Enter a parent's email"); return }
+    setError(''); setLoading(true)
+    try {
+      await authAPI.forgotPlayerCode({ email: lookupEmail.trim() })
+      setLookupSent(true)
+    } catch (e) {
+      setError(getErrorMessage(e, "Couldn't send the reminder — try again"))
     } finally {
       setLoading(false)
     }
@@ -635,6 +656,25 @@ export default function KidPlay() {
           <Button className="w-full gap-2" size="lg" onClick={handleLogin} disabled={loading}>
             {loading ? 'Checking…' : <>Let's Play! <ArrowRight className="w-4 h-4" /></>}
           </Button>
+
+          {showCodeLookup && !lookupSent && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-white/50 text-xs text-center mb-2">
+                A parent can look up the player code by email:
+              </p>
+              <input type="email" className="input text-sm mb-2" placeholder="parent@example.com"
+                     value={lookupEmail} onChange={e => setLookupEmail(e.target.value)} />
+              <button onClick={handleLookupPlayerCode} disabled={loading}
+                      className="w-full text-center text-sm text-brand-green hover:text-white transition-colors">
+                Email me the player code
+              </button>
+            </div>
+          )}
+          {lookupSent && (
+            <p className="text-mint-light text-xs text-center mt-4 pt-4 border-t border-white/10">
+              If that email has a linked account, a reminder is on its way.
+            </p>
+          )}
         </GlassPanel>
       )}
 
