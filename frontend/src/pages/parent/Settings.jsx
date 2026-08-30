@@ -9,6 +9,8 @@ export default function ParentSettings() {
   const navigate = useNavigate()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
 
   return (
     <div className="min-h-screen bg-ink relative flex">
@@ -59,19 +61,30 @@ export default function ParentSettings() {
               <p className="text-paper/60 text-sm mb-3">
                 This deletes your account and your child's account — all progress, all history. This can't be undone.
               </p>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => { setCurrentPassword(e.target.value); setDeleteError('') }}
+                placeholder="Enter your current password to confirm"
+                className="w-full mb-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-paper text-sm
+                           placeholder:text-paper/30 focus:outline-none focus:border-coral/40"
+              />
+              {deleteError && <p className="text-coral-light text-xs mb-3">{deleteError}</p>}
               <div className="flex items-center gap-3">
-                <button onClick={() => setConfirmingDelete(false)}
+                <button onClick={() => { setConfirmingDelete(false); setCurrentPassword(''); setDeleteError('') }}
                         className="text-paper/40 hover:text-paper/70 text-sm px-4 py-2 transition-colors">
                   Never mind
                 </button>
                 <button
-                  disabled={deleting}
+                  disabled={deleting || !currentPassword}
                   onClick={async () => {
                     setDeleting(true)
+                    setDeleteError('')
                     try {
-                      await deleteParentAccount()
+                      await deleteParentAccount(currentPassword)
                       navigate('/')
-                    } catch {
+                    } catch (err) {
+                      setDeleteError(err?.response?.data?.detail || 'Could not delete account — check your password and try again.')
                       setDeleting(false)
                     }
                   }}
