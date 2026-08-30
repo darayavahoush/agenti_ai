@@ -631,6 +631,23 @@ class ForgotPlayerCodeRequest(BaseModel):
     email: EmailStr
 
 
+class ForgotPinRequest(BaseModel):
+    """Self-registered kids (POST /auth/kid-register) have no Patient row
+    to key a reset off of -- only a BreathQuestPatient with a parent_email
+    column set directly at signup -- so this checks player_code +
+    parent_email against that column, not a therapist-side lookup like
+    kid-pin-setup's patient_id does."""
+    player_code: str
+    parent_email: EmailStr
+    new_pin: str
+
+    @validator("new_pin")
+    def pin_format(cls, v):
+        if not re.match(r"^\d{4}$", v):
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
+
+
 class VerifyRequestIn(BaseModel):
     email: EmailStr
 

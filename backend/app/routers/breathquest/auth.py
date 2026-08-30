@@ -34,7 +34,8 @@ from app.schemas.breathquest_schemas import (
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
     ParentKidRegisterRequest, ParentGoogleLoginRequest, ParentGoogleRegisterRequest,
     ForgotEmailRequest,
-    ForgotPlayerCodeRequest,)
+    ForgotPlayerCodeRequest,
+    ForgotPinRequest,)
 from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
@@ -382,6 +383,59 @@ async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db
         if patient:
             send_player_code_email(parent.email, patient.player_code)
     return {"message": "If that email has a linked account, a reminder has been sent with the player code."}
+
+
+@router.post("/forgot-pin", status_code=200)
+async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession = Depends(get_db)):
+    """PIN recovery for self-registered kids (POST /auth/kid-register).
+
+    /auth/kid-pin-setup can reset a PIN, but only by looking up a
+    Patient row via patient_id -- and kid_register above never creates
+    one (only a BreathQuestPatient), so that path can never reach a
+    self-registered kid. Before this endpoint, forgetting a PIN here
+    was an unrecoverable dead end: forgot-player-code only recovers the
+    code, never the PIN.
+
+    Gated the same way kid-register itself is gated (see
+    breathquest_core/parental_consent.py): the parent must have a
+    recently-confirmed OTP on the email already on file for this child
+    (POST /verify/request + /verify/confirm) before a new PIN is
+    accepted. This is the same bar kid-register already clears to
+    create the account, not a weaker one invented for resetting into
+    it -- if it's enough to prove consent to create the account, it's
+    enough to prove the right adult is resetting into it.
+
+    A code/email pair that doesn't match a self-registered account
+    (wrong player_code, wrong email, or an assessment-linked kid with
+    no parent_email on this column at all) gets the same generic
+    "needs verification" response as an email that's simply not yet
+    verified -- same anti-enumeration shape as forgot-email and
+    forgot-player-code above, so neither leaks which part was wrong."""
+    check_ip_rate_limit(request)
+    identifier = data.player_code.strip().upper()
+    email = data.parent_email.strip().lower()
+
+    result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.player_code == identifier)
+    )
+    patient = result.scalar_one_or_none()
+
+    not_verified_detail = "A parent needs to verify their email before resetting this PIN"
+    if not patient or not patient.parent_email or patient.parent_email.strip().lower() != email:
+        raise HTTPException(status_code=403, detail=not_verified_detail)
+
+    consent = await check_email_consent(email, db)
+    if not consent.granted:
+        detail_by_reason = {
+            "not_verified": not_verified_detail,
+            "expired": "Please verify the parent's email again before resetting this PIN",
+        }
+        detail = detail_by_reason.get(consent.reason, not_verified_detail)
+        raise HTTPException(status_code=403, detail=detail)
+
+    patient.pin_hash = hash_pin(data.new_pin)
+    await db.commit()
+    return {"message": "PIN has been reset. You can log in with your new PIN now."}
 
 
 @router.post("/kid-login", response_model=KidTokenResponse)
