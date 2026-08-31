@@ -48,6 +48,7 @@ export default function ParentAuth() {
   // confirms the code. Separate panel from the player-code recovery
   // above -- different problem, different backend endpoint.
   const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resumedAfterVerify, setResumedAfterVerify] = useState(false)
   const [forgotStep, setForgotStep] = useState('request') // request | verify | done
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotCode, setForgotCode] = useState('')
@@ -78,6 +79,7 @@ export default function ParentAuth() {
       setMode('register')
       setCodeType('new_child')
       setForm((f) => ({ ...f, ...pending, password: '' }))
+      setResumedAfterVerify(true)
     } catch {
       // Malformed/stale entry -- ignore rather than block the page.
     } finally {
@@ -282,13 +284,19 @@ export default function ParentAuth() {
           <div className="bg-ink-light border border-white/10 rounded-3xl p-8">
             <div className="flex bg-ink rounded-xl p-1 mb-6 border border-white/10">
               {['login', 'register'].map(m => (
-                <button key={m} type="button" onClick={() => { setMode(m); setError('') }}
+                <button key={m} type="button" onClick={() => { setMode(m); setError(''); setResumedAfterVerify(false) }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all
                     ${mode === m ? 'bg-coral text-paper shadow-sm' : 'text-paper/50 hover:text-paper'}`}>
                   {m === 'login' ? 'Sign In' : 'Register'}
                 </button>
               ))}
             </div>
+
+            {resumedAfterVerify && (
+              <div className="bg-mint/10 border border-mint/30 rounded-xl px-4 py-3 text-sm text-mint-light mb-5">
+                Email verified! Your details are saved below — just re-enter your password to finish creating your account.
+              </div>
+            )}
 
             {mode === 'login' && (
               <>
@@ -381,6 +389,7 @@ export default function ParentAuth() {
                 icon={Lock}
                 type={showPassword ? 'text' : 'password'}
                 required
+                autoFocus={resumedAfterVerify}
                 placeholder="Password"
                 value={form.password}
                 onChange={update('password')}
