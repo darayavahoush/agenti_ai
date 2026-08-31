@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, getErrorMessage, verifyAPI } from '../../api/client'
 import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
@@ -32,6 +32,8 @@ function Field({ icon: Icon, rightElement, ...props }) {
 
 export default function ParentAuth() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
   const { loginParent, registerParent, loginParentGoogle, registerParentGoogle } = useAuth()
   const [mode, setMode] = useState('login')
   const [codeType, setCodeType] = useState('player_code')
@@ -295,6 +297,12 @@ export default function ParentAuth() {
             {resumedAfterVerify && (
               <div className="bg-mint/10 border border-mint/30 rounded-xl px-4 py-3 text-sm text-mint-light mb-5">
                 Email verified! Your details are saved below — just re-enter your password to finish creating your account.
+              </div>
+            )}
+
+            {!resumedAfterVerify && sessionExpired && mode === 'login' && (
+              <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-sm text-coral-light mb-5">
+                You were signed out after a while — sign in again to continue.
               </div>
             )}
 
