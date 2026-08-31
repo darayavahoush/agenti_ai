@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
@@ -126,7 +126,14 @@ function PinPad({ onDigit, onDelete }) {
 }
 
 export default function KidPlay() {
-  const [mode, setMode]         = useState('choose')   // choose | register | login
+  const [searchParams] = useSearchParams()
+  const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
+  // Normally kids land on the marketing chooser first -- but if we're here
+  // because a dead session bounced them back (see client.js's interceptor),
+  // jumping straight to the login step (with an explanation, below) beats
+  // dropping them on a chooser screen that doesn't acknowledge anything
+  // happened.
+  const [mode, setMode]         = useState(() => sessionExpired ? 'login' : 'choose')   // choose | register | login
   const [avatar, setAvatar]     = useState('chick')
   const [firstName, setFirstName] = useState('')
   const [playerCode, setPlayerCode] = useState('')
@@ -725,6 +732,12 @@ export default function KidPlay() {
           <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center flex items-center justify-center gap-2">
             Welcome Back! <SpeakButton onClick={replayLogin} className="text-white/25 hover:text-white/50" />
           </h1>
+
+          {sessionExpired && (
+            <p className="text-white/40 text-xs text-center mb-4">
+              You got signed out after a while — just log back in to keep playing!
+            </p>
+          )}
 
           <div className="mb-2">
             <label className="text-sm text-white/50 block mb-1">Your Name or Player Code</label>
