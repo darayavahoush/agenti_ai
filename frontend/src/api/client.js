@@ -319,7 +319,15 @@ export const parentAPI = {
 // error #31), not just the form. Normalize once, here, instead of leaving
 // every call site to assume detail is always a string.
 export function getErrorMessage(err, fallback = 'Something went wrong') {
-  const detail = err?.response?.data?.detail
+  // No response at all means the request never reached the server --
+  // offline, DNS failure, server down, CORS block, etc. -- as opposed to
+  // the server responding with an actual error status. The generic
+  // caller-supplied fallback ("please try again") is actively misleading
+  // here, since retrying immediately won't help if there's no connection.
+  if (!err?.response) {
+    return "Can't reach the server — check your connection and try again."
+  }
+  const detail = err.response?.data?.detail
   if (!detail) return fallback
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
