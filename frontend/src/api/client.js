@@ -114,9 +114,11 @@ api.interceptors.response.use(
       // Full reload, not a router push: this file has no router context (it's
       // a plain axios instance, not a component), and a hard reload is exactly
       // what's needed anyway to clear any in-memory AuthContext/game state left
-      // over from the dead session.
+      // over from the dead session. The session_expired param lets the landing
+      // page explain what happened instead of silently dumping them back at
+      // login with no context -- see each login page's handling of it.
       if (window.location.pathname !== loginPath) {
-        window.location.href = loginPath
+        window.location.href = `${loginPath}?session_expired=1`
       }
     }
     return Promise.reject(error)

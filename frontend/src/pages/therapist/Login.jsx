@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage, authAPI, verifyAPI } from '../../api/client'
 import { Button, Input, Card } from '../../components/ui'
@@ -23,6 +23,8 @@ export default function TherapistLogin() {
   const [loading, setLoading] = useState(false)
   const { loginTherapist, registerTherapist, loginTherapistGoogle } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
 
   // Forgot-password: request -> verify. Same OTP round-trip as forgot-PIN
   // in Play.jsx (verifyAPI.request/.confirm), then reset in the same call
@@ -256,6 +258,12 @@ export default function TherapistLogin() {
                 </button>
               ))}
             </div>
+
+            {sessionExpired && mode === 'login' && (
+              <div className="bg-brand-coral/10 border border-brand-coral/30 rounded-xl px-4 py-3 text-sm text-brand-coral mb-5">
+                You were signed out after a while — sign in again to continue.
+              </div>
+            )}
 
             {/* Google covers both modes: login-or-register happens
                 server-side in one call (see /auth/google's docstring),
