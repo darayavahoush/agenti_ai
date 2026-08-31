@@ -373,21 +373,22 @@ export default function ParentAuth() {
                     </>
                   )}
 
-                  <Field icon={User} type="text" placeholder="Your name (optional)"
+                  <Field icon={User} type="text" placeholder="Your name (optional)" autoComplete="name"
                     value={form.fullName} onChange={update('fullName')} />
                   {/* Required for new_child (dual-factor parental consent) --
                       optional otherwise, since no SMS provider is wired up
                       yet for those paths and phone was never enforced. */}
-                  <Field icon={Phone} type="tel" required={codeType === 'new_child'}
+                  <Field icon={Phone} type="tel" required={codeType === 'new_child'} autoComplete="tel"
                     placeholder={codeType === 'new_child' ? 'Your phone number' : 'Phone (optional)'}
                     value={form.phone} onChange={update('phone')} />
                 </>
               )}
-              <Field icon={Mail} type="email" required placeholder="Email"
+              <Field icon={Mail} type="email" required placeholder="Email" autoComplete="email"
                 value={form.email} onChange={update('email')} />
               <Field
                 icon={Lock}
                 type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
                 autoFocus={resumedAfterVerify}
                 placeholder="Password"
