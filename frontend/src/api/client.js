@@ -114,9 +114,11 @@ api.interceptors.response.use(
       // Full reload, not a router push: this file has no router context (it's
       // a plain axios instance, not a component), and a hard reload is exactly
       // what's needed anyway to clear any in-memory AuthContext/game state left
-      // over from the dead session.
+      // over from the dead session. The session_expired param lets the landing
+      // page explain what happened instead of silently dumping them back at
+      // login with no context -- see each login page's handling of it.
       if (window.location.pathname !== loginPath) {
-        window.location.href = loginPath
+        window.location.href = `${loginPath}?session_expired=1`
       }
     }
     return Promise.reject(error)
@@ -307,6 +309,9 @@ export const billingAPI = {
 export const parentAPI = {
   progress: () => api.get('/parent/progress'),
   guidedActivity: () => api.get('/parent/guided-activity'),
+  listMessages: () => api.get('/parent/messages'),
+  sendMessage: (body) => api.post('/parent/messages', { body, sender_role: 'parent' }),
+  markMessageRead: (messageId) => api.post(`/parent/messages/${messageId}/read`),
 }
 
 // FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.
@@ -319,7 +324,15 @@ export const parentAPI = {
 // error #31), not just the form. Normalize once, here, instead of leaving
 // every call site to assume detail is always a string.
 export function getErrorMessage(err, fallback = 'Something went wrong') {
-  const detail = err?.response?.data?.detail
+  // No response at all means the request never reached the server --
+  // offline, DNS failure, server down, CORS block, etc. -- as opposed to
+  // the server responding with an actual error status. The generic
+  // caller-supplied fallback ("please try again") is actively misleading
+  // here, since retrying immediately won't help if there's no connection.
+  if (!err?.response) {
+    return "Can't reach the server — check your connection and try again."
+  }
+  const detail = err.response?.data?.detail
   if (!detail) return fallback
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
