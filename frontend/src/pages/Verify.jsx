@@ -104,6 +104,7 @@ export default function Verify() {
             <input
               type="email"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -139,6 +140,7 @@ export default function Verify() {
               type="text"
               required
               inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={6}
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
