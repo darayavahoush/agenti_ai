@@ -744,13 +744,13 @@ export default function KidPlay() {
           )}
 
           <div className="mb-2">
-            <label className="text-sm text-white/50 block mb-1">Your Name or Player Code</label>
-            <input className="input text-center text-xl font-bold tracking-widest uppercase"
-                   placeholder="e.g. CHICK42 or your name"
-                   value={playerCode} onChange={e => setPlayerCode(e.target.value.toUpperCase())} />
+            <label className="text-sm text-white/50 block mb-1">Your Name, Email, or Player Code</label>
+            <input className="input text-center text-xl font-bold tracking-widest"
+                   placeholder="e.g. CHICK42, your name, or parent email"
+                   value={playerCode} onChange={e => setPlayerCode(e.target.value)} />
           </div>
           <p className="text-white/30 text-xs text-center mb-4">
-            Lost your player code? Just type your name instead!
+            Lost your player code? A parent's email works too!
           </p>
 
           <label className="text-sm text-white/50 block mb-2">Your PIN</label>
