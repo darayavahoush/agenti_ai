@@ -214,7 +214,29 @@ def find_image(word: str) -> dict:
             matched_word = result[0]
             return {"path": str(DATA_DIR / _index[matched_word]), "word": matched_word, "confidence": result[1], "match_type": "fuzzy"}
 
-    # 3. Semantic match fallback (from existing index)
+    # 3. Live fetch from external image sources — each has a bounded
+    #    request timeout (6-8s), unlike semantic_match below which lazily
+    #    loads an ML model with no timeout. Ordered fastest/most-reliable
+    #    first: ARASAAC (free pictogram API, no key needed), then Pixabay
+    #    (needs PIXABAY_API_KEY, silently skipped otherwise), then a
+    #    DuckDuckGo image scrape as a last-resort live source. These were
+    #    previously defined but never called, so any word not already in
+    #    the local index fell straight to the slow semantic match or a
+    #    plain text-on-white-background placeholder instead of ever
+    #    actually fetching a real picture.
+    filename = fetch_from_arasaac(word)
+    if filename:
+        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 90, "match_type": "arasaac"}
+
+    filename = fetch_from_pixabay(word)
+    if filename:
+        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 85, "match_type": "pixabay"}
+
+    filename = fetch_from_web(word)
+    if filename:
+        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 75, "match_type": "web"}
+
+    # 4. Semantic match fallback (reuse the closest existing indexed image)
     matched = semantic_match(word)
     if matched:
         return {"path": str(DATA_DIR / _index[matched]), "word": matched, "confidence": 70, "match_type": "semantic"}

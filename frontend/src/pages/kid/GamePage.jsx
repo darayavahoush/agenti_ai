@@ -291,6 +291,27 @@ export default function GamePage() {
 
   useEffect(() => () => cleanup(), [])
 
+  // GamePage stays mounted when navigating from one level to the next
+  // (route param change only, e.g. clicking "Next Level" on the result
+  // screen) — React Router doesn't remount the component just because
+  // :levelId changed. `meta`/`nextId`/etc. are derived fresh from levelId
+  // each render, so the header and button labels update correctly, but
+  // `phase`/`result`/`earnedStars` are state and silently carried over
+  // from the level just finished. That left the result screen stuck
+  // showing the *previous* level's completion state forever — the header
+  // says the new level, but nothing ever actually starts it, and clicking
+  // "Next Level" again just advances levelId further without ever playing
+  // anything in between. Reset everything the same way `replay()` does
+  // whenever levelId changes (this also fires harmlessly on first mount).
+  useEffect(() => {
+    cleanup()
+    breathLog.current = []; eventBatch.current = []
+    metricsRef.current = { timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 }
+    setPhase('ready'); setResult(null); setStarAnim(0)
+    setEarnedStars(0); setErrorReason(null); setCalProgress(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelId])
+
   if (!meta) return <div className="text-white p-8">Unknown level</div>
 
   // Find next level

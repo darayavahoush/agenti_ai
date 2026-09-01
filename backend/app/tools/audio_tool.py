@@ -122,38 +122,35 @@ def vad_split(y: np.ndarray, sr: int) -> List[np.ndarray]:
 def select_child_segment(y: np.ndarray, sr: int) -> np.ndarray:
     segments = vad_split(y, sr)
 
-    from typing import Optional
+    # NOTE: this used to score every VAD-detected segment and keep only the
+    # single highest-scoring one, discarding the rest outright. The score
+    # formula (energy*100 + pitch*0.35 - duration*0.5) is almost entirely
+    # driven by average energy -- duration barely moves it -- so a short,
+    # loud transient (a mic click/pop at the start of the recording, a
+    # cough, a tap sound) reliably outscored the child's actual (quieter,
+    # longer) word. Whenever VAD also happened to split one continuous
+    # word into two chunks around a natural micro-pause, keeping only the
+    # "best" chunk meant transcribing a fragment of the word instead of
+    # the whole thing -- e.g. only catching "eigh-" or a stray "uh" for a
+    # child who clearly said "eight", which is exactly the truncated,
+    # nonsensical single-phoneme detections being reported.
+    #
+    # Fix: keep every VAD segment that's long enough to plausibly be
+    # speech (the existing 1600-sample / 0.1s floor) and concatenate them
+    # in order, so the full utterance survives instead of only its
+    # loudest fragment. VAD's job is already to strip silence/noise gaps
+    # between speech; this just stops us from throwing away real speech
+    # segments it correctly found.
+    valid_segments = [audio for audio in segments if len(audio) >= 1600]
 
-    best_audio: Optional[np.ndarray] = None
-    best_score = -999
-
-    for audio in segments:
-        if len(audio) < 1600:
-            continue
-
-        # energy
-        energy = np.mean(librosa.feature.rms(y=audio))
-
-        # pitch
-        pitches, _ = librosa.piptrack(y=audio, sr=sr)
-        pitch_vals = pitches[pitches > 0]
-        pitch = np.mean(pitch_vals) if len(pitch_vals) else 0
-
-        duration = len(audio) / sr
-
-        # 🎯 CHILD HEURISTIC
-        # Prefer strong, voiced segments and avoid tiny noise bursts.
-        score = (energy * 100) + (pitch * 0.35) - (duration * 0.5)
-
-        if score > best_score:
-            best_score = score
-            best_audio = audio
-
-    if best_audio is None:
+    if not valid_segments:
         return y
 
-    logger.info(f"🎯 Selected segment score: {best_score:.2f}")
-    return best_audio
+    if len(valid_segments) == 1:
+        return valid_segments[0]
+
+    logger.info(f"🎯 Merging {len(valid_segments)} detected speech segments into one utterance")
+    return np.concatenate(valid_segments)
 
 
 # ---------------------------------------------------
