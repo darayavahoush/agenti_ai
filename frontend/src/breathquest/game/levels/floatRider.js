@@ -102,9 +102,12 @@ export function createFloatRiderLevel() {
       if (worldX >= FINISH_X && !complete) complete = true
       if (complete) {
         completeTimer += dt
-        if (completeTimer > 1.0) {
+        if (completeTimer > 0.7) {
           const stars = score >= N_RINGS ? 3 : score >= Math.ceil(N_RINGS * 0.6) ? 2 : 1
-          return { stars, message: score >= N_RINGS ? 'Perfect flight! ⭐ All rings!' : `Got ${score}/${N_RINGS} rings! 🪁` }
+          return {
+            stars, targetHits: score, mistakes: N_RINGS - score,
+            message: score >= N_RINGS ? 'Perfect flight! ⭐ All rings!' : `Got ${score}/${N_RINGS} rings! 🪁`,
+          }
         }
       }
       return null

@@ -176,7 +176,11 @@ export default function GamePage() {
     if (res.puffs      !== undefined) m.puffs      = res.puffs
     m.progress = 1
 
-    const stars = calcStars(levelId, m)
+    // Levels that compute their own performance-based star count (all six
+    // now do) are authoritative — they have domain knowledge calcStars can't
+    // reconstruct from generic metrics. calcStars is the fallback for a level
+    // that doesn't report its own stars.
+    const stars = res.stars ?? calcStars(levelId, m)
     saveScore(levelId, stars)
     setEarnedStars(stars)
     setResult(res)
