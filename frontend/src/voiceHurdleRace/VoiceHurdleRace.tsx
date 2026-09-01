@@ -5,6 +5,8 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useSpokenInstruction } from '../lib/speech';
+
 import { AudioProcessor } from './audio/AudioProcessor';
 import { PitchDetector } from './audio/PitchDetector';
 import { LoudnessDetector } from './audio/LoudnessDetector';
@@ -101,6 +103,19 @@ export default function VoiceHurdleRace() {
   // than mirrored into local state via an internal login screen.
   const { patient } = useAuth();
   const navigate = useNavigate();
+
+  // Speak the "how to play" instructions once each time the ready screen
+  // is (re-)shown — every other game screen in the app does this via
+  // useSpokenInstruction (RocketLaunch, LionsRoar, GamePage, etc.); this
+  // screen never had it wired in at all, which is why no narration was
+  // ever heard here. Spoken text is written out separately from the
+  // emoji-and-newline visual copy on the StartPanel below, since TTS
+  // engines read emoji unpredictably (skipped, or spelled out) and don't
+  // pause on a bare '\n'.
+  const replayHowToPlay = useSpokenInstruction(
+    'Speak louder to run faster. Say it in a higher voice to jump over the hurdle!',
+    { enabled: !isStarted && !isGameOver },
+  );
 
 
   /* ============================================================
@@ -740,6 +755,27 @@ export default function VoiceHurdleRace() {
             }
           />
         )}
+
+      {!isStarted && !isGameOver && (
+        <div style={{ textAlign: 'center', marginTop: -18 }}>
+          <button
+            onClick={replayHowToPlay}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7c3aed',
+              opacity: 0.7,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              padding: '8px 12px',
+            }}
+            aria-label="Hear the instructions again"
+          >
+            🔊 Hear this again
+          </button>
+        </div>
+      )}
 
 
       {/* ======================================================
