@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, getErrorMessage, verifyAPI } from '../../api/client'
 import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
@@ -32,6 +32,8 @@ function Field({ icon: Icon, rightElement, ...props }) {
 
 export default function ParentAuth() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
   const { loginParent, registerParent, loginParentGoogle, registerParentGoogle } = useAuth()
   const [mode, setMode] = useState('login')
   const [codeType, setCodeType] = useState('player_code')
@@ -48,6 +50,7 @@ export default function ParentAuth() {
   // confirms the code. Separate panel from the player-code recovery
   // above -- different problem, different backend endpoint.
   const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resumedAfterVerify, setResumedAfterVerify] = useState(false)
   const [forgotStep, setForgotStep] = useState('request') // request | verify | done
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotCode, setForgotCode] = useState('')
@@ -78,6 +81,7 @@ export default function ParentAuth() {
       setMode('register')
       setCodeType('new_child')
       setForm((f) => ({ ...f, ...pending, password: '' }))
+      setResumedAfterVerify(true)
     } catch {
       // Malformed/stale entry -- ignore rather than block the page.
     } finally {
@@ -282,13 +286,25 @@ export default function ParentAuth() {
           <div className="bg-ink-light border border-white/10 rounded-3xl p-8">
             <div className="flex bg-ink rounded-xl p-1 mb-6 border border-white/10">
               {['login', 'register'].map(m => (
-                <button key={m} type="button" onClick={() => { setMode(m); setError('') }}
+                <button key={m} type="button" onClick={() => { setMode(m); setError(''); setResumedAfterVerify(false) }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all
                     ${mode === m ? 'bg-coral text-paper shadow-sm' : 'text-paper/50 hover:text-paper'}`}>
                   {m === 'login' ? 'Sign In' : 'Register'}
                 </button>
               ))}
             </div>
+
+            {resumedAfterVerify && (
+              <div className="bg-mint/10 border border-mint/30 rounded-xl px-4 py-3 text-sm text-mint-light mb-5">
+                Email verified! Your details are saved below — just re-enter your password to finish creating your account.
+              </div>
+            )}
+
+            {!resumedAfterVerify && sessionExpired && mode === 'login' && (
+              <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-sm text-coral-light mb-5">
+                You were signed out after a while — sign in again to continue.
+              </div>
+            )}
 
             {mode === 'login' && (
               <>
@@ -365,22 +381,24 @@ export default function ParentAuth() {
                     </>
                   )}
 
-                  <Field icon={User} type="text" placeholder="Your name (optional)"
+                  <Field icon={User} type="text" placeholder="Your name (optional)" autoComplete="name"
                     value={form.fullName} onChange={update('fullName')} />
                   {/* Required for new_child (dual-factor parental consent) --
                       optional otherwise, since no SMS provider is wired up
                       yet for those paths and phone was never enforced. */}
-                  <Field icon={Phone} type="tel" required={codeType === 'new_child'}
+                  <Field icon={Phone} type="tel" required={codeType === 'new_child'} autoComplete="tel"
                     placeholder={codeType === 'new_child' ? 'Your phone number' : 'Phone (optional)'}
                     value={form.phone} onChange={update('phone')} />
                 </>
               )}
-              <Field icon={Mail} type="email" required placeholder="Email"
+              <Field icon={Mail} type="email" required placeholder="Email" autoComplete="email"
                 value={form.email} onChange={update('email')} />
               <Field
                 icon={Lock}
                 type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
+                autoFocus={resumedAfterVerify}
                 placeholder="Password"
                 value={form.password}
                 onChange={update('password')}

@@ -1064,6 +1064,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
               </div>
               <input
                 type="email"
+                autoComplete="email"
                 value={emailAddress}
                 onChange={(e) => {
                   setEmailAddress(e.target.value);

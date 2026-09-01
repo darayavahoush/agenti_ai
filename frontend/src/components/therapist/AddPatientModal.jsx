@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { patientsAPI, getErrorMessage } from '../../api/client'
 import { Button, Input } from '../ui'
+import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 // Name + accent per avatar — previously this picker was just six identical
 // grey squares with an emoji in them, no name, no color, nothing to make
@@ -111,6 +113,20 @@ export default function AddPatientModal({ onClose, onAdded }) {
   // so there was never a moment to show this to the therapist at all.
   const [created, setCreated] = useState(null)
 
+  // Only warn once they've actually typed something -- avatar alone
+  // defaults to 'chick', so picking nothing shouldn't trigger a prompt.
+  const isDirty = !created && (
+    form.first_name.trim() !== '' || form.pin !== '' || form.age !== '' || form.diagnosis_notes.trim() !== ''
+  )
+  useUnsavedChangesWarning(isDirty)
+
+  const handleClose = () => {
+    if (isDirty && !window.confirm("Discard this patient's info? What you've entered so far will be lost.")) {
+      return
+    }
+    onClose()
+  }
+
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const submit = async (e) => {
@@ -146,10 +162,12 @@ export default function AddPatientModal({ onClose, onAdded }) {
     }
   }
 
+  useEscapeKey(created ? finishUp : handleClose)
+
   if (created) {
     const char = CHAR_BY_ID[created.avatar]
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Patient added">
         <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6 text-center">
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center text-5xl mx-auto mb-4 motion-safe:animate-float"
@@ -182,11 +200,11 @@ export default function AddPatientModal({ onClose, onAdded }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Add new patient">
       <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">Add New Patient</h2>
-          <button onClick={onClose} className="text-white/40 hover:text-white text-2xl leading-none">×</button>
+          <button onClick={handleClose} className="text-white/40 hover:text-white text-2xl leading-none">×</button>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -214,7 +232,7 @@ export default function AddPatientModal({ onClose, onAdded }) {
           )}
 
           <div className="flex gap-3 mt-2">
-            <Button variant="ghost" className="flex-1" type="button" onClick={onClose}>Cancel</Button>
+            <Button variant="ghost" className="flex-1" type="button" onClick={handleClose}>Cancel</Button>
             <Button className="flex-1" type="submit" disabled={loading}>
               {loading ? 'Adding…' : 'Add Patient'}
             </Button>

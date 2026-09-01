@@ -48,7 +48,15 @@ export default function ChimeHome() {
         setPassed(p)
         setUnlocked(getUnlockedLevels(p))
       })
-      .catch(() => { if (!cancelled) { setPassed({}); setUnlocked({ aa: true }) } }) // fail-safe: first game only
+      .catch(err => {
+        // Fail-safe: first game only. This used to swallow the error
+        // completely, so a kid stuck on "only Rocket Launch unlocks" gave
+        // no clue whether /chime/events was 401ing, 500ing, or just
+        // timing out — logging it here is the fastest way to tell those
+        // apart from the browser console next time it happens.
+        console.error('ChimeHome: getPassedLevels failed, falling back to first-game-only unlock', err)
+        if (!cancelled) { setPassed({}); setUnlocked({ aa: true }) }
+      })
 
     // Play counts — same events list getPassedLevels already fetches, just
     // tallied per level instead of reduced to pass/fail, so cards can show
