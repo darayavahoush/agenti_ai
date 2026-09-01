@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
-import { getPhonemeCue } from './data/phonemeCues.js'
+import { getPhonemeCue, getSpokenForm } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
@@ -88,7 +88,7 @@ export default function LipSyncHero() {
     hasMovedRef.current = false
     movementStreakRef.current = 0
     tierStabilizerRef.current.reset()
-    speakSound(sound.label)
+    speakSound(getSpokenForm(sound.id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, baselineSpread, complete])
 
@@ -450,7 +450,7 @@ export default function LipSyncHero() {
                     <MouthShapeGuide shape={current.shape} manner={current.manner} tier={tier} className="w-full h-full" />
                   </div>
                   <button
-                    onClick={() => speakSound(current.label)}
+                    onClick={() => speakSound(getSpokenForm(current.id))}
                     className="w-16 h-16 shrink-0 rounded-2xl bg-coral/15 border border-coral/30 flex items-center justify-center hover:bg-coral/25 transition-colors"
                     aria-label="Hear this sound again"
                   >
