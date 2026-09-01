@@ -617,6 +617,18 @@ class BreathQuestLevelScore(BaseModel):
     last_played: datetime | None = None
 
 
+class GameSummary(BaseModel):
+    """One world's at-a-glance summary for GET /me/games-summary, keyed by
+    the same app ids GamePicker.jsx already uses ('breathquest',
+    'vaakmirror', 'chime', 'voice-hurdle-race', 'flashcards'). stars/max_stars
+    are omitted (None) for games without a per-level star concept -- the
+    frontend falls back to showing just a play count for those."""
+    last_played: datetime | None = None
+    stars: int | None = None
+    max_stars: int | None = None
+    plays: int = 0
+
+
 class KidHistoryEntry(BaseModel):
     """One row in the kid's own combined assessment+game timeline
     (GET /me/history). Same no-scores, no-clinical-language ethos as
