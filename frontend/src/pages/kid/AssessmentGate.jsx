@@ -16,6 +16,22 @@ import Assessment from '../../assessment/Assessment'
 // or go look at history -- rather than auto-redirecting either way. On
 // finish, marks the kid's account assessment_completed and routes to the
 // report/paywall screen as before.
+// Everything except the assessment route itself is locked while it's
+// incomplete -- ProtectedKid (App.jsx) already enforces this server-side
+// by bouncing any other /play/* route back here, but the sidebar
+// previously gave no visual hint of that, so tapping "Games" (or any
+// other item) just silently teleported a kid right back to this same
+// screen with no explanation. Marking them locked here shows *why*
+// right at the point a kid would tap, instead of after the fact.
+function lockedSidebarItems(assessmentCompleted) {
+  if (assessmentCompleted) return KID_SIDEBAR_ITEMS // gate only applies pre-completion
+  return KID_SIDEBAR_ITEMS.map((item) =>
+    item.to === '/assessment'
+      ? item
+      : { ...item, locked: true, lockedHint: "Finish your check-in first, then this unlocks!" }
+  )
+}
+
 export default function AssessmentGate() {
   const navigate = useNavigate()
   const { patient, markAssessmentComplete, logout } = useAuth()
@@ -65,7 +81,7 @@ export default function AssessmentGate() {
   if (state.status === 'assessment') {
     return (
       <div className="flex min-h-screen">
-        <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+        <Sidebar role="kid" items={lockedSidebarItems(patient?.assessment_completed)} name={patient?.first_name} onLogout={logout} />
         <div className="flex-1">
           <Assessment
             authedPatientId={state.data.assessment_patient_id}
@@ -87,7 +103,7 @@ export default function AssessmentGate() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <Sidebar role="kid" items={lockedSidebarItems(patient?.assessment_completed)} name={patient?.first_name} onLogout={logout} />
       <div
         className="flex-1 flex items-center justify-center px-6 py-12 relative overflow-hidden"
         style={{ background: 'linear-gradient(160deg, #2A1F5C 0%, #4A2E6E 45%, #6B3A5E 100%)' }}
@@ -157,7 +173,7 @@ export default function AssessmentGate() {
               ? onCooldown
                 ? `You can take it again on ${retakeDateLabel}. 📅`
                 : "You can retake the assessment whenever you're ready. 💪"
-              : "You'll answer a few speaking prompts into the mic -- about 5 minutes, no wrong answers. It's totally free, no payment needed. 🚀"}
+              : "You'll answer a few speaking prompts into the mic -- about 5 minutes, no wrong answers. It's totally free, no payment needed. Finish it up and all the games unlock! 🚀"}
           </p>
         </div>
 
