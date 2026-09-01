@@ -345,9 +345,10 @@ export default function LipSyncHero() {
           <Volume2 size={16} className="text-mint shrink-0 mt-0.5" />
           <p className="text-xs text-paper/60 leading-relaxed">
             Sounds are read aloud by your browser's built-in voice, not real
-            phoneme recordings — for single letters it usually says the letter
-            name (e.g. "ess" for s) rather than the isolated sound, so treat it
-            as a cue tied to the target shown, not a pronunciation guide.
+            phoneme recordings — single letters are approximated phonics-style
+            (e.g. "sss" for s, "tuh" for t) rather than a true isolated sound,
+            so treat it as a cue tied to the target shown, not a
+            pronunciation guide.
           </p>
         </div>
 
