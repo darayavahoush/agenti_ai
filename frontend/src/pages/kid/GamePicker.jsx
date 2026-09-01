@@ -4,66 +4,9 @@ import { TrendingUp, Volume2, Sparkles, Mic, ArrowRight, Star } from 'lucide-rea
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Sidebar } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
+import { KID_GAMES } from '../../lib/kidGames'
 import { speak } from '../../lib/speech'
 import { meAPI } from '../../api/client'
-
-const APPS = [
-  {
-    id: 'breathquest',
-    name: 'BreathQuest',
-    emoji: '🐉',
-    desc: 'Breath-controlled adventures — 6 levels',
-    path: '/play/levels',
-    accent: '#FF9B54',
-    accentSoft: 'rgba(255,155,84,0.14)',
-    glow: 'rgba(255,155,84,0.35)',
-    motif: 'flame',
-  },
-  {
-    id: 'vaakmirror',
-    name: 'Orpheus',
-    emoji: '🪞',
-    desc: 'Mouth & tongue mirror games — 3 games',
-    path: '/play/vaakmirror',
-    accent: '#2FB8A6',
-    accentSoft: 'rgba(47,184,166,0.14)',
-    glow: 'rgba(47,184,166,0.35)',
-    motif: 'ripple',
-  },
-  {
-    id: 'chime',
-    name: 'Chime',
-    emoji: '🔔',
-    desc: 'Say the word, build a village',
-    path: '/play/chime',
-    accent: '#F0604A',
-    accentSoft: 'rgba(240,96,74,0.14)',
-    glow: 'rgba(240,96,74,0.35)',
-    motif: 'pulse',
-  },
-  {
-    id: 'voice-hurdle-race',
-    name: 'Voice Hurdle Race',
-    emoji: '🐶',
-    desc: 'Use your voice to jump hurdles',
-    path: '/play/voice-hurdle-race',
-    accent: '#60A5FA',
-    accentSoft: 'rgba(96,165,250,0.14)',
-    glow: 'rgba(96,165,250,0.35)',
-    motif: 'ripple',
-  },
-  {
-    id: 'flashcards',
-    name: 'Flashcards',
-    emoji: '🗂️',
-    desc: 'Practice words with picture cards',
-    path: '/play/flashcards',
-    accent: '#A78BFA',
-    accentSoft: 'rgba(167,139,250,0.14)',
-    glow: 'rgba(167,139,250,0.35)',
-    motif: 'pulse',
-  },
-]
 
 // Fixed positions so the starfield doesn't reshuffle on every render.
 const STARS = [
@@ -226,7 +169,7 @@ export default function GamePicker() {
     : null
   const replayGreeting = () => { if (spokenGreeting) speak(spokenGreeting) }
 
-  const lastRowCount = APPS.length % 3 || 3
+  const lastRowCount = KID_GAMES.length % 3 || 3
 
   return (
     <div className="flex min-h-screen">
@@ -276,9 +219,9 @@ export default function GamePicker() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {APPS.map((app, i) => {
-              const isLastRow = i >= APPS.length - lastRowCount
-              const isWide = lastRowCount === 2 && i === APPS.length - 1
+            {KID_GAMES.map((app, i) => {
+              const isLastRow = i >= KID_GAMES.length - lastRowCount
+              const isWide = lastRowCount === 2 && i === KID_GAMES.length - 1
               return (
                 <button
                   key={app.id}
