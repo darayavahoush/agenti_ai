@@ -4,7 +4,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { LEVELS, LevelProgress, getLevelProgress } from './levels';
+import { LEVELS, LevelProgress, getLevelProgress, mergeServerProgress } from './levels';
+import { voiceHurdleRaceApi } from '../api/voiceHurdleRaceApi';
 import { Badge, StarRating, Button } from '../components/ui';
 import { Sidebar } from '../components/ui';
 import { KID_SIDEBAR_ITEMS } from '../lib/kidSidebarItems';
@@ -27,7 +28,15 @@ export default function LevelSelection({ onSelectLevel, onBack }: LevelSelection
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   useEffect(() => {
-    setLevelProgress(getLevelProgress());
+    // Show whatever this browser already has immediately (no loading
+    // flicker), then reconcile with the server's real session history —
+    // see mergeServerProgress for why local-only was never enough on
+    // its own.
+    const local = getLevelProgress();
+    setLevelProgress(local);
+    voiceHurdleRaceApi.getMySessions()
+      .then((sessions) => setLevelProgress(mergeServerProgress(local, sessions)))
+      .catch(() => {}); // offline/error: keep whatever localStorage had
   }, []);
 
   const totalStars = levelProgress.reduce((sum, p) => sum + (p.stars || 0), 0);
