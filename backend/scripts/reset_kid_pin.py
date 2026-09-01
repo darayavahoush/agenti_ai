@@ -20,6 +20,9 @@ from sqlalchemy import select
 from app.database import AsyncSessionLocal
 from app.breathquest_core.security import hash_pin
 from app.models.breathquest_models import BreathQuestPatient
+import app.models.patient  # noqa: F401 -- registers `patients` table so the
+                            # assessment_patient_id FK on BreathQuestPatient
+                            # resolves at commit time; unused directly here.
 
 
 async def main(player_code: str, pin: str):
