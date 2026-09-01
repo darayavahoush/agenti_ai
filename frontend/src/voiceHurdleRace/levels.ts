@@ -269,6 +269,52 @@ export const saveLevelProgress = (
 
 
 /* ============================================================
+   MERGE SERVER PROGRESS
+   Sessions are already durably stored server-side via
+   voiceHurdleRaceApi.createVoiceHurdleRaceSession on every completed
+   race (see VoiceHurdleRace.tsx), but nothing ever read them back —
+   getLevelProgress() below is purely localStorage, so a new device,
+   cleared browser, or private/incognito mode silently resets a kid
+   to level 1 even though the server remembers every session. This
+   reconciles localStorage (fast, available immediately) with the
+   server's session history (authoritative), keeping the best stars
+   from either and unlocking anything the server shows as completed.
+============================================================ */
+
+export const mergeServerProgress = (
+  local: LevelProgress[],
+  sessions: { level_id: number; stars: number }[]
+): LevelProgress[] => {
+  const bestServerStars: Record<number, number> = {};
+  for (const s of sessions) {
+    bestServerStars[s.level_id] = Math.max(
+      bestServerStars[s.level_id] ?? 0,
+      s.stars
+    );
+  }
+
+  const merged = local.map((p) => {
+    const serverStars = bestServerStars[p.levelId];
+    if (serverStars === undefined) return p;
+    return {
+      ...p,
+      stars: Math.max(p.stars, serverStars),
+      completed: p.completed || serverStars > 0,
+    };
+  });
+
+  // Re-derive unlocks from the merged (local-or-server) completion state,
+  // same sequential rule updateLevelProgress uses.
+  merged.forEach((p, i) => {
+    if (i === 0) { p.unlocked = true; return; }
+    if (merged[i - 1].completed) p.unlocked = true;
+  });
+
+  return merged;
+};
+
+
+/* ============================================================
    UPDATE PROGRESS
 ============================================================ */
 
