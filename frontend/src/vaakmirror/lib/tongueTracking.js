@@ -241,6 +241,12 @@ export function scoreTongueMove(metrics, target, elevationOffset = 0, lateralOff
   // target.cavityDarkness is optional, same pattern as target.lateral —
   // omitting it means retraction isn't scored at all, so every existing
   // move (which doesn't set it) is completely unaffected by this axis.
+  // Weighted at half of the other axes: this is the least-validated
+  // metric in the file (see the module comment above and the tongue-back
+  // comment in tongueMoves.js) and lighting/skin-tone drift can keep a
+  // correctly-performed move from ever reading enough darkness — halving
+  // its weight means visibility+elevation can still carry a good attempt
+  // to green even when cavityDarkness itself reads lower than expected.
   let cavityDist = 0
   if (target.cavityDarkness) {
     const adjustedCavity = [
@@ -248,7 +254,7 @@ export function scoreTongueMove(metrics, target, elevationOffset = 0, lateralOff
       Math.max(0, Math.min(1, target.cavityDarkness[1] + cavityOffset)),
     ]
     cavityDist =
-      metrics.cavityDarkness == null ? 0.3 : inRangeDist(metrics.cavityDarkness, adjustedCavity)
+      (metrics.cavityDarkness == null ? 0.3 : inRangeDist(metrics.cavityDarkness, adjustedCavity)) * 0.5
   }
 
   const distance = visDist + elevDist + lateralDist + cavityDist

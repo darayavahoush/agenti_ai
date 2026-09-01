@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, Volume2, Sparkles, Mic, ArrowRight } from 'lucide-react'
+import { TrendingUp, Volume2, Sparkles, Mic, ArrowRight, Star } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Sidebar } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { speak } from '../../lib/speech'
+import { meAPI } from '../../api/client'
 
 const APPS = [
   {
@@ -161,14 +162,61 @@ function greeting() {
   return 'Good evening'
 }
 
+// Short, kid-readable "how long ago" for a world's last-played timestamp --
+// deliberately coarse (today/yesterday/Nd ago/Nw ago) rather than an exact
+// date, matching the rest of this page's encouraging, low-precision tone.
+function timeAgo(iso) {
+  if (!iso) return null
+  const ms = Date.now() - new Date(iso).getTime()
+  const days = Math.floor(ms / 86400000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  return `${weeks}w ago`
+}
+
+// The small progress pill shown on each world card -- stars-with-a-cap
+// where that concept exists (BreathQuest), a bare star count where it
+// exists without a cap (Voice Hurdle Race), or just a play count for
+// games with no per-level star system (Orpheus, Chime, Flashcards). Cards
+// with zero recorded plays show nothing here, same as before this existed.
+function ProgressPill({ app, s, accent }) {
+  if (!s || (!s.plays && s.stars == null)) return null
+  return (
+    <div className="flex items-center gap-2 mt-2 text-xs">
+      {s.stars != null ? (
+        <span className="inline-flex items-center gap-1 font-semibold" style={{ color: accent }}>
+          <Star size={11} fill="currentColor" />
+          {s.stars}{s.max_stars ? `/${s.max_stars}` : ''}
+        </span>
+      ) : s.plays > 0 ? (
+        <span className="text-white/35">{s.plays} play{s.plays === 1 ? '' : 's'}</span>
+      ) : null}
+      {s.last_played && (
+        <span className="text-white/25">· {timeAgo(s.last_played)}</span>
+      )}
+    </div>
+  )
+}
+
 export default function GamePicker() {
   const { patient, logout } = useAuth()
   const navigate = useNavigate()
   const [mounted, setMounted] = useState(false)
+  const [summary, setSummary] = useState({})
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 30)
     return () => clearTimeout(t)
+  }, [])
+
+  // Per-world stars/plays/last-played for the cards below -- see
+  // GameSummary on the backend (routers/breathquest/kid_progress.py).
+  // Best-effort: a failed fetch just means cards render with no pill,
+  // same as before this existed.
+  useEffect(() => {
+    meAPI.gamesSummary().then(({ data }) => setSummary(data)).catch(() => {})
   }, [])
 
   // Manual tap-to-hear only, no auto-play — see Play.jsx for why nav/menu
@@ -270,9 +318,10 @@ export default function GamePicker() {
                           <div>
                             <h3 className="font-vm-display font-bold text-white text-lg mb-1">{app.name}</h3>
                             <p className="text-white/45 text-xs leading-relaxed">{app.desc}</p>
+                            <ProgressPill app={app} s={summary[app.id]} accent={app.accent} />
                           </div>
                           <span className="flex items-center gap-1 text-xs font-semibold shrink-0 transition-transform duration-300 group-hover:translate-x-1" style={{ color: app.accent }}>
-                            Play now <ArrowRight size={13} />
+                            {summary[app.id]?.plays > 0 ? 'Continue' : 'Play now'} <ArrowRight size={13} />
                           </span>
                         </div>
                       </>
@@ -282,9 +331,10 @@ export default function GamePicker() {
                           <GameIcon app={app} />
                         </div>
                         <h3 className="font-vm-display font-bold text-white text-lg mb-1.5">{app.name}</h3>
-                        <p className="text-white/45 text-xs leading-relaxed mb-6">{app.desc}</p>
-                        <span className="flex items-center gap-1 text-xs font-semibold transition-transform duration-300 group-hover:translate-x-1" style={{ color: app.accent }}>
-                          Play now <ArrowRight size={13} />
+                        <p className="text-white/45 text-xs leading-relaxed">{app.desc}</p>
+                        <ProgressPill app={app} s={summary[app.id]} accent={app.accent} />
+                        <span className="flex items-center gap-1 text-xs font-semibold transition-transform duration-300 group-hover:translate-x-1 mt-6" style={{ color: app.accent }}>
+                          {summary[app.id]?.plays > 0 ? 'Continue' : 'Play now'} <ArrowRight size={13} />
                         </span>
                       </div>
                     )}
