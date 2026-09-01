@@ -113,10 +113,16 @@ def transcribe(y: np.ndarray, sr: int, prompt: Optional[str] = None, language: s
         whisper_lang = LANGUAGE_CODES.get(language, "en")
         logger.info(f"🌐 Using Whisper language code: {whisper_lang}")
         
+        # `prompt` (the target word the child was asked to say) was being
+        # accepted as a parameter but never actually passed to Whisper --
+        # it was silently dropped, so short/ambiguous kid audio ("eight" vs
+        # noise) got no bias toward the expected word at all. initial_prompt
+        # nudges Whisper toward vocabulary matching the assessment target.
         segments, info = whisper_model.transcribe(
             tmp_path,
             language=whisper_lang,
-            beam_size=5
+            beam_size=5,
+            initial_prompt=prompt if prompt else None
         )
 
         text = " ".join(
