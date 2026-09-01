@@ -43,6 +43,7 @@ import {
 import {
   RaceTheme,
   CreatureType,
+  CREATURE_EMOJI,
   getTheme,
 } from './raceThemes';
 
@@ -753,6 +754,11 @@ export default function VoiceHurdleRace() {
             disabled={
               isStarting
             }
+            icon={
+              CREATURE_EMOJI[
+                getTheme(selectedLevel?.id ?? 1).creature
+              ]
+            }
           />
         )}
 
@@ -916,7 +922,10 @@ export default function VoiceHurdleRace() {
               {speedLabel(
                 gameState
                   ?.speedLevel ??
-                  'stopped'
+                  'stopped',
+                CREATURE_EMOJI[
+                  getTheme(selectedLevel?.id ?? 1).creature
+                ]
               )}
             </div>
 
@@ -997,7 +1006,10 @@ export default function VoiceHurdleRace() {
                 speedLabel(
                   gameState
                     ?.speedLevel ??
-                    'stopped'
+                    'stopped',
+                  CREATURE_EMOJI[
+                    getTheme(selectedLevel?.id ?? 1).creature
+                  ]
                 )
               }
               leftLabel="SOFT"
@@ -1022,7 +1034,7 @@ export default function VoiceHurdleRace() {
               status={
                 gameState
                   ?.isJumping
-                  ? '🐶 JUMP!'
+                  ? `${CREATURE_EMOJI[getTheme(selectedLevel?.id ?? 1).creature]} JUMP!`
                   : '↑ PITCH HIGHER'
               }
               leftLabel="LOW"
@@ -6560,6 +6572,7 @@ function StartPanel({
   onClick,
   error,
   disabled = false,
+  icon = '👽',
 }: {
   title: string;
   description: string;
@@ -6567,6 +6580,7 @@ function StartPanel({
   onClick: () => void;
   error?: string | null;
   disabled?: boolean;
+  icon?: string;
 }) {
   return (
     <div
@@ -6604,7 +6618,7 @@ function StartPanel({
             'drop-shadow(0 8px 7px rgba(0,0,0,.12))',
         }}
       >
-        🐶
+        {icon}
       </div>
 
       <h2
@@ -7092,8 +7106,8 @@ function GameOver({
           }}
         >
           {perfect
-            ? '🐶🏆'
-            : '🐶🏁'}
+            ? `${CREATURE_EMOJI[getTheme(level?.id ?? 1).creature]}🏆`
+            : `${CREATURE_EMOJI[getTheme(level?.id ?? 1).creature]}🏁`}
         </div>
 
         <h2
@@ -7275,17 +7289,18 @@ function speedLabel(
     | 'stopped'
     | 'slow'
     | 'normal'
-    | 'fast'
+    | 'fast',
+  creatureEmoji: string = '👽'
 ): string {
   switch (speed) {
     case 'fast':
       return '🚀 FAST!';
 
     case 'normal':
-      return '🐶 RUNNING';
+      return `${creatureEmoji} RUNNING`;
 
     case 'slow':
-      return '🐾 KEEP GOING';
+      return `${creatureEmoji} KEEP GOING`;
 
     default:
       return '🔊 USE YOUR VOICE';
