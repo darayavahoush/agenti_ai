@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Volume2 } from 'lucide-react'
-import { sessionsAPI, beaconPost } from '../../api/client'
+import { sessionsAPI, beaconPost, meAPI } from '../../api/client'
 import { BreathEngine } from '../../game/engine/BreathEngine.js'
 import { LEVEL_FACTORIES, LEVEL_META } from '../../game/index.js'
-import { calcStars, saveScore, loadScores, isUnlocked, LEVEL_ORDER } from '../../game/scoring/index.js'
+import { calcStars, saveScore, loadScores, mergeServerScores, isUnlocked, LEVEL_ORDER } from '../../game/scoring/index.js'
 import { getBreathAgentDecision, logBreathEvent } from '../../game/lib/api.js'
 import {
   DEFAULT_DIFFICULTY, applyAction, loadStoredDifficulty, saveStoredDifficulty,
@@ -41,8 +41,18 @@ export default function GamePage() {
   const [starAnim,    setStarAnim]    = useState(0)
   const [debug,       setDebug]       = useState({ raw: 0, floor: 0, above: 0, breath: 0 })
 
-  // Check unlock
-  const scores   = loadScores()
+  // Check unlock. Seeded from whatever this browser's localStorage cache
+  // already has so there's no loading flicker on a returning device, then
+  // reconciled against the server's real per-level history right after --
+  // a fresh device/cleared browser/private mode used to mean this cache
+  // was empty and every level looked locked again despite the server
+  // remembering everything (see mergeServerScores).
+  const [scores, setScores] = useState(() => loadScores())
+  useEffect(() => {
+    meAPI.breathquestLevelScores()
+      .then(({ data }) => setScores(mergeServerScores(data)))
+      .catch(() => {})
+  }, [])
   const unlocked = isUnlocked(levelId, scores)
   const bestStars = scores[levelId]?.stars || 0
 
@@ -290,6 +300,27 @@ export default function GamePage() {
   }
 
   useEffect(() => () => cleanup(), [])
+
+  // GamePage stays mounted when navigating from one level to the next
+  // (route param change only, e.g. clicking "Next Level" on the result
+  // screen) — React Router doesn't remount the component just because
+  // :levelId changed. `meta`/`nextId`/etc. are derived fresh from levelId
+  // each render, so the header and button labels update correctly, but
+  // `phase`/`result`/`earnedStars` are state and silently carried over
+  // from the level just finished. That left the result screen stuck
+  // showing the *previous* level's completion state forever — the header
+  // says the new level, but nothing ever actually starts it, and clicking
+  // "Next Level" again just advances levelId further without ever playing
+  // anything in between. Reset everything the same way `replay()` does
+  // whenever levelId changes (this also fires harmlessly on first mount).
+  useEffect(() => {
+    cleanup()
+    breathLog.current = []; eventBatch.current = []
+    metricsRef.current = { timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 }
+    setPhase('ready'); setResult(null); setStarAnim(0)
+    setEarnedStars(0); setErrorReason(null); setCalProgress(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelId])
 
   if (!meta) return <div className="text-white p-8">Unknown level</div>
 

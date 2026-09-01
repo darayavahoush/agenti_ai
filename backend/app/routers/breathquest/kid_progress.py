@@ -19,7 +19,7 @@ from app.retraining import data_store as chime_data_store
 from app.models.vaakmirror_models import VaakMirrorSession
 from app.models.flashcards_models import FlashcardAttempt
 from app.models.session import Session as AssessmentSession
-from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry
+from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary
 from app.breathquest_core.deps import get_current_patient
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
@@ -106,6 +106,126 @@ async def get_my_progress(
         games_played_this_week=games_played_this_week,
         current_streak_days=streak,
     )
+
+
+@router.get("/breathquest/level-scores", response_model=dict[str, BreathQuestLevelScore])
+async def get_my_breathquest_level_scores(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-level best stars + play count, keyed by level_id -- the server-side
+    source of truth for the level-unlock/best-star state that
+    game/scoring/index.js previously only kept in localStorage. That cache
+    silently reset on a new device, a cleared browser, or private/incognito
+    mode even though every completed GameSession was already recorded here;
+    this lets the frontend hydrate from the real history instead of trusting
+    whatever (if anything) survived in this browser."""
+    rows = (await db.execute(
+        select(
+            GameSession.level_id,
+            func.max(GameSession.stars_earned).label("best_stars"),
+            func.count(GameSession.id).label("plays"),
+            func.max(GameSession.started_at).label("last_played"),
+        )
+        .where(GameSession.patient_id == patient.id, GameSession.completed == True)
+        .group_by(GameSession.level_id)
+    )).all()
+
+    return {
+        (row.level_id.value if hasattr(row.level_id, "value") else row.level_id): BreathQuestLevelScore(
+            stars=int(row.best_stars or 0),
+            plays=int(row.plays or 0),
+            last_played=row.last_played,
+        )
+        for row in rows
+    }
+
+
+@router.get("/games-summary", response_model=dict[str, GameSummary])
+async def get_my_games_summary(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """At-a-glance per-world summary for GamePicker.jsx's game cards, which
+    used to be static text with no sense of progress or what was last
+    played -- a kid had to leave the picker entirely and open the separate
+    My Progress page (itself only cross-game totals) to see anything.
+    Keyed by the same app ids GamePicker.jsx already uses."""
+    summary: dict[str, GameSummary] = {}
+
+    # --- BreathQuest: reuse the same best-per-level aggregation as
+    # /me/breathquest/level-scores, just summed rather than kept per-level.
+    bq_rows = (await db.execute(
+        select(
+            func.max(GameSession.stars_earned).label("best_stars"),
+            func.max(GameSession.started_at).label("last_played"),
+        )
+        .where(GameSession.patient_id == patient.id, GameSession.completed == True)
+        .group_by(GameSession.level_id)
+    )).all()
+    bq_plays = (await db.execute(
+        select(func.count(GameSession.id)).where(GameSession.patient_id == patient.id)
+    )).scalar() or 0
+    summary["breathquest"] = GameSummary(
+        stars=sum(int(r.best_stars or 0) for r in bq_rows),
+        max_stars=LEVELS_PER_STAR_CAP * 3,
+        plays=bq_plays,
+        last_played=max((r.last_played for r in bq_rows), default=None),
+    )
+
+    # --- Orpheus (VaakMirror). No per-level star concept -- last-played +
+    # play count only, same as Chime/Flashcards below.
+    vm_last = (await db.execute(
+        select(func.max(VaakMirrorSession.started_at)).where(VaakMirrorSession.patient_id == str(patient.id))
+    )).scalar()
+    vm_plays = (await db.execute(
+        select(func.count(VaakMirrorSession.id)).where(VaakMirrorSession.patient_id == str(patient.id))
+    )).scalar() or 0
+    summary["vaakmirror"] = GameSummary(last_played=vm_last, plays=vm_plays)
+
+    # --- Chime. Sync SQLite I/O, threaded off per the same rule as
+    # /me/progress's chime_week query above.
+    chime_plays = await asyncio.to_thread(chime_data_store.count_events, patient.id, db_path=CHIME_DB_PATH)
+    chime_last = await asyncio.to_thread(chime_data_store.last_event_time, child_id=patient.id, db_path=CHIME_DB_PATH)
+    summary["chime"] = GameSummary(last_played=chime_last, plays=chime_plays)
+
+    # --- Voice Hurdle Race. Has a per-level `stars` column like BreathQuest,
+    # but no fixed level count on this side to compute a max_stars cap
+    # against, so stars is reported as a running total with no denominator --
+    # the frontend falls back to a bare count when max_stars is None.
+    vhr_rows = (await db.execute(
+        select(
+            func.max(VoiceHurdleRaceSession.stars).label("best_stars"),
+            func.max(VoiceHurdleRaceSession.created_at).label("last_played"),
+        )
+        .where(VoiceHurdleRaceSession.patient_id == patient.id)
+        .group_by(VoiceHurdleRaceSession.level_id)
+    )).all()
+    vhr_plays = (await db.execute(
+        select(func.count(VoiceHurdleRaceSession.id)).where(VoiceHurdleRaceSession.patient_id == patient.id)
+    )).scalar() or 0
+    summary["voice-hurdle-race"] = GameSummary(
+        stars=sum(int(r.best_stars or 0) for r in vhr_rows) if vhr_rows else None,
+        plays=vhr_plays,
+        last_played=max((r.last_played for r in vhr_rows), default=None),
+    )
+
+    # --- Flashcards. No per-level star concept -- group by session_id like
+    # /me/history does, so "plays" means playthroughs, not one per word.
+    fc_rows = (await db.execute(
+        select(
+            FlashcardAttempt.session_id,
+            func.max(FlashcardAttempt.created_at).label("played_at"),
+        )
+        .where(FlashcardAttempt.patient_id == patient.id)
+        .group_by(FlashcardAttempt.session_id)
+    )).all()
+    summary["flashcards"] = GameSummary(
+        plays=len(fc_rows),
+        last_played=max((r.played_at for r in fc_rows), default=None),
+    )
+
+    return summary
 
 
 @router.get("/history", response_model=list[KidHistoryEntry])
