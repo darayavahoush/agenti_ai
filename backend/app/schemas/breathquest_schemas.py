@@ -606,6 +606,17 @@ class KidProgressOut(BaseModel):
     current_streak_days: int
 
 
+class BreathQuestLevelScore(BaseModel):
+    """One level's best result for GET /me/breathquest/level-scores. Mirrors
+    the shape the frontend already keeps in localStorage (game/scoring/index.js's
+    `{stars, plays, lastPlayed}` per level) so the two can be merged directly --
+    this is the durable, cross-device source of truth that cache is meant to
+    mirror, not a competing shape."""
+    stars: int
+    plays: int
+    last_played: datetime | None = None
+
+
 class KidHistoryEntry(BaseModel):
     """One row in the kid's own combined assessment+game timeline
     (GET /me/history). Same no-scores, no-clinical-language ethos as
