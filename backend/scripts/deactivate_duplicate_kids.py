@@ -27,6 +27,11 @@ Run from backend/:
     python -m scripts.deactivate_duplicate_kids --name koyya    # dry run, just one group
     python -m scripts.deactivate_duplicate_kids --name koyya --confirm   # apply it
 
+    # override the heuristic when it picks the wrong row to keep --
+    # e.g. one duplicate already has real credentials handed to a tester:
+    python -m scripts.deactivate_duplicate_kids --name ananya --keep CHICK29           # dry run
+    python -m scripts.deactivate_duplicate_kids --name ananya --keep CHICK29 --confirm # apply
+
 Prints nothing sensitive -- no PINs, parent_email is partially masked.
 """
 import argparse
@@ -54,7 +59,7 @@ def _mask_email(email: str | None) -> str:
     return f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}@{domain}"
 
 
-async def main(name_filter: str | None, confirm: bool):
+async def main(name_filter: str | None, confirm: bool, keep_override: str | None):
     async with AsyncSessionLocal() as db:
         patients = (
             await db.execute(
@@ -85,16 +90,29 @@ async def main(name_filter: str | None, confirm: bool):
         print("No matching duplicate-name groups found among active accounts.")
         return
 
+    if keep_override and len(dupes) != 1:
+        raise SystemExit("--keep requires --name to target exactly one group (it's ambiguous otherwise).")
+
     to_deactivate: list[BreathQuestPatient] = []
 
     for name, rows in dupes.items():
-        any_activity = any(last_activity.get(p.id) is not None for p in rows)
-        if any_activity:
-            keep = max(rows, key=lambda p: (last_activity.get(p.id) is not None, last_activity.get(p.id) or p.created_at))
-            reason = "most recent activity"
+        if keep_override:
+            matches = [p for p in rows if p.player_code == keep_override.strip().upper()]
+            if not matches:
+                raise SystemExit(
+                    f"--keep player_code={keep_override!r} not found among the {name!r} group's "
+                    f"active accounts ({', '.join(p.player_code for p in rows)})."
+                )
+            keep = matches[0]
+            reason = f"forced via --keep {keep.player_code}"
         else:
-            keep = min(rows, key=lambda p: p.created_at)
-            reason = "no rows have any sessions -- keeping earliest-created"
+            any_activity = any(last_activity.get(p.id) is not None for p in rows)
+            if any_activity:
+                keep = max(rows, key=lambda p: (last_activity.get(p.id) is not None, last_activity.get(p.id) or p.created_at))
+                reason = "most recent activity"
+            else:
+                keep = min(rows, key=lambda p: p.created_at)
+                reason = "no rows have any sessions -- keeping earliest-created"
 
         print(f"=== {name!r} ({len(rows)} active accounts) -- keeping by: {reason} ===")
         for p in rows:
@@ -131,5 +149,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", help="Only process this one duplicate-name group (case-insensitive)")
     parser.add_argument("--confirm", action="store_true", help="Actually apply the deactivation (default: dry run)")
+    parser.add_argument("--keep", help="Force this player_code to be the one kept, overriding the heuristic. Requires --name.")
     args = parser.parse_args()
-    asyncio.run(main(args.name, args.confirm))
+    asyncio.run(main(args.name, args.confirm, args.keep))
