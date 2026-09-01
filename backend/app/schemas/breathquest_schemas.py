@@ -111,7 +111,8 @@ class KidPinSetupRequest(BaseModel):
 
 class KidLoginRequest(BaseModel):
     # This field remains named player_code for API compatibility. The login
-    # endpoint also accepts the child's registered first name as its value.
+    # endpoint also accepts the child's registered first name, or the
+    # parent's email on file, as its value -- see kid_login's docstring.
     player_code: str
     pin: str
 
@@ -119,7 +120,7 @@ class KidLoginRequest(BaseModel):
     def login_identifier_present(cls, v):
         v = v.strip()
         if not v:
-            raise ValueError("Enter your name or player code")
+            raise ValueError("Enter your name, email, or player code")
         return v
 
     @validator("pin")

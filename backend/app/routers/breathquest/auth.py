@@ -439,7 +439,14 @@ async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession 
 async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     # Player codes remain supported for children who already have one. Names
     # are matched without regard to case so children can use their registered
-    # name together with their PIN.
+    # name together with their PIN. first_name has no uniqueness constraint
+    # (see scripts/find_duplicate_kid_names.py) -- two kids sharing a name is
+    # a real, observed case, and a forgotten/never-known player_code left
+    # name+PIN as the only fallback, which can't disambiguate on its own.
+    # parent_email closes that gap: it's the one thing a parent reliably
+    # remembers, and (mostly) narrows straight to one child even when the
+    # name doesn't. Siblings sharing a parent_email still resolve correctly
+    # below since the PIN filter runs after this match either way.
     identifier = data.player_code.strip()
 
     # Throttle check happens before touching pin_hash at all -- a locked-out
@@ -457,17 +464,19 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         select(BreathQuestPatient).where(
             (BreathQuestPatient.player_code == identifier.upper())
             | (func.lower(BreathQuestPatient.first_name) == identifier.lower())
+            | (func.lower(BreathQuestPatient.parent_email) == identifier.lower())
         )
     )
     patients = result.scalars().all()
 
-    # More than one child can have the same name. The PIN identifies the
-    # matching account; their player code remains a fallback for a collision.
+    # More than one child can share a name or a parent email. The PIN
+    # identifies the matching account; player code remains the fallback for
+    # a genuine collision (same identifier AND same PIN across accounts).
     matching_patients = [patient for patient in patients if verify_pin(data.pin, patient.pin_hash)]
     if not matching_patients:
         await record_failure(identifier, db)
         await db.commit()
-        raise HTTPException(status_code=401, detail="Incorrect name, player code, or PIN")
+        raise HTTPException(status_code=401, detail="Incorrect name, email, player code, or PIN")
     if len(matching_patients) > 1:
         raise HTTPException(status_code=409, detail="More than one player matches. Please use your player code.")
 
