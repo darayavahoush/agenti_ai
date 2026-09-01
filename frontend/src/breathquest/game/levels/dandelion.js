@@ -38,6 +38,7 @@ export function createDandelionLevel() {
   let puffCd     = 0
   let done       = false
   let doneTimer  = 0
+  let finishT    = null   // elapsed time when the 20th seed was collected
   const dandelions = []
   const seeds      = []
   const scoreFloats = []
@@ -80,9 +81,14 @@ export function createDandelionLevel() {
       ps.update(dt)
 
       if (collected >= SEEDS_NEEDED && !done) {
+        if (finishT === null) finishT = t
         doneTimer += dt
-        if (doneTimer > 0.8) done = true
-        return done ? { stars:3, message:'Seeds everywhere! Magical! 🌼' } : null
+        if (doneTimer > 0.7) done = true
+        if (done) {
+          const stars = finishT <= 8 ? 3 : finishT <= 15 ? 2 : 1
+          return { stars, targetHits: collected, message:'Seeds everywhere! Magical! 🌼' }
+        }
+        return null
       }
       return null
     },
