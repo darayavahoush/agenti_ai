@@ -19,7 +19,7 @@ from app.retraining import data_store as chime_data_store
 from app.models.vaakmirror_models import VaakMirrorSession
 from app.models.flashcards_models import FlashcardAttempt
 from app.models.session import Session as AssessmentSession
-from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry
+from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry, BreathQuestLevelScore
 from app.breathquest_core.deps import get_current_patient
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
@@ -106,6 +106,39 @@ async def get_my_progress(
         games_played_this_week=games_played_this_week,
         current_streak_days=streak,
     )
+
+
+@router.get("/breathquest/level-scores", response_model=dict[str, BreathQuestLevelScore])
+async def get_my_breathquest_level_scores(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-level best stars + play count, keyed by level_id -- the server-side
+    source of truth for the level-unlock/best-star state that
+    game/scoring/index.js previously only kept in localStorage. That cache
+    silently reset on a new device, a cleared browser, or private/incognito
+    mode even though every completed GameSession was already recorded here;
+    this lets the frontend hydrate from the real history instead of trusting
+    whatever (if anything) survived in this browser."""
+    rows = (await db.execute(
+        select(
+            GameSession.level_id,
+            func.max(GameSession.stars_earned).label("best_stars"),
+            func.count(GameSession.id).label("plays"),
+            func.max(GameSession.started_at).label("last_played"),
+        )
+        .where(GameSession.patient_id == patient.id, GameSession.completed == True)
+        .group_by(GameSession.level_id)
+    )).all()
+
+    return {
+        (row.level_id.value if hasattr(row.level_id, "value") else row.level_id): BreathQuestLevelScore(
+            stars=int(row.best_stars or 0),
+            plays=int(row.plays or 0),
+            last_played=row.last_played,
+        )
+        for row in rows
+    }
 
 
 @router.get("/history", response_model=list[KidHistoryEntry])

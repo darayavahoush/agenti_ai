@@ -282,6 +282,7 @@ export const vaakmirrorAPI = {
 export const meAPI = {
   progress:        () => api.get('/me/progress'),
   history:         () => api.get('/me/history'),
+  breathquestLevelScores: () => api.get('/me/breathquest/level-scores'),
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
   updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { useAuth } from '../../context/AuthContext'
-import { loadScores, isUnlocked, LEVEL_ORDER, DIFFICULTY } from '../../game/scoring/index.js'
+import { meAPI } from '../../api/client'
+import { loadScores, mergeServerScores, isUnlocked, LEVEL_ORDER, DIFFICULTY } from '../../game/scoring/index.js'
 
 const LEVELS = [
   { id: 'pinwheel',    name: 'Pinwheel Spin',    emoji: '🌀', desc: 'Blow steady to spin!' },
@@ -28,7 +29,15 @@ export default function LevelSelect() {
   const [scores, setScores] = useState({})
   const [hovering, setHovering] = useState(null)
 
-  useEffect(() => { setScores(loadScores()) }, [])
+  useEffect(() => {
+    // Show whatever this browser already has immediately (no loading
+    // flicker), then reconcile with the server's real record right after --
+    // see mergeServerScores for why local-only was never enough on its own.
+    setScores(loadScores())
+    meAPI.breathquestLevelScores()
+      .then(({ data }) => setScores(mergeServerScores(data)))
+      .catch(() => {})  // offline/error: keep whatever localStorage had
+  }, [])
 
   const totalStars = LEVEL_ORDER.reduce((sum, id) => sum + (scores[id]?.stars || 0), 0)
   const maxStars   = LEVEL_ORDER.length * 3
