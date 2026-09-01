@@ -360,7 +360,7 @@ export default function MyAccount() {
           <div className="text-center max-w-xs mx-auto">
             <p className="text-white/50 text-sm mb-3">Enter your current PIN and pick a new one.</p>
             <input
-              type="password" inputMode="numeric" maxLength={4}
+              type="password" inputMode="numeric" maxLength={4} autoComplete="off"
               value={currentPinDraft}
               onChange={(e) => setCurrentPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
               placeholder="Current PIN"
@@ -368,7 +368,7 @@ export default function MyAccount() {
                          text-white text-sm placeholder:text-white/30 placeholder:tracking-normal focus:outline-none focus:border-mint/40"
             />
             <input
-              type="password" inputMode="numeric" maxLength={4}
+              type="password" inputMode="numeric" maxLength={4} autoComplete="off"
               value={newPinDraft}
               onChange={(e) => setNewPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
               placeholder="New PIN"
@@ -407,7 +407,7 @@ export default function MyAccount() {
               This deletes everything — your progress, stars, all of it. Are you sure?
             </p>
             <input
-              type="password" inputMode="numeric" maxLength={4}
+              type="password" inputMode="numeric" maxLength={4} autoComplete="off"
               value={deletePin}
               onChange={(e) => { setDeletePin(e.target.value.replace(/\D/g, '').slice(0, 4)); setDeleteError('') }}
               placeholder="Enter your PIN to confirm"

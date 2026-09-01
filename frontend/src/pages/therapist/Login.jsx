@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage, authAPI, verifyAPI } from '../../api/client'
 import { Button, Input, Card } from '../../components/ui'
@@ -23,6 +23,8 @@ export default function TherapistLogin() {
   const [loading, setLoading] = useState(false)
   const { loginTherapist, registerTherapist, loginTherapistGoogle } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
 
   // Forgot-password: request -> verify. Same OTP round-trip as forgot-PIN
   // in Play.jsx (verifyAPI.request/.confirm), then reset in the same call
@@ -196,7 +198,7 @@ export default function TherapistLogin() {
                       <h3 className="text-white font-semibold mb-1">Reset your password</h3>
                       <p className="text-white/40 text-sm">We'll email you a code to confirm it's you.</p>
                     </div>
-                    <Input icon={Mail} label="Email" type="email" placeholder="you@clinic.com"
+                    <Input icon={Mail} label="Email" type="email" placeholder="you@clinic.com" autoComplete="email"
                            value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required />
                     {error && (
                       <div className="bg-brand-coral/10 border border-brand-coral/30 rounded-xl px-4 py-3 text-brand-coral text-sm">
@@ -215,9 +217,9 @@ export default function TherapistLogin() {
                       <h3 className="text-white font-semibold mb-1">Check your email</h3>
                       <p className="text-white/40 text-sm">Enter the 6-digit code and a new password.</p>
                     </div>
-                    <Input label="6-digit code" placeholder="123456" value={forgotCode}
+                    <Input label="6-digit code" placeholder="123456" autoComplete="one-time-code" inputMode="numeric" value={forgotCode}
                            onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
-                    <Input icon={Lock} label="New password" type="password" placeholder="••••••••"
+                    <Input icon={Lock} label="New password" type="password" placeholder="••••••••" autoComplete="new-password"
                            value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
                     {error && (
                       <div className="bg-brand-coral/10 border border-brand-coral/30 rounded-xl px-4 py-3 text-brand-coral text-sm">
@@ -257,6 +259,12 @@ export default function TherapistLogin() {
               ))}
             </div>
 
+            {sessionExpired && mode === 'login' && (
+              <div className="bg-brand-coral/10 border border-brand-coral/30 rounded-xl px-4 py-3 text-sm text-brand-coral mb-5">
+                You were signed out after a while — sign in again to continue.
+              </div>
+            )}
+
             {/* Google covers both modes: login-or-register happens
                 server-side in one call (see /auth/google's docstring),
                 so this button doesn't change with `mode`. */}
@@ -271,22 +279,23 @@ export default function TherapistLogin() {
             <form onSubmit={submit} className="flex flex-col gap-4">
               {mode === 'register' && (
                 <>
-                  <Input icon={User} label="Full name" placeholder="Dr. Jane Smith"
+                  <Input icon={User} label="Full name" placeholder="Dr. Jane Smith" autoComplete="name"
                          value={form.full_name} onChange={set('full_name')} required />
-                  <Input icon={Building2} label="Clinic name (optional)" placeholder="Happy Kids Clinic"
+                  <Input icon={Building2} label="Clinic name (optional)" placeholder="Happy Kids Clinic" autoComplete="organization"
                          value={form.clinic_name} onChange={set('clinic_name')} />
                   {/* Collected, not verified — no SMS provider wired up yet. */}
-                  <Input icon={Phone} label="Phone (optional)" type="tel" placeholder="(555) 123-4567"
+                  <Input icon={Phone} label="Phone (optional)" type="tel" placeholder="(555) 123-4567" autoComplete="tel"
                          value={form.phone} onChange={set('phone')} />
                 </>
               )}
-              <Input icon={Mail} label="Email" type="email" placeholder="you@clinic.com"
+              <Input icon={Mail} label="Email" type="email" placeholder="you@clinic.com" autoComplete="email"
                      value={form.email} onChange={set('email')} required />
 
               <Input
                 icon={Lock}
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 placeholder="••••••••"
                 value={form.password}
                 onChange={set('password')}

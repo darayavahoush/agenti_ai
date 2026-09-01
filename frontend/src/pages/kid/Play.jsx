@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
@@ -126,7 +126,14 @@ function PinPad({ onDigit, onDelete }) {
 }
 
 export default function KidPlay() {
-  const [mode, setMode]         = useState('choose')   // choose | register | login
+  const [searchParams] = useSearchParams()
+  const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
+  // Normally kids land on the marketing chooser first -- but if we're here
+  // because a dead session bounced them back (see client.js's interceptor),
+  // jumping straight to the login step (with an explanation, below) beats
+  // dropping them on a chooser screen that doesn't acknowledge anything
+  // happened.
+  const [mode, setMode]         = useState(() => sessionExpired ? 'login' : 'choose')   // choose | register | login
   const [avatar, setAvatar]     = useState('chick')
   const [firstName, setFirstName] = useState('')
   const [playerCode, setPlayerCode] = useState('')
@@ -669,7 +676,7 @@ export default function KidPlay() {
           </p>
           <div className="mb-5">
             <label className="text-sm text-white/50 block mb-1">Parent's email</label>
-            <input type="email" className="input text-lg" placeholder="parent@example.com"
+            <input type="email" autoComplete="email" className="input text-lg" placeholder="parent@example.com"
                    value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
           </div>
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
@@ -726,6 +733,12 @@ export default function KidPlay() {
             Welcome Back! <SpeakButton onClick={replayLogin} className="text-white/25 hover:text-white/50" />
           </h1>
 
+          {sessionExpired && (
+            <p className="text-white/40 text-xs text-center mb-4">
+              You got signed out after a while — just log back in to keep playing!
+            </p>
+          )}
+
           <div className="mb-2">
             <label className="text-sm text-white/50 block mb-1">Your Name or Player Code</label>
             <input className="input text-center text-xl font-bold tracking-widest uppercase"
@@ -750,7 +763,7 @@ export default function KidPlay() {
               <p className="text-white/50 text-xs text-center mb-2">
                 A parent can look up the player code by email:
               </p>
-              <input type="email" className="input text-sm mb-2" placeholder="parent@example.com"
+              <input type="email" autoComplete="email" className="input text-sm mb-2" placeholder="parent@example.com"
                      value={lookupEmail} onChange={e => setLookupEmail(e.target.value)} />
               <button onClick={handleLookupPlayerCode} disabled={loading}
                       className="w-full text-center text-sm text-brand-green hover:text-white transition-colors">
@@ -795,7 +808,7 @@ export default function KidPlay() {
               </div>
               <div className="mb-4">
                 <label className="text-sm text-white/50 block mb-1">Parent's Email</label>
-                <input type="email" className="input" placeholder="parent@example.com"
+                <input type="email" autoComplete="email" className="input" placeholder="parent@example.com"
                        value={forgotPinEmail} onChange={e => setForgotPinEmail(e.target.value)} />
               </div>
               {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
