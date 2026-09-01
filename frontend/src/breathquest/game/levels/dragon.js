@@ -15,6 +15,7 @@ export function createDragonLevel() {
   let successFlash = 0
   let done         = false
   let doneTimer    = 0
+  let finishT      = null   // elapsed time when the last gap was crossed
   let blinkT       = 0
   const firePs     = new ParticleSystem()
   const emberPs    = new ParticleSystem()
@@ -43,9 +44,14 @@ export function createDragonLevel() {
       if (successFlash > 0) successFlash -= dt
 
       if (gapIndex >= GAP_WIDTHS.length && !done) {
+        if (finishT === null) finishT = t
         doneTimer += dt
-        if (doneTimer > 1.0) done = true
-        return done ? { stars: 3, message: 'Dragon master! 🔥 All gaps crossed!' } : null
+        if (doneTimer > 0.7) done = true
+        if (done) {
+          const stars = finishT <= 15 ? 3 : finishT <= 25 ? 2 : 1
+          return { stars, targetHits: GAP_WIDTHS.length, message: 'Dragon master! 🔥 All gaps crossed!' }
+        }
+        return null
       }
 
       const isBlowing = breath >= 0.06

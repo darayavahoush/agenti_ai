@@ -4,7 +4,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { LEVELS, LevelProgress, getLevelProgress } from './levels';
+import { LEVELS, LevelProgress, getLevelProgress, mergeServerProgress } from './levels';
+import { voiceHurdleRaceApi } from '../api/voiceHurdleRaceApi';
 import { Badge, StarRating, Button } from '../components/ui';
 import { Sidebar } from '../components/ui';
 import { KID_SIDEBAR_ITEMS } from '../lib/kidSidebarItems';
@@ -16,7 +17,7 @@ interface LevelSelectionProps {
 }
 
 const CARD_THEMES = [
-  { from: '#1e3a8a', border: '#60A5FA', glow: 'rgba(96,165,250,0.15)', emoji: '🐶' },
+  { from: '#1e3a8a', border: '#60A5FA', glow: 'rgba(96,165,250,0.15)', emoji: '👽' },
   { from: '#065f46', border: '#A8FF6F', glow: 'rgba(168,255,111,0.15)', emoji: '🏃' },
   { from: '#7c2d12', border: '#FAC775', glow: 'rgba(250,199,117,0.15)', emoji: '🏁' },
   { from: '#581c87', border: '#F472B6', glow: 'rgba(244,114,182,0.15)', emoji: '🏆' },
@@ -27,7 +28,15 @@ export default function LevelSelection({ onSelectLevel, onBack }: LevelSelection
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   useEffect(() => {
-    setLevelProgress(getLevelProgress());
+    // Show whatever this browser already has immediately (no loading
+    // flicker), then reconcile with the server's real session history —
+    // see mergeServerProgress for why local-only was never enough on
+    // its own.
+    const local = getLevelProgress();
+    setLevelProgress(local);
+    voiceHurdleRaceApi.getMySessions()
+      .then((sessions) => setLevelProgress(mergeServerProgress(local, sessions)))
+      .catch(() => {}); // offline/error: keep whatever localStorage had
   }, []);
 
   const totalStars = levelProgress.reduce((sum, p) => sum + (p.stars || 0), 0);
