@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { History, RotateCcw, Sparkles, Star } from 'lucide-react'
+import { History, RotateCcw, Sparkles, Star, Gift, Lock } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { assessmentAPI, getErrorMessage } from '../../api/client'
 import { PageLoader, Button, Avatar, Sidebar } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
+import { KID_GAMES } from '../../lib/kidGames'
 import Assessment from '../../assessment/Assessment'
 
 // Bootstraps a logged-in kid into the standalone Assessment flow
@@ -105,7 +106,7 @@ export default function AssessmentGate() {
     <div className="flex min-h-screen">
       <Sidebar role="kid" items={lockedSidebarItems(patient?.assessment_completed)} name={patient?.first_name} onLogout={logout} />
       <div
-        className="flex-1 flex items-center justify-center px-6 py-12 relative overflow-hidden"
+        className="flex-1 flex flex-col items-center justify-center gap-10 px-6 py-12 relative overflow-hidden"
         style={{ background: 'linear-gradient(160deg, #2A1F5C 0%, #4A2E6E 45%, #6B3A5E 100%)' }}
       >
       {/* Playful floating stickers scattered around the screen */}
@@ -210,6 +211,49 @@ export default function AssessmentGate() {
           </button>
         </div>
       </div>
+
+      {/* Sneak peek of what unlocks -- only for first-timers. A returning
+          kid already knows what these games are; showing it again would
+          just be noise. Reuses KID_GAMES (same source GamePicker.jsx
+          renders from) so the preview never drifts out of sync with the
+          real unlocked screen. */}
+      {!alreadyCompleted && (
+        <div
+          className={`max-w-3xl w-full relative transition-all duration-700 delay-500 ${
+            mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2 mb-5">
+            <Gift className="w-5 h-5 text-[#A8FF6F] motion-safe:animate-pulse-slow" />
+            <h2 className="font-vm-display text-xl sm:text-2xl font-black text-white text-center">
+              {KID_GAMES.length} adventures are waiting for you!
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {KID_GAMES.map((game) => (
+              <div
+                key={game.id}
+                className="rounded-2xl p-4 text-center border relative overflow-hidden hover:scale-[1.03] transition-transform duration-200"
+                style={{
+                  background: `linear-gradient(160deg, ${game.accentSoft} 0%, rgba(30,30,63,0.55) 70%)`,
+                  borderColor: `${game.accent}40`,
+                }}
+              >
+                <Lock size={12} className="absolute top-2.5 right-2.5 text-white/50" />
+                <div className="text-3xl mb-1.5">{game.emoji}</div>
+                <p className="font-vm-display font-bold text-white text-sm mb-0.5">{game.name}</p>
+                <p className="text-white/55 text-[11px] leading-snug">{game.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-white/45 text-xs text-center italic mt-5 max-w-lg mx-auto leading-relaxed">
+            Everything above is tuned using what we learn from today's check-in -- so every
+            game meets {patient?.first_name || 'them'} exactly where they are.
+          </p>
+        </div>
+      )}
       </div>
     </div>
   )

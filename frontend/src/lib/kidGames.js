@@ -1,0 +1,61 @@
+// Shared kid-game catalog -- extracted out of GamePicker.jsx (previously a
+// private `APPS` const there) so any other kid-facing page that wants to
+// reference the games (name, emoji, description, path, accent colors) uses
+// the exact same data instead of a second hand-copied list that could drift.
+export const KID_GAMES = [
+  {
+    id: 'breathquest',
+    name: 'BreathQuest',
+    emoji: '🐉',
+    desc: 'Breath-controlled adventures — 6 levels',
+    path: '/play/levels',
+    accent: '#FF9B54',
+    accentSoft: 'rgba(255,155,84,0.14)',
+    glow: 'rgba(255,155,84,0.35)',
+    motif: 'flame',
+  },
+  {
+    id: 'vaakmirror',
+    name: 'Orpheus',
+    emoji: '🪞',
+    desc: 'Mouth & tongue mirror games — 3 games',
+    path: '/play/vaakmirror',
+    accent: '#2FB8A6',
+    accentSoft: 'rgba(47,184,166,0.14)',
+    glow: 'rgba(47,184,166,0.35)',
+    motif: 'ripple',
+  },
+  {
+    id: 'chime',
+    name: 'Chime',
+    emoji: '🔔',
+    desc: 'Say the word, build a village',
+    path: '/play/chime',
+    accent: '#F0604A',
+    accentSoft: 'rgba(240,96,74,0.14)',
+    glow: 'rgba(240,96,74,0.35)',
+    motif: 'pulse',
+  },
+  {
+    id: 'voice-hurdle-race',
+    name: 'Voice Hurdle Race',
+    emoji: '🐶',
+    desc: 'Use your voice to jump hurdles',
+    path: '/play/voice-hurdle-race',
+    accent: '#60A5FA',
+    accentSoft: 'rgba(96,165,250,0.14)',
+    glow: 'rgba(96,165,250,0.35)',
+    motif: 'ripple',
+  },
+  {
+    id: 'flashcards',
+    name: 'Flashcards',
+    emoji: '🗂️',
+    desc: 'Practice words with picture cards',
+    path: '/play/flashcards',
+    accent: '#A78BFA',
+    accentSoft: 'rgba(167,139,250,0.14)',
+    glow: 'rgba(167,139,250,0.35)',
+    motif: 'pulse',
+  },
+]
