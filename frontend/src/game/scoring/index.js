@@ -35,6 +35,30 @@ export function saveScore(levelId, stars, extraData = {}) {
   return scores[levelId]
 }
 
+// Merges the server's per-level best-stars history (GET /me/breathquest/level-scores
+// -- the durable record built from completed GameSession rows) into the local
+// cache. localStorage alone used to be the only source of unlock/star state,
+// which meant a new device, a cleared browser, or private/incognito mode
+// silently reset a kid back to level 1 even though the server remembered
+// everything. Takes the max of each field per level rather than overwriting,
+// so a round played moments ago (already in localStorage, not yet reflected
+// server-side) is never clobbered by a slightly-stale server response.
+export function mergeServerScores(serverScores) {
+  const local = loadScores()
+  const merged = { ...local }
+  for (const [levelId, s] of Object.entries(serverScores || {})) {
+    const prev = merged[levelId] || { stars: 0, plays: 0, lastPlayed: 0 }
+    merged[levelId] = {
+      ...prev,
+      stars: Math.max(prev.stars || 0, s.stars || 0),
+      plays: Math.max(prev.plays || 0, s.plays || 0),
+      lastPlayed: Math.max(prev.lastPlayed || 0, s.last_played ? new Date(s.last_played).getTime() : 0),
+    }
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+  return merged
+}
+
 export function isUnlocked(levelId, scores) {
   const idx = LEVEL_ORDER.indexOf(levelId)
   if (idx === 0) return true                          // first always unlocked
