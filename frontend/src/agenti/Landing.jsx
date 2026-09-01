@@ -1,6 +1,6 @@
 import { T } from "../assessment/constants";
 import { Button, BunnyMascot } from "./UI";
-import { PartyPopper, Gamepad2, Globe, Brain, Flame, PawPrint, Mic2, Bell, Layers, Sparkles, Sparkle, Target } from "lucide-react";
+import { PartyPopper, Gamepad2, Globe, Brain, Flame, PawPrint, Mic2, Bell, Layers, Sparkles, Sparkle, Target, ShieldCheck, Activity, Heart } from "lucide-react";
 
 export function Landing({ onStart }) {
   return (
@@ -143,6 +143,42 @@ export function Landing({ onStart }) {
                 <Icon size={14} /> {name}
               </span>
             ))}
+          </div>
+
+          {/* Trust signal for a first-time parent -- the page previously
+              jumped straight from "fun games" framing to a signup CTA with
+              nothing addressing whether this is actually going to help
+              their kid. Kept to three short, concrete, checkable claims
+              rather than vague marketing language. */}
+          <div style={{
+            display: "flex", gap: "18px", flexWrap: "wrap", marginTop: "22px",
+            paddingTop: "18px", borderTop: `1px solid ${T.border}`,
+          }}>
+            {[
+              [ShieldCheck, "COPPA-compliant, verified parental consent"],
+              [Activity, "Every session logged for your child's therapist"],
+              [Heart, "No ads, no data sold"],
+            ].map(([Icon, text]) => (
+              <span key={text} style={{
+                display: "inline-flex", alignItems: "center", gap: "8px",
+                fontSize: "14px", fontWeight: 700, color: T.textMuted,
+              }}>
+                <Icon size={16} color={T.primary} /> {text}
+              </span>
+            ))}
+          </div>
+
+          {/* Parent/therapist sign-in was previously only reachable by
+              guessing the URL -- both CTAs above route into the kid/parent
+              signup flow, with no way in for a therapist landing here
+              cold. */}
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "16px" }}>
+            <a href="/parent/login" style={{ fontSize: "14px", fontWeight: 700, color: T.textMuted, textDecoration: "underline" }}>
+              Parent sign in
+            </a>
+            <a href="/therapist/login" style={{ fontSize: "14px", fontWeight: 700, color: T.textMuted, textDecoration: "underline" }}>
+              Therapist sign in
+            </a>
           </div>
         </div>
 
