@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, Shuffle, Volume2, Lightbulb } from 'lucide-react'
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
-import { getPhonemeCue } from './data/phonemeCues.js'
+import { getPhonemeCue, getSpokenForm } from './data/phonemeCues.js'
 import { MINIMAL_PAIRS, findPairForSound, defaultPair } from './data/minimalPairs.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
@@ -118,7 +118,7 @@ export default function MinimalPairDrill() {
   // ear-training exercise, not just mouth-shape production.
   useEffect(() => {
     if (!baselineSpread || complete || !current) return
-    speakSound(current.label)
+    speakSound(getSpokenForm(current.id))
   }, [current, baselineSpread, complete])
 
   const advance = useCallback((opts = {}) => {
@@ -503,7 +503,7 @@ export default function MinimalPairDrill() {
                 <p className="text-paper text-lg font-medium mb-2 text-center flex items-center justify-center gap-2">
                   {target.label}
                   <button
-                    onClick={() => speakSound(current.label)}
+                    onClick={() => speakSound(getSpokenForm(current.id))}
                     className="text-paper/40 hover:text-coral transition-colors"
                     title="Hear it again"
                   >
