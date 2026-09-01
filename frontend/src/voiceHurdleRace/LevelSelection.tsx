@@ -16,7 +16,7 @@ interface LevelSelectionProps {
 }
 
 const CARD_THEMES = [
-  { from: '#1e3a8a', border: '#60A5FA', glow: 'rgba(96,165,250,0.15)', emoji: '🐶' },
+  { from: '#1e3a8a', border: '#60A5FA', glow: 'rgba(96,165,250,0.15)', emoji: '👽' },
   { from: '#065f46', border: '#A8FF6F', glow: 'rgba(168,255,111,0.15)', emoji: '🏃' },
   { from: '#7c2d12', border: '#FAC775', glow: 'rgba(250,199,117,0.15)', emoji: '🏁' },
   { from: '#581c87', border: '#F472B6', glow: 'rgba(244,114,182,0.15)', emoji: '🏆' },
