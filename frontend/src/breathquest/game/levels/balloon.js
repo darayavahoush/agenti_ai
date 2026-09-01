@@ -24,6 +24,7 @@ export function createBalloonLevel() {
   let nextColor  = COLORS[0]
   let curColor   = COLORS[0]
   let hintPulse  = 0
+  let misses     = 0    // over-inflate pops — the "you blew too hard" mistake
   const ps       = new ParticleSystem()
   const floaties = Array.from({ length: 6 }, (_, i) => ({
     x: rand(50, 750), y: rand(100, 500),
@@ -71,8 +72,10 @@ export function createBalloonLevel() {
 
       if (done) {
         doneTimer += dt
-        if (doneTimer > 0.8)
-          return { stars: 3, message: `Popped ${score} balloons! 🎈 Amazing!` }
+        if (doneTimer > 0.7) {
+          const stars = misses === 0 ? 3 : misses <= 2 ? 2 : 1
+          return { stars, targetHits: score, mistakes: misses, message: `Popped ${score} balloons! 🎈 Amazing!` }
+        }
         return null
       }
 
@@ -85,6 +88,7 @@ export function createBalloonLevel() {
 
       // Over-inflate = pop but no score, reset
       if (size >= 1.0 && popAnim <= 0) {
+        misses++
         for (let i = 0; i < 20; i++) {
           ps.emit(400, 290, {
             count: 1, color: '#888',
