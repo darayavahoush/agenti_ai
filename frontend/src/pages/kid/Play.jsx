@@ -296,10 +296,14 @@ export default function KidPlay() {
       const message = getErrorMessage(e, 'Wrong code or PIN — try again!')
       setError(message)
       setPin('')
-      // The ambiguous-match case is the one dead end the name-login
-      // fallback can't resolve on its own -- offer the existing (but
-      // previously unreachable) forgot-player-code lookup right here.
-      setShowCodeLookup(message.includes('More than one player matches'))
+      // Any login-by-name failure is ambiguous from the kid's side: a plain
+      // wrong PIN looks identical to "wrong PIN for one of several kids
+      // sharing this name" (name isn't unique -- only player_code is, see
+      // kid-login's docstring). Rather than only surfacing the email
+      // fallback on the rare case where the PIN happens to collide across
+      // duplicates (the old 409-only check), offer it on every failure
+      // except a throttle lockout, where it can't help.
+      setShowCodeLookup(!message.toLowerCase().includes('too many attempts'))
     } finally {
       setLoading(false)
     }
@@ -509,7 +513,7 @@ export default function KidPlay() {
                 </div>
               </div>
             </button>
-            <button onClick={() => setMode('login')}
+            <button onClick={() => { setMode('login'); setShowCodeLookup(false); setLookupSent(false); setLookupEmail('') }}
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
                          bg-gradient-to-br from-brand-green/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-green/40
                          hover:border-brand-green hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-green/20
