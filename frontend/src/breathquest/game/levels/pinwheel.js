@@ -10,6 +10,7 @@ export function createPinwheelLevel() {
   const stars  = makeStars(50)
   const ps     = new ParticleSystem()
   let completeTimer = 0
+  let finishT  = null   // elapsed time when the spin goal was reached
 
   return {
     id: 'pinwheel',
@@ -32,10 +33,13 @@ export function createPinwheelLevel() {
       ps.update(dt)
 
       if (total >= GOAL && !done) {
+        if (finishT === null) finishT = t
         completeTimer += dt
-        if (completeTimer > 0.6) done = true
+        if (completeTimer > 0.7) done = true
       }
-      return done ? { stars: 3, message: 'Perfect spin! You\'re a natural! 🌟' } : null
+      if (!done) return null
+      const stars = finishT <= 6 ? 3 : finishT <= 10 ? 2 : 1
+      return { stars, message: 'Perfect spin! You\'re a natural! 🌟' }
     },
 
     draw(ctx, W, H, breath) {
