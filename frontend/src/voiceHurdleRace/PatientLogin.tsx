@@ -170,7 +170,7 @@ export default function PatientLogin({ onLogin, onRegister, error: propError }: 
         {/* Nav Bar */}
         <nav className="border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 bg-brand-dark/95 backdrop-blur z-10">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🐶</span>
+            <span className="text-2xl">👽</span>
             <span className="font-display text-xl font-bold text-white">
               VoiceHurdle<span className="text-brand-green">Race</span>
             </span>
@@ -338,7 +338,7 @@ export default function PatientLogin({ onLogin, onRegister, error: propError }: 
       {/* --- 1. LANDING PORTAL SELECT --- */}
       {view === 'landing' && (
         <div className="w-full max-w-lg text-center">
-          <div className="text-7xl mb-4 animate-float">🐶</div>
+          <div className="text-7xl mb-4 animate-float">👽</div>
           <h1 className="font-display text-5xl font-black text-white mb-2">
             VoiceHurdle<span className="text-brand-green">Race</span>
           </h1>
