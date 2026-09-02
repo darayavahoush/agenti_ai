@@ -254,7 +254,7 @@ export function createCandleLevel(difficulty = DEFAULT_DIFFICULTY) {
         const { cx } = candleGeom(i, W, CANDLE_BASE_Y, CANDLE_H)
 
         // Candle body — sits ON the cake top
-        const col = CANDLE_COLS[i]
+        const col = CANDLE_COLS[i % CANDLE_COLS.length]
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.15)'
         ctx.beginPath(); ctx.ellipse(cx, CANDLE_BASE_Y, CANDLE_W/2 + 2, 4, 0, 0, Math.PI*2); ctx.fill()
@@ -385,16 +385,18 @@ function candleGeom(i, W = CANDLE_W_DEFAULT, baseY = CANDLE_BASE_Y, candleH = CA
 }
 
 function darken(hex, amt) {
+  if (!hex || typeof hex !== 'string') return `rgb(${Math.max(0, 255 - amt)},${Math.max(0, 255 - amt)},${Math.max(0, 255 - amt)})`
   const n = parseInt(hex.slice(1), 16)
-  const r = Math.max(0, (n>>16) - amt)
-  const g = Math.max(0, ((n>>8)&0xff) - amt)
-  const b = Math.max(0, (n&0xff) - amt)
+  const r = Math.max(0, (n >> 16) - amt)
+  const g = Math.max(0, ((n >> 8) & 0xff) - amt)
+  const b = Math.max(0, (n & 0xff) - amt)
   return `rgb(${r},${g},${b})`
 }
 function lighten(hex, amt) {
+  if (!hex || typeof hex !== 'string') return `rgb(${Math.min(255, 255 + amt)},${Math.min(255, 255 + amt)},${Math.min(255, 255 + amt)})`
   const n = parseInt(hex.slice(1), 16)
-  const r = Math.min(255, (n>>16) + amt)
-  const g = Math.min(255, ((n>>8)&0xff) + amt)
-  const b = Math.min(255, (n&0xff) + amt)
+  const r = Math.min(255, (n >> 16) + amt)
+  const g = Math.min(255, ((n >> 8) & 0xff) + amt)
+  const b = Math.min(255, (n & 0xff) + amt)
   return `rgb(${r},${g},${b})`
 }
