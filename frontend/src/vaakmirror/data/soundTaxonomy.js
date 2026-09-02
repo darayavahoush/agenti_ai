@@ -190,12 +190,26 @@ export const SHAPE_TARGETS = {
   'lips-closed': { openness: [0, 0.16], spread: null, label: 'Close your lips gently' },
   'lip-teeth': { openness: [0.05, 0.32], spread: null, label: 'Bottom lip touches your top teeth' },
   'wide-narrow': { openness: [0.08, 0.44], spread: 'wide', label: 'Smile wide, teeth close together' },
-  'tongue-tip-up': { openness: [0.15, 0.58], spread: null, label: 'Tongue tip behind your top teeth' },
+  // tongue-tip-up/tongue-between-teeth: openness is the only real signal
+  // for these two (spread: null, and MediaPipe's face landmarks can't see
+  // the tongue at all -- it's occluded by the lips). The original ranges
+  // here were wide enough (0.43 and 0.20 span) that a lot of ordinary
+  // mouth positions landed inside them regardless of actual tongue
+  // placement, reported as "not correcting and giving green" (issue #58).
+  // Tightened as a middle-ground fix, not a real solution -- this can't
+  // add tongue-position signal that was never being tracked, it can only
+  // narrow the openness window that's standing in for it. That trade-off
+  // cuts both ways: fewer false-greens (this issue), but likely more
+  // false-reds for kids whose natural articulation sits near the
+  // now-excluded edge of the old range. Untested against real camera
+  // data -- worth confirming with a few real sessions before assuming
+  // this is actually better rather than just differently wrong.
+  'tongue-tip-up': { openness: [0.15, 0.38], spread: null, label: 'Tongue tip behind your top teeth' },
   'round-forward': { openness: [0.14, 0.6], spread: 'narrow', label: 'Round your lips and push forward' },
   'open-wide': { openness: [0.46, 1], spread: null, label: 'Open your mouth wide' },
   // New: tongue visibly between the teeth (th), distinct from tongue-tip-up
   // where the tip stays behind the teeth, not protruding through them.
-  'tongue-between-teeth': { openness: [0.14, 0.34], spread: null, label: 'Stick your tongue tip out gently between your teeth' },
+  'tongue-between-teeth': { openness: [0.14, 0.3], spread: null, label: 'Stick your tongue tip out gently between your teeth' },
   // New: a deliberately loose target for h/ng, which don't have a strong
   // visual mouth shape — wide range on purpose, not a precision target.
   'neutral-open': { openness: [0.12, 0.5], spread: null, label: 'Relax your mouth, just slightly open' },
