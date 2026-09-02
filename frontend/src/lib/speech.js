@@ -28,6 +28,22 @@
 
 import { useEffect, useRef } from 'react'
 
+// Isolated single-letter sounds (e.g. "r", "s") read as the *letter name*
+// through Web Speech API ("are" instead of the rolled /r/ sound) — there's
+// no way to force phonetic pronunciation of a bare letter via plain text,
+// so callers that legitimately speak single phonemes (VaakMirror's
+// isolated-sound games) need a respelling before it reaches the utterance.
+const SINGLE_LETTER_RESPELL = {
+  r: 'rrr', s: 'sss', f: 'fff', m: 'mmm', n: 'nnn',
+  l: 'lll', z: 'zzz', v: 'vvv', sh: 'shhh', th: 'thhh',
+}
+
+function respellIfBareLetter(text) {
+  const trimmed = text?.trim().toLowerCase()
+  if (trimmed && SINGLE_LETTER_RESPELL[trimmed]) return SINGLE_LETTER_RESPELL[trimmed]
+  return text
+}
+
 let cachedVoices = null
 if (typeof window !== 'undefined' && window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = () => {
@@ -65,7 +81,7 @@ export function speak(text, { rate = 0.95, pitch = 1.0 } = {}) {
     // speak() call lands.
     pendingSpeakTimer = setTimeout(() => {
       pendingSpeakTimer = null
-      const utter = new SpeechSynthesisUtterance(text)
+      const utter = new SpeechSynthesisUtterance(respellIfBareLetter(text))
       utter.rate = rate
       utter.pitch = pitch
       // Hint the language even when no exact-match voice object is found —

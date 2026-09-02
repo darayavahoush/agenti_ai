@@ -769,6 +769,39 @@ export default function PatientDetail() {
                   <p className="text-white/30 text-xs">sessions</p>
                 </Card>
 
+                {!attemptsLoading && attempts.length > 0 && (
+                  <Card>
+                    <h3 className="font-semibold text-white mb-3">Labeling Queue</h3>
+                    <div className="flex flex-col gap-2">
+                      {attempts.map(a => (
+                        <div key={a.id} className="flex items-center gap-3 border-b border-white/5 pb-2 last:border-0">
+                          <Badge color={TIER_COLORS[a.predicted_tier] || 'gray'}>{a.predicted_tier || '—'}</Badge>
+                          <div className="flex-1">
+                            <p className="text-white text-sm capitalize">{a.shape || 'unknown shape'}</p>
+                            <p className="text-white/30 text-xs">{new Date(a.created_at).toLocaleDateString()}</p>
+                          </div>
+                          <button
+                            onClick={() => labelAttempt(a.id, 'correct')}
+                            disabled={labelingId === a.id}
+                            className="text-brand-green hover:text-brand-green/70 disabled:opacity-30"
+                            title="Correct"
+                          >
+                            <Check size={16} />
+                          </button>
+                          <button
+                            onClick={() => labelAttempt(a.id, 'incorrect')}
+                            disabled={labelingId === a.id}
+                            className="text-brand-coral hover:text-brand-coral/70 disabled:opacity-30"
+                            title="Incorrect"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
                 {vmDashboard.flagged_gaps.length > 0 && (
                   <Card>
                     <h3 className="font-semibold text-white mb-3">Flagged Gaps</h3>

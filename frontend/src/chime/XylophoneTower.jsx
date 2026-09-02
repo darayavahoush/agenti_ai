@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
-import { useSpokenInstruction } from '../lib/speech'
+import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const LEVEL_ID = 'ee'
 const AGENT_POLICY = 'tabular_q'
@@ -178,6 +178,7 @@ export default function XylophoneTower() {
 
   async function requestMicAndCalibrate() {
     try {
+      stopSpeaking()
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } })
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       const s = stateRef.current

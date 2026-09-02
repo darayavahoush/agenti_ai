@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
-import { useSpokenInstruction } from '../lib/speech'
+import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
 const MAX_EXPECTED_PEAK_RMS_DEFAULT = 0.4
@@ -193,6 +193,7 @@ export default function BubbleWrapPop() {
 
   async function requestMicAndCalibrate() {
     try {
+      stopSpeaking()
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } })
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       const s = stateRef.current

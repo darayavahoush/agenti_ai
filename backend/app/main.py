@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, HTTPException, Query
+from fastapi import FastAPI, UploadFile, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, inspect
 import re
@@ -36,6 +36,7 @@ from app.routers.breathquest import parent as breathquest_parent_router
 from app.routers.vaakmirror.sessions import router as vaakmirror_sessions_router
 from app.routers.vaakmirror.dashboard import router as vaakmirror_dashboard_router
 from app.routers.vaakmirror.exercises import router as vaakmirror_exercises_router
+from app.routers.vaakmirror.labeling import router as vaakmirror_labeling_router
 from app.routers.flashcards.router import router as flashcards_router
 
 class PatientCreate(BaseModel):
@@ -64,10 +65,31 @@ class PatientLogin(BaseModel):
 
 app = FastAPI()
 
-from fastapi.staticfiles import StaticFiles
-import os as _os
-_os.makedirs("uploads/avatars", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+from app.blob_storage import download_avatar, avatar_exists
+
+_AVATAR_MEDIA_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "png": "image/png", "webp": "image/webp", "gif": "image/gif",
+}
+
+@app.get("/uploads/avatars/{filename}")
+async def get_avatar(filename: str):
+    """Streams avatar images from Azure Blob Storage. Replaces the old
+    StaticFiles mount over local disk, which didn't survive a redeploy on
+    Container Apps' ephemeral filesystem -- every uploaded avatar 404'd
+    after the next deploy/restart/scale event. Same URL shape
+    (/uploads/avatars/{filename}) as before, so no frontend change or DB
+    backfill needed.
+
+    Synchronous blob SDK calls here block the event loop per-request --
+    fine at current avatar traffic volume, but worth moving to
+    asyncio.to_thread if that ever becomes real load."""
+    if not avatar_exists(filename):
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    contents = download_avatar(filename)
+    ext = filename.rsplit(".", 1)[-1].lower()
+    media_type = _AVATAR_MEDIA_TYPES.get(ext, "application/octet-stream")
+    return Response(content=contents, media_type=media_type)
 
 # CORS_ORIGINS env var: comma-separated list of allowed prod origins, e.g.
 # "https://app.example.com,https://www.example.com" -- set this in the
@@ -175,6 +197,7 @@ app.include_router(breathquest_parent_router.router, prefix="/api/v1")
 app.include_router(vaakmirror_sessions_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_dashboard_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_exercises_router, prefix="/api/v1/vaakmirror")
+app.include_router(vaakmirror_labeling_router, prefix="/api/v1/vaakmirror")
 app.include_router(flashcards_router, prefix="/api/v1")
 
 # Ensure assets/audio directory exists

@@ -91,6 +91,16 @@ class BreathEventOut(BaseModel):
     quit_flag: bool
 
 
+def _to_breath_event_out(raw: dict) -> "BreathEventOut":
+    """Normalize DB row types (UUID) before Pydantic validation --
+    same fix chime.py's _to_event_out applies, scoped to BreathEventOut's
+    fields (timestamp stays a datetime object here, unlike EventOut)."""
+    data = dict(raw)
+    if "child_id" in data and data["child_id"] is not None:
+        data["child_id"] = str(data["child_id"])
+    return BreathEventOut(**data)
+
+
 class DifficultyDecision(BaseModel):
     action: Literal["raise", "lower", "hold"]
     message: str
@@ -157,7 +167,7 @@ def log_breath_event(event: BreathEventIn, background_tasks: BackgroundTasks,
 
     events = data_store.get_events(child_id=patient.id, db_path=DB_PATH)
     latest = events[-1]
-    return BreathEventOut(**latest)
+    return _to_breath_event_out(latest)
 
 
 @router.get("/events", response_model=list[BreathEventOut])
@@ -165,7 +175,7 @@ def get_breath_events(level_id: Optional[str] = None, patient: Patient = Depends
     events = data_store.get_events(child_id=patient.id, db_path=DB_PATH)
     if level_id:
         events = [e for e in events if e["level_id"] == level_id]
-    return [BreathEventOut(**e) for e in events]
+    return [_to_breath_event_out(e) for e in events]
 
 
 # ============================================================

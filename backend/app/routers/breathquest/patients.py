@@ -22,6 +22,7 @@ from app.schemas.breathquest_schemas import (
 )
 from app.breathquest_core.deps import get_current_therapist
 from app.breathquest_core.security import hash_pin, verify_pin, create_kid_token
+from app.blob_storage import upload_avatar
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -321,11 +322,14 @@ async def upload_my_profile_photo(
     db: AsyncSession = Depends(get_db),
 ):
     """Kid-authenticated custom pfp upload, alongside the built-in
-    creature avatars. Local-disk storage only (uploads/avatars/) --
-    fine for dev, but won't survive a redeploy on platforms with
-    ephemeral filesystems (Render, Railway, etc.) or work across
-    multiple backend instances. Needs real object storage (S3 or
-    equivalent) before this is production-ready."""
+    creature avatars. Stored in Azure Blob Storage (see app/blob_storage.py)
+    -- previously wrote to local disk, which didn't survive a redeploy on
+    Container Apps' ephemeral filesystem (confirmed live bug, uploads
+    silently vanishing on every deploy). avatar_photo_url keeps the same
+    /uploads/avatars/{filename} shape it always had, now served by the
+    streaming route in main.py instead of a StaticFiles mount, so no
+    frontend change or DB backfill was needed for existing rows -- only
+    the (already-broken) referenced files themselves are gone for good."""
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
@@ -333,19 +337,15 @@ async def upload_my_profile_photo(
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         raise HTTPException(status_code=400, detail="Unsupported image format")
 
-    upload_dir = "uploads/avatars"
-    os.makedirs(upload_dir, exist_ok=True)
     # Deterministic filename -- new upload overwrites the old one, no
-    # orphaned files piling up per kid.
+    # orphaned blobs piling up per kid.
     filename = f"{patient.id}{ext}"
-    filepath = os.path.join(upload_dir, filename)
 
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image must be under 5MB")
 
-    with open(filepath, "wb") as f:
-        f.write(contents)
+    upload_avatar(filename, contents, file.content_type)
 
     patient.avatar_photo_url = f"/uploads/avatars/{filename}"
     db.add(patient)

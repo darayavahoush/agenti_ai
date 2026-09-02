@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.vaakmirror_models import AssignmentStatus, AttemptOutcome, GameName
+from app.models.vaakmirror_models import AssignmentStatus, AttemptLabel, AttemptOutcome, GameName
 
 
 # --- Patients ---
@@ -41,6 +41,14 @@ class AttemptCreate(BaseModel):
     voicing: Optional[str] = None
     outcome: AttemptOutcome
     score: Optional[float] = None
+    # Auto-calibration loop (collection phase) — raw scoring signal at the
+    # moment of the attempt. All optional since only MirrorMirror's shape-
+    # scoring flow populates these; other VaakMirror games don't score
+    # against SHAPE_TARGETS and will simply omit them.
+    shape: Optional[str] = None
+    openness: Optional[float] = None
+    spread: Optional[float] = None
+    predicted_tier: Optional[str] = None
 
 
 class AttemptOut(BaseModel):
@@ -53,6 +61,13 @@ class AttemptOut(BaseModel):
     outcome: AttemptOutcome
     score: Optional[float]
     created_at: datetime
+    shape: Optional[str] = None
+    openness: Optional[float] = None
+    spread: Optional[float] = None
+    predicted_tier: Optional[str] = None
+    therapist_label: Optional[AttemptLabel] = None
+    labeled_at: Optional[datetime] = None
+    labeled_by: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

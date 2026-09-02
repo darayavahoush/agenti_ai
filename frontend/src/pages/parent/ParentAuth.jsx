@@ -143,7 +143,7 @@ export default function ParentAuth() {
       if (mode === 'login') {
         await loginParentGoogle(idToken)
       } else {
-        await registerParentGoogle({ idToken, code: form.code, codeType, phone: form.phone })
+        await registerParentGoogle({ idToken, code: form.code, phone: form.phone })
       }
       navigate('/parent/dashboard')
     } catch (err) {
@@ -348,18 +348,13 @@ export default function ParentAuth() {
                     </>
                   ) : (
                     <>
-                      <div className="flex gap-4 px-1 text-xs font-medium">
-                        <button type="button" onClick={() => setCodeType('player_code')}
-                          className={`transition-colors ${codeType === 'player_code' ? 'text-coral-light' : 'text-paper/40 hover:text-paper/60'}`}>
-                          My child's game code
-                        </button>
-                        <button type="button" onClick={() => setCodeType('invite')}
-                          className={`transition-colors ${codeType === 'invite' ? 'text-coral-light' : 'text-paper/40 hover:text-paper/60'}`}>
-                          Code from therapist
-                        </button>
-                      </div>
+                      <p className="text-paper/40 text-xs leading-relaxed px-1">
+                        Ask your child's therapist for their player code — it looks something like
+                        <span className="text-paper/60 font-medium"> CHICK42</span>. Entering it here
+                        connects your account to your child's, so you can see their progress.
+                      </p>
                       <Field icon={KeyRound} type="text" required
-                        placeholder={codeType === 'player_code' ? "Child's player code (e.g. CHICK42)" : 'Invite code from your therapist'}
+                        placeholder="Child's player code (e.g. CHICK42)"
                         value={form.code} onChange={update('code')} />
 
                       {/* Google-register only covers the code-linked path
