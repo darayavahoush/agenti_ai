@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { scoreWord, transcribeAudio, logEvent, getAgentDecision, logLevelComplete } from './lib/api'
+import { scoreWord, transcribeAudio, logEvent, getAgentDecision } from './lib/api'
 import { sampleWordList } from './data/wordBank.js'
 import { useSpokenInstruction } from '../lib/speech'
 
@@ -483,6 +483,14 @@ export default function VillageBuilder() {
   }
 
   const buildHouse = (index) => { s.houseGrowPulse[index] = 1 }
+
+  async function logLevelComplete() {
+    try {
+      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: 1, is_valid_attempt: true, action: 'level_complete' })
+    } catch (err) {
+      console.warn('Backend event logging unavailable:', err)
+    }
+  }
 
   const onVillageComplete = useCallback(() => {
     const completePromise = logLevelComplete()
