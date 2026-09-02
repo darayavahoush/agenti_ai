@@ -705,8 +705,11 @@ export default function KidPlay() {
           <h1 className="font-vm-display text-2xl font-bold text-white mb-2 text-center">
             Check that email!
           </h1>
-          <p className="text-white/50 text-sm text-center mb-6">
+          <p className="text-white/50 text-sm text-center mb-2">
             We sent a 6-digit code to {parentEmail.trim()}. Ask a parent to enter it below.
+          </p>
+          <p className="text-white/30 text-xs text-center mb-6">
+            Don't see it? Check the spam/junk folder — it can land there.
           </p>
           <div className="mb-5">
             <label className="text-sm text-white/50 block mb-1">Verification code</label>
@@ -824,8 +827,11 @@ export default function KidPlay() {
 
           {forgotPinStep === 'verify' && (
             <>
-              <p className="text-white/50 text-xs text-center mb-4">
+              <p className="text-white/50 text-xs text-center mb-1">
                 Enter the 6-digit code sent to {forgotPinEmail}, then pick a new PIN.
+              </p>
+              <p className="text-white/30 text-[11px] text-center mb-4">
+                Don't see it? Check the spam/junk folder.
               </p>
               <input className="input text-center text-xl font-bold tracking-widest mb-4" placeholder="000000"
                      maxLength={6} value={forgotPinEmailCode}
