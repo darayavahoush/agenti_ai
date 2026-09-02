@@ -55,11 +55,42 @@ except Exception as e:
 # ---------------------------------------------------
 # NORMALIZE TEXT
 # ---------------------------------------------------
+_NUMBER_WORDS = {
+    "0": "zero",
+    "1": "one",
+    "2": "two",
+    "3": "three",
+    "4": "four",
+    "5": "five",
+    "6": "six",
+    "7": "seven",
+    "8": "eight",
+    "9": "nine",
+}
+
+
 def normalize_text(text: str) -> str:
-    # For non-English text, don't strip non-ASCII characters
+    if text is None:
+        return ""
+    text = text.strip().lower()
+
+    if not text:
+        return ""
+
+    # Handle numeric aliases first so assessment target words like "7" are
+    # normalized to the actual spoken word rather than left as a raw digit.
+    if re.fullmatch(r"\d+", text):
+        digits = text
+        return "".join(_NUMBER_WORDS[d] for d in digits)
+
+    # For non-English text, don't strip non-ASCII characters.
     if any(ord(c) > 127 for c in text):
-        return text.lower().strip()
-    return re.sub(r'[^a-z ]', '', text.lower()).strip()
+        return text.strip()
+
+    normalized = re.sub(r"[^a-z ]", "", text).strip()
+    if not normalized:
+        return ""
+    return normalized
 
 
 # ---------------------------------------------------
