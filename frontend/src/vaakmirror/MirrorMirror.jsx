@@ -273,6 +273,10 @@ export default function MirrorMirror() {
                 voicing: current.voicing,
                 outcome: 'missed',
                 score: 0,
+                shape: current.shape,
+                openness: smoothedRef.current?.openness ?? null,
+                spread: smoothedRef.current?.spread ?? null,
+                predicted_tier: t,
               }).catch(() => {})
             }
             advance({ skipped: true })
@@ -292,6 +296,10 @@ export default function MirrorMirror() {
                   voicing: current.voicing,
                   outcome: 'passed',
                   score,
+                  shape: current.shape,
+                  openness: smoothedRef.current?.openness ?? null,
+                  spread: smoothedRef.current?.spread ?? null,
+                  predicted_tier: t,
                 }).catch(() => {})
               }
               advance()
