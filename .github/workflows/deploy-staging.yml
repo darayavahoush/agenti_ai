@@ -49,6 +49,19 @@ jobs:
           echo "Total Vosk model size:"
           du -sh vosk_models
 
+      - name: Copy assessment word images into Docker build context
+        # The Docker build context below is ./backend, so the Dockerfile's
+        # `COPY data ./data` can only ever see backend/data -- it has no
+        # visibility into the repo root, where the real assessment word
+        # images actually live (data/images/, 48 files, tracked in git
+        # despite the .gitignore entry -- force-added before that rule
+        # existed). backend/data/images/ has nothing in it but a leftover
+        # index.json, so every deployed image request 404's even though
+        # the files are right there in the repo. Same shape of problem as
+        # the Vosk models above, same fix: stage the real assets inside
+        # the build context right before building.
+        run: cp -v data/images/*.png backend/data/images/
+
       - name: Azure Login
         uses: azure/login@v2
         with:
