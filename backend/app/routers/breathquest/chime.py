@@ -326,7 +326,7 @@ async def score_phoneme(
 # — see that module's docstring for why BreathQuest's own levels reuse this
 # same instance rather than a second copy of the ladder).
 # ============================================================
-from app.breathquest_agent.service import AgentService
+from agent.service import AgentService
 
 _agent_service = AgentService(db_path=DB_PATH, recent_window=RECENT_WINDOW)
 
