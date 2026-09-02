@@ -1,11 +1,12 @@
 name: Deploy Frontend to Azure Static Web Apps
 
-# See deploy-staging.yml for why this is workflow_dispatch-only now --
-# lavanya2kowmar/agenti_ai's `staging` is the single deploy source for
-# both frontend and backend; this repo's copy stays available for a
-# manual trigger only.
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - staging
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend-staging.yml'
 
 permissions:
   contents: read
