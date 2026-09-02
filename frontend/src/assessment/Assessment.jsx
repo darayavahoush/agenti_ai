@@ -30,20 +30,29 @@ const INDIAN_LANGUAGES = [
   { code: "mr-IN", name: "Marathi", voiceLang: "mr-IN", translationKey: "marathi", listenText: "ऐका", slowText: "संथ बोला" },
 ];
 
+let pendingAssessmentSpeakTimer = null;
+
 function speakIndianEnglish(text, slow = false, language = "en-IN") {
   if (!("speechSynthesis" in window)) return;
+  if (pendingAssessmentSpeakTimer) clearTimeout(pendingAssessmentSpeakTimer);
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language;
-  utterance.rate = slow ? 0.62 : 0.9;
-  utterance.pitch = 1;
+  // Same cancel-then-speak race as lib/speech.js -- Chrome/Firefox will
+  // silently drop a speak() called in the same tick right after cancel().
+  // Short delay lets the queue actually clear first.
+  pendingAssessmentSpeakTimer = setTimeout(() => {
+    pendingAssessmentSpeakTimer = null;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language;
+    utterance.rate = slow ? 0.62 : 0.9;
+    utterance.pitch = 1;
 
-  const voices = window.speechSynthesis.getVoices();
-  const indianVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith(language.toLowerCase()));
-  const hindiVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("hi-in"));
-  const englishVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("en"));
-  utterance.voice = indianVoice || hindiVoice || englishVoice || null;
-  window.speechSynthesis.speak(utterance);
+    const voices = window.speechSynthesis.getVoices();
+    const indianVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith(language.toLowerCase()));
+    const hindiVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("hi-in"));
+    const englishVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("en"));
+    utterance.voice = indianVoice || hindiVoice || englishVoice || null;
+    window.speechSynthesis.speak(utterance);
+  }, 80);
 }
 
 // Map failed phonemes to keyboard letters
