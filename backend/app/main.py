@@ -442,23 +442,38 @@ def random_word():
 
 @app.get("/assessment/words/image/{word}")
 def get_word_image(word: str):
-    # Simple fallback - check data/images directory
+    # Simple fallback - check data/images directory.
+    #
+    # BUG (was here): add_images_to_db.py seeds AssessmentWord.word as
+    # file.stem.lower() (e.g. "Ball.png" -> word="ball"), but the alphabet
+    # word set's actual files on disk are Title-cased (Ball.png, Cat.png,
+    # Penguine.png, Yo-Yo.png, ...). This handler only ever tried `word`
+    # as-is and `word.lower()` -- both resolve to the same lowercase
+    # string the DB already gives us, so it never tried the Title-cased
+    # filename that's actually on disk. Every one of the ~21 alphabet
+    # words 404'd here (only the already-lowercase-named words like
+    # "apple"/"dog" happened to work), which is why images silently
+    # failed to display for a large chunk of assessment words. Works
+    # fine on a case-insensitive filesystem (Mac/HFS+/APFS), which is
+    # why this wasn't caught locally -- only breaks on the case-sensitive
+    # Linux filesystem deployment actually runs on.
+    #
+    # Fix: also try Title-case (and a couple of other common casings) so
+    # "ball" -> "Ball.png" resolves regardless of how the file was named.
     data_dir = Path(__file__).parent.parent.parent / "data" / "images"
     image_extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
-    
-    for ext in image_extensions:
-        image_path = data_dir / f"{word}{ext}"
-        if image_path.exists():
-            from fastapi.responses import FileResponse
-            return FileResponse(image_path)
-    
-    # Try with different casing
-    for ext in image_extensions:
-        image_path = data_dir / f"{word.lower()}{ext}"
-        if image_path.exists():
-            from fastapi.responses import FileResponse
-            return FileResponse(image_path)
-    
+
+    candidates = [word, word.lower(), word.upper(), word.capitalize(), word.title()]
+    seen = set()
+    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
+    for candidate in candidates:
+        for ext in image_extensions:
+            image_path = data_dir / f"{candidate}{ext}"
+            if image_path.exists():
+                from fastapi.responses import FileResponse
+                return FileResponse(image_path)
+
     return {"error": "Image not found"}
 
 @app.get("/assessment/audio/{word_key}/{language}/exists")
