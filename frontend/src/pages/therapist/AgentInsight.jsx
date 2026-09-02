@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { dashboardAPI } from '../../api/client'
+import { dashboardAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader } from '../../components/ui'
 import { ArrowLeft } from 'lucide-react'
 
@@ -28,7 +28,7 @@ export default function AgentInsight() {
     setError(null)
     dashboardAPI.agentStatus(id, levelId)
       .then(r => setStatus(r.data))
-      .catch(e => setError(e?.response?.data?.detail || 'Could not load agent status'))
+      .catch(e => setError(getErrorMessage(e, 'Could not load agent status')))
       .finally(() => setLoading(false))
   }, [id, levelId])
 

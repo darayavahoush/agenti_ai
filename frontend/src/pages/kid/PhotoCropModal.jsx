@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import Cropper from 'react-easy-crop'
 import { X, Check } from 'lucide-react'
 import { getCroppedImageBlob } from '../../lib/cropImage'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 // Full-screen crop step between picking a file and uploading it.
 // imageSrc is a local object URL (see MyAccount.jsx's handlePhotoUpload) --
@@ -12,6 +13,8 @@ export default function PhotoCropModal({ imageSrc, onCancel, onConfirm, saving }
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
   const [cropping, setCropping] = useState(false)
   const [cropError, setCropError] = useState(null)
+
+  useEscapeKey(() => { if (!cropping && !saving) onCancel() })
 
   const onCropComplete = useCallback((_, pixels) => {
     setCroppedAreaPixels(pixels)
@@ -36,7 +39,7 @@ export default function PhotoCropModal({ imageSrc, onCancel, onConfirm, saving }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90" role="dialog" aria-modal="true" aria-label="Crop your photo">
       <div className="relative flex-1">
         <Cropper
           image={imageSrc}

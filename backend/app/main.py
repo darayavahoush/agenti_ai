@@ -1,13 +1,15 @@
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func
-from pydantic import BaseModel
+from sqlalchemy import func, inspect
+import re
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from uuid import UUID
 import os
 from pathlib import Path
 
 from app.database import Base, engine, SessionLocal
+from app.config import settings
 from app.models.patient import Patient
 from app.models.session import Session as SessionModel
 from app.models.assessment_word import AssessmentWord
@@ -46,7 +48,15 @@ class PatientCreate(BaseModel):
     therapist_name: Optional[str] = None
     parent_name: Optional[str] = None
     parent_contact: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    # Mirrors the frontend's own validateContactNumber regex
+    # (assessment/Assessment.jsx) so client and server enforce the same rule.
+    @validator("parent_contact")
+    def validate_parent_contact(cls, v):
+        if v is not None and v != "" and not re.match(r"^[0-9]{10}$", v):
+            raise ValueError("parent_contact must be exactly 10 digits")
+        return v
 
 class PatientLogin(BaseModel):
     name: str
@@ -72,10 +82,11 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # meant every origin was effectively trusted with cookies/auth headers,
 # not just the intended localhost dev servers. Removed the wildcard
 # entirely rather than relying on browsers to save us from it.
-_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-_prod_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
-_dev_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
-_allowed_origins = _prod_origins or _dev_origins
+_allowed_origins = [
+    origin.strip()
+    for origin in settings.CORS_ORIGINS.split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -190,47 +201,17 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 # separate, still-idempotent ADD COLUMN IF NOT EXISTS stopgap for
 # columns added after their table already existed in a deployed DB,
 # predating Alembic. Left as-is, not retroactively converted.
-def _ensure_patient_therapist_link_column():
-    """One-time ADD COLUMN for registered_therapist_id -- patients table
-    already existed before this column was added to the model (0 rows as
-    of this migration, so purely additive, no backfill needed)."""
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE patients ADD COLUMN IF NOT EXISTS registered_therapist_id UUID"
-        ))
-
-_ensure_patient_therapist_link_column()
-
-def _ensure_therapist_last_login_column():
-    """One-time ADD COLUMN for last_login -- added 2026-08-11 as part of
-    collapsing quest-games' separate Therapist table into this one,
-    canonical Assessment-native Therapist (see models/therapist.py)."""
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE therapists ADD COLUMN IF NOT EXISTS last_login TIMESTAMP"
-        ))
-
-_ensure_therapist_last_login_column()
-
-def _ensure_session_diagnostic_columns():
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS severity_classification VARCHAR"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS error_patterns JSONB"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS targeted_quests JSONB"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS diagnostic_report VARCHAR"
-        ))
-
-_ensure_session_diagnostic_columns()
+# _ensure_patient_therapist_link_column, _ensure_therapist_last_login_column,
+# and _ensure_session_diagnostic_columns were removed 2026-08-28 -- all
+# columns they added (patients.registered_therapist_id, therapists.last_login,
+# sessions.severity_classification/error_patterns/targeted_quests/
+# diagnostic_report) are already present in alembic/versions/
+# 000baseline0_baseline_schema.py, making these three functions permanent
+# no-ops that ran on every container startup. Worse, registered_therapist_id
+# in particular was re-added here as a bare UUID with no FK constraint or
+# index, unlike baseline's version -- a landmine if that column were ever
+# dropped and these functions recreated it without baseline's integrity
+# constraints. Schema changes now go through Alembic exclusively.
 
 @app.get("/")
 def home():
@@ -284,7 +265,15 @@ def get_all_patients():
 
 @app.post("/patients/")
 def create_patient(data: PatientCreate):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
+    # Re-enabled -- this is the live, only path for the assessment flow's
+    # self-serve patient signup (frontend/src/assessment/Assessment.jsx).
+    # The 2026-08-07 retirement note claimed a port-8001 standalone
+    # breathquest backend superseded this, but that service doesn't
+    # actually run anywhere in this repo (Procfile/start_server.sh both
+    # only run app.main:app on port 8000), and .env.production points
+    # straight at this same endpoint -- so disabling it just broke real
+    # signups with a 410. Restored, with EmailStr/phone validation added
+    # to close the gap that was the actual original concern.
     db = SessionLocal()
     try:
         patient = Patient(
@@ -321,7 +310,8 @@ def create_patient(data: PatientCreate):
 
 @app.post("/patients/login")
 def login_patient(data: PatientLogin):
-    raise HTTPException(status_code=410, detail="Retired 2026-08-07: unauthenticated, superseded by standalone breathquest backend (port 8001) / assessment.py. See merge notes.")
+    # Re-enabled -- see create_patient's comment above; same live-endpoint
+    # situation applies here.
     db = SessionLocal()
     try:
         # Search for patient by name and date of birth
@@ -376,6 +366,43 @@ def get_all_sessions():
     finally:
         db.close()
 
+@app.get("/patients/{patient_id}")
+def get_patient(patient_id: UUID):
+    # Added -- assessment/Assessment.jsx's loadPatientDetails() has always
+    # called this bare route (used to pre-fill the edit form for a
+    # returning self-serve patient), but no matching route existed
+    # anywhere in this file or app/routers/therapist_patients.py's
+    # /api/v1-prefixed one (different prefix, and auth-gated besides).
+    # This was a plain 404 on every "Edit Details" load, separate from
+    # the 2026-08-07 retirement of the other /patients/* routes above --
+    # unlike those, this route was never implemented at all. Registered
+    # last among the /patients/* GET routes on general principle (a
+    # single-segment {patient_id} param can't actually collide with the
+    # other routes here, which are all longer paths, but keeping literal
+    # paths first is the safer default if that ever changes).
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        return {
+            "id": str(patient.id),
+            "name": patient.name,
+            "age": patient.age,
+            "date_of_birth": patient.date_of_birth,
+            "language": patient.language,
+            "gender": patient.gender,
+            "diagnosis": patient.diagnosis,
+            "therapist_name": patient.therapist_name,
+            "parent_name": patient.parent_name,
+            "parent_contact": patient.parent_contact,
+            "email": patient.email,
+            "is_active": patient.is_active,
+            "created_at": patient.created_at,
+        }
+    finally:
+        db.close()
+
 # -----------------------------------
 # Assessment Endpoints (Minimal)
 # -----------------------------------
@@ -398,15 +425,36 @@ def serialize_word(item: AssessmentWord) -> dict:
     }
 
 @app.get("/assessment/words/random")
-def random_word():
+def random_word(exclude: Optional[str] = Query(None, description="Comma-separated word ids already shown this session")):
+    # #62: this used to be fully random on every call with no memory of
+    # what the child had already been asked, so the same word could (and
+    # did) come up repeatedly within one assessment session. The frontend
+    # now tracks shown word ids client-side and passes them here to
+    # exclude; once every active word has been excluded, we drop the
+    # filter and start a fresh cycle instead of returning an error.
+    exclude_ids = set()
+    if exclude:
+        for part in exclude.split(","):
+            part = part.strip()
+            if part.isdigit():
+                exclude_ids.add(int(part))
+
     db = SessionLocal()
     try:
-        item = (
-            db.query(AssessmentWord)
-            .filter(AssessmentWord.is_active.is_(True))
-            .order_by(func.random())
-            .first()
-        )
+        query = db.query(AssessmentWord).filter(AssessmentWord.is_active.is_(True))
+        if exclude_ids:
+            query = query.filter(AssessmentWord.id.notin_(exclude_ids))
+
+        item = query.order_by(func.random()).first()
+
+        if not item and exclude_ids:
+            item = (
+                db.query(AssessmentWord)
+                .filter(AssessmentWord.is_active.is_(True))
+                .order_by(func.random())
+                .first()
+            )
+
         if not item:
             return {"error": "No words available"}
         return serialize_word(item)
@@ -415,23 +463,38 @@ def random_word():
 
 @app.get("/assessment/words/image/{word}")
 def get_word_image(word: str):
-    # Simple fallback - check data/images directory
+    # Simple fallback - check data/images directory.
+    #
+    # BUG (was here): add_images_to_db.py seeds AssessmentWord.word as
+    # file.stem.lower() (e.g. "Ball.png" -> word="ball"), but the alphabet
+    # word set's actual files on disk are Title-cased (Ball.png, Cat.png,
+    # Penguine.png, Yo-Yo.png, ...). This handler only ever tried `word`
+    # as-is and `word.lower()` -- both resolve to the same lowercase
+    # string the DB already gives us, so it never tried the Title-cased
+    # filename that's actually on disk. Every one of the ~21 alphabet
+    # words 404'd here (only the already-lowercase-named words like
+    # "apple"/"dog" happened to work), which is why images silently
+    # failed to display for a large chunk of assessment words. Works
+    # fine on a case-insensitive filesystem (Mac/HFS+/APFS), which is
+    # why this wasn't caught locally -- only breaks on the case-sensitive
+    # Linux filesystem deployment actually runs on.
+    #
+    # Fix: also try Title-case (and a couple of other common casings) so
+    # "ball" -> "Ball.png" resolves regardless of how the file was named.
     data_dir = Path(__file__).parent.parent.parent / "data" / "images"
     image_extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
-    
-    for ext in image_extensions:
-        image_path = data_dir / f"{word}{ext}"
-        if image_path.exists():
-            from fastapi.responses import FileResponse
-            return FileResponse(image_path)
-    
-    # Try with different casing
-    for ext in image_extensions:
-        image_path = data_dir / f"{word.lower()}{ext}"
-        if image_path.exists():
-            from fastapi.responses import FileResponse
-            return FileResponse(image_path)
-    
+
+    candidates = [word, word.lower(), word.upper(), word.capitalize(), word.title()]
+    seen = set()
+    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
+    for candidate in candidates:
+        for ext in image_extensions:
+            image_path = data_dir / f"{candidate}{ext}"
+            if image_path.exists():
+                from fastapi.responses import FileResponse
+                return FileResponse(image_path)
+
     return {"error": "Image not found"}
 
 @app.get("/assessment/audio/{word_key}/{language}/exists")

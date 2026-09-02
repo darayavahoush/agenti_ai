@@ -53,7 +53,6 @@ def upgrade():
     )
 
 
-def downgrade():
-    op.drop_constraint('breathquest_patients_assessment_patient_id_fkey', 'breathquest_patients', type_='foreignkey')
-    op.drop_index(op.f('ix_breathquest_patients_assessment_patient_id'), table_name='breathquest_patients')
-    op.drop_column('breathquest_patients', 'assessment_patient_id')
+def upgrade() -> None:
+    """Already included in 000baseline0_baseline_schema.py."""
+    pass

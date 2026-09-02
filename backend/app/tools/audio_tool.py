@@ -9,25 +9,29 @@ import torch
 from fastapi import UploadFile
 from pydub import AudioSegment
 from silero_vad import get_speech_timestamps, load_silero_vad
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------
 # LOAD MODELS
 # ---------------------------------------------------
 try:
     vad_model = load_silero_vad()
-    print("✅ Silero VAD loaded")
+    logger.info("✅ Silero VAD loaded")
 except Exception as e:
     vad_model = None
-    print("❌ VAD error:", e)
+    logger.error(f"❌ VAD error: {e}")
 
 
 # ---------------------------------------------------
 # SAVE AUDIO
 # ---------------------------------------------------
 def save_audio(file: UploadFile) -> str:
-    print("📁 Filename:", file.filename)
-    print("📋 Content-Type:", file.content_type)
-    print("📊 File size:", file.file.getbuffer().nbytes if hasattr(file.file, 'getbuffer') else "unknown")
+    logger.info(f"📁 Filename: {file.filename}")
+    logger.info(f"📋 Content-Type: {file.content_type}")
+    logger.info(f"📊 File size: {file.file.getbuffer().nbytes if hasattr(file.file, 'getbuffer') else 'unknown'}")
 
     # The browser's MediaRecorder actually records WebM/Opus (Chrome/Edge)
     # or MP4/AAC (Safari) no matter what filename/content-type the frontend
@@ -49,14 +53,14 @@ def save_audio(file: UploadFile) -> str:
         audio = AudioSegment.from_file(tmp_in_path)  # ffmpeg sniffs real format
         audio.export(path, format="wav")
     except Exception as e:
-        print("❌ Transcode error:", e)
+        logger.error(f"❌ Transcode error: {e}")
         raise
     finally:
         if os.path.exists(tmp_in_path):
             os.remove(tmp_in_path)
 
-    print("💾 Saved as:", path)
-    print("📏 Saved file size:", os.path.getsize(path), "bytes")
+    logger.info(f"💾 Saved as: {path}")
+    logger.info(f"📏 Saved file size: {os.path.getsize(path)} bytes")
     return path
 
 
@@ -67,9 +71,9 @@ def load_audio(
     path: str,
     sr: int = 16000
 ) -> Tuple[np.ndarray, int]:
-    print("🔊 Loading audio from:", path, "with sample rate:", sr)
+    logger.info(f"🔊 Loading audio from: {path} with sample rate: {sr}")
     y, loaded_sr = librosa.load(path, sr=sr)
-    print("📊 Loaded audio shape:", y.shape, "actual sample rate:", loaded_sr)
+    logger.info(f"📊 Loaded audio shape: {y.shape} actual sample rate: {loaded_sr}")
     return y, loaded_sr
 
 
@@ -118,38 +122,35 @@ def vad_split(y: np.ndarray, sr: int) -> List[np.ndarray]:
 def select_child_segment(y: np.ndarray, sr: int) -> np.ndarray:
     segments = vad_split(y, sr)
 
-    from typing import Optional
+    # NOTE: this used to score every VAD-detected segment and keep only the
+    # single highest-scoring one, discarding the rest outright. The score
+    # formula (energy*100 + pitch*0.35 - duration*0.5) is almost entirely
+    # driven by average energy -- duration barely moves it -- so a short,
+    # loud transient (a mic click/pop at the start of the recording, a
+    # cough, a tap sound) reliably outscored the child's actual (quieter,
+    # longer) word. Whenever VAD also happened to split one continuous
+    # word into two chunks around a natural micro-pause, keeping only the
+    # "best" chunk meant transcribing a fragment of the word instead of
+    # the whole thing -- e.g. only catching "eigh-" or a stray "uh" for a
+    # child who clearly said "eight", which is exactly the truncated,
+    # nonsensical single-phoneme detections being reported.
+    #
+    # Fix: keep every VAD segment that's long enough to plausibly be
+    # speech (the existing 1600-sample / 0.1s floor) and concatenate them
+    # in order, so the full utterance survives instead of only its
+    # loudest fragment. VAD's job is already to strip silence/noise gaps
+    # between speech; this just stops us from throwing away real speech
+    # segments it correctly found.
+    valid_segments = [audio for audio in segments if len(audio) >= 1600]
 
-    best_audio: Optional[np.ndarray] = None
-    best_score = -999
-
-    for audio in segments:
-        if len(audio) < 1600:
-            continue
-
-        # energy
-        energy = np.mean(librosa.feature.rms(y=audio))
-
-        # pitch
-        pitches, _ = librosa.piptrack(y=audio, sr=sr)
-        pitch_vals = pitches[pitches > 0]
-        pitch = np.mean(pitch_vals) if len(pitch_vals) else 0
-
-        duration = len(audio) / sr
-
-        # 🎯 CHILD HEURISTIC
-        # Prefer strong, voiced segments and avoid tiny noise bursts.
-        score = (energy * 100) + (pitch * 0.35) - (duration * 0.5)
-
-        if score > best_score:
-            best_score = score
-            best_audio = audio
-
-    if best_audio is None:
+    if not valid_segments:
         return y
 
-    print(f"🎯 Selected segment score: {best_score:.2f}")
-    return best_audio
+    if len(valid_segments) == 1:
+        return valid_segments[0]
+
+    logger.info(f"🎯 Merging {len(valid_segments)} detected speech segments into one utterance")
+    return np.concatenate(valid_segments)
 
 
 # ---------------------------------------------------
@@ -178,4 +179,4 @@ def delete_audio(path: str) -> None:
         if os.path.exists(path):
             os.remove(path)
     except OSError as e:
-        print(f"Failed to delete {path}: {e}")
+        logger.info(f"Failed to delete {path}: {e}")

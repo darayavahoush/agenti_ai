@@ -11,10 +11,13 @@ import uuid
 import json
 import random
 import base64
+import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.vaakmirror_auth import get_current_patient_id
 from app.database import get_db
@@ -26,6 +29,10 @@ from .scorer import build_attempt_result
 from .grapheme_to_phoneme import get_phonemes
 from . import themes as themes_module
 from . import mastery
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 _DATA_DIR = Path(__file__).resolve().parents[3] / 'data' / 'flashcard_images'
 _INDEX_PATH = _DATA_DIR / 'index.json'
@@ -107,7 +114,11 @@ async def speak_endpoint(
     character: str = Form(default="BOLT"),
     patient_id: str = Depends(get_current_patient_id),
 ):
-    audio_bytes = tts_speak(text, character)
+    try:
+        audio_bytes = tts_speak(text, character)
+    except Exception as e:
+        logger.error(f"speak_endpoint: TTS failed for text={text!r} character={character!r}: {e}")
+        raise HTTPException(status_code=502, detail="Text-to-speech is temporarily unavailable")
     return Response(content=audio_bytes, media_type="audio/wav")
 
 
@@ -176,7 +187,7 @@ async def evaluate(
         try:
             await mastery.record_attempt(db, uuid.UUID(patient_id), result, theme_id=theme)
         except Exception as e:
-            print(f"mastery.record_attempt failed (non-fatal): {e}")
+            logger.info(f"mastery.record_attempt failed (non-fatal): {e}")
 
         return result
     finally:

@@ -35,21 +35,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "breathquest_patients",
-        sa.Column(
-            "assessment_completed",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.false(),
-        ),
-    )
-    op.add_column(
-        "breathquest_patients",
-        sa.Column("assessment_summary", sa.JSON(), nullable=True),
-    )
+    # These columns are already part of the 000baseline0 baseline schema.
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("breathquest_patients", "assessment_summary")
-    op.drop_column("breathquest_patients", "assessment_completed")
+    # These columns belong to the baseline schema and must not be removed
+    # by this migration.
+    pass

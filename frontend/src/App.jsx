@@ -1,48 +1,59 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import { meAPI } from './api/client'
-import { PageLoader, SupervisedBanner } from './components/ui'
-
-import { Landing as AgentiLanding } from './agenti/Landing'
-import TherapistLogin     from './pages/therapist/Login'
-import TherapistDashboard from './pages/therapist/Dashboard'
-import PatientDetail      from './pages/therapist/PatientDetail'
-import AgentInsight        from './pages/therapist/AgentInsight'
-import TherapistSettings  from './pages/therapist/Settings'
-import KidPlay            from './pages/kid/Play'
-import AssessmentGate      from './pages/kid/AssessmentGate'
-import AssessmentReport    from './pages/kid/AssessmentReport'
-import LevelSelect        from './pages/kid/LevelSelect'
-import GamePage           from './pages/kid/GamePage'
-import GamePicker         from './pages/kid/GamePicker'
-import MyAccount          from './pages/kid/MyAccount'
-import VaakMirrorHome     from './vaakmirror/VaakMirrorHome'
-import MirrorMirror       from './vaakmirror/MirrorMirror'
-import TongueTamer        from './vaakmirror/TongueTamer'
-import LipSyncHero        from './vaakmirror/LipSyncHero'
-import MinimalPairDrill   from './vaakmirror/MinimalPairDrill'
-import ChimeHome          from './chime/ChimeHome'
-import VillageBuilder     from './chime/VillageBuilder'
-import RocketLaunch       from './chime/RocketLaunch'
-import SubmarineDive      from './chime/SubmarineDive'
-import FireflyJar         from './chime/FireflyJar'
-import WindChimeGarden    from './chime/WindChimeGarden'
-import BubbleWrapPop      from './chime/BubbleWrapPop'
-import XylophoneTower    from './chime/XylophoneTower'
-import LionsRoar          from './chime/LionsRoar'
+import { Toaster } from 'react-hot-toast'
+import { PageLoader, SupervisedBanner, OfflineBanner } from './components/ui'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
-import Flashcards from './pages/kid/Flashcards'
-import VoiceHurdleRace    from './voiceHurdleRace/VoiceHurdleRace'
-import ParentAuth         from './pages/parent/ParentAuth'
-import ParentDashboard    from './pages/parent/ParentDashboard'
-import ParentSettings     from './pages/parent/Settings'
-import Verify             from './pages/Verify'
-import Pricing            from './pages/Pricing'
-import Privacy            from './pages/Privacy'
-import Terms              from './pages/Terms' 
-import Billing            from './pages/Billing'
-import AuthPage           from './pages/AuthPage'
+
+// Route-level code splitting -- previously every page (all four apps:
+// BreathQuest, VaakMirror, Chime, VoiceHurdleRace, plus therapist/parent
+// dashboards) was bundled into one 1.57MB (429KB gzipped) JS file loaded
+// on first paint regardless of which single route a visitor actually
+// hits. Lazy-loading per route means e.g. a parent only ever downloads
+// the parent-dashboard chunk, not therapist tooling or every mini-game.
+// RequireLevelUnlocked stays a normal import -- it's a tiny guard
+// component (not a page), used inline inside several of the routes below.
+const AgentiLanding    = lazy(() => import('./agenti/Landing').then(m => ({ default: m.Landing })))
+const TherapistLogin     = lazy(() => import('./pages/therapist/Login'))
+const TherapistDashboard = lazy(() => import('./pages/therapist/Dashboard'))
+const PatientDetail      = lazy(() => import('./pages/therapist/PatientDetail'))
+const AgentInsight        = lazy(() => import('./pages/therapist/AgentInsight'))
+const TherapistSettings  = lazy(() => import('./pages/therapist/Settings'))
+const KidPlay            = lazy(() => import('./pages/kid/Play'))
+const AssessmentGate      = lazy(() => import('./pages/kid/AssessmentGate'))
+const AssessmentReport    = lazy(() => import('./pages/kid/AssessmentReport'))
+const LevelSelect        = lazy(() => import('./pages/kid/LevelSelect'))
+const GamePage           = lazy(() => import('./pages/kid/GamePage'))
+const GamePicker         = lazy(() => import('./pages/kid/GamePicker'))
+const MyAccount          = lazy(() => import('./pages/kid/MyAccount'))
+const AccountHistory     = lazy(() => import('./pages/kid/AccountHistory'))
+const VaakMirrorHome     = lazy(() => import('./vaakmirror/VaakMirrorHome'))
+const MirrorMirror       = lazy(() => import('./vaakmirror/MirrorMirror'))
+const TongueTamer        = lazy(() => import('./vaakmirror/TongueTamer'))
+const LipSyncHero        = lazy(() => import('./vaakmirror/LipSyncHero'))
+const MinimalPairDrill   = lazy(() => import('./vaakmirror/MinimalPairDrill'))
+const ChimeHome          = lazy(() => import('./chime/ChimeHome'))
+const VillageBuilder     = lazy(() => import('./chime/VillageBuilder'))
+const RocketLaunch       = lazy(() => import('./chime/RocketLaunch'))
+const SubmarineDive      = lazy(() => import('./chime/SubmarineDive'))
+const FireflyJar         = lazy(() => import('./chime/FireflyJar'))
+const WindChimeGarden    = lazy(() => import('./chime/WindChimeGarden'))
+const BubbleWrapPop      = lazy(() => import('./chime/BubbleWrapPop'))
+const XylophoneTower    = lazy(() => import('./chime/XylophoneTower'))
+const LionsRoar          = lazy(() => import('./chime/LionsRoar'))
+const Flashcards = lazy(() => import('./pages/kid/Flashcards'))
+const VoiceHurdleRace    = lazy(() => import('./voiceHurdleRace/VoiceHurdleRace'))
+const ParentAuth         = lazy(() => import('./pages/parent/ParentAuth'))
+const ParentDashboard    = lazy(() => import('./pages/parent/ParentDashboard'))
+const ParentSettings     = lazy(() => import('./pages/parent/Settings'))
+const Verify             = lazy(() => import('./pages/Verify'))
+const Pricing            = lazy(() => import('./pages/Pricing'))
+const Privacy            = lazy(() => import('./pages/Privacy'))
+const Terms              = lazy(() => import('./pages/Terms'))
+const Billing            = lazy(() => import('./pages/Billing'))
+const AuthPage           = lazy(() => import('./pages/AuthPage'))
 
 // Lets Quest Hub hand off a logged-in session by linking here with
 // ?token=&kind=&id=&name=&data= — adopts it into BreathQuest's OWN
@@ -139,7 +150,9 @@ function AppRoutes() {
 
   return (
     <>
+      <OfflineBanner />
       <SupervisedBanner />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/" element={<AgentiLanding onStart={(target) => {
           // target is "play-select" or "play-select?mode=signin" -- carry
@@ -168,9 +181,10 @@ function AppRoutes() {
         <Route path="/therapist/patients/:id/agent" element={
           <ProtectedTherapist><AgentInsight /></ProtectedTherapist>
         } />
-        <Route path="/therapist/billing" element={
+        {/* Unrouted for now -- billing.py is a 501 stub, bringing back in v2 */}
+        {/* <Route path="/therapist/billing" element={
           <ProtectedTherapist><Billing role="therapist" /></ProtectedTherapist>
-        } />
+        } /> */}
         <Route path="/therapist/settings" element={
           <ProtectedTherapist><TherapistSettings /></ProtectedTherapist>
         } />
@@ -190,6 +204,9 @@ function AppRoutes() {
         } />
         <Route path="/play/account" element={
           <ProtectedKid requireEntitlement={false}><MyAccount /></ProtectedKid>
+        } />
+        <Route path="/play/account/history" element={
+          <ProtectedKid requireEntitlement={false}><AccountHistory /></ProtectedKid>
         } />
         <Route path="/play/game/:levelId" element={
           <ProtectedKid><GamePage /></ProtectedKid>
@@ -248,9 +265,10 @@ function AppRoutes() {
         <Route path="/parent/dashboard" element={
           <ProtectedParent><ParentDashboard /></ProtectedParent>
         } />
-        <Route path="/parent/billing" element={
+        {/* Unrouted for now -- billing.py is a 501 stub, bringing back in v2 */}
+        {/* <Route path="/parent/billing" element={
           <ProtectedParent><Billing role="parent" /></ProtectedParent>
-        } />
+        } /> */}
         <Route path="/parent/settings" element={
           <ProtectedParent><ParentSettings /></ProtectedParent>
         } />
@@ -264,6 +282,7 @@ function AppRoutes() {
           } replace />
         } />
         </Routes>
+      </Suspense>
     </>
   )
 }
@@ -273,9 +292,29 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      {/* Empty client ID is a valid no-op state for @react-oauth/google
+          (the provider just won't be able to mint tokens) -- lets the
+          app still run locally before VITE_GOOGLE_CLIENT_ID is set,
+          rather than crashing at boot. */}
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </GoogleOAuthProvider>
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#1f1b24',
+            color: '#f5f0e8',
+            fontSize: '0.875rem',
+            border: '1px solid rgba(255,255,255,0.08)',
+          },
+          success: { iconTheme: { primary: '#A8FF6F', secondary: '#1f1b24' } },
+          error: { iconTheme: { primary: '#ff6f6f', secondary: '#1f1b24' } },
+        }}
+      />
     </BrowserRouter>
   )
 }

@@ -39,7 +39,24 @@ config = context.config
 # (psycopg2) URL, never the +asyncpg one -- migrations run outside the
 # app's async request lifecycle, and Alembic's own driver support is
 # built around sync DBAPI connections.
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+# Alembic uses synchronous psycopg2 connections.
+# The application DATABASE_URL uses asyncpg.
+alembic_database_url = DATABASE_URL
+
+if alembic_database_url.startswith("postgresql+asyncpg://"):
+    alembic_database_url = alembic_database_url.replace(
+        "postgresql+asyncpg://",
+        "postgresql+psycopg2://",
+        1,
+    )
+
+# asyncpg uses ssl=require; psycopg2 uses sslmode=require.
+alembic_database_url = alembic_database_url.replace(
+    "?ssl=require",
+    "?sslmode=require",
+)
+
+config.set_main_option("sqlalchemy.url", alembic_database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

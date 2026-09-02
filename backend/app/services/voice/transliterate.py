@@ -1,4 +1,8 @@
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 OVERRIDES = {
     "bolt":  "बोल्ट",
@@ -138,6 +142,6 @@ if __name__ == "__main__":
         "Hi friend! I am Mira, your friendly underwater robot. Let us explore words today!",
     ]
     for t in tests:
-        print(f"IN:  {t}")
-        print(f"OUT: {to_devanagari(t)}")
-        print()
+        logger.info(f"IN:  {t}")
+        logger.info(f"OUT: {to_devanagari(t)}")
+        logger.info()

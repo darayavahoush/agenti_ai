@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, TrendingUp, CreditCard } from 'lucide-react'
+import { Trash2, TrendingUp, CreditCard, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Sidebar } from '../../components/ui'
+import { getErrorMessage } from '../../api/client'
 
 export default function ParentSettings() {
   const { parent, logout, deleteParentAccount } = useAuth()
   const navigate = useNavigate()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   return (
     <div className="min-h-screen bg-ink relative flex">
@@ -21,7 +25,6 @@ export default function ParentSettings() {
         role="parent"
         items={[
           { label: 'Progress', icon: TrendingUp, to: '/parent/dashboard' },
-          { label: 'Billing', icon: CreditCard, to: '/parent/billing' },
         ]}
         name={parent?.child_first_name ? `${parent.child_first_name}'s Progress` : undefined}
         onLogout={logout}
@@ -60,19 +63,40 @@ export default function ParentSettings() {
               <p className="text-paper/60 text-sm mb-3">
                 This deletes your account and your child's account — all progress, all history. This can't be undone.
               </p>
+              <div className="relative mb-2">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => { setCurrentPassword(e.target.value); setDeleteError('') }}
+                  placeholder="Enter your current password to confirm"
+                  className="w-full px-4 py-2.5 pr-10 rounded-xl bg-white/5 border border-white/10 text-paper text-sm
+                             placeholder:text-paper/30 focus:outline-none focus:border-coral/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(s => !s)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-paper/30 hover:text-paper/60 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {deleteError && <p className="text-coral-light text-xs mb-3">{deleteError}</p>}
               <div className="flex items-center gap-3">
-                <button onClick={() => setConfirmingDelete(false)}
+                <button onClick={() => { setConfirmingDelete(false); setCurrentPassword(''); setDeleteError('') }}
                         className="text-paper/40 hover:text-paper/70 text-sm px-4 py-2 transition-colors">
                   Never mind
                 </button>
                 <button
-                  disabled={deleting}
+                  disabled={deleting || !currentPassword}
                   onClick={async () => {
                     setDeleting(true)
+                    setDeleteError('')
                     try {
-                      await deleteParentAccount()
+                      await deleteParentAccount(currentPassword)
                       navigate('/')
-                    } catch {
+                    } catch (err) {
+                      setDeleteError(getErrorMessage(err, 'Could not delete account — check your password and try again.'))
                       setDeleting(false)
                     }
                   }}

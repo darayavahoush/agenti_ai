@@ -18,14 +18,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema."""
-    # Stray column left on breathquest_refresh_tokens by an earlier
-    # Base.metadata.create_all() run while app/models/breathquest_models.py
-    # was mid-edit (KidLoginThrottle and RefreshToken sit next to each
-    # other in that file). Never part of the RefreshToken model, never
-    # read or written anywhere in app/ -- confirmed via grep before writing
-    # this migration. Safe to drop.
-    op.drop_column('breathquest_refresh_tokens', 'locked_until')
+    """Already reflected in the existing database schema."""
+    pass
 
 
 def downgrade() -> None:

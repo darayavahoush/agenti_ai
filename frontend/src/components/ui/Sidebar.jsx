@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, LogOut, Wind } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogOut, Wind, Lock } from 'lucide-react'
 
 // Role-aware collapsible sidebar for authenticated pages (therapist +
 // parent). Background is the SAME vertical gradient as the landing page
@@ -45,11 +45,12 @@ const THEMES = {
   },
 }
 
-function NavItem({ label, Icon, active, collapsed, t, to, onClick }) {
+function NavItem({ label, Icon, active, collapsed, t, to, onClick, locked, lockedHint }) {
   const [hovered, setHovered] = useState(false)
   const cls = `group relative flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-xl border border-transparent
                 transition-all duration-150 ${active ? t.activeBg : t.inactiveText}
-                ${!active ? 'hover:translate-x-0.5' : ''}`
+                ${!active ? 'hover:translate-x-0.5' : ''}
+                ${locked ? 'opacity-40 hover:!translate-x-0 cursor-not-allowed' : ''}`
 
   const inner = (
     <>
@@ -63,6 +64,7 @@ function NavItem({ label, Icon, active, collapsed, t, to, onClick }) {
       />
       <Icon size={18} className="shrink-0" />
       {!collapsed && <span className="text-sm font-medium truncate">{label}</span>}
+      {locked && <Lock size={12} className="shrink-0 ml-auto opacity-80" />}
     </>
   )
 
@@ -72,19 +74,25 @@ function NavItem({ label, Icon, active, collapsed, t, to, onClick }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {to ? (
+      {locked ? (
+        // Not a real Link -- navigating here would just get silently
+        // bounced back by ProtectedKid (assessment_completed gate), which
+        // is exactly the confusing loop this is meant to prevent. Instead
+        // this stays put and explains itself via the tooltip below.
+        <button type="button" className={cls + ' w-full text-left'} aria-disabled="true">{inner}</button>
+      ) : to ? (
         <Link to={to} className={cls}>{inner}</Link>
       ) : (
         <button onClick={onClick} className={cls + ' w-full text-left'}>{inner}</button>
       )}
-      {/* Floating tooltip when collapsed — native `title` attrs are slow
-          to appear and look inconsistent across browsers; this shows
-          instantly and matches the app's own visual language. */}
-      {collapsed && hovered && (
+      {/* Floating tooltip — shown for locked items on hover regardless of
+          collapsed state (that's the whole point: explain why), and for
+          any item's label when the sidebar itself is collapsed. */}
+      {(locked || collapsed) && hovered && (
         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 rounded-lg
                          bg-[#12142E] border border-white/10 shadow-lg text-xs font-medium text-white
-                         whitespace-nowrap z-50 pointer-events-none">
-          {label}
+                         whitespace-nowrap z-50 pointer-events-none max-w-[180px] whitespace-normal">
+          {locked ? (lockedHint || 'Locked for now') : label}
         </div>
       )}
     </div>
@@ -93,7 +101,7 @@ function NavItem({ label, Icon, active, collapsed, t, to, onClick }) {
 
 export default function Sidebar({
   role = 'therapist',   // 'therapist' | 'parent'
-  items = [],            // [{ label, icon: LucideIcon, to?, onClick? }]
+  items = [],            // [{ label, icon: LucideIcon, to?, onClick?, locked?, lockedHint? }]
   name,
   subtitle,
   onLogout,
@@ -123,7 +131,7 @@ export default function Sidebar({
       <div className={`h-px mx-4 ${t.divider}`} />
 
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto overflow-x-visible">
-        {items.map(({ label, icon: Icon, to, onClick }) => (
+        {items.map(({ label, icon: Icon, to, onClick, locked, lockedHint }) => (
           <NavItem
             key={label}
             label={label}
@@ -133,6 +141,8 @@ export default function Sidebar({
             t={t}
             to={to}
             onClick={onClick}
+            locked={locked}
+            lockedHint={lockedHint}
           />
         ))}
       </nav>

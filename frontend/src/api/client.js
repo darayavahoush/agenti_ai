@@ -114,9 +114,11 @@ api.interceptors.response.use(
       // Full reload, not a router push: this file has no router context (it's
       // a plain axios instance, not a component), and a hard reload is exactly
       // what's needed anyway to clear any in-memory AuthContext/game state left
-      // over from the dead session.
+      // over from the dead session. The session_expired param lets the landing
+      // page explain what happened instead of silently dumping them back at
+      // login with no context -- see each login page's handling of it.
       if (window.location.pathname !== loginPath) {
-        window.location.href = loginPath
+        window.location.href = `${loginPath}?session_expired=1`
       }
     }
     return Promise.reject(error)
@@ -130,26 +132,31 @@ api.interceptors.response.use(
 export const verifyAPI = {
   request: (data) => api.post('/verify/request', data),
   confirm: (data) => api.post('/verify/confirm', data),
-  phoneRequest: (data) => api.post('/verify/phone/request', data),
-  phoneConfirm: (data) => api.post('/verify/phone/confirm', data),
 }
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login:    (data) => api.post('/auth/login', data),
+  googleAuthTherapist: (idToken) => api.post('/auth/google', { id_token: idToken }),
   kidRegister: (data) => api.post('/auth/kid-register', data),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
   parentRegister: (data) => api.post('/auth/parent-register', data),
   parentKidRegister: (data) => api.post('/auth/parent-kid-register', data),
   parentLogin:    (data) => api.post('/auth/parent-login', data),
+  parentGoogleLogin:    (idToken) => api.post('/auth/parent-google-login', { id_token: idToken }),
+  parentGoogleRegister: (data) => api.post('/auth/parent-google-register', data),
+  forgotPlayerCode: (data) => api.post('/auth/forgot-player-code', data),
+  forgotPin: (data) => api.post('/auth/forgot-pin', data),
+  parentResetPassword: (data) => api.post('/auth/parent-reset-password', data),
+  therapistResetPassword: (data) => api.post('/auth/reset-password', data),
 
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidCandidates:       () => api.get('/auth/kid-candidates'),
   kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),
 
-  deleteParentAccount: () => api.delete('/auth/parent-account'),
-  deleteKidAccount:    () => api.delete('/auth/kid-account'),
-  deleteTherapistAccount: () => api.delete('/auth/account'),
+  deleteParentAccount: (data)    => api.delete('/auth/parent-account', { data }),
+  deleteKidAccount:    (data)    => api.delete('/auth/kid-account', { data }),
+  deleteTherapistAccount: (data) => api.delete('/auth/account', { data }),
 
   refresh: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }),
   logout:  (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }),
@@ -274,9 +281,13 @@ export const vaakmirrorAPI = {
 
 export const meAPI = {
   progress:        () => api.get('/me/progress'),
+  history:         () => api.get('/me/history'),
+  breathquestLevelScores: () => api.get('/me/breathquest/level-scores'),
+  gamesSummary:    () => api.get('/me/games-summary'),
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
   updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),
+  changePin:       (data) => api.patch('/breathquest/patients/me/change-pin', data),
   uploadProfilePhoto: (file) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -300,6 +311,9 @@ export const billingAPI = {
 export const parentAPI = {
   progress: () => api.get('/parent/progress'),
   guidedActivity: () => api.get('/parent/guided-activity'),
+  listMessages: () => api.get('/parent/messages'),
+  sendMessage: (body) => api.post('/parent/messages', { body, sender_role: 'parent' }),
+  markMessageRead: (messageId) => api.post(`/parent/messages/${messageId}/read`),
 }
 
 // FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.
@@ -312,7 +326,15 @@ export const parentAPI = {
 // error #31), not just the form. Normalize once, here, instead of leaving
 // every call site to assume detail is always a string.
 export function getErrorMessage(err, fallback = 'Something went wrong') {
-  const detail = err?.response?.data?.detail
+  // No response at all means the request never reached the server --
+  // offline, DNS failure, server down, CORS block, etc. -- as opposed to
+  // the server responding with an actual error status. The generic
+  // caller-supplied fallback ("please try again") is actively misleading
+  // here, since retrying immediately won't help if there's no connection.
+  if (!err?.response) {
+    return "Can't reach the server — check your connection and try again."
+  }
+  const detail = err.response?.data?.detail
   if (!detail) return fallback
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {

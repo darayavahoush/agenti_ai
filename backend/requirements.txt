@@ -1,76 +1,117 @@
+# Pinned 2026-08-22 -- every package below is version-locked so a fresh
+# `pip install` always resolves the same set of wheels, instead of pulling
+# whatever's newest that day (which is how the epitran/editdistance build
+# broke on a fresh Python 3.14 venv this session -- a floating dependency
+# picked a version with no prebuilt wheel and fell back to compiling from
+# source). Bump versions deliberately, one at a time, testing after each.
+#
+# transformers is capped in the 4.x line (was already `<5` before this
+# pin) -- transformers 5.x is out on PyPI but nothing in this codebase has
+# been verified against its breaking changes, so don't jump there blindly.
+# Same reasoning for pandas (kept on 2.x, not the new 3.x line) and
+# opencv-python (kept on 4.x, not the new 5.x line): pinning to the latest
+# *within the already-proven major version* rather than the newest major
+# release, since those majors haven't been tested against this codebase's
+# audio/CV pipeline.
+
 # Core Framework
-fastapi
-uvicorn[standard]
-python-dotenv
-pydantic
-pydantic-settings
-email-validator
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-dotenv==1.2.3
+pydantic==2.13.4
+pydantic-settings==2.15.0
+email-validator==2.3.0
 
 # Database
-sqlalchemy
-alembic
-psycopg2-binary
-asyncpg
+sqlalchemy==2.0.52
+alembic==1.19.1
+psycopg2-binary==2.9.12
+asyncpg==0.31.0
 
 # Authentication & Security
-passlib
+passlib==1.7.4
 bcrypt==4.0.1
-python-jose[cryptography]
-python-multipart
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.32
+google-auth==2.56.3
 
 # Audio Processing
-soundfile
-librosa
-numpy
-pandas
-scipy
-faster-whisper
-openai-whisper
-rapidfuzz
-noisereduce
-praat-parselmouth
-silero-vad
+soundfile==0.14.0
+librosa==1.0.0
+numpy==2.5.2
+pandas==2.3.3
+scipy==1.18.1
+faster-whisper==1.2.1
+# openai-whisper is still directly imported in
+# app/routers/flashcards/router.py, separate from the faster-whisper usage
+# elsewhere (phonemequest.py, chime.py, speech_tool.py) -- kept as a real
+# dependency, not redundant. Worth consolidating onto one whisper backend
+# later, but that's a code change, not something to drop here silently.
+openai-whisper==20250625
+rapidfuzz==3.14.5
+noisereduce==3.0.3
+praat-parselmouth==0.4.7
+silero-vad==6.2.1
 
 # Speech Recognition
-vosk
-pyaudio
+vosk==0.3.44
 
 # Machine Learning
-torch==2.13.0
-transformers<5
-sentence-transformers
-scikit-learn
+# PyTorch is installed explicitly in Dockerfile as CPU-only.
+transformers==4.57.6
+# Pinned to the last sentence-transformers release compatible with the
+# transformers 4.x line above -- 5.0.0+ requires transformers>=5, which
+# would force the exact major-version jump this file is deliberately
+# avoiding (see the file header). Caught by actually resolving this file
+# with pip, not just picking "latest" per-package independently, which is
+# what silently created this exact conflict.
+sentence-transformers==4.1.0
+scikit-learn==1.9.0
+
+# Grapheme-to-phoneme (used by routers/flashcards/grapheme_to_phoneme.py).
+# Was missing from this file entirely before this pin -- it was installed
+# by hand on whichever machine happened to need it, which is exactly how
+# this session's original problem started (a fresh venv had no record of
+# needing it, pip fell back to compiling editdistance from source, and
+# that failed with no C++ standard headers available). epitran itself has
+# no prebuilt wheel for any Python version -- it always builds a small
+# C extension via its editdistance dependency, so Xcode Command Line
+# Tools (macOS) or build-essential (Linux) must be installed before this
+# line will succeed either way. That's a real, unavoidable requirement of
+# this dependency, now at least it's declared instead of implicit.
+epitran==1.35.2
 
 # NLP & Phonetics
 nltk
 g2p_en
 
 # Text-to-Speech
-coqui-tts
-kokoro-onnx
+coqui-tts==0.27.5
+kokoro-onnx==0.4.7
 
 # Computer Vision
-opencv-python
-imageio-ffmpeg
+opencv-python==4.14.0.94
+imageio-ffmpeg==0.6.0
 
 # File Handling
-aiofiles
+aiofiles==25.1.0
 
 # Web Scraping
-requests
-ddgs
+requests==2.34.2
+ddgs==9.15.0
 
 # Translation
-deep-translator
+deep-translator==1.11.4
 
 # Streamlit (for admin tools)
-streamlit
-streamlit-mic-recorder
+streamlit==1.62.0
+streamlit-mic-recorder==0.0.8
+
 # Added for agent/retraining/simulator merge (BreathQuest RL stack)
 gymnasium==1.3.0
 stable-baselines3==2.9.0
 sb3-contrib==2.9.0
-pydub
-langgraph
-greenlet
-azure-communication-sms>=1.1.0
+pydub==0.25.1
+langgraph==1.2.11
+greenlet==3.5.5
+azure-communication-sms==1.1.0

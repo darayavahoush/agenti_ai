@@ -8,6 +8,14 @@
 
 export type CreatureType = 'blip' | 'zog' | 'glorb' | 'cosmo' | 'comet';
 
+export const CREATURE_EMOJI: Record<CreatureType, string> = {
+  blip: '👽',
+  zog: '🤖',
+  glorb: '👾',
+  cosmo: '🛸',
+  comet: '☄️',
+};
+
 export interface RaceTheme {
   creature: CreatureType;
 

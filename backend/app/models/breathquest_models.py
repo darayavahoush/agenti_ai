@@ -95,6 +95,13 @@ class BreathQuestPatient(Base):
     # own Session rows, looked up via assessment_patient_id).
     assessment_completed: Mapped[bool]       = mapped_column(Boolean, default=False)
     assessment_summary:   Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Added 2026-08-24 to support retake-with-cooldown (see
+    # routers/breathquest/assessment.py's _retake_available_at):
+    # assessment_completed alone can't say *when* it happened, which is
+    # needed to compute "eligible to retake in N days". Nullable --
+    # existing rows completed before this column existed have no value
+    # here, treated as immediately eligible rather than blocked forever.
+    assessment_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Added 2026-08-12 for COPPA: POST /auth/kid-register (the only path with
     # no adult already in the loop -- see breathquest_core/parental_consent.py)
     # now requires a recently-verified parent email before it will create an
@@ -109,6 +116,10 @@ class BreathQuestPatient(Base):
     # nullable reasoning as parent_email above.
     parent_phone:                     Mapped[str | None] = mapped_column(String(32), nullable=True)
     parent_phone_consent_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added 2026-08-30 for the weekly parent progress-update email (see
+    # app/breathquest_core/weekly_update.py). Nullable -- see that
+    # module's docstring for how a missing value is treated on first check.
+    last_weekly_email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
@@ -226,11 +237,19 @@ class Parent(Base):
     id:               Mapped[uuid.UUID]    = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
     patient_id:       Mapped[uuid.UUID]    = mapped_column(ForeignKey("breathquest_patients.id"), unique=True, nullable=False)
     email:            Mapped[str]           = mapped_column(String(255), unique=True, nullable=False)
-    hashed_password:  Mapped[str]           = mapped_column(String(255), nullable=False)
+    # Nullable as of 2026-08-22: a Google-only account (google_sub set,
+    # never set a password) has nothing to put here -- same reasoning as
+    # Therapist.hashed_password, see that column's comment.
+    hashed_password:  Mapped[str | None]    = mapped_column(String(255), nullable=True)
     full_name:        Mapped[str | None]    = mapped_column(String(255), nullable=True)
     # Added 2026-08-13: collected on signup, not verified (no SMS provider
     # wired up yet). Nullable since existing accounts predate this field.
     phone:            Mapped[str | None]    = mapped_column(String(50), nullable=True)
+    # Added 2026-08-22 for Google Sign-In -- Google's stable per-account
+    # "sub" claim, not the email (survives the user changing their
+    # Google account's email later). See Therapist.google_sub's comment
+    # for the same nullable/unique reasoning.
+    google_sub:       Mapped[str | None]    = mapped_column(String(255), unique=True, nullable=True, index=True)
     is_active:        Mapped[bool]          = mapped_column(Boolean, default=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login:       Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

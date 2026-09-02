@@ -6,6 +6,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 from rapidfuzz import process, fuzz
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "images"
 INDEX_PATH = DATA_DIR / "index.json"
@@ -68,7 +72,7 @@ def semantic_match(word: str) -> str | None:
         if best_score > 0.5:
             return words_in_index[best_idx]
     except Exception as e:
-        print(f"Semantic match error: {e}")
+        logger.info(f"Semantic match error: {e}")
     return None
 
 
@@ -91,7 +95,7 @@ def fetch_from_arasaac(word: str) -> str | None:
                     save_index()
                     return filename
     except Exception as e:
-        print(f"ARASAAC fetch error for {word}: {e}")
+        logger.info(f"ARASAAC fetch error for {word}: {e}")
     return None
 
 
@@ -124,12 +128,12 @@ def fetch_from_web(word: str) -> str | None:
                     cv2.imwrite(str(filepath), img)
                     _index[word] = filename
                     save_index()
-                    print(f"Web scraped image for: {word}")
+                    logger.info(f"Web scraped image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Web scrape error for {word}: {e}")
+        logger.info(f"Web scrape error for {word}: {e}")
     return None
 
 
@@ -163,12 +167,12 @@ def fetch_from_pixabay(word: str) -> str | None:
                     cv2.imwrite(str(filepath), img)
                     _index[word] = filename
                     save_index()
-                    print(f"Pixabay image for: {word}")
+                    logger.info(f"Pixabay image for: {word}")
                     return filename
             except Exception:
                 continue
     except Exception as e:
-        print(f"Pixabay error for {word}: {e}")
+        logger.info(f"Pixabay error for {word}: {e}")
     return None
 
 def _make_text_image(word: str):
@@ -210,7 +214,29 @@ def find_image(word: str) -> dict:
             matched_word = result[0]
             return {"path": str(DATA_DIR / _index[matched_word]), "word": matched_word, "confidence": result[1], "match_type": "fuzzy"}
 
-    # 3. Semantic match fallback (from existing index)
+    # 3. Live fetch from external image sources — each has a bounded
+    #    request timeout (6-8s), unlike semantic_match below which lazily
+    #    loads an ML model with no timeout. Ordered fastest/most-reliable
+    #    first: ARASAAC (free pictogram API, no key needed), then Pixabay
+    #    (needs PIXABAY_API_KEY, silently skipped otherwise), then a
+    #    DuckDuckGo image scrape as a last-resort live source. These were
+    #    previously defined but never called, so any word not already in
+    #    the local index fell straight to the slow semantic match or a
+    #    plain text-on-white-background placeholder instead of ever
+    #    actually fetching a real picture.
+    filename = fetch_from_arasaac(word)
+    if filename:
+        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 90, "match_type": "arasaac"}
+
+    filename = fetch_from_pixabay(word)
+    if filename:
+        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 85, "match_type": "pixabay"}
+
+    filename = fetch_from_web(word)
+    if filename:
+        return {"path": str(DATA_DIR / filename), "word": word, "confidence": 75, "match_type": "web"}
+
+    # 4. Semantic match fallback (reuse the closest existing indexed image)
     matched = semantic_match(word)
     if matched:
         return {"path": str(DATA_DIR / _index[matched]), "word": matched, "confidence": 70, "match_type": "semantic"}
@@ -444,7 +470,7 @@ def get_image_for_phrase(phrase: str) -> dict:
                     "match_type": match["match_type"]
                 })
         except Exception as e:
-            print(f"Error serving raw image {match['path']}: {e}")
+            logger.info(f"Error serving raw image {match['path']}: {e}")
 
     if not images:
         return {"found": False, "phrase": phrase, "match_type": "none", "image_bytes": None, "images": []}
