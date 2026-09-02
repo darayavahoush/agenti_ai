@@ -594,6 +594,10 @@ class ParentProgressOut(BaseModel):
     recommended_action: Optional[str] = None
     recommendation_message: Optional[str] = None
     avg_breath_consistency: Optional[float] = None
+    # Lets the frontend show/hide therapist-dependent UI (messaging) honestly
+    # instead of a message box that silently 403s or accepts messages nobody
+    # reads. Boolean only -- parents don't need the therapist's actual id.
+    has_therapist: bool = False
 
 
 class KidProgressOut(BaseModel):

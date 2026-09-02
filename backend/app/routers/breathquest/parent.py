@@ -42,6 +42,21 @@ async def _get_linked_patient(parent: Parent, db: AsyncSession) -> BreathQuestPa
     return patient
 
 
+async def _get_linked_patient_with_therapist(parent: Parent, db: AsyncSession) -> BreathQuestPatient:
+    """Same as _get_linked_patient, but for the messaging routes only --
+    messaging a therapist requires an actual therapist to be on the other
+    end. Without this check, a self-registered family (no therapist_id)
+    could send messages into a conversation nobody ever reads, with no
+    error surfaced anywhere -- silently broken rather than absent."""
+    patient = await _get_linked_patient(parent, db)
+    if not patient.therapist_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Messaging is available once your child is connected with a therapist",
+        )
+    return patient
+
+
 @router.get("/progress", response_model=ParentProgressOut)
 async def get_parent_progress(
     parent: Parent = Depends(get_current_parent),
@@ -212,6 +227,7 @@ async def get_parent_progress(
         recommended_action=recommended_action,
         recommendation_message=recommendation_message,
         avg_breath_consistency=avg_breath_consistency,
+        has_therapist=bool(patient.therapist_id),
     )
 
 
@@ -325,7 +341,7 @@ async def list_messages(
     parent: Parent = Depends(get_current_parent),
     db: AsyncSession = Depends(get_db),
 ):
-    patient = await _get_linked_patient(parent, db)
+    patient = await _get_linked_patient_with_therapist(parent, db)
     result = await db.execute(
         select(Message).where(Message.patient_id == patient.id).order_by(Message.created_at.asc())
     )
@@ -338,7 +354,7 @@ async def create_message(
     parent: Parent = Depends(get_current_parent),
     db: AsyncSession = Depends(get_db),
 ):
-    patient = await _get_linked_patient(parent, db)
+    patient = await _get_linked_patient_with_therapist(parent, db)
     message = Message(
         patient_id=patient.id,
         sender_role=SenderRole.parent,  # never trust data.sender_role here -- this endpoint only ever sends as this parent
