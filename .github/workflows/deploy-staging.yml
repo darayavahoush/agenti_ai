@@ -1,9 +1,16 @@
 name: Deploy VaakSiddhi Backend
 
+# Deploy source of truth is lavanya2kowmar/agenti_ai's `staging` branch --
+# this repo used to also auto-deploy on push to its own `staging`, but
+# both workflows (here and in her repo) target the exact same Azure
+# resources (vaaksudhi-backend / vaaksudhi-rg), so every push to either
+# repo's staging independently redeployed the same live site. Harmless
+# when both happened to carry the same commit, but a silent overwrite
+# race waiting to happen the moment the two repos diverge. Kept as
+# workflow_dispatch so a deploy can still be triggered manually from
+# here if needed, without auto-firing on every push.
 on:
-  push:
-    branches:
-      - staging
+  workflow_dispatch:
 
 permissions:
   id-token: write
