@@ -80,7 +80,7 @@ class KidRegisterRequest(BaseModel):
 
     @validator("avatar")
     def avatar_valid(cls, v):
-        valid = {"chick", "dragon", "cloud", "star", "rocket", "fish"}
+        valid = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
         if v not in valid:
             raise ValueError(f"Avatar must be one of {valid}")
         return v
@@ -103,7 +103,7 @@ class KidPinSetupRequest(BaseModel):
 
     @validator("avatar")
     def avatar_valid(cls, v):
-        valid = {"chick", "dragon", "cloud", "star", "rocket", "fish"}
+        valid = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
         if v not in valid:
             raise ValueError(f"Avatar must be one of {valid}")
         return v
@@ -201,7 +201,7 @@ class PatientCreate(BaseModel):
 
     @validator("avatar")
     def avatar_valid(cls, v):
-        valid = {"chick", "dragon", "cloud", "star", "rocket", "fish"}
+        valid = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
         if v not in valid:
             raise ValueError(f"Avatar must be one of {valid}")
         return v
@@ -461,7 +461,7 @@ class ParentKidRegisterRequest(BaseModel):
 
     @validator("avatar")
     def avatar_valid(cls, v):
-        valid = {"chick", "dragon", "cloud", "star", "rocket", "fish"}
+        valid = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
         if v not in valid:
             raise ValueError(f"Avatar must be one of {valid}")
         return v
