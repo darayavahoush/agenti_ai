@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, inspect
 import re
@@ -425,15 +425,36 @@ def serialize_word(item: AssessmentWord) -> dict:
     }
 
 @app.get("/assessment/words/random")
-def random_word():
+def random_word(exclude: Optional[str] = Query(None, description="Comma-separated word ids already shown this session")):
+    # #62: this used to be fully random on every call with no memory of
+    # what the child had already been asked, so the same word could (and
+    # did) come up repeatedly within one assessment session. The frontend
+    # now tracks shown word ids client-side and passes them here to
+    # exclude; once every active word has been excluded, we drop the
+    # filter and start a fresh cycle instead of returning an error.
+    exclude_ids = set()
+    if exclude:
+        for part in exclude.split(","):
+            part = part.strip()
+            if part.isdigit():
+                exclude_ids.add(int(part))
+
     db = SessionLocal()
     try:
-        item = (
-            db.query(AssessmentWord)
-            .filter(AssessmentWord.is_active.is_(True))
-            .order_by(func.random())
-            .first()
-        )
+        query = db.query(AssessmentWord).filter(AssessmentWord.is_active.is_(True))
+        if exclude_ids:
+            query = query.filter(AssessmentWord.id.notin_(exclude_ids))
+
+        item = query.order_by(func.random()).first()
+
+        if not item and exclude_ids:
+            item = (
+                db.query(AssessmentWord)
+                .filter(AssessmentWord.is_active.is_(True))
+                .order_by(func.random())
+                .first()
+            )
+
         if not item:
             return {"error": "No words available"}
         return serialize_word(item)
