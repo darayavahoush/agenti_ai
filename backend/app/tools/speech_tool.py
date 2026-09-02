@@ -55,11 +55,40 @@ except Exception as e:
 # ---------------------------------------------------
 # NORMALIZE TEXT
 # ---------------------------------------------------
+_NUMBER_WORDS = {
+    "0": "zero",
+    "1": "one",
+    "2": "two",
+    "3": "three",
+    "4": "four",
+    "5": "five",
+    "6": "six",
+    "7": "seven",
+    "8": "eight",
+    "9": "nine",
+}
+
+
 def normalize_text(text: str) -> str:
-    # For non-English text, don't strip non-ASCII characters
+    if text is None:
+        return ""
+
+    text = str(text).strip().lower()
+    if not text:
+        return ""
+
+    # Convert numeric tokens like "7" or "7." into spoken words before
+    # stripping punctuation so assessment targets and transcripts match.
+    text = re.sub(r"\d+", lambda m: " ".join(_NUMBER_WORDS[d] for d in m.group(0)), text)
+
+    # Preserve multilingual scripts but drop punctuation and normalize spacing.
     if any(ord(c) > 127 for c in text):
-        return text.lower().strip()
-    return re.sub(r'[^a-z ]', '', text.lower()).strip()
+        normalized = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+        return " ".join(normalized.split())
+
+    normalized = re.sub(r"[^a-z\s]", " ", text)
+    normalized = " ".join(normalized.split())
+    return normalized
 
 
 # ---------------------------------------------------
