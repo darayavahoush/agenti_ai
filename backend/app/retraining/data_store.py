@@ -18,14 +18,27 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.database import DATABASE_URL
+from app.database import _sync_db_url
 
 # Small dedicated engine, separate from database.py's shared `engine` --
 # this file's traffic (RL event logging, checkpoints) is low-volume and
 # doesn't need to compete for headroom in the shared pool. Capped total
 # of 5 connections (pool_size + max_overflow).
+#
+# Bound to _sync_db_url (not the raw DATABASE_URL) for the same reason
+# database.py's own `engine` is: when DATABASE_URL is in the asyncpg/Azure
+# form (postgresql+asyncpg://...?ssl=require -- see database.py's own
+# comment on this), handing that straight to this file's sync
+# create_engine() doesn't fail at import time, it fails the moment any
+# query actually runs, with a MissingGreenlet error -- confirmed locally.
+# Every call in this file caught that under a bare except at its call site
+# (chime.py's log_event/get_events, etc.) and silently no-opped: writes
+# never landed, reads always came back empty, with no visible error on
+# this side. That's indistinguishable from "nothing passed yet" to
+# anything reading this data -- e.g. Chime's level-unlock check, which is
+# exactly the "still locked after passing" bug this was tracked down for.
 _retraining_engine = create_engine(
-    DATABASE_URL,
+    _sync_db_url,
     pool_pre_ping=True,
     pool_size=2,
     max_overflow=3,
