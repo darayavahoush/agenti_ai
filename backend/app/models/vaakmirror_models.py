@@ -33,6 +33,11 @@ class AttemptOutcome(str, enum.Enum):
     missed = "missed"
 
 
+class AttemptLabel(str, enum.Enum):
+    correct = "correct"
+    incorrect = "incorrect"
+
+
 class AssignmentStatus(str, enum.Enum):
     not_started = "not_started"
     assigned = "assigned"
@@ -64,6 +69,20 @@ class Attempt(Base):
     outcome = Column(Enum(AttemptOutcome), nullable=False)
     score = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    # Auto-calibration loop (collection phase): raw scoring signal captured
+    # at the moment of the attempt, so SHAPE_TARGETS ranges can later be
+    # recalibrated against real labeled data instead of guesswork.
+    shape = Column(String(32), nullable=True)
+    openness = Column(Float, nullable=True)
+    spread = Column(Float, nullable=True)
+    predicted_tier = Column(String(8), nullable=True)
+
+    # Auto-calibration loop (labeling phase): filled in later by a
+    # therapist reviewing the session, not at attempt-creation time.
+    therapist_label = Column(Enum(AttemptLabel), nullable=True)
+    labeled_at = Column(DateTime(timezone=True), nullable=True)
+    labeled_by = Column(String, nullable=True)
 
     session = relationship("VaakMirrorSession", back_populates="attempts")
 
