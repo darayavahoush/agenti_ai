@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Trash2, TrendingUp, CreditCard, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Sidebar } from '../../components/ui'
+import { getErrorMessage } from '../../api/client'
 
 export default function ParentSettings() {
   const { parent, logout, deleteParentAccount } = useAuth()
@@ -95,7 +96,7 @@ export default function ParentSettings() {
                       await deleteParentAccount(currentPassword)
                       navigate('/')
                     } catch (err) {
-                      setDeleteError(err?.response?.data?.detail || 'Could not delete account — check your password and try again.')
+                      setDeleteError(getErrorMessage(err, 'Could not delete account — check your password and try again.'))
                       setDeleting(false)
                     }
                   }}

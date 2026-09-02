@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X, History, Camera } from 'lucide-react'
 import { Avatar } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
-import { meAPI } from '../../api/client'
+import { meAPI, getErrorMessage } from '../../api/client'
 import PhotoCropModal from './PhotoCropModal'
 import { useAuth } from '../../context/AuthContext'
 import { Trash2 } from 'lucide-react'
@@ -74,7 +74,7 @@ export default function MyAccount() {
       updatePatient(data)
       setPickingAvatar(false)
     } catch (err) {
-      setUploadError(err?.response?.data?.detail || "Couldn't upload that photo -- try a different one.")
+      setUploadError(getErrorMessage(err, "Couldn't upload that photo -- try a different one."))
     } finally {
       setSaving(false)
       cancelCrop()
@@ -136,7 +136,7 @@ export default function MyAccount() {
       setPinChanged(true)
       setTimeout(() => setPinChanged(false), 3000)
     } catch (err) {
-      setPinError(err?.response?.data?.detail || "Couldn't change your PIN -- check your current PIN and try again.")
+      setPinError(getErrorMessage(err, "Couldn't change your PIN -- check your current PIN and try again."))
     } finally {
       setPinSaving(false)
     }
@@ -429,7 +429,7 @@ export default function MyAccount() {
                     await deleteKidAccount(deletePin)
                     navigate('/')
                   } catch (err) {
-                    setDeleteError(err?.response?.data?.detail || "Couldn't delete your account -- try again.")
+                    setDeleteError(getErrorMessage(err, "Couldn't delete your account -- try again."))
                     setDeleting(false)
                   }
                 }}
