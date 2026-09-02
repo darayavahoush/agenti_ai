@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Trash2, LayoutDashboard, CreditCard, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Sidebar, AmbientGlow } from '../../components/ui'
+import { getErrorMessage } from '../../api/client'
 
 export default function TherapistSettings() {
   const { therapist, logout, deleteTherapistAccount } = useAuth()
@@ -82,7 +83,7 @@ export default function TherapistSettings() {
                       await deleteTherapistAccount(currentPassword)
                       navigate('/therapist/login')
                     } catch (err) {
-                      setDeleteError(err?.response?.data?.detail || 'Could not delete account — check your password and try again.')
+                      setDeleteError(getErrorMessage(err, 'Could not delete account — check your password and try again.'))
                       setDeleting(false)
                     }
                   }}
