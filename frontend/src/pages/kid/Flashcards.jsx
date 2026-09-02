@@ -8,6 +8,7 @@ import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
 import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
 import { evaluateAttempt, speakWord, getRandomWord, getThemes } from "../../flashcards/lib/api";
+import { speak as speakBrowserTTS } from "../../lib/speech";
 import { friendlyPhoneme, phonemeExample } from "../../flashcards/utils/phonemeMap";
 import { getTheme, getSurface } from "../../flashcards/utils/themes";
 
@@ -132,7 +133,11 @@ export default function Flashcards() {
       const audio = new Audio(url);
       audio.play();
       audio.onended = () => setPlayingChar(false);
-    } catch { setPlayingChar(false); }
+    } catch (err) {
+      console.error('Flashcards: backend speakWord failed, falling back to browser TTS', err);
+      speakBrowserTTS(wordData.word, { rate: speed >= 1 ? 0.95 : 0.75 });
+      setPlayingChar(false);
+    }
   };
 
   const playChildAudio = () => {
