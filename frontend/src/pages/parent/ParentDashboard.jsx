@@ -241,9 +241,10 @@ export default function ParentDashboard() {
 
             {/* Messages -- parent's side of the same therapist<->parent
                 log the therapist writes to from PatientDetail.jsx's Care
-                tab. Placed early/prominent since this was previously
-                promised on the landing page (ParentAuth's value props)
-                with no actual UI to back it up. */}
+                tab. Only shown once a therapist is actually linked --
+                messaging with no therapist on the other end would silently
+                vanish into nothing, which is worse than not offering it. */}
+            {data?.has_therapist ? (
             <Card className="mb-8">
               <div className="flex items-center gap-2 mb-3">
                 <MessageCircle className="w-4 h-4 text-paper/40" />
@@ -283,6 +284,18 @@ export default function ParentDashboard() {
                 </button>
               </div>
             </Card>
+            ) : (
+              <Card className="mb-8">
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageCircle className="w-4 h-4 text-paper/40" />
+                  <span className="text-paper/60 text-sm font-medium">Messages with your therapist</span>
+                </div>
+                <p className="text-paper/40 text-sm leading-relaxed">
+                  Your child isn't connected with a therapist yet, so there's no one to message here.
+                  Once they're linked with a therapist, you'll be able to chat with them right from this page.
+                </p>
+              </Card>
+            )}
 
             {/* Breath-consistency trend -- session-level data that was never
                 aggregated for parents before now. Only shows once there's

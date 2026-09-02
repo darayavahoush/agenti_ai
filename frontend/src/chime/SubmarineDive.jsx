@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
-import { useSpokenInstruction } from '../lib/speech'
+import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const TARGET_F1_DEFAULT = 300.0
 const TARGET_F2_DEFAULT = 870.0
@@ -288,6 +288,7 @@ export default function SubmarineDive() {
 
   async function requestMicAndCalibrate() {
     try {
+      stopSpeaking()
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } })
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       const s = stateRef.current

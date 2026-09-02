@@ -91,7 +91,7 @@ function lerpColor(hexA, hexB, t) {
   return `rgb(${r},${g},${bl})`
 }
 function buildWordListFromInput(rawInput) {
-  const words = rawInput.split(',').map(w => w.trim().toLowerCase()).filter(Boolean)
+  const words = rawInput.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length >= 2)
   if (words.length === 0) return null
   const list = []
   for (let i = 0; i < ROUND_SIZE; i++) list.push(words[i % words.length])
@@ -663,7 +663,7 @@ export default function VillageBuilder() {
 
       <button
         onClick={() => navigate('/play/chime')}
-        className="fixed top-4 left-4 z-20 flex items-center gap-2 text-white/70 hover:text-white text-sm bg-black/15 backdrop-blur-sm rounded-full px-4 py-2 transition-colors"
+        className="fixed top-4 left-4 z-30 flex items-center gap-2 text-white/70 hover:text-white text-sm bg-black/15 backdrop-blur-sm rounded-full px-4 py-2 transition-colors"
       >
         <ArrowLeft size={16} /> Back to Chime
       </button>
