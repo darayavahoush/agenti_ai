@@ -348,7 +348,7 @@ export default function BubbleWrapPop() {
 
   function onSheetSuccess() {
     const s = stateRef.current
-    logLevelComplete()
+    const completePromise = logLevelComplete()
     playSuccessChime()
     setAriaMsg('You popped every bubble on the sheet!')
     spawnCelebrationParticles()
@@ -361,7 +361,16 @@ export default function BubbleWrapPop() {
       if (frames < 90) requestAnimationFrame(celebrateLoop)
     }
     requestAnimationFrame(celebrateLoop)
-    setTimeout(() => setSuccessVisible(true), 500)
+    // Show the success screen (with its "Next Level" button) only once the
+    // level_complete write has actually landed -- and always wait at least
+    // 500ms so the celebration doesn't feel instant/jarring. Racing the two
+    // is what let a kid tap "Next Level" before the backend event committed,
+    // which then bounced them at RequireLevelUnlocked and made it look like
+    // the level "needed to be played twice."
+    Promise.all([
+      completePromise,
+      new Promise(resolve => setTimeout(resolve, 500)),
+    ]).then(() => setSuccessVisible(true))
   }
 
   function spawnCelebrationParticles() {
