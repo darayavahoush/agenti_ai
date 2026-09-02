@@ -7,7 +7,7 @@ import { getPhonemeCue, getSpokenForm } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
-import { playChime, playFanfare, playMiss, speakSound } from './lib/sound.js'
+import { playChime, playFanfare, playMiss, speakSound, stopSound } from './lib/sound.js'
 import { createGameSession, logAttempt, endGameSession } from './lib/api.js'
 import { useEndSessionOnLeave } from './lib/useEndSessionOnLeave.js'
 import CharacterFilterPicker, { FILTERS } from './components/CharacterFilterPicker.jsx'
@@ -172,7 +172,7 @@ export default function LipSyncHero() {
       if (stream) stream.getTracks().forEach((t) => t.stop())
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       landmarkerRef.current?.close?.()
-      window.speechSynthesis?.cancel?.()
+      stopSound()
     }
   }, [])
 
