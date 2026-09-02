@@ -309,10 +309,18 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   const customMediaRecorderRef = useRef(null);
   const customChunksRef = useRef([]);
   const articulationCardRef = useRef(null);
+  // #62: word ids already shown this assessment session, so loadRandomWord
+  // can ask the backend to exclude them and avoid repeats.
+  const shownWordIdsRef = useRef(new Set());
 
   const selectedSound = ALPHABET_SOUNDS[letter];
   const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
 
+  // #62: words used to repeat within a session since /words/random was
+  // fully random every call with no memory of what had already been
+  // asked. shownWordIdsRef tracks every word id seen this session and
+  // is sent as `exclude`; if the backend reports it had to cycle back
+  // (all words exhausted), the ref resets too so the two stay in sync.
   async function loadRandomWord() {
     setSection("word");
     setWordLoading(true);
@@ -326,9 +334,19 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
     setAudioExists(false);
 
     try {
-      const response = await fetch(`${API_URL}/assessment/words/random`);
+      const exclude = Array.from(shownWordIdsRef.current).join(",");
+      const url = exclude
+        ? `${API_URL}/assessment/words/random?exclude=${encodeURIComponent(exclude)}`
+        : `${API_URL}/assessment/words/random`;
+      const response = await fetch(url);
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Could not load a word");
+
+      if (shownWordIdsRef.current.has(data.id)) {
+        shownWordIdsRef.current = new Set();
+      }
+      shownWordIdsRef.current.add(data.id);
+
       setWord(data);
     } catch (requestError) {
       console.error("Error loading random word:", requestError);
