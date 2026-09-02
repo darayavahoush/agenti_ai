@@ -61,6 +61,16 @@ class EventOut(BaseModel):
     policy_used: Optional[str] = None
     downgrade_reason: Optional[str] = None
 
+def _to_event_out(raw: dict) -> "EventOut":
+    """Normalize DB row types (UUID, datetime) before Pydantic validation."""
+    data = dict(raw)
+    if "child_id" in data and data["child_id"] is not None:
+        data["child_id"] = str(data["child_id"])
+    if "timestamp" in data and data["timestamp"] is not None:
+        data["timestamp"] = data["timestamp"].isoformat()
+    return EventOut(**data)
+
+
 
 class DifficultyDecision(BaseModel):
     action: Literal["raise", "lower", "hold"]
@@ -150,7 +160,7 @@ def log_event(event: EventIn, background_tasks: BackgroundTasks, patient: Breath
 
     events = data_store.get_events(child_id=patient.id, db_path=DB_PATH)
     latest = events[-1]
-    return EventOut(**latest)
+    return _to_event_out(latest)
 
 
 @router.get("/events", response_model=list[EventOut])
@@ -158,7 +168,7 @@ def get_events(level_id: Optional[str] = None, patient: BreathQuestPatient = Dep
     events = data_store.get_events(child_id=patient.id, db_path=DB_PATH)
     if level_id:
         events = [e for e in events if e["level_id"] == level_id]
-    return [EventOut(**e) for e in events]
+    return [_to_event_out(e) for e in events]
 
 
 @router.get("/patients/{patient_id}/events", response_model=list[EventOut])
@@ -184,7 +194,7 @@ async def get_patient_events(
     events = await asyncio.to_thread(data_store.get_events, child_id=patient_id, db_path=DB_PATH)
     if level_id:
         events = [e for e in events if e["level_id"] == level_id]
-    return [EventOut(**e) for e in events]
+    return [_to_event_out(e) for e in events]
 
 
 # ============================================================
@@ -316,7 +326,7 @@ async def score_phoneme(
 # — see that module's docstring for why BreathQuest's own levels reuse this
 # same instance rather than a second copy of the ladder).
 # ============================================================
-from agent.service import AgentService
+from app.breathquest_agent.service import AgentService
 
 _agent_service = AgentService(db_path=DB_PATH, recent_window=RECENT_WINDOW)
 
