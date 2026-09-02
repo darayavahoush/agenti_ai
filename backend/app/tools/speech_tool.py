@@ -72,24 +72,22 @@ _NUMBER_WORDS = {
 def normalize_text(text: str) -> str:
     if text is None:
         return ""
-    text = text.strip().lower()
 
+    text = str(text).strip().lower()
     if not text:
         return ""
 
-    # Handle numeric aliases first so assessment target words like "7" are
-    # normalized to the actual spoken word rather than left as a raw digit.
-    if re.fullmatch(r"\d+", text):
-        digits = text
-        return "".join(_NUMBER_WORDS[d] for d in digits)
+    # Convert numeric tokens like "7" or "7." into spoken words before
+    # stripping punctuation so assessment targets and transcripts match.
+    text = re.sub(r"\d+", lambda m: " ".join(_NUMBER_WORDS[d] for d in m.group(0)), text)
 
-    # For non-English text, don't strip non-ASCII characters.
+    # Preserve multilingual scripts but drop punctuation and normalize spacing.
     if any(ord(c) > 127 for c in text):
-        return text.strip()
+        normalized = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+        return " ".join(normalized.split())
 
-    normalized = re.sub(r"[^a-z ]", "", text).strip()
-    if not normalized:
-        return ""
+    normalized = re.sub(r"[^a-z\s]", " ", text)
+    normalized = " ".join(normalized.split())
     return normalized
 
 
