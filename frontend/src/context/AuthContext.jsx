@@ -195,9 +195,13 @@ export function AuthProvider({ children }) {
       setParent(data); setTherapist(null); setPatient(null)
       return data
     }
+    // Invite-code registration isn't implemented on the backend yet
+    // (register_parent 501s on invite_code) -- only player_code is real,
+    // so this always sends that field rather than branching on a
+    // frontend-only distinction the backend can't act on.
     const payload = {
       email, password, full_name: fullName, phone,
-      [codeType === 'invite' ? 'invite_code' : 'player_code']: code,
+      player_code: code,
     }
     const { data } = await authAPI.parentRegister(payload)
     localStorage.setItem('bq_token',         data.access_token)
@@ -262,10 +266,12 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  const registerParentGoogle = async ({ idToken, code, codeType, phone }) => {
+  const registerParentGoogle = async ({ idToken, code, phone }) => {
+    // Same simplification as registerParent above -- invite codes aren't
+    // a real backend feature yet, only player_code is.
     const payload = {
       id_token: idToken, phone,
-      [codeType === 'invite' ? 'invite_code' : 'player_code']: code,
+      player_code: code,
     }
     const { data } = await authAPI.parentGoogleRegister(payload)
     localStorage.setItem('bq_token',         data.access_token)
