@@ -200,3 +200,42 @@ export function getPhonemeCue(soundId) {
   const base = BASE_PHONEME[soundId]
   return PHONEME_CUES[base] ?? DEFAULT_PHONEME_CUE
 }
+
+// What to actually hand the browser's speech-synthesis engine for a given
+// sound, as opposed to its on-screen display label.
+//
+// Two separate problems live here:
+// 1. Browser TTS reads a single letter as its ALPHABET NAME, not the
+//    isolated consonant sound ("t" -> "tee", "w" -> "double-u", "h" ->
+//    "aitch", "y" -> "why"). The standard phonics workaround — used in
+//    programs like UFLI/Jolly Phonics for exactly this reason — is to spell
+//    continuant sounds elongated ("sss", "mmm") and stop sounds with a
+//    quick, quiet schwa ("puh", "tuh") rather than the bare letter. That's
+//    not a true isolated phoneme either (a stop consonant genuinely can't
+//    be voiced without some release), but it's a materially closer, more
+//    standard approximation than the letter's name — this is a mitigation,
+//    not a real fix. A real fix means swapping in actual recorded phoneme
+//    audio per sound, which needs real audio assets someone records/
+//    licenses — that can't be generated here, but this map is exactly
+//    where those clips would plug in once they exist.
+// 2. Display labels for some sounds carry parenthetical hints for humans
+//    reading the screen — e.g. "a (cat)", "th (think)" — and TTS will
+//    happily read the punctuation aloud if handed the label directly.
+//    This map exists so speech and display text can differ.
+//
+// Keyed by BASE_PHONEME the same way PHONEME_CUES is, so every one of the
+// 89 taxonomy ids resolves through the same ~29-entry table.
+const SPOKEN_FORM = {
+  p: 'puh', b: 'buh', m: 'mmm', f: 'fff', v: 'vvv', s: 'sss', z: 'zzz',
+  t: 'tuh', d: 'duh', n: 'nnn', l: 'lll', r: 'rrr',
+  sh: 'shhh', ch: 'ch', j: 'juh', k: 'kuh', g: 'guh',
+  'th-unvoiced': 'thh', 'th-voiced': 'thh',
+  w: 'wuh', wh: 'wuh', y: 'yuh', qu: 'kwuh', h: 'huh', ng: 'nng',
+  ah: 'ah', ee: 'ee', oo: 'oo',
+  vowel: 'uh',
+}
+
+export function getSpokenForm(soundId) {
+  const base = BASE_PHONEME[soundId]
+  return SPOKEN_FORM[base] ?? soundId
+}

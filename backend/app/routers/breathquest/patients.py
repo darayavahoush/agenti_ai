@@ -21,7 +21,7 @@ from app.schemas.breathquest_schemas import (
     PatientCreate, PatientUpdate, PatientOut, PatientDetailOut, KidTokenResponse,
 )
 from app.breathquest_core.deps import get_current_therapist
-from app.breathquest_core.security import hash_pin, create_kid_token
+from app.breathquest_core.security import hash_pin, verify_pin, create_kid_token
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -242,7 +242,8 @@ async def delete_patient(
 #  a logged-in kid change their own display name and avatar, nothing
 #  else (no therapist_id, is_active, etc. exposed here).
 # ------------------------------------------------------------------ #
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+import re
 from app.breathquest_core.deps import get_current_patient
 
 VALID_AVATARS = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
@@ -251,6 +252,22 @@ VALID_AVATARS = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
 class MyProfileUpdate(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     avatar: str | None = None
+
+
+class MyPinChange(BaseModel):
+    """Self-service PIN change for a logged-in kid -- requires the
+    *current* PIN as re-auth, distinct from POST /auth/forgot-pin (that
+    one's for lockouts, gated on parent-email consent since the kid
+    can't prove who they are without the old PIN; this one's for "I just
+    want a new PIN" with no lockout involved)."""
+    current_pin: str
+    new_pin: str
+
+    @validator("new_pin")
+    def pin_format(cls, v):
+        if not re.match(r"^\d{4}$", v):
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
 
 
 @router.patch("/me/profile", response_model=PatientOut)
@@ -276,6 +293,25 @@ async def update_my_profile(
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
         age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
+
+
+@router.patch("/me/change-pin", status_code=204)
+async def change_my_pin(
+    data: MyPinChange,
+    patient: BreathQuestPatient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kid-initiated PIN change while logged in -- requires the current
+    PIN first. Before this endpoint, the only way to get a new PIN was
+    to go through /auth/forgot-pin (which pretends the old one was
+    forgotten and needs a parent-email OTP round-trip) even when the
+    kid already knows their current PIN and just wants a different one."""
+    if not verify_pin(data.current_pin, patient.pin_hash):
+        raise HTTPException(status_code=401, detail="Current PIN is incorrect")
+
+    patient.pin_hash = hash_pin(data.new_pin)
+    db.add(patient)
+    await db.commit()
 
 
 @router.post("/me/profile/photo", response_model=PatientOut)

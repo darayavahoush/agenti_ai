@@ -13,6 +13,7 @@ export function createCandleLevel() {
   let t          = 0
   let done       = false
   let doneTimer  = 0
+  let finishT    = null   // elapsed time when the last candle went out
   const ps       = new ParticleSystem()
   const confetti = []
 
@@ -44,9 +45,15 @@ export function createCandleLevel() {
       ps.update(dt)
 
       if (current >= N) {
+        if (finishT === null) finishT = t
         doneTimer += dt
-        if (doneTimer > 0.8 && !done) done = true
-        return done ? { stars: 3, message: 'All candles out! Make a wish! 🎂' } : null
+        if (doneTimer > 0.7 && !done) done = true
+        if (done) {
+          // Par is ~0.9s cooldown between puffs (N-1 gaps) plus reaction time
+          const stars = finishT <= 7 ? 3 : finishT <= 13 ? 2 : 1
+          return { stars, targetHits: N, message: 'All candles out! Make a wish! 🎂' }
+        }
+        return null
       }
 
       if (breath >= 0.18 && puffCd <= 0 && candles[current]?.lit) {

@@ -4,6 +4,10 @@ import tempfile
 import os
 import hashlib
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # backend/app/services/voice/tts.py -> parents[2] is backend/app,
 # matching the app/data/ convention chat_cache.py already uses.
@@ -90,7 +94,7 @@ def _cache_get(key: str) -> bytes | None:
         try:
             return path.read_bytes()
         except OSError as e:
-            print(f"TTS cache read failed for {key}: {e}")
+            logger.info(f"TTS cache read failed for {key}: {e}")
     return None
 
 def _cache_set(key: str, audio: bytes) -> None:
@@ -100,7 +104,7 @@ def _cache_set(key: str, audio: bytes) -> None:
         tmp_path.write_bytes(audio)
         tmp_path.replace(path)  # atomic-ish: avoids serving a half-written file
     except OSError as e:
-        print(f"TTS cache write failed for {key}: {e}")
+        logger.info(f"TTS cache write failed for {key}: {e}")
 
 def _apply_ffmpeg(raw_bytes: bytes, filters: str) -> bytes:
     in_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
@@ -114,7 +118,7 @@ def _apply_ffmpeg(raw_bytes: bytes, filters: str) -> bytes:
         with open(out_tmp.name, "rb") as f:
             return f.read()
     except subprocess.CalledProcessError as e:
-        print(f"ffmpeg error: {e.stderr.decode()}")
+        logger.info(f"ffmpeg error: {e.stderr.decode()}")
         return raw_bytes
     finally:
         os.unlink(in_tmp.name)
@@ -202,7 +206,7 @@ def precache_words(words, characters=None, languages=("english",), speeds=WORD_S
                     try:
                         _render(word, char, cfg["voice"], spd, cfg["ffmpeg"], cfg.get("ffmpeg_question", ""), language=lang)
                     except Exception as e:
-                        print(f"Precache failed for '{word}' ({char}, {lang}, speed={spd}): {e}")
+                        logger.info(f"Precache failed for '{word}' ({char}, {lang}, speed={spd}): {e}")
 
 def warm_cache():
     """Populate the cache with everything guaranteed to be spoken regardless
@@ -213,12 +217,12 @@ def warm_cache():
         try:
             speak_intro(char)
         except Exception as e:
-            print(f"Intro cache failed: {char} — {e}")
+            logger.info(f"Intro cache failed: {char} — {e}")
 
     try:
         from app.services.phoneme.drill import ENCOURAGEMENT_MESSAGES, FEEDBACK_MESSAGES, ACOUSTIC_TIPS
     except ImportError as e:
-        print(f"warm_cache: skipping fixed phrases, drill module unavailable: {e}")
+        logger.info(f"warm_cache: skipping fixed phrases, drill module unavailable: {e}")
         return
 
     phrase_groups = list(ENCOURAGEMENT_MESSAGES.values()) + list(FEEDBACK_MESSAGES.values())
@@ -228,10 +232,10 @@ def warm_cache():
                 try:
                     speak(text, character=char, language=lang)
                 except Exception as e:
-                    print(f"Phrase cache failed ({char}, {lang}): {e}")
+                    logger.info(f"Phrase cache failed ({char}, {lang}): {e}")
         for lang, tips in ACOUSTIC_TIPS.items():
             for tip in tips:
                 try:
                     speak(tip, character=char, language=lang)
                 except Exception as e:
-                    print(f"Tip cache failed ({char}, {lang}): {e}")
+                    logger.info(f"Tip cache failed ({char}, {lang}): {e}")

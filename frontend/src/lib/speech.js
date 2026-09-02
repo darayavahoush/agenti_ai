@@ -48,19 +48,33 @@ function pickPreferredVoice() {
   )
 }
 
+let pendingSpeakTimer = null
+
 export function speak(text, { rate = 0.95, pitch = 1.0 } = {}) {
   try {
     if (!text || !window.speechSynthesis) return
+    if (pendingSpeakTimer) clearTimeout(pendingSpeakTimer)
     window.speechSynthesis.cancel()
-    const utter = new SpeechSynthesisUtterance(text)
-    utter.rate = rate
-    utter.pitch = pitch
-    // Hint the language even when no exact-match voice object is found —
-    // some browsers will still route to a same-language voice by lang code.
-    utter.lang = 'en-IN'
-    const voice = pickPreferredVoice()
-    if (voice) utter.voice = voice
-    window.speechSynthesis.speak(utter)
+    // Chrome and Firefox both have a long-standing bug where calling
+    // speak() in the same tick right after cancel() silently drops the
+    // new utterance -- no error, no onstart, it just never speaks. Games
+    // like Lip Sync Hero that re-trigger speech every note (sometimes
+    // while the previous utterance is still finishing) hit this
+    // cancel-then-speak collision often. The documented workaround is a
+    // short delay so cancel() actually clears the queue before the next
+    // speak() call lands.
+    pendingSpeakTimer = setTimeout(() => {
+      pendingSpeakTimer = null
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.rate = rate
+      utter.pitch = pitch
+      // Hint the language even when no exact-match voice object is found —
+      // some browsers will still route to a same-language voice by lang code.
+      utter.lang = 'en-IN'
+      const voice = pickPreferredVoice()
+      if (voice) utter.voice = voice
+      window.speechSynthesis.speak(utter)
+    }, 80)
   } catch {
     // Ignore — voice is a layer on top of the visual UI, never load-bearing.
   }
@@ -68,6 +82,10 @@ export function speak(text, { rate = 0.95, pitch = 1.0 } = {}) {
 
 export function stopSpeaking() {
   try {
+    if (pendingSpeakTimer) {
+      clearTimeout(pendingSpeakTimer)
+      pendingSpeakTimer = null
+    }
     if (window.speechSynthesis) window.speechSynthesis.cancel()
   } catch {
     // Ignore.

@@ -25,8 +25,15 @@ RUN pip install --no-cache-dir \
 # Install remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download NLTK data needed by nltk.pos_tag()/tokenizers at runtime (not bundled with pip package)
+RUN python -m nltk.downloader -d /usr/local/nltk_data averaged_perceptron_tagger_eng averaged_perceptron_tagger punkt punkt_tab
+
 # Application code and runtime dependencies
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
+COPY agent ./agent
+COPY audio_features ./audio_features
 COPY assets ./assets
 COPY data ./data
 COPY schemas ./schemas
@@ -37,4 +44,4 @@ COPY word_level ./word_level
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

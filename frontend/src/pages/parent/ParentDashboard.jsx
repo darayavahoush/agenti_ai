@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings } from 'lucide-react'
+import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar } from '../../components/ui'
 import { useNavigate } from 'react-router-dom'
-import { parentAPI } from '../../api/client'
+import { parentAPI, getErrorMessage } from '../../api/client'
+import toast from 'react-hot-toast'
 
 function formatDate(iso) {
   if (!iso) return 'Not yet played'
@@ -26,6 +27,10 @@ export default function ParentDashboard() {
   const [data, setData] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [activity, setActivity] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [messagesLoaded, setMessagesLoaded] = useState(false)
+  const [newMessage, setNewMessage] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -35,8 +40,35 @@ export default function ParentDashboard() {
     parentAPI.guidedActivity()
       .then(({ data }) => { if (!cancelled) setActivity(data) })
       .catch(err => console.error('Failed to load guided activity:', err))
+    parentAPI.listMessages()
+      .then(({ data }) => {
+        if (cancelled) return
+        setMessages(data)
+        setMessagesLoaded(true)
+        // Mark any unread therapist messages as read now that the parent's
+        // actually looking at them -- same "seen it" signal the therapist
+        // side gets when a parent reads theirs.
+        data.filter(m => m.sender_role === 'therapist' && !m.read_at)
+          .forEach(m => parentAPI.markMessageRead(m.id).catch(() => {}))
+      })
+      .catch(err => console.error('Failed to load messages:', err))
     return () => { cancelled = true }
   }, [])
+
+  const sendMessage = async () => {
+    const body = newMessage.trim()
+    if (!body) return
+    setSendingMessage(true)
+    try {
+      const { data: sent } = await parentAPI.sendMessage(body)
+      setMessages(m => [...m, sent])
+      setNewMessage('')
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't send — try again"))
+    } finally {
+      setSendingMessage(false)
+    }
+  }
 
   const starPct = data ? Math.min(100, Math.round((data.total_stars / Math.max(1, data.max_possible_stars)) * 100)) : 0
   const trend = data?.improvement_trend
@@ -55,7 +87,6 @@ export default function ParentDashboard() {
         role="parent"
         items={[
           { label: 'Progress', icon: TrendingUp, to: '/parent/dashboard' },
-          { label: 'Billing', icon: CreditCard, to: '/parent/billing' },
           { label: 'Settings', icon: Settings, to: '/parent/settings' },
         ]}
         name={(data?.child_first_name || parent?.child_first_name) ? `${data?.child_first_name || parent?.child_first_name}'s Progress` : undefined}
@@ -205,6 +236,51 @@ export default function ParentDashboard() {
                   className="h-full bg-gradient-to-r from-brand-amber to-ember rounded-full transition-[width] duration-700"
                   style={{ width: `${starPct}%` }}
                 />
+              </div>
+            </Card>
+
+            {/* Messages -- parent's side of the same therapist<->parent
+                log the therapist writes to from PatientDetail.jsx's Care
+                tab. Placed early/prominent since this was previously
+                promised on the landing page (ParentAuth's value props)
+                with no actual UI to back it up. */}
+            <Card className="mb-8">
+              <div className="flex items-center gap-2 mb-3">
+                <MessageCircle className="w-4 h-4 text-paper/40" />
+                <span className="text-paper/60 text-sm font-medium">Messages with your therapist</span>
+              </div>
+              <div className="flex flex-col gap-2 mb-3 max-h-64 overflow-y-auto">
+                {messagesLoaded && messages.length === 0 && (
+                  <p className="text-paper/30 text-sm">No messages yet — say hi!</p>
+                )}
+                {messages.map(m => (
+                  <div key={m.id} className={`text-sm rounded-lg px-3 py-2 max-w-[85%] ${
+                    m.sender_role === 'parent' ? 'bg-coral/20 text-paper self-end ml-auto' : 'bg-white/[0.06] text-paper'
+                  }`}>
+                    <p>{m.body}</p>
+                    <p className="text-paper/30 text-[10px] mt-1">
+                      {m.sender_role === 'parent' ? 'You' : "Your child's therapist"} · {new Date(m.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-paper
+                             placeholder:text-paper/30 focus:outline-none focus:border-coral/40"
+                  placeholder="Message your therapist…"
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={sendingMessage || !newMessage.trim()}
+                  className="px-4 py-2 rounded-xl bg-coral hover:bg-coral/90 text-paper text-sm font-semibold
+                             disabled:opacity-40 transition-colors flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" /> Send
+                </button>
               </div>
             </Card>
 

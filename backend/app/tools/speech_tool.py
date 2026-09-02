@@ -7,6 +7,10 @@ import soundfile as sf
 from faster_whisper import WhisperModel
 from rapidfuzz import fuzz
 from app.utils.transliteration_utils import convert_whisper_output_to_native
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------
 # LOAD MODELS
@@ -31,11 +35,11 @@ try:
         compute_type="int8"
     )
 
-    print("✅ Faster-Whisper multilingual model loaded")
+    logger.info("✅ Faster-Whisper multilingual model loaded")
 
 except Exception as e:
     whisper_model = None
-    print("❌ Faster-Whisper error:", e)
+    logger.error(f"❌ Faster-Whisper error: {e}")
     # Fallback to English-only model if multilingual fails
     try:
         whisper_model = WhisperModel(
@@ -43,9 +47,9 @@ except Exception as e:
             device="cpu",
             compute_type="int8"
         )
-        print("✅ Faster-Whisper English-only model loaded as fallback")
+        logger.info("✅ Faster-Whisper English-only model loaded as fallback")
     except Exception as e2:
-        print("❌ Faster-Whisper fallback also failed:", e2)
+        logger.error(f"❌ Faster-Whisper fallback also failed: {e2}")
 
 
 # ---------------------------------------------------
@@ -70,7 +74,7 @@ def transcribe(y: np.ndarray, sr: int, prompt: Optional[str] = None, language: s
             from app.tools.vosk_tool import transcribe_with_vosk, is_vosk_available
             
             if is_vosk_available(language):
-                print(f"🎤 Using Vosk for {language} transcription")
+                logger.info(f"🎤 Using Vosk for {language} transcription")
                 tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
                 tmp_path = tmp.name
                 tmp.close()
@@ -84,17 +88,17 @@ def transcribe(y: np.ndarray, sr: int, prompt: Optional[str] = None, language: s
                     if os.path.exists(tmp_path):
                         os.remove(tmp_path)
             else:
-                print(f"⚠️ Vosk model not available for {language}, Whisper will return English transliteration")
-                print(f"💡 Install Vosk models for native script output: python setup_vosk_models.py {language}")
+                logger.warning(f"⚠️ Vosk model not available for {language}, Whisper will return English transliteration")
+                logger.info(f"💡 Install Vosk models for native script output: python setup_vosk_models.py {language}")
         except ImportError:
-            print("⚠️ Vosk not installed, Whisper will return English transliteration")
-            print(f"💡 Install Vosk: pip install vosk && python setup_vosk_models.py {language}")
+            logger.warning("⚠️ Vosk not installed, Whisper will return English transliteration")
+            logger.info(f"💡 Install Vosk: pip install vosk && python setup_vosk_models.py {language}")
         except Exception as e:
-            print(f"⚠️ Vosk transcription failed: {e}, falling back to Whisper")
+            logger.warning(f"⚠️ Vosk transcription failed: {e}, falling back to Whisper")
     
     # Fallback to Whisper for English or if Vosk is not available
     if whisper_model is None:
-        print("❌ Whisper model not available")
+        logger.error("❌ Whisper model not available")
         return ""
 
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -103,38 +107,44 @@ def transcribe(y: np.ndarray, sr: int, prompt: Optional[str] = None, language: s
 
     try:
         sf.write(tmp_path, y, sr)
-        print("🎤 Transcribing file:", tmp_path, "with language:", language, "audio length:", len(y), "sample rate:", sr)
+        logger.info(f"🎤 Transcribing file: {tmp_path} with language: {language} audio length: {len(y)} sample rate: {sr}")
         
         # Map language code to Whisper language code
         whisper_lang = LANGUAGE_CODES.get(language, "en")
-        print("🌐 Using Whisper language code:", whisper_lang)
+        logger.info(f"🌐 Using Whisper language code: {whisper_lang}")
         
+        # `prompt` (the target word the child was asked to say) was being
+        # accepted as a parameter but never actually passed to Whisper --
+        # it was silently dropped, so short/ambiguous kid audio ("eight" vs
+        # noise) got no bias toward the expected word at all. initial_prompt
+        # nudges Whisper toward vocabulary matching the assessment target.
         segments, info = whisper_model.transcribe(
             tmp_path,
             language=whisper_lang,
-            beam_size=5
+            beam_size=5,
+            initial_prompt=prompt if prompt else None
         )
 
         text = " ".join(
             segment.text
             for segment in segments
         )
-        print("📝 Transcription result:", text)
+        logger.info(f"📝 Transcription result: {text}")
         
         # For Indian languages, Whisper returns English transliteration
         # Convert it back to native script for proper phoneme extraction
         if language in indian_languages and text:
             native_text = convert_whisper_output_to_native(text, language)
             if native_text != text:
-                print(f"✅ Converted English transliteration to native script: '{text}' → '{native_text}'")
+                logger.info(f"✅ Converted English transliteration to native script: '{text}' → '{native_text}'")
                 text = native_text
             else:
-                print(f"⚠️ Whisper returned English transliteration for {language}: {text}")
-                print(f"💡 To get native script output reliably, install Vosk models: python setup_vosk_models.py {language}")
+                logger.warning(f"⚠️ Whisper returned English transliteration for {language}: {text}")
+                logger.info(f"💡 To get native script output reliably, install Vosk models: python setup_vosk_models.py {language}")
         
         return normalize_text(text)
     except Exception as e:
-        print("❌ Transcription error:", e)
+        logger.error(f"❌ Transcription error: {e}")
         import traceback
         traceback.print_exc()
         return ""

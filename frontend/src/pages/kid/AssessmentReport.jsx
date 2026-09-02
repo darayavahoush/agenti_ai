@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { PartyPopper, Sparkles, Lock, CheckCircle2 } from 'lucide-react'
+import { PartyPopper, Sparkles, Lock, CheckCircle2, RotateCcw } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Button, Card } from '../../components/ui'
 import { meAPI } from '../../api/client'
@@ -44,6 +44,16 @@ export default function AssessmentReport() {
   // stored session record doesn't track it, so it's unknown on revisit.
   const wordsAttempted = routedSummary?.wordsAttempted ?? null
   const severity = routedSummary?.severityClassification ?? latest?.severity_classification
+
+  // retake_available_at is only ever set (non-null) while still on
+  // cooldown -- see assessment.py's _retake_available_at. null here means
+  // either "never taken" (shouldn't reach this page) or "cooldown's
+  // already lifted", both of which mean a retake is allowed right now.
+  const retakeAvailableAt = location.state?.retakeAvailableAt ?? latest?.retake_available_at ?? null
+  const onCooldown = retakeAvailableAt ? new Date(retakeAvailableAt) > new Date() : false
+  const retakeDateLabel = onCooldown
+    ? new Date(retakeAvailableAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+    : null
 
   const trialDaysLeft = access?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(access.trial_ends_at) - new Date()) / 86400000))
@@ -113,6 +123,27 @@ export default function AssessmentReport() {
             Ask a grown-up to start a free trial
           </Button>
         )}
+
+        {onCooldown ? (
+          <p className="text-white/30 text-xs mb-4">
+            You can take this again on {retakeDateLabel}.
+          </p>
+        ) : (
+          <button
+            onClick={() => navigate('/assessment')}
+            className="inline-flex items-center gap-1.5 text-white/50 hover:text-white text-sm
+                       transition-colors mb-4"
+          >
+            <RotateCcw size={14} /> Take the assessment again
+          </button>
+        )}
+
+        <button
+          onClick={() => navigate('/play/account/history')}
+          className="block mx-auto text-white/40 hover:text-white/70 text-sm transition-colors mb-2"
+        >
+          See my assessment &amp; game history →
+        </button>
         <button
           onClick={() => navigate('/play')}
           className="text-white/40 hover:text-white/70 text-sm transition-colors"

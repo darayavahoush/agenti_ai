@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X, History, Camera } from 'lucide-react'
 import { Avatar } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
-import { meAPI } from '../../api/client'
+import { meAPI, getErrorMessage } from '../../api/client'
 import PhotoCropModal from './PhotoCropModal'
 import { useAuth } from '../../context/AuthContext'
 import { Trash2 } from 'lucide-react'
@@ -26,6 +27,14 @@ export default function MyAccount() {
   const [profileError, setProfileError] = useState('')
   const [cropImageSrc, setCropImageSrc] = useState(null)
   const [deleteError, setDeleteError] = useState('')
+  const [deletePin, setDeletePin] = useState('')
+
+  const [changingPin, setChangingPin] = useState(false)
+  const [currentPinDraft, setCurrentPinDraft] = useState('')
+  const [newPinDraft, setNewPinDraft] = useState('')
+  const [pinSaving, setPinSaving] = useState(false)
+  const [pinError, setPinError] = useState('')
+  const [pinChanged, setPinChanged] = useState(false)
 
   const fetchProgress = () => {
     setStatus('loading')
@@ -65,7 +74,7 @@ export default function MyAccount() {
       updatePatient(data)
       setPickingAvatar(false)
     } catch (err) {
-      setUploadError(err?.response?.data?.detail || "Couldn't upload that photo -- try a different one.")
+      setUploadError(getErrorMessage(err, "Couldn't upload that photo -- try a different one."))
     } finally {
       setSaving(false)
       cancelCrop()
@@ -100,6 +109,7 @@ export default function MyAccount() {
     if (trimmed && trimmed !== displayName) {
       const ok = await saveProfile({ first_name: trimmed })
       if (!ok) return // keep the editor open so they can retry without retyping
+      toast.success('Name saved!')
     }
     setEditingName(false)
   }
@@ -108,6 +118,27 @@ export default function MyAccount() {
     setPickingAvatar(false)
     if (species !== displayAvatar) {
       await saveProfile({ avatar: species })
+    }
+  }
+
+  async function confirmPinChange() {
+    setPinError('')
+    if (!/^\d{4}$/.test(currentPinDraft) || !/^\d{4}$/.test(newPinDraft)) {
+      setPinError('PINs must be exactly 4 digits.')
+      return
+    }
+    setPinSaving(true)
+    try {
+      await meAPI.changePin({ current_pin: currentPinDraft, new_pin: newPinDraft })
+      setChangingPin(false)
+      setCurrentPinDraft('')
+      setNewPinDraft('')
+      setPinChanged(true)
+      setTimeout(() => setPinChanged(false), 3000)
+    } catch (err) {
+      setPinError(getErrorMessage(err, "Couldn't change your PIN -- check your current PIN and try again."))
+    } finally {
+      setPinSaving(false)
     }
   }
 
@@ -146,7 +177,7 @@ export default function MyAccount() {
                 {displayPhotoUrl ? (
                   <img
                     src={`${apiBase}${displayPhotoUrl}`}
-                    alt=""
+                    alt="Your profile photo"
                     className="w-24 h-24 rounded-full object-cover border-2 border-white/10"
                   />
                 ) : (
@@ -176,10 +207,19 @@ export default function MyAccount() {
                       <Creature species={species} className="w-full h-full" />
                     </button>
                   ))}
-                  <label className="w-14 h-14 rounded-full border-2 border-dashed border-white/20 flex items-center
-                                     justify-center cursor-pointer hover:border-white/40 transition-colors">
+                  <label
+                    className="relative w-14 h-14 rounded-full flex items-center justify-center cursor-pointer
+                               border-2 transition-all duration-200 hover:scale-110 active:scale-95 group"
+                    style={{
+                      borderColor: 'rgba(168,255,111,0.5)',
+                      background: 'linear-gradient(160deg, rgba(168,255,111,0.22) 0%, rgba(30,30,63,0.5) 100%)',
+                      boxShadow: '0 0 0 rgba(168,255,111,0)',
+                    }}
+                  >
+                    <div className="absolute inset-0 rounded-full motion-safe:animate-pulse-slow"
+                         style={{ boxShadow: '0 0 12px 2px rgba(168,255,111,0.35)' }} />
                     <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" disabled={saving} />
-                    <span className="text-white/40 text-[10px] text-center leading-tight px-1">Upload<br/>photo</span>
+                    <Camera size={20} className="relative text-[#A8FF6F] group-hover:scale-110 transition-transform" />
                   </label>
                   <button
                     onClick={() => setPickingAvatar(false)}
@@ -279,6 +319,22 @@ export default function MyAccount() {
               )}
             </div>
 
+            <button
+              onClick={() => navigate('/play/account/history')}
+              className="w-full mt-4 rounded-2xl p-4 border border-white/10 bg-white/5 hover:bg-white/10
+                         flex items-center justify-between transition-colors group"
+            >
+              <span className="flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-sky/15 flex items-center justify-center">
+                  <History className="w-4 h-4 text-sky" />
+                </span>
+                <span className="text-white text-sm font-medium">My History</span>
+              </span>
+              <span className="text-white/30 text-xs group-hover:text-white/50 transition-colors">
+                Assessments &amp; games →
+              </span>
+            </button>
+
             {progress.current_streak_days === 0 && (
               <p className="text-white/30 text-xs text-center mt-8">
                 Play a game today to start a new streak!
@@ -287,6 +343,56 @@ export default function MyAccount() {
           </>
         )}
       </div>
+      {/* Change PIN -- previously the only way to get a new PIN was to
+          pretend it was forgotten and go through the parent-email OTP
+          recovery flow. This is for "I just want a new one", using the
+          current PIN as re-auth instead. */}
+      <div className="mt-12 pt-6 border-t border-white/10">
+        {!changingPin ? (
+          <div className="text-center">
+            <button onClick={() => { setChangingPin(true); setPinError('') }}
+                    className="text-white/40 hover:text-white text-xs mx-auto transition-colors">
+              Change my PIN
+            </button>
+            {pinChanged && <p className="text-mint text-xs mt-2">PIN changed!</p>}
+          </div>
+        ) : (
+          <div className="text-center max-w-xs mx-auto">
+            <p className="text-white/50 text-sm mb-3">Enter your current PIN and pick a new one.</p>
+            <input
+              type="password" inputMode="numeric" maxLength={4} autoComplete="off"
+              value={currentPinDraft}
+              onChange={(e) => setCurrentPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="Current PIN"
+              className="w-full mb-2 text-center tracking-[0.5em] px-4 py-2.5 rounded-xl bg-white/5 border border-white/10
+                         text-white text-sm placeholder:text-white/30 placeholder:tracking-normal focus:outline-none focus:border-mint/40"
+            />
+            <input
+              type="password" inputMode="numeric" maxLength={4} autoComplete="off"
+              value={newPinDraft}
+              onChange={(e) => setNewPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="New PIN"
+              className="w-full mb-2 text-center tracking-[0.5em] px-4 py-2.5 rounded-xl bg-white/5 border border-white/10
+                         text-white text-sm placeholder:text-white/30 placeholder:tracking-normal focus:outline-none focus:border-mint/40"
+            />
+            {pinError && <p className="text-brand-coral text-xs mb-3">{pinError}</p>}
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => { setChangingPin(false); setCurrentPinDraft(''); setNewPinDraft(''); setPinError('') }}
+                      className="text-white/40 hover:text-white/70 text-sm px-4 py-2 transition-colors">
+                Never mind
+              </button>
+              <button
+                disabled={pinSaving || currentPinDraft.length !== 4 || newPinDraft.length !== 4}
+                onClick={confirmPinChange}
+                className="text-mint hover:text-white text-sm font-semibold px-4 py-2 rounded-xl
+                           bg-mint/10 hover:bg-mint/30 border border-mint/30 transition-colors disabled:opacity-50">
+                {pinSaving ? 'Saving…' : 'Save new PIN'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Delete account -- two-tap confirm, since this is destructive and
           irreversible (deletes all game progress, not just the login). */}
       <div className="mt-12 pt-6 border-t border-white/10">
@@ -300,21 +406,30 @@ export default function MyAccount() {
             <p className="text-white/50 text-sm mb-3">
               This deletes everything — your progress, stars, all of it. Are you sure?
             </p>
+            <input
+              type="password" inputMode="numeric" maxLength={4} autoComplete="off"
+              value={deletePin}
+              onChange={(e) => { setDeletePin(e.target.value.replace(/\D/g, '').slice(0, 4)); setDeleteError('') }}
+              placeholder="Enter your PIN to confirm"
+              className="w-full max-w-xs mx-auto mb-3 text-center tracking-[0.5em] px-4 py-2.5 rounded-xl bg-white/5
+                         border border-white/10 text-white text-sm placeholder:text-white/30 placeholder:tracking-normal
+                         focus:outline-none focus:border-brand-coral/40"
+            />
             <div className="flex items-center justify-center gap-3">
-              <button onClick={() => setConfirmingDelete(false)}
+              <button onClick={() => { setConfirmingDelete(false); setDeletePin(''); setDeleteError('') }}
                       className="text-white/40 hover:text-white/70 text-sm px-4 py-2 transition-colors">
                 Never mind
               </button>
               <button
-                disabled={deleting}
+                disabled={deleting || deletePin.length !== 4}
                 onClick={async () => {
                   setDeleting(true)
                   setDeleteError('')
                   try {
-                    await deleteKidAccount()
+                    await deleteKidAccount(deletePin)
                     navigate('/')
-                  } catch {
-                    setDeleteError("Couldn't delete your account -- try again.")
+                  } catch (err) {
+                    setDeleteError(getErrorMessage(err, "Couldn't delete your account -- try again."))
                     setDeleting(false)
                   }
                 }}

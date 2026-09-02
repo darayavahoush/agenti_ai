@@ -16,7 +16,41 @@ from datetime import datetime, timezone
 from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.database import SessionLocal
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.database import _sync_db_url
+
+# Small dedicated engine, separate from database.py's shared `engine` --
+# this file's traffic (RL event logging, checkpoints) is low-volume and
+# doesn't need to compete for headroom in the shared pool. Capped total
+# of 5 connections (pool_size + max_overflow).
+#
+# Bound to _sync_db_url (not the raw DATABASE_URL) for the same reason
+# database.py's own `engine` is: when DATABASE_URL is in the asyncpg/Azure
+# form (postgresql+asyncpg://...?ssl=require -- see database.py's own
+# comment on this), handing that straight to this file's sync
+# create_engine() doesn't fail at import time, it fails the moment any
+# query actually runs, with a MissingGreenlet error -- confirmed locally.
+# Every call in this file caught that under a bare except at its call site
+# (chime.py's log_event/get_events, etc.) and silently no-opped: writes
+# never landed, reads always came back empty, with no visible error on
+# this side. That's indistinguishable from "nothing passed yet" to
+# anything reading this data -- e.g. Chime's level-unlock check, which is
+# exactly the "still locked after passing" bug this was tracked down for.
+_retraining_engine = create_engine(
+    _sync_db_url,
+    pool_pre_ping=True,
+    pool_size=2,
+    max_overflow=3,
+    connect_args={
+        "options": "-c statement_timeout=30000 -c idle_in_transaction_session_timeout=30000"
+    },
+)
+RetrainingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=_retraining_engine,
+)
 from app.models.retraining_models import RLTrainingEvent, RetrainCheckpoint
 
 # Vestigial -- kept only because ported call sites (chime.py, breath_agent.py,
@@ -34,7 +68,7 @@ def add_event(child_id, level_id: str, attempt_number: int, score: float,
               policy_used: str = None, downgrade_reason: str = None,
               recommended_action: str = None, recommendation_message: str = None,
               db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         event = RLTrainingEvent(
             child_id=child_id,
             timestamp=datetime.now(timezone.utc),
@@ -58,7 +92,7 @@ def add_event(child_id, level_id: str, attempt_number: int, score: float,
 
 
 def get_events(child_id=None, since_id: int = None, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(RLTrainingEvent)
         if child_id is not None:
             query = query.where(RLTrainingEvent.child_id == child_id)
@@ -73,7 +107,7 @@ def get_events(child_id=None, since_id: int = None, db_path=None):
 
 
 def get_latest_decision(child_id, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = (
             select(RLTrainingEvent)
             .where(RLTrainingEvent.child_id == child_id)
@@ -88,7 +122,7 @@ def get_latest_decision(child_id, db_path=None):
 
 
 def count_events(child_id=None, db_path=None) -> int:
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(func.count()).select_from(RLTrainingEvent)
         if child_id is not None:
             query = query.where(RLTrainingEvent.child_id == child_id)
@@ -99,7 +133,7 @@ def count_events_since(child_ids: list, since_iso: str, db_path=None) -> int:
     if not child_ids:
         return 0
     since_dt = datetime.fromisoformat(since_iso)
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(func.count()).select_from(RLTrainingEvent).where(
             RLTrainingEvent.timestamp >= since_dt,
             RLTrainingEvent.child_id.in_(child_ids),
@@ -108,7 +142,7 @@ def count_events_since(child_ids: list, since_iso: str, db_path=None) -> int:
 
 
 def last_event_time(child_id, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(func.max(RLTrainingEvent.timestamp)).where(
             RLTrainingEvent.child_id == child_id
         )
@@ -119,7 +153,7 @@ def last_event_time(child_id, db_path=None):
 
 
 def get_checkpoint(scope: str, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         query = select(RetrainCheckpoint).where(RetrainCheckpoint.scope == scope)
         row = session.execute(query).scalar_one_or_none()
         if row is None:
@@ -132,7 +166,7 @@ def get_checkpoint(scope: str, db_path=None):
 
 
 def set_checkpoint(scope: str, event_count: int, db_path=None):
-    with SessionLocal() as session:
+    with RetrainingSessionLocal() as session:
         stmt = pg_insert(RetrainCheckpoint).values(
             scope=scope,
             last_retrained_at=datetime.now(timezone.utc),

@@ -40,6 +40,7 @@ from app.models.breathquest_models import (
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt
+from app.models.flashcards_models import FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     PatientProgress, LevelProgress, DashboardSummary,
     PatientDetailOut, SessionOut,
@@ -61,11 +62,13 @@ except ImportError as e:
     build_patient_report_pdf = None
     _PDF_EXPORT_IMPORT_ERROR = str(e)
 
-# Top-level retraining/ and agent/ packages, not app.retraining /
-# app.breathquest_agent -- these are the copies breath_agent.py actually
-# imports and that write the RLTrainingEvent rows this router reads back
-# (see retraining/data_store.py's docstring on call sites).
-from retraining import data_store as chime_data_store
+# Top-level retraining/ and agent/ packages (not app.retraining, which
+# weekly_summary.py uses separately for its own read-side queries) --
+# these are what breath_agent.py actually imports and what write the
+# RLTrainingEvent rows this router reads back (see retraining/data_store.py's
+# docstring on call sites). app.breathquest_agent was an unused duplicate
+# of this package and has been removed.
+from app.retraining import data_store as chime_data_store
 from agent.service import AgentService
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -171,7 +174,20 @@ async def get_dashboard_summary(
         [str(pid) for pid in patient_ids], week_ago.isoformat(), db_path=CHIME_DB_PATH,
     )
 
-    sessions_this_week = (bq_row.count or 0) + (vhr_row.count or 0) + vm_week_count + chime_week_count
+    # Flashcards attempts (composite 0-100 score, not stars) -- same "counts
+    # toward sessions but excluded from avg_stars_this_week" treatment as
+    # VaakMirror/Chime above, for the same reason (not a comparable scale).
+    fc_week = await db.execute(
+        select(func.count(FlashcardAttempt.id)).where(
+            and_(
+                FlashcardAttempt.patient_id.in_(patient_ids) if patient_ids else False,
+                FlashcardAttempt.created_at >= week_ago,
+            )
+        )
+    )
+    fc_week_count = fc_week.scalar() or 0
+
+    sessions_this_week = (bq_row.count or 0) + (vhr_row.count or 0) + vm_week_count + chime_week_count + fc_week_count
 
     star_session_count = (bq_row.count or 0) + (vhr_row.count or 0)
     star_sum = float(bq_row.stars_sum or 0) + float(vhr_row.stars_sum or 0)
@@ -205,9 +221,15 @@ async def get_dashboard_summary(
 
         chime_total = await asyncio.to_thread(chime_data_store.count_events, child_id=str(p.id), db_path=CHIME_DB_PATH)
 
-        combined_total = (row.total or 0) + (vhr_row_p.total or 0) + (vm_total or 0) + chime_total
+        fc_stats = await db.execute(
+            select(func.count(FlashcardAttempt.id), func.max(FlashcardAttempt.created_at))
+            .where(FlashcardAttempt.patient_id == p.id)
+        )
+        fc_total, fc_last = fc_stats.one()
+
+        combined_total = (row.total or 0) + (vhr_row_p.total or 0) + (vm_total or 0) + chime_total + (fc_total or 0)
         combined_stars = int(row.stars or 0) + int(vhr_row_p.stars or 0)
-        last_candidates = [d for d in (row.last, vhr_row_p.last, vm_last) if d is not None]
+        last_candidates = [d for d in (row.last, vhr_row_p.last, vm_last, fc_last) if d is not None]
         combined_last = max(last_candidates) if last_candidates else None
 
         patient_details.append(PatientDetailOut(
@@ -543,12 +565,19 @@ async def _compute_goal_current_value(goal: Goal, db: AsyncSession) -> float | N
     field = _GOAL_METRIC_FIELDS.get(goal.target_metric)
     if field is None:
         return None
-    result = await db.execute(
-        select(func.avg(field))
+    # ORDER BY + LIMIT on an aggregate query is a no-op: AVG() collapses all
+    # matching rows into a single row before either clause applies, so this
+    # used to silently average the patient's *entire* session history
+    # instead of just their last 5 sessions. Select the last 5 raw values
+    # in a subquery first, then aggregate over that subset.
+    recent_values = (
+        select(field)
         .where(GameSession.patient_id == goal.patient_id, field.is_not(None))
         .order_by(GameSession.started_at.desc())
         .limit(5)
+        .subquery()
     )
+    result = await db.execute(select(func.avg(recent_values.c[field.key])))
     avg = result.scalar()
     return round(avg, 3) if avg is not None else None
 
@@ -774,8 +803,11 @@ async def list_patient_alerts(
             select(func.max(VaakMirrorSession.started_at)).where(VaakMirrorSession.patient_id == str(p.id))
         )).scalar()
         chime_last = await asyncio.to_thread(chime_data_store.last_event_time, child_id=str(p.id), db_path=CHIME_DB_PATH)
+        fc_last = (await db.execute(
+            select(func.max(FlashcardAttempt.created_at)).where(FlashcardAttempt.patient_id == p.id)
+        )).scalar()
 
-        last_candidates = [d for d in (bq_last, vhr_last, vm_last, chime_last) if d is not None]
+        last_candidates = [d for d in (bq_last, vhr_last, vm_last, chime_last, fc_last) if d is not None]
         last_played = max(last_candidates) if last_candidates else None
         days_since = (now - last_played).days if last_played else None
 

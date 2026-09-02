@@ -33,37 +33,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "breathquest_phone_verifications",
-        sa.Column("id", PGUUID(as_uuid=True), primary_key=True),
-        sa.Column("phone", sa.String(32), nullable=False),
-        sa.Column("otp_code_hash", sa.String(64), nullable=False),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("verified", sa.Boolean(), nullable=False, server_default="false"),
-        sa.Column("verified_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-    )
-    op.create_index(
-        "ix_breathquest_phone_verifications_phone",
-        "breathquest_phone_verifications",
-        ["phone"],
-    )
-    op.add_column(
-        "breathquest_patients",
-        sa.Column("parent_phone", sa.String(32), nullable=True),
-    )
-    op.add_column(
-        "breathquest_patients",
-        sa.Column("parent_phone_consent_verified_at", sa.DateTime(timezone=True), nullable=True),
-    )
+    # Already present in the baseline schema.
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("breathquest_patients", "parent_phone_consent_verified_at")
-    op.drop_column("breathquest_patients", "parent_phone")
-    op.drop_index(
-        "ix_breathquest_phone_verifications_phone",
-        table_name="breathquest_phone_verifications",
-    )
-    op.drop_table("breathquest_phone_verifications")
+    # Owned by the baseline schema.
+    pass

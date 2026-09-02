@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
-import { getPhonemeCue } from './data/phonemeCues.js'
+import { getPhonemeCue, getSpokenForm } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
@@ -35,12 +35,29 @@ const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
 
+// Curriculum ordering: kids should meet isolated single sounds before
+// consonant blends, and blends before syllables/word-final forms that
+// stack a consonant onto a vowel ("two sounds together"). `attempt` is how
+// many times this session has been played already (0 = first time through).
+// Attempt 0 -> singles only. Attempt 1 -> blends only. Attempt 2+ -> blends
+// and combos mixed, since by then blends alone would start repeating with
+// only 20 in the taxonomy. Falls back to the full pool if a tier somehow
+// comes up short, so a small custom round_size never dead-ends on an empty
+// draw.
+function poolForAttempt(attempt) {
+  if (attempt <= 0) return SOUNDS.filter((s) => s.complexity === 'single')
+  if (attempt === 1) return SOUNDS.filter((s) => s.complexity === 'blend')
+  return SOUNDS.filter((s) => s.complexity === 'blend' || s.complexity === 'combo')
+}
+
 // Takes the round size as a parameter rather than closing over a module-level
 // constant, since a therapist can now set a per-patient round size (fetched
 // async after mount) — this needs to be re-callable with whatever size is
 // current at the time, not a fixed value baked in at module load.
-function pickRound(size) {
-  const shuffled = [...SOUNDS].sort(() => Math.random() - 0.5)
+function pickRound(size, attempt = 0) {
+  const pool = poolForAttempt(attempt)
+  const source = pool.length >= size ? pool : SOUNDS
+  const shuffled = [...source].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, size)
 }
 
@@ -64,7 +81,12 @@ export default function MirrorMirror() {
 
   const [status, setStatus] = useState('loading') // loading | ready | denied | error
   const [roundSize, setRoundSize] = useState(DEFAULT_ROUND_SIZE)
-  const [round, setRound] = useState(() => pickRound(DEFAULT_ROUND_SIZE))
+  // How many rounds this session has played, so pickRound can step through
+  // the single -> blend -> blend+combo curriculum (see poolForAttempt).
+  // Session-only by design — every fresh visit re-teaches singles first
+  // rather than assuming what a kid remembers from last time.
+  const attemptRef = useRef(0)
+  const [round, setRound] = useState(() => pickRound(DEFAULT_ROUND_SIZE, attemptRef.current))
   const [roundIndex, setRoundIndex] = useState(0)
   const [tier, setTier] = useState('red')
   const [holdProgress, setHoldProgress] = useState(0)
@@ -92,7 +114,7 @@ export default function MirrorMirror() {
       .then((settings) => {
         if (cancelled || !settings.round_size) return
         setRoundSize(settings.round_size)
-        setRound(pickRound(settings.round_size))
+        setRound(pickRound(settings.round_size, attemptRef.current))
       })
       .catch(() => {})
     return () => {
@@ -103,10 +125,13 @@ export default function MirrorMirror() {
   // Speak the target sound aloud each time a new round item comes up —
   // same pattern LipSyncHero already established (speakSound on note
   // change, gated on calibration being done so it doesn't talk over the
-  // "relax your mouth" setup step).
+  // "relax your mouth" setup step). Uses getSpokenForm rather than the raw
+  // display label: TTS reads a bare letter as its alphabet name ("t" ->
+  // "tee") and would read display-only text like "a (cat)" literally,
+  // parentheses included — see phonemeCues.js for details.
   useEffect(() => {
     if (!baselineSpread || complete || !current) return
-    speakSound(current.label)
+    speakSound(getSpokenForm(current.id))
   }, [current, baselineSpread, complete])
 
   const advance = useCallback((opts = {}) => {
@@ -301,7 +326,8 @@ export default function MirrorMirror() {
   }, [status, target, advance, filter, baselineSpread])
 
   function restart() {
-    setRound(pickRound(roundSize))
+    attemptRef.current += 1
+    setRound(pickRound(roundSize, attemptRef.current))
     setRoundIndex(0)
     setStars(0)
     setComplete(false)
@@ -469,7 +495,7 @@ export default function MirrorMirror() {
                 <p className="text-paper text-lg font-medium mb-2 flex items-center gap-2">
                   {target.label}
                   <button
-                    onClick={() => speakSound(current.label)}
+                    onClick={() => speakSound(getSpokenForm(current.id))}
                     className="text-paper/40 hover:text-coral transition-colors"
                     title="Hear it again"
                   >

@@ -5,6 +5,10 @@ import json
 from typing import Optional
 from vosk import Model, KaldiRecognizer
 import soundfile as sf
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # Vosk model paths - these need to be downloaded
 # Models can be downloaded from: https://alphacephei.com/vosk/models
@@ -12,7 +16,7 @@ VOSK_MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "vosk_mode
 
 # Language to Vosk model mapping (based on available models)
 VOSK_LANG_MODELS = {
-    "hi": "vosk-model-hi-0.22",  # Hindi
+    "hi": "vosk-model-small-hi-0.22",  # Hindi
     "te": "vosk-model-small-te-0.42",  # Telugu  
     "kn": "vosk-model-small-ka-0.42",  # Kannada (Note: ka=Georgian, may not work)
     "ta": "vosk-model-ta-0.22",  # Tamil (not available)
@@ -41,25 +45,25 @@ def get_vosk_model(language: str) -> Optional[Model]:
     
     model_name = VOSK_LANG_MODELS.get(language)
     if not model_name:
-        print(f"⚠️ No Vosk model available for language: {language}")
+        logger.warning(f"⚠️ No Vosk model available for language: {language}")
         return None
     
     model_path = os.path.join(VOSK_MODELS_DIR, model_name)
     
     if not os.path.exists(model_path):
-        print(f"⚠️ Vosk model not found at: {model_path}")
-        print(f"📥 Please download model from: https://alphacephei.com/vosk/models")
-        print(f"📁 Extract to: {VOSK_MODELS_DIR}")
+        logger.warning(f"⚠️ Vosk model not found at: {model_path}")
+        logger.info(f"📥 Please download model from: https://alphacephei.com/vosk/models")
+        logger.info(f"📁 Extract to: {VOSK_MODELS_DIR}")
         return None
     
     try:
-        print(f"🔧 Loading Vosk model for {language}: {model_name}")
+        logger.info(f"🔧 Loading Vosk model for {language}: {model_name}")
         model = Model(model_path)
         loaded_models[language] = model
-        print(f"✅ Vosk model loaded for {language}")
+        logger.info(f"✅ Vosk model loaded for {language}")
         return model
     except Exception as e:
-        print(f"❌ Error loading Vosk model for {language}: {e}")
+        logger.error(f"❌ Error loading Vosk model for {language}: {e}")
         return None
 
 
@@ -126,11 +130,11 @@ def transcribe_with_vosk(audio_path: str, language: str = "hi") -> str:
         os.remove(tmp_wav_path)
         
         text = result_json.get("text", "")
-        print(f"📝 Vosk transcription ({language}): {text}")
+        logger.info(f"📝 Vosk transcription ({language}): {text}")
         return text
         
     except Exception as e:
-        print(f"❌ Vosk transcription error: {e}")
+        logger.error(f"❌ Vosk transcription error: {e}")
         import traceback
         traceback.print_exc()
         return ""
@@ -160,8 +164,8 @@ def setup_vosk_models_directory():
     """
     if not os.path.exists(VOSK_MODELS_DIR):
         os.makedirs(VOSK_MODELS_DIR)
-        print(f"📁 Created Vosk models directory: {VOSK_MODELS_DIR}")
-        print(f"📥 Download models from: https://alphacephei.com/vosk/models")
-        print(f"📋 Recommended models:")
+        logger.info(f"📁 Created Vosk models directory: {VOSK_MODELS_DIR}")
+        logger.info(f"📥 Download models from: https://alphacephei.com/vosk/models")
+        logger.info(f"📋 Recommended models:")
         for lang_code, model_name in VOSK_LANG_MODELS.items():
-            print(f"   - {lang_code}: {model_name}")
+            logger.info(f"   - {lang_code}: {model_name}")

@@ -26,14 +26,36 @@ if not DATABASE_URL:
     pg_database = os.getenv("PGDATABASE") or "postgres"
     DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
 
-# Convert to async URL for BreathQuest
+# The sync engine must use a regular psycopg2-compatible PostgreSQL URL,
+# while the async engine needs the asyncpg driver. Reusing the same
+# asyncpg URL for both creates the import-time `MissingGreenlet` crash
+# seen when app.main connects during startup. Azure/.env values also use
+# the asyncpg form (`ssl=require`), which psycopg2 rejects outright; convert
+# that query flag to `sslmode=require` for the sync engine.
+_sync_db_url = DATABASE_URL
+if _sync_db_url.startswith("postgresql+asyncpg://"):
+    _sync_db_url = _sync_db_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+if "ssl=" in _sync_db_url:
+    _sync_db_url = _sync_db_url.replace("ssl=", "sslmode=", 1)
+
 _async_db_url = DATABASE_URL
 if _async_db_url.startswith("postgresql://"):
     _async_db_url = _async_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# statement_timeout kills any single query running longer than 30s;
+# idle_in_transaction_session_timeout kills a connection left open in an
+# uncommitted transaction (e.g. an exception between execute() and
+# commit()/rollback() that isn't caught) -- without these, either failure
+# mode holds a pool connection forever, which matters more now that the
+# pool is deliberately small.
 engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True
+    _sync_db_url,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
+    connect_args={
+        "options": "-c statement_timeout=30000 -c idle_in_transaction_session_timeout=30000"
+    },
 )
 
 # Async engine for BreathQuest
@@ -41,8 +63,14 @@ async_engine = create_async_engine(
     _async_db_url,
     echo=False,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
+    connect_args={
+        "server_settings": {
+            "statement_timeout": "30000",
+            "idle_in_transaction_session_timeout": "30000",
+        }
+    },
 )
 
 SessionLocal = sessionmaker(

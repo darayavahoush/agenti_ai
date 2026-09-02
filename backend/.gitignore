@@ -6,3 +6,6 @@ uploads/
 *.mpeg
 *.m4a
 vosk_models/uploads/
+
+# Large Vosk speech models - provision separately for deployment
+vosk_models/

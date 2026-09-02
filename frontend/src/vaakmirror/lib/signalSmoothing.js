@@ -27,34 +27,31 @@ const TIER_ORDER = { red: 0, yellow: 1, green: 2 }
 
 export function createTierStabilizer(requiredFrames = 4) {
   let confirmed = 'red'
-  let candidate = null
-  let candidateCount = 0
+  let worseStreak = 0
 
   return {
     update(rawTier) {
       if (TIER_ORDER[rawTier] >= TIER_ORDER[confirmed]) {
         confirmed = rawTier
-        candidate = null
-        candidateCount = 0
+        worseStreak = 0
         return confirmed
       }
-      if (candidate === rawTier) {
-        candidateCount += 1
-      } else {
-        candidate = rawTier
-        candidateCount = 1
-      }
-      if (candidateCount >= requiredFrames) {
+      // rawTier is worse than confirmed. Count *any* consecutive
+      // worse-than-confirmed frames toward the downgrade streak, even if
+      // they bounce between red/yellow rather than repeating the same
+      // tier — real camera data flickers between adjacent tiers, and
+      // requiring an identical tier every frame let a stale 'green'
+      // survive almost indefinitely against genuinely-wrong positioning.
+      worseStreak += 1
+      if (worseStreak >= requiredFrames) {
         confirmed = rawTier
-        candidate = null
-        candidateCount = 0
+        worseStreak = 0
       }
       return confirmed
     },
     reset() {
       confirmed = 'red'
-      candidate = null
-      candidateCount = 0
+      worseStreak = 0
     },
   }
 }

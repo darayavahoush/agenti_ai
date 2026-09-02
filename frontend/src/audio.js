@@ -32,18 +32,27 @@ export function encodeWav(samples, sr = 16000) {
   return new Blob([buf],{type:"audio/wav"});
 }
 
+let pendingPhonemeAudioTimer = null;
+
 export function playPhonemeAudio(exampleWord) {
   if (!window.speechSynthesis) return;
+  if (pendingPhonemeAudioTimer) clearTimeout(pendingPhonemeAudioTimer);
   window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(exampleWord);
-  utt.rate = 0.7; utt.pitch = 1.0; utt.lang = "en-IN";
-  
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => {
-    const name = v.name.toLowerCase();
-    return name.includes("nova") || v.lang.toLowerCase().startsWith("en-in") || name.includes("veena") || name.includes("heera");
-  });
-  if (preferred) utt.voice = preferred;
-  
-  window.speechSynthesis.speak(utt);
+  // Same cancel-then-speak race as lib/speech.js -- Chrome/Firefox will
+  // silently drop a speak() called in the same tick right after cancel().
+  // Short delay lets the queue actually clear first.
+  pendingPhonemeAudioTimer = setTimeout(() => {
+    pendingPhonemeAudioTimer = null;
+    const utt = new SpeechSynthesisUtterance(exampleWord);
+    utt.rate = 0.7; utt.pitch = 1.0; utt.lang = "en-IN";
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => {
+      const name = v.name.toLowerCase();
+      return name.includes("nova") || v.lang.toLowerCase().startsWith("en-in") || name.includes("veena") || name.includes("heera");
+    });
+    if (preferred) utt.voice = preferred;
+
+    window.speechSynthesis.speak(utt);
+  }, 80);
 }

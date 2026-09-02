@@ -144,14 +144,16 @@ async def create_refresh_token(db: AsyncSession, owner_kind: str, owner_id: str)
     value for the caller to send to the client. Caller is responsible for
     the actual db.commit() -- matches login_throttle.py's existing
     stage-here-commit-at-call-site pattern in this codebase."""
+    import uuid
     from app.models.breathquest_models import RefreshToken  # local import avoids a circular import with breathquest_models -> security at module load time
 
     raw_token = secrets.token_urlsafe(48)
     expire_days = REFRESH_TOKEN_EXPIRE_DAYS.get(owner_kind, 14)
+    owner_uuid = uuid.UUID(owner_id) if isinstance(owner_id, str) else owner_id
     token = RefreshToken(
         token_hash=_hash_refresh_token(raw_token),
         owner_kind=owner_kind,
-        owner_id=owner_id,
+        owner_id=owner_uuid,
         expires_at=datetime.now(timezone.utc) + timedelta(days=expire_days),
     )
     db.add(token)

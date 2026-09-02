@@ -5,7 +5,7 @@
 // gesture has happened somewhere on the page, and if that hasn't occurred
 // yet the visual celebration still carries the feedback on its own.
 
-import { speak } from '../../lib/speech'
+import { speak, stopSpeaking } from '../../lib/speech'
 
 let audioCtx = null
 
@@ -87,4 +87,12 @@ export function playMiss() {
 // utility instead of two copies of the same try/catch wrapper.
 export function speakSound(text) {
   speak(text, { rate: 0.85, pitch: 1.05 })
+}
+
+// Cancels any in-flight utterance *and* clears speak()'s pending
+// cancel-then-speak delay timer -- calling window.speechSynthesis.cancel()
+// directly isn't enough, since a speak() call already queued in that
+// short window will still fire after this component has unmounted.
+export function stopSound() {
+  stopSpeaking()
 }

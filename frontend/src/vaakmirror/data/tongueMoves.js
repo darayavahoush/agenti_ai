@@ -39,7 +39,7 @@ export const TONGUE_MOVES = [
   {
     id: 'tongue-back',
     label: 'Tongue tip back',
-    instruction: 'Pull your tongue tip back and let it rest low, away from your teeth.',
+    instruction: 'Pull your tongue tip back and let it rest low, away from your teeth — like getting ready to say a "k" sound. Keep your mouth open so the camera can still see in.',
     arrow: 'back',
     // Elevation range only used to require "low" (not raised toward the
     // roof, which would instead score well on tongue-up). cavityDarkness
@@ -49,7 +49,18 @@ export const TONGUE_MOVES = [
     // scored on elevation alone and was indistinguishable from "any low,
     // visible tongue" — this range needs checking against real kids
     // before it's trusted, same caveat as every other target here.
-    target: { visibility: [0.04, 1], elevation: [0, 0.42], cavityDarkness: [0.28, 1] },
+    //
+    // Lowered from [0.28, 1]: a tester correctly performing this move
+    // (real camera, ordinary room lighting) reported it never registering
+    // as done no matter how they tried — consistent with 0.28 being too
+    // high a bar for a webcam heuristic whose whole premise is "some
+    // pixels read as dark cavity," since ordinary lighting rarely gets
+    // that much of the sampled mouth region down to near-black. See the
+    // matching weight reduction in scoreTongueMove (lib/tongueTracking.js)
+    // — between the two, cavityDarkness now nudges the score toward
+    // "retracted" without being able to single-handedly block progress
+    // the way it could before.
+    target: { visibility: [0.04, 1], elevation: [0, 0.42], cavityDarkness: [0.16, 1] },
     place: 'Velar',
   },
   {

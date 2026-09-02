@@ -6,17 +6,17 @@ never be reachable via a parent token, even by accident.
 
 from datetime import datetime, timezone, timedelta
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient
-from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress
+from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient, Message, SenderRole
+from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress, MessageCreate, MessageOut
 from app.breathquest_core.deps import get_current_parent
 from app.services.weekly_summary import generate_weekly_summary
 from app.services.home_practice_ideas import IDEAS, filter_ideas
-from retraining import data_store as chime_data_store
+from app.retraining import data_store as chime_data_store
 from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH
 # vaakmirror lives outside this backend's Python path in some deploy
 # configs -- degrade to None rather than crashing app startup, same
@@ -308,3 +308,61 @@ async def get_guided_activity(
         reason = f"A good all-around activity to try with {patient.first_name} today."
 
     return GuidedActivityOut(idea=HomePracticeIdeaOut(**idea), reason=reason)
+
+
+# ------------------------------------------------------------------ #
+#  Messages (parent's side of the therapist <-> parent log)            #
+# ------------------------------------------------------------------ #
+# Same `Message` table dashboard.py's therapist-side endpoints write to
+# -- this is the other half of that same conversation, not a separate
+# inbox. Every route here goes through _get_linked_patient, which reads
+# parent.patient_id off the authenticated token rather than trusting a
+# patient_id in the URL/body, so a parent can never address another
+# family's messages by guessing/supplying an id.
+
+@router.get("/messages", response_model=list[MessageOut])
+async def list_messages(
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_linked_patient(parent, db)
+    result = await db.execute(
+        select(Message).where(Message.patient_id == patient.id).order_by(Message.created_at.asc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
+async def create_message(
+    data: MessageCreate,
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_linked_patient(parent, db)
+    message = Message(
+        patient_id=patient.id,
+        sender_role=SenderRole.parent,  # never trust data.sender_role here -- this endpoint only ever sends as this parent
+        sender_id=parent.id,
+        body=data.body,
+    )
+    db.add(message)
+    await db.flush()
+    return message
+
+
+@router.post("/messages/{message_id}/read", response_model=MessageOut)
+async def mark_message_read(
+    message_id: str,
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_linked_patient(parent, db)
+    result = await db.execute(
+        select(Message).where(Message.id == message_id, Message.patient_id == patient.id)
+    )
+    message = result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if message.read_at is None:
+        message.read_at = datetime.now(timezone.utc)
+    return message
