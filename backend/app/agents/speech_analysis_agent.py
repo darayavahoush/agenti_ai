@@ -118,7 +118,10 @@ class SpeechAnalysisAgent:
                 spoken = transcript
 
             spoken = normalize_text(spoken)
-            state["spoken_word"] = spoken if spoken else "No speech detected"
+            if spoken in {"", "no speech detected"}:
+                state["spoken_word"] = "No speech detected"
+            else:
+                state["spoken_word"] = spoken
             logger.info(f"🗣️ Final spoken word: {state['spoken_word']}")
 
             # Phoneme analysis with multi-language support
