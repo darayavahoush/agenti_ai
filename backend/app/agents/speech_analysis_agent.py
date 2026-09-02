@@ -125,7 +125,7 @@ class SpeechAnalysisAgent:
             logger.info(f"🗣️ Final spoken word: {state['spoken_word']}")
 
             # Phoneme analysis with multi-language support
-            expected_phonemes = get_basic_phonemes_multilang(target_word, language)
+            expected_phonemes = get_basic_phonemes_multilang(target, language)
             spoken_phonemes = get_basic_phonemes_multilang(spoken, language)
             
             logger.info(f"🔊 Expected phonemes: {expected_phonemes}")
