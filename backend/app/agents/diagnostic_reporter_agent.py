@@ -19,7 +19,15 @@ class DiagnosticReporterAgent:
         accuracy = state.get("accuracy") or 0
         severity_score = state.get("severity_score") or "Normal"
         error_patterns = state.get("error_patterns") or []
-        vocal_reasoning = state.get("reasoning") or ""
+        # NOTE: was state.get("reasoning"), but "reasoning" is the audio-channel
+        # selection note from speech_analysis_agent (e.g. "Isolated child voice
+        # segment selected") -- and since vocal_acoustic_agent runs in the same
+        # parallel graph step and used to also write to "reasoning", whichever
+        # of the two ran last silently clobbered the other's value. Both agents
+        # now write to their own state keys (see vocal_acoustic_agent.py), so
+        # this reads the vocal-specific one instead of whatever happened to
+        # win the race.
+        vocal_reasoning = state.get("vocal_reasoning") or ""
         metrics = state.get("recommendations") or []
 
         # Try to use OpenAI if key is present and package is installed
@@ -54,6 +62,15 @@ class DiagnosticReporterAgent:
                     ],
                     response_format={"type": "json_object"}
                 )
+                # NOTE: this used to reference `data`, which was never
+                # assigned anywhere in this function -- the OpenAI response
+                # was fetched into `response` but never parsed. That raised a
+                # bare NameError on every single call whenever OPENAI_API_KEY
+                # was set, silently caught by the except below, so this
+                # branch could never succeed: every assessment got the
+                # generic Expert System report instead of the intended
+                # LLM-personalized one, with no visible error to the user.
+                data = json.loads(response.choices[0].message.content)
                 return {
                     "diagnostic_report": data.get("diagnostic_report")
                 }

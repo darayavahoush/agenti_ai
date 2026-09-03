@@ -47,6 +47,7 @@ class AssessmentState(TypedDict):
     feedback: Optional[str]
     stars: Optional[int]
     reasoning: Optional[str]
+    vocal_reasoning: Optional[str]
     recommendations: list[str]
 
     error_patterns: list[str]
