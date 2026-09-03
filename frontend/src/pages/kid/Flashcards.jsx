@@ -384,6 +384,15 @@ export default function Flashcards() {
                   <button onClick={() => { setSubmitError(null); reset(); setPhase("record"); startRecording(); }} style={{ background: "transparent", border: `1.5px solid ${th.accent}44`, borderRadius: "12px", padding: "12px", color: th.sub, fontSize: "0.85rem", cursor: "pointer", fontFamily: "Nunito, sans-serif", fontWeight: 600 }}>
                     Try again
                   </button>
+                  {submitError && (
+                    // The scoring backend was unreachable, so there's no result and
+                    // the normal "Next card" button (only rendered in phase ===
+                    // "result") never appears. Without this, a network hiccup
+                    // strands the child on one word with no way forward.
+                    <button onClick={handleNextCard} style={{ background: "transparent", border: `1.5px solid ${th.accent}66`, borderRadius: "12px", padding: "12px", color: th.accent, fontSize: "0.85rem", cursor: "pointer", fontFamily: "Nunito, sans-serif", fontWeight: 700 }}>
+                      Skip to next word →
+                    </button>
+                  )}
                 </div>
               )}
 
