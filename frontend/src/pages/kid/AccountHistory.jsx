@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ClipboardCheck, Wind, Gauge, Sparkles, Music } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Wind, Gauge, Sparkles, Music, CloudOff, PartyPopper } from 'lucide-react'
 import { meAPI } from '../../api/client'
+import { Button } from '../../components/ui'
 
 // One icon+color per entry kind, matching the "game" field the backend
 // sends back (GET /me/history, routers/breathquest/kid_progress.py) —
@@ -79,25 +80,45 @@ export default function AccountHistory() {
         </div>
 
         {status === 'loading' && (
-          <div className="text-center py-20 text-white/40">Loading your history…</div>
+          // Skeleton rows shaped like the real entries below, not a bare
+          // spinner -- previews the layout that's about to fill in rather
+          // than blanking the page for a beat.
+          <div className="space-y-2" aria-label="Loading your history">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="rounded-2xl p-4 border border-white/10 bg-white/5 flex items-center gap-4 animate-pulse"
+                style={{ animationDelay: `${i * 120}ms` }}
+              >
+                <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3.5 rounded-full bg-white/10 w-2/5" />
+                  <div className="h-2.5 rounded-full bg-white/[0.06] w-1/4" />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {status === 'error' && (
-          <div className="text-center py-20">
-            <p className="text-white/50 mb-2">Couldn't load your history right now.</p>
-            <button
-              onClick={fetchHistory}
-              className="text-white/60 hover:text-white text-sm underline underline-offset-2 transition-colors"
-            >
-              Try again
-            </button>
+          <div className="text-center py-16 flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-brand-coral/15 flex items-center justify-center mb-5">
+              <CloudOff className="w-6 h-6 text-brand-coral" />
+            </div>
+            <p className="text-white/70 font-medium mb-1">Couldn't load your history</p>
+            <p className="text-white/40 text-sm mb-6">Check your connection and give it another try.</p>
+            <Button variant="ghost" size="sm" onClick={fetchHistory}>Try again</Button>
           </div>
         )}
 
         {status === 'ready' && entries?.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-white/50 mb-1">Nothing here yet.</p>
-            <p className="text-white/30 text-sm">Play a game or take your assessment to start your history!</p>
+          <div className="text-center py-16 flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-brand-amber/15 flex items-center justify-center mb-5">
+              <PartyPopper className="w-6 h-6 text-brand-amber" />
+            </div>
+            <p className="text-white/70 font-medium mb-1">Nothing here yet</p>
+            <p className="text-white/40 text-sm mb-6">Play a game or take your assessment to start your history!</p>
+            <Button variant="primary" size="sm" onClick={() => navigate('/play')}>Let's play</Button>
           </div>
         )}
 

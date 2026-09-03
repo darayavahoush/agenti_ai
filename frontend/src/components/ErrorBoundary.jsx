@@ -1,4 +1,6 @@
 import { Component } from 'react'
+import { LogOut, AlertTriangle } from 'lucide-react'
+import { Button } from './ui'
 
 // api/client.js's response interceptor handles a *clean* 401 (the backend
 // rejecting the token) by clearing storage and hard-redirecting to login
@@ -60,17 +62,17 @@ export class ErrorBoundary extends Component {
         return (
           <div className="min-h-screen flex items-center justify-center px-6">
             <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-              <h1 className="font-display text-xl font-bold text-paper">You've been logged out</h1>
+              <div className="w-14 h-14 rounded-full bg-brand-amber/15 flex items-center justify-center mb-1">
+                <LogOut className="w-6 h-6 text-brand-amber" />
+              </div>
+              <h1 className="font-display text-xl font-bold text-white">You've been logged out</h1>
               <p className="text-white/50 text-sm">
                 Your session ended, so this page couldn't load. Log back in to pick up
-                where you left off -- reloading won't fix this one.
+                where you left off — reloading won't fix this one.
               </p>
-              <button
-                onClick={this.handleLogin}
-                className="mt-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-sm font-medium transition"
-              >
+              <Button variant="primary" size="sm" className="mt-2" onClick={this.handleLogin}>
                 Log in
-              </button>
+              </Button>
             </div>
           </div>
         )
@@ -79,16 +81,16 @@ export class ErrorBoundary extends Component {
       return (
         <div className="min-h-screen flex items-center justify-center px-6">
           <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-            <h1 className="font-display text-xl font-bold text-paper">Something went wrong</h1>
+            <div className="w-14 h-14 rounded-full bg-brand-coral/15 flex items-center justify-center mb-1">
+              <AlertTriangle className="w-6 h-6 text-brand-coral" />
+            </div>
+            <h1 className="font-display text-xl font-bold text-white">Something went wrong</h1>
             <p className="text-white/50 text-sm">
               This page hit an unexpected error. Reloading usually fixes it.
             </p>
-            <button
-              onClick={this.handleReload}
-              className="mt-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-sm font-medium transition"
-            >
+            <Button variant="ghost" size="sm" className="mt-2" onClick={this.handleReload}>
               Back to home
-            </button>
+            </Button>
           </div>
         </div>
       )
