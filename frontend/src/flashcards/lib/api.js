@@ -37,13 +37,18 @@ export function speakWord(word, character, speed = 1.0) {
   const form = new FormData()
   form.append('text', word)
   form.append('character', character)
-  return api.post(`${FC}/speak`, form, { responseType: 'blob' }).then(r => r.data)
+  // Override the shared axios instance's default 'Content-Type: application/json'
+  // (see api/client.js) -- with that header explicitly set, axios won't let the
+  // browser attach the multipart boundary for a FormData body, so `text` and
+  // `character` never actually parsed as Form fields server-side. Same fix as
+  // chime/lib/api.js's transcribeAudio.
+  return api.post(`${FC}/speak`, form, { responseType: 'blob', headers: { 'Content-Type': undefined } }).then(r => r.data)
 }
 
 export function getImageForPhrase(phrase) {
   const form = new FormData()
   form.append('phrase', phrase)
-  return api.post(`${FC}/image`, form, { responseType: 'blob' }).then(r => r.data)
+  return api.post(`${FC}/image`, form, { responseType: 'blob', headers: { 'Content-Type': undefined } }).then(r => r.data)
 }
 
 export function evaluateAttempt({ audio, targetWord, character, language, sessionId, attemptNumber, theme }) {
@@ -55,5 +60,5 @@ export function evaluateAttempt({ audio, targetWord, character, language, sessio
   form.append('attempt_number', String(attemptNumber || 1))
   if (sessionId) form.append('session_id', sessionId)
   if (theme) form.append('theme', theme)
-  return api.post(`${FC}/evaluate`, form).then(r => r.data)
+  return api.post(`${FC}/evaluate`, form, { headers: { 'Content-Type': undefined } }).then(r => r.data)
 }
