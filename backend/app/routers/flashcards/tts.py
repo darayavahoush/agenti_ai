@@ -134,7 +134,7 @@ def _apply_ffmpeg(raw_bytes: bytes, filters: str) -> bytes:
         with open(out_tmp.name, "rb") as f:
             return f.read()
     except subprocess.CalledProcessError as e:
-        logger.info(f"ffmpeg error: {e.stderr.decode()}")
+        logger.error(f"ffmpeg filter application failed, serving unprocessed audio: {e.stderr.decode(errors='replace')}")
         return raw_bytes
     finally:
         os.unlink(in_tmp.name)
