@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -13,6 +13,37 @@ const NUM_FIREFLIES = 8
 const CATCH_THRESHOLD_DEFAULT = 0.10
 const LEVEL_ID = 'ma'
 const AGENT_POLICY = 'tabular_q'
+
+// Rolling window for real speech verification: the client-side burst detector
+// below (scoreBurst) only ever measured volume/timing, so a clap or a cough
+// scored identically to a real "ma". Every burst still spawns a firefly the
+// instant it's detected (kids need snappy feedback), but every ~2s the clip
+// covering that batch of bursts gets sent to Whisper (transcribeAudio) and
+// checked for actual "ma" syllables. Any fireflies beyond what got confirmed
+// are quietly removed — see startVerificationWindow/finishVerificationWindow.
+const VERIFY_WINDOW_MS = 2000
+
+// Whisper commonly renders repeated "ma" bursts as "ma ma ma", "mama", "maa",
+// etc. rather than one clean token per burst, so count syllable-like "ma"
+// occurrences directly rather than doing a whole-transcript similarity ratio
+// (which penalizes exactly this kind of repetition/run-together transcript).
+function countMaOccurrences(transcript) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z\s]/g, ' ')
+  const tokens = cleaned.split(/\s+/).filter(Boolean)
+  let count = 0
+  for (const tok of tokens) {
+    // Only count a token if it's made up ENTIRELY of one or more "ma"-style
+    // syllables back to back — e.g. "ma" -> 1, "mama" -> 2, "maamaa" -> 2
+    // (Whisper often fuses repeated bursts into one token with no space).
+    // A token that merely contains "ma" inside another word ("small",
+    // "amazing", "map") doesn't match the full-token pattern and is skipped.
+    if (/^(?:ma+)+$/.test(tok)) {
+      const syllables = tok.match(/ma+/g)
+      if (syllables) count += syllables.length
+    }
+  }
+  return count
+}
 
 function computeRMS(samples) {
   let sum = 0
@@ -103,6 +134,9 @@ export default function FireflyJar() {
     attemptStartTime: 0, treeTime: 0,
     attemptNumber: 0,
     W: 0, H: 0, DPR: 1,
+    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
+    windowStartFireflyCount: 0, windowStartFirefliesCaught: 0,
+    verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -119,6 +153,10 @@ export default function FireflyJar() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       if (state.mediaStream) state.mediaStream.getTracks().forEach(t => t.stop())
     }
@@ -176,6 +214,9 @@ export default function FireflyJar() {
   }
   function playCatch() { [660, 880].forEach((f, i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.06), i * 50)) }
   function playSuccessChime() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => setTimeout(() => playTone(f, 0.5, 'triangle', 0.05), i * 110)) }
+  // Soft descending tone when a burst turns out not to be "ma" once the window's
+  // transcript comes back — deliberately gentler than playCatch, not a "wrong buzzer".
+  function playRetract() { [440, 330].forEach((f, i) => setTimeout(() => playTone(f, 0.18, 'sine', 0.035), i * 60)) }
 
   async function requestMicAndCalibrate() {
     try {
@@ -272,6 +313,7 @@ export default function FireflyJar() {
     s.attemptStartTime = performance.now()
     setAriaMsg('Ready! Say "ma" to catch a firefly.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   // Logs one real, per-burst event to the backend: one attempt = one detected sound,
@@ -285,6 +327,76 @@ export default function FireflyJar() {
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
     }
+  }
+
+  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // client-side burst detector above. Every burst in that window has already
+  // spawned a firefly immediately (for snappy feedback — see gameLoop), but
+  // none of those are "confirmed" until this resolves: only bursts backed by
+  // an actual "ma" in the transcript get to stay.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasFinished || !s.mediaStream) return
+
+    s.windowStartFireflyCount = s.jarFireflies.length
+    s.windowStartFirefliesCaught = s.firefliesCaught
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
+  async function finishVerificationWindow(chunks) {
+    const s = stateRef.current
+    // How many fireflies this window's bursts provisionally added, before we
+    // know whether any of them were actually "ma".
+    const addedThisWindow = s.jarFireflies.length - s.windowStartFireflyCount
+
+    if (addedThisWindow > 0 && chunks.length > 0) {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = ''
+      try {
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
+      } catch (err) {
+        console.warn('Backend transcription unavailable — window left unverified, provisional catches stand:', err)
+      }
+      const maCount = countMaOccurrences(transcript)
+      const confirmedCount = Math.min(addedThisWindow, maCount)
+      const toRetract = addedThisWindow - confirmedCount
+
+      if (toRetract > 0) {
+        s.jarFireflies.splice(s.jarFireflies.length - toRetract, toRetract)
+        s.firefliesCaught = Math.max(s.windowStartFirefliesCaught + confirmedCount, 0)
+        s.catchStreak = 0
+        playRetract()
+        setAriaMsg(confirmedCount > 0
+          ? `Heard ${confirmedCount} clear "ma"! ${toRetract} didn't quite sound like "ma" — try again.`
+          : 'That wasn\'t quite "ma" — try again!')
+      }
+    }
+
+    // Only check the win condition here, after this window's count is final —
+    // not the instant a provisional catch hits NUM_FIREFLIES in gameLoop, since
+    // that provisional count could still get retracted moments later.
+    if (s.firefliesCaught >= NUM_FIREFLIES && !s.hasFinished) {
+      s.hasFinished = true
+      onJarFull()
+      return
+    }
+    if (!s.hasFinished) startVerificationWindow()
   }
 
   // Jar-completion pacing only: asks the difficulty agent whether to raise/lower the
@@ -413,10 +525,9 @@ export default function FireflyJar() {
 
     render()
 
-    if (s.firefliesCaught >= NUM_FIREFLIES && !s.hasFinished) {
-      s.hasFinished = true
-      onJarFull()
-    }
+    // Win condition is checked in finishVerificationWindow, not here — a
+    // provisional catch (see above) hitting NUM_FIREFLIES doesn't mean the
+    // jar is genuinely full until the ~2s verification window confirms it.
     if (!s.hasFinished) rafRef.current = requestAnimationFrame(gameLoop)
   }
 

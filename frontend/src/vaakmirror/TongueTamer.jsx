@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, ArrowUpCircle, Volume2 } from 'lucide-react'
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import { loadFaceLandmarker } from './lib/faceLandmarker.js'
 import { TONGUE_MOVES } from './data/tongueMoves.js'
 import { computeMouthMetrics } from './lib/mouthMetrics.js'
 import { computeTongueMetrics, scoreTongueMove, computeElevationOffset, computeLateralOffset, computeCavityDarknessOffset } from './lib/tongueTracking.js'
@@ -130,12 +130,7 @@ export default function TongueTamer() {
 
     async function setup() {
       try {
-        const fileset = await FilesetResolver.forVisionTasks(WASM_URL)
-        landmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
-          runningMode: 'VIDEO',
-          numFaces: 1,
-        })
+        landmarkerRef.current = await loadFaceLandmarker(WASM_URL, MODEL_URL)
 
         stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } })
         if (cancelled) {
