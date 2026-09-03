@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { dashboardAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader } from '../../components/ui'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, CloudOff } from 'lucide-react'
 
 const LEVEL_OPTIONS = [
   { id: 'balloon', label: 'Balloon' }, { id: 'candle', label: 'Candle' },
@@ -60,7 +60,14 @@ export default function AgentInsight() {
       </div>
 
       {loading ? <PageLoader /> : error ? (
-        <Card className="text-center py-12 text-white/40">{error}</Card>
+        <Card className="text-center py-16">
+          <div className="w-14 h-14 rounded-2xl bg-brand-coral/10 flex items-center justify-center mx-auto mb-4">
+            <CloudOff size={24} className="text-brand-coral" />
+          </div>
+          <p className="text-white/70 font-medium mb-1">Couldn't load agent status</p>
+          <p className="text-white/40 text-sm mb-4">{error}</p>
+          <Button onClick={load}>Try again</Button>
+        </Card>
       ) : !status ? null : (
         <div className="flex flex-col gap-4">
           <Card>

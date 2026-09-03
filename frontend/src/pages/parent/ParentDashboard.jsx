@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send } from 'lucide-react'
+import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send, CloudOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar } from '../../components/ui'
 import { useNavigate } from 'react-router-dom'
@@ -32,17 +32,23 @@ export default function ParentDashboard() {
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
+  // Extracted so the error state's "Try again" button can re-fire the same
+  // fetch, not just the effect on mount.
+  const loadProgress = (cancelledRef) =>
     parentAPI.progress()
-      .then(({ data }) => { if (!cancelled) { setData(data); setStatus('ready') } })
-      .catch(() => { if (!cancelled) setStatus('error') })
+      .then(({ data }) => { if (!cancelledRef?.current) { setData(data); setStatus('ready') } })
+      .catch(() => { if (!cancelledRef?.current) setStatus('error') })
+
+  useEffect(() => {
+    const cancelledRef = { current: false }
+    setStatus('loading')
+    loadProgress(cancelledRef)
     parentAPI.guidedActivity()
       .then(({ data }) => { if (!cancelled) setActivity(data) })
       .catch(err => console.error('Failed to load guided activity:', err))
     parentAPI.listMessages()
       .then(({ data }) => {
-        if (cancelled) return
+        if (cancelledRef.current) return
         setMessages(data)
         setMessagesLoaded(true)
         // Mark any unread therapist messages as read now that the parent's
@@ -52,7 +58,7 @@ export default function ParentDashboard() {
           .forEach(m => parentAPI.markMessageRead(m.id).catch(() => {}))
       })
       .catch(err => console.error('Failed to load messages:', err))
-    return () => { cancelled = true }
+    return () => { cancelledRef.current = true }
   }, [])
 
   const sendMessage = async () => {
@@ -116,9 +122,18 @@ export default function ParentDashboard() {
         )}
 
         {status === 'error' && (
-          <div className="text-center py-20">
-            <p className="text-paper/50 mb-2">Couldn't load progress right now.</p>
-            <p className="text-paper/30 text-sm">Try again in a bit!</p>
+          <div className="text-center py-16 flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-coral/15 flex items-center justify-center mb-5">
+              <CloudOff className="w-6 h-6 text-coral" />
+            </div>
+            <p className="text-paper/70 font-medium mb-1">Couldn't load progress</p>
+            <p className="text-paper/40 text-sm mb-6">Check your connection and give it another try.</p>
+            <button
+              onClick={() => loadProgress()}
+              className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-sm font-medium transition"
+            >
+              Try again
+            </button>
           </div>
         )}
 
