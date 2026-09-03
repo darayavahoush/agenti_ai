@@ -8,6 +8,7 @@ import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
 import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
 import { evaluateAttempt, speakWord, getRandomWord, getThemes } from "../../flashcards/lib/api";
+import { getErrorMessage } from "../../api/client";
 import { speak as speakBrowserTTS } from "../../lib/speech";
 import { friendlyPhoneme, phonemeExample } from "../../flashcards/utils/phonemeMap";
 import { getTheme, getSurface } from "../../flashcards/utils/themes";
@@ -173,7 +174,12 @@ export default function Flashcards() {
       setPhase("result");
     } catch (err) {
       console.error(err);
-      setSubmitError("Couldn't check that recording. Check your connection and try again.");
+      // The backend now distinguishes "couldn't process this recording"
+      // (422, e.g. a broken/empty upload) from a real connectivity failure
+      // (no response at all) -- surface whichever actually happened instead
+      // of always blaming the connection, which was misleading and made
+      // this look like a network bug even when the mic input was the issue.
+      setSubmitError(getErrorMessage(err, "Couldn't check that recording. Check your connection and try again."));
       setPhase("record");
     }
   };
