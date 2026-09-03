@@ -152,6 +152,41 @@ export const PHONIC_SOUNDS = {
   Z: { ipa: "/z/", spoken: "zzz", svgKey: "alveolar_fric", anatomy: "Teeth close together, tongue near the ridge behind the top teeth · Voice on · Steady airflow", tip: "Same tongue position as S, but hum through it instead of just blowing — like a buzzing bee.", steps: ["Bring the teeth close together, in a slight smile", "Bring the tongue tip close to the ridge behind the top teeth", "Hum while air passes through the narrow gap", "Hold the sound — it can be stretched, and you should feel a buzz"] },
 };
 
+// Maps each PHONIC_SOUNDS svgKey (a place/manner articulation label) to one
+// of the 8 real mouth-shape reference photos already shot for VaakMirror
+// (src/vaakmirror/assets/mouth-shapes) plus that same manner->animation
+// vocabulary MouthShapeGuide uses, so the alphabet screen shows the same
+// real images kids already see in VaakMirror instead of the abstract
+// sagittal-view line art in MouthDiagram.jsx. There are 18 distinct
+// svgKeys across the alphabet and only 8 photographed shapes, so several
+// keys share the closest-matching image (e.g. every alveolar tongue-tip
+// sound -- D/T/N/L/R -- maps to the one tongue-tip-up photo); manner is
+// omitted (no animation) for vowels, since MouthShapeGuide's motion set
+// is built for consonant manners and a vowel is meant to be held steady
+// rather than popped/shimmered.
+export const SVGKEY_TO_MOUTH_SHAPE = {
+  // Vowels -- steady hold, no manner/animation
+  front_open: { shape: "open-wide" },       // A /æ/
+  front_mid: { shape: "neutral-open" },     // E /ɛ/
+  front_high: { shape: "wide-narrow" },     // I /ɪ/
+  back_low: { shape: "round-forward" },     // O /ɒ/
+  back_high: { shape: "round-forward" },    // W /w/ (rounded glide)
+  mid_mid: { shape: "neutral-open" },       // U /ʌ/
+  retroflex: { shape: "tongue-tip-up", manner: "Approximant" }, // R /r/
+  // Consonants
+  bilabial_stop: { shape: "lips-closed", manner: "Plosive" },       // B, P
+  bilabial_nasal: { shape: "lips-closed", manner: "Nasal" },        // M
+  labiodental: { shape: "lip-teeth", manner: "Fricative" },         // F, V
+  alveolar_stop: { shape: "tongue-tip-up", manner: "Plosive" },     // D, T
+  alveolar_nasal: { shape: "tongue-tip-up", manner: "Nasal" },      // N
+  alveolar_lateral: { shape: "tongue-tip-up", manner: "Lateral Approximant" }, // L
+  alveolar_fric: { shape: "wide-narrow", manner: "Fricative" },     // S, X, Z
+  velar_stop: { shape: "neutral-open", manner: "Plosive" },         // C, G, K, Q
+  postalveolar: { shape: "round-forward", manner: "Affricate" },    // J
+  palatal: { shape: "wide-narrow", manner: "Approximant" },         // Y
+  glottal: { shape: "neutral-open", manner: "Fricative" },          // H
+};
+
 export const KEYBOARD_ROWS = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
   ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
