@@ -116,3 +116,4 @@ langgraph==1.2.11
 greenlet==3.5.5
 azure-communication-sms==1.1.0
 azure-storage-blob>=12.19.0
+gtts
