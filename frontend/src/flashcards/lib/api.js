@@ -37,6 +37,10 @@ export function speakWord(word, character, speed = 1.0) {
   const form = new FormData()
   form.append('text', word)
   form.append('character', character)
+  // Was never sent at all -- the "Slow" button called this with speed=0.65,
+  // but the FormData body never included it, so every request (Normal or
+  // Slow) hit the backend identically and got back the same speed=1.0 clip.
+  form.append('speed', String(speed))
   // Override the shared axios instance's default 'Content-Type: application/json'
   // (see api/client.js) -- with that header explicitly set, axios won't let the
   // browser attach the multipart boundary for a FormData body, so `text` and

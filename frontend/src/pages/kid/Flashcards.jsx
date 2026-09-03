@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Sidebar } from "../../components/ui";
+import { Sidebar, StarRating } from "../../components/ui";
 import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
@@ -44,6 +44,16 @@ function CharacterSelect({ onPick }) {
     </div>
   );
 }
+
+// Tiered kid-facing framing for a composite_score, replacing a bare percentage
+// with a label/emoji/star-count a child can read at a glance.
+function resultTier(score) {
+  if (score >= 85) return { label: "Amazing!", emoji: "🎉", stars: 3, confetti: true };
+  if (score >= 60) return { label: "Nice job!", emoji: "🌟", stars: 2, confetti: false };
+  return { label: "Keep practicing!", emoji: "💪", stars: 1, confetti: false };
+}
+
+const CONFETTI_BITS = ["🎉", "✨", "⭐", "🎊", "💫"];
 
 export default function Flashcards() {
   const { patient, logout } = useAuth();
@@ -137,7 +147,11 @@ export default function Flashcards() {
       audio.onended = () => setPlayingChar(false);
     } catch (err) {
       console.error('Flashcards: backend speakWord failed, falling back to browser TTS', err);
-      speakBrowserTTS(wordData.word, { rate: speed >= 1 ? 0.95 : 0.75 });
+      // Without a per-character pitch here, every character sounded
+      // identical whenever this fallback fired (browser TTS has one voice) --
+      // pass the same pitch backend TTS uses so BOLT/ZARA/etc. stay
+      // distinguishable even when the real per-character audio is down.
+      speakBrowserTTS(wordData.word, { rate: speed >= 1 ? 0.95 : 0.75, pitch: CHARACTERS[character]?.pitch ?? 1.0 });
       setPlayingChar(false);
     }
   };
@@ -417,31 +431,84 @@ export default function Flashcards() {
                 </div>
               )}
 
-              {phase === "result" && result && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div style={{ background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "20px", textAlign: "center" }}>
-                    <p style={{ fontSize: "2rem", fontWeight: 900, color: th.text, margin: "0 0 4px 0", fontFamily: "Nunito, sans-serif" }}>
-                      {Math.round(result.composite_score)}%
-                    </p>
-                    <p style={{ color: th.sub, fontSize: "0.85rem", margin: 0 }}>{result.feedback}</p>
-                  </div>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    {result.repeat_needed && attemptNumber < 3 && (
-                      <button onClick={handleRetry} style={{ flex: 1, background: "transparent", border: `1.5px solid ${th.accent}66`, borderRadius: "14px", padding: "16px", color: th.accent, fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
-                        Try again
+              {phase === "result" && result && (() => {
+                const tier = resultTier(result.composite_score);
+                const matches = result.phoneme_scores?.matches || [];
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ position: "relative", overflow: "hidden", background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}44`, borderRadius: "20px", padding: "24px 20px", textAlign: "center" }}>
+                      {tier.confetti && (
+                        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                          {CONFETTI_BITS.map((bit, i) => (
+                            <span key={i} style={{
+                              position: "absolute", left: `${8 + i * 20}%`, top: "-10%",
+                              fontSize: "1.4rem", animation: `confettiFall 1.4s ease-in ${i * 0.09}s 1`,
+                            }}>{bit}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {char?.image && (
+                        <img src={char.image} alt={char.name} style={{ width: "64px", height: "64px", objectFit: "contain", margin: "0 auto 8px", display: "block", animation: "resultBounce 0.6s ease-out" }} />
+                      )}
+
+                      <p style={{ fontSize: "1.35rem", fontWeight: 900, color: th.text, margin: "0 0 2px 0", fontFamily: "Nunito, sans-serif" }}>
+                        {tier.emoji} {tier.label}
+                      </p>
+                      <div style={{ display: "flex", justifyContent: "center", margin: "6px 0" }}>
+                        <StarRating stars={tier.stars} max={3} size="lg" />
+                      </div>
+                      <p style={{ fontSize: "2.2rem", fontWeight: 900, color: th.accent, margin: "4px 0", fontFamily: "Nunito, sans-serif" }}>
+                        {Math.round(result.composite_score)}%
+                      </p>
+                      <p style={{ color: th.sub, fontSize: "0.85rem", margin: "0 0 4px 0" }}>{result.feedback}</p>
+
+                      {matches.length > 0 && (
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center", marginTop: "12px" }}>
+                          {matches.map((m, i) => (
+                            <span key={i} title={m.detected || "?"} style={{
+                              display: "inline-flex", alignItems: "center", gap: "4px",
+                              background: m.correct ? `${th.accent}22` : "rgba(255,107,107,0.15)",
+                              border: `1px solid ${m.correct ? th.accent + "55" : "#FF6B6B55"}`,
+                              borderRadius: "999px", padding: "4px 10px", fontSize: "0.8rem", fontWeight: 800,
+                              color: m.correct ? th.accent : "#FF6B6B", fontFamily: "Nunito, sans-serif",
+                            }}>
+                              {friendlyPhoneme(m.expected)} {m.correct ? "✓" : "✗"}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      {result.repeat_needed && attemptNumber < 3 && (
+                        <button onClick={handleRetry} style={{ flex: 1, background: "transparent", border: `1.5px solid ${th.accent}66`, borderRadius: "14px", padding: "16px", color: th.accent, fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
+                          Try again
+                        </button>
+                      )}
+                      <button onClick={handleNextCard} style={{ flex: 1, background: th.accent, border: "none", borderRadius: "14px", padding: "16px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
+                        Next card →
                       </button>
-                    )}
-                    <button onClick={handleNextCard} style={{ flex: 1, background: th.accent, border: "none", borderRadius: "14px", padding: "16px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
-                      Next card →
-                    </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             <style>{`
               @keyframes spin { to { transform: rotate(360deg); } }
               @keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+              @keyframes confettiFall {
+                0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+                100% { transform: translateY(140px) rotate(200deg); opacity: 0; }
+              }
+              @keyframes resultBounce {
+                0%   { transform: scale(0.3) translateY(-10px); opacity: 0; }
+                60%  { transform: scale(1.1) translateY(0); opacity: 1; }
+                100% { transform: scale(1) translateY(0); opacity: 1; }
+              }
+              @media (prefers-reduced-motion: reduce) {
+                * { animation: none !important; }
+              }
             `}</style>
           </div>
         )}

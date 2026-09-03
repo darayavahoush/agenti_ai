@@ -8,6 +8,9 @@ import miraImg from './characters/mira.png';
 export const CHARACTERS = {
   BOLT: {
     id: "BOLT",
+    // Matches backend GTTS_PITCH_SHIFT (tts.py) so this character still
+    // sounds distinct even when the browser-TTS fallback kicks in.
+    pitch: 0.85,
     name: "BOLT",
     tagline: "Brave space robot from the future",
     tagline_hindi: "भविष्य का बहादुर अंतरिक्ष रोबोट",
@@ -20,6 +23,9 @@ export const CHARACTERS = {
   },
   ZARA: {
     id: "ZARA",
+    // Matches backend GTTS_PITCH_SHIFT (tts.py) so this character still
+    // sounds distinct even when the browser-TTS fallback kicks in.
+    pitch: 1.25,
     name: "ZARA",
     tagline: "Cheerful alien from planet Zorb",
     tagline_hindi: "ज़ोर्ब ग्रह की खुशमिज़ाज एलियन",
@@ -32,6 +38,9 @@ export const CHARACTERS = {
   },
   NOVA: {
     id: "NOVA",
+    // Matches backend GTTS_PITCH_SHIFT (tts.py) so this character still
+    // sounds distinct even when the browser-TTS fallback kicks in.
+    pitch: 1.0,
     name: "NOVA",
     tagline: "Calm and wise space AI",
     tagline_hindi: "शांत और बुद्धिमान अंतरिक्ष AI",
@@ -44,6 +53,9 @@ export const CHARACTERS = {
   },
   BEEP: {
     id: "BEEP",
+    // Matches backend GTTS_PITCH_SHIFT (tts.py) so this character still
+    // sounds distinct even when the browser-TTS fallback kicks in.
+    pitch: 1.5,
     name: "BEEP",
     tagline: "Tiny helper robot who loves learning",
     tagline_hindi: "सीखने का शौकीन छोटा सहायक रोबोट",
@@ -56,6 +68,9 @@ export const CHARACTERS = {
   },
   ECHO: {
     id: "ECHO",
+    // Matches backend GTTS_PITCH_SHIFT (tts.py) so this character still
+    // sounds distinct even when the browser-TTS fallback kicks in.
+    pitch: 0.75,
     name: "ECHO",
     tagline: "Ancient computer from a distant galaxy",
     tagline_hindi: "दूर की आकाशगंगा का प्राचीन कंप्यूटर",
@@ -68,6 +83,9 @@ export const CHARACTERS = {
   },
   MIRA: {
     id: "MIRA",
+    // Matches backend GTTS_PITCH_SHIFT (tts.py) so this character still
+    // sounds distinct even when the browser-TTS fallback kicks in.
+    pitch: 1.1,
     name: "MIRA",
     tagline: "Friendly underwater robot",
     type: "cartoonish",
