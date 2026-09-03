@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
 import { loadFaceLandmarker } from './lib/faceLandmarker.js'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
-import { getPhonemeCue, getSpokenForm } from './data/phonemeCues.js'
+import { getPhonemeCue, getSpokenForm, getDisplayLabel } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
@@ -450,7 +450,7 @@ export default function LipSyncHero() {
                     className="w-16 h-16 shrink-0 rounded-2xl bg-coral/15 border border-coral/30 flex items-center justify-center hover:bg-coral/25 transition-colors"
                     aria-label="Hear this sound again"
                   >
-                    <span className="font-display text-2xl font-bold text-coral">{current.label}</span>
+                    <span className="font-display text-2xl font-bold text-coral">{getDisplayLabel(current.id)}</span>
                   </button>
                 </div>
                 <p className="text-paper text-lg font-medium mb-2">{target.label}</p>
