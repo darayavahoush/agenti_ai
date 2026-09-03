@@ -161,8 +161,22 @@ async def evaluate(
         tmp_path = tmp.name
 
     try:
-        from app.main import whisper  # reuses the whisper instance agenti_ai's assessment already loads
-        segments, _ = whisper.transcribe(tmp_path)
+        # NOTE: was `from app.main import whisper` -- app/main.py never
+        # defines or imports anything named `whisper`, so this raised an
+        # ImportError on every single call, outside any except clause that
+        # could catch it -- a raw 500 on every recording, which is the
+        # "error when analysing voice" in Flashcards. The actual shared
+        # instance the comment refers to is `whisper_model` in
+        # app/tools/speech_tool.py (assessment's own transcribe() already
+        # reuses it). It can be None if the model failed to load at startup
+        # (speech_tool.py logs and continues rather than crashing the app),
+        # so that's handled explicitly instead of segfaulting on
+        # None.transcribe(...).
+        from app.tools.speech_tool import whisper_model
+        if whisper_model is None:
+            logger.error("/flashcards/evaluate: whisper_model unavailable (failed to load at startup)")
+            raise HTTPException(status_code=503, detail="Voice checking is temporarily unavailable — try again in a moment.")
+        segments, _ = whisper_model.transcribe(tmp_path)
         transcript = " ".join([s.text.strip() for s in segments]).strip().lower()
         target_phonemes = get_phonemes(target_word, language)
         detected_phonemes = get_phonemes(transcript, language) if transcript else []
