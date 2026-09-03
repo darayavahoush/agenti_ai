@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MouthDiagram } from "./MouthDiagram";
-import { ALPHABET_SOUNDS, KEYBOARD_ROWS, LETTER_NAME_GUIDES } from "./alphabetData";
+import { ALPHABET_SOUNDS, PHONIC_SOUNDS, KEYBOARD_ROWS } from "./alphabetData";
 import "./Assessment.css";
 
 // Deliberately its own base URL, not api/client.js's axios instance --
@@ -322,8 +322,14 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   // can ask the backend to exclude them and avoid repeats.
   const shownWordIdsRef = useRef(new Set());
 
-  const selectedSound = ALPHABET_SOUNDS[letter];
-  const letterGuide = LETTER_NAME_GUIDES[selectedSound.guide];
+  // Was: ALPHABET_SOUNDS[letter] + LETTER_NAME_GUIDES -- spoke and showed
+  // the letter's NAME ("ess", "aitch") and a mouth-shape diagram for that
+  // name's vowel glide, not the actual sound the letter makes in a word.
+  // PHONIC_SOUNDS carries both the phonics-teaching spoken form ("sss")
+  // and its real place/manner articulation diagram directly, so no
+  // secondary guide-key indirection is needed here anymore.
+  const selectedSound = PHONIC_SOUNDS[letter];
+  const letterGuide = selectedSound;
 
   // #62: words used to repeat within a session since /words/random was
   // fully random every call with no memory of what had already been
@@ -1888,18 +1894,18 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
             <div className="sound-header">
               <div className="big-letter">{letter}</div>
               <div>
-                <span>Letter name</span>
+                <span>Letter sound</span>
                 <h2>{selectedSound.ipa}</h2>
                 <p>say <strong>“{selectedSound.spoken}”</strong></p>
               </div>
-              <button onClick={() => speakIndianEnglish(selectedSound.spoken, false, selectedLanguage)} aria-label={`Hear the letter ${letter}`}>
+              <button onClick={() => speakIndianEnglish(selectedSound.spoken, false, selectedLanguage)} aria-label={`Hear the sound for ${letter}`}>
                 🔊
               </button>
             </div>
 
             <div className="articulation-content">
               <div className="mouth-visual">
-                <MouthDiagram svgKey={letterGuide.svg} />
+                <MouthDiagram svgKey={selectedSound.svgKey} />
                 <span>Side view of tongue and mouth</span>
               </div>
               <div className="position-guide">
@@ -1909,7 +1915,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                 </div>
                 <h3>How to say “{selectedSound.spoken}”</h3>
                 <ol>
-                  <li className="letter-transition">{selectedSound.transition}</li>
+                  {selectedSound.tip && <li className="letter-transition">{selectedSound.tip}</li>}
                   {letterGuide.steps.map((step) => <li key={step}>{step}</li>)}
                 
                 </ol>
