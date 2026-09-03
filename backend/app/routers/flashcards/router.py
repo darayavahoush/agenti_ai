@@ -112,10 +112,15 @@ async def get_mastery(
 async def speak_endpoint(
     text: str = Form(...),
     character: str = Form(default="BOLT"),
+    # Was entirely absent from this route -- the frontend's "Slow" button
+    # already sent a speed value with no field here to receive it, so it
+    # was silently dropped and every request rendered at the character's
+    # default speed=1.0 regardless of which button was tapped.
+    speed: float = Form(default=1.0),
     patient_id: str = Depends(get_current_patient_id),
 ):
     try:
-        audio_bytes = tts_speak(text, character)
+        audio_bytes = tts_speak(text, character, speed=speed)
     except Exception as e:
         logger.error(f"speak_endpoint: TTS failed for text={text!r} character={character!r}: {e}")
         raise HTTPException(status_code=502, detail="Text-to-speech is temporarily unavailable")
