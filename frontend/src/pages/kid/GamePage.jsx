@@ -181,7 +181,8 @@ export default function GamePage() {
     // reconstruct from generic metrics. calcStars is the fallback for a level
     // that doesn't report its own stars.
     const stars = res.stars ?? calcStars(levelId, m)
-    saveScore(levelId, stars)
+    const updatedLevelScore = saveScore(levelId, stars)
+    setScores(prev => ({ ...prev, [levelId]: updatedLevelScore }))
     setEarnedStars(stars)
     setResult(res)
     setPhase('complete')
