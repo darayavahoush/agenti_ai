@@ -12,6 +12,7 @@ import { getErrorMessage } from "../../api/client";
 import { speak as speakBrowserTTS } from "../../lib/speech";
 import { friendlyPhoneme, phonemeExample } from "../../flashcards/utils/phonemeMap";
 import { getTheme, getSurface } from "../../flashcards/utils/themes";
+import PhonemeHelp from "../../flashcards/PhonemeHelp";
 
 function CharacterSelect({ onPick }) {
   return (
@@ -479,6 +480,22 @@ export default function Flashcards() {
                         </div>
                       )}
                     </div>
+
+                    {result.acoustic_tips?.length > 0 && result.composite_score < 80 && (
+                      <div style={{ background: getSurface(false, 0.8), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "16px" }}>
+                        <p style={{ color: th.sub, fontSize: "0.65rem", letterSpacing: "0.12em", margin: "0 0 10px 0", fontWeight: 700, textTransform: "uppercase" }}>Voice Tips</p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {result.acoustic_tips.map((tip, i) => (
+                            <p key={i} style={{ color: th.text, fontSize: "0.85rem", margin: 0, lineHeight: 1.6, paddingLeft: "12px", borderLeft: `3px solid ${th.accent}` }}>{tip.tip}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {result.composite_score < 80 && matches.some(m => !m.correct) && (
+                      <PhonemeHelp matches={matches} th={th} />
+                    )}
+
                     <div style={{ display: "flex", gap: "10px" }}>
                       {result.repeat_needed && attemptNumber < 3 && (
                         <button onClick={handleRetry} style={{ flex: 1, background: "transparent", border: `1.5px solid ${th.accent}66`, borderRadius: "14px", padding: "16px", color: th.accent, fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>

@@ -29,6 +29,8 @@ from .scorer import build_attempt_result
 from .grapheme_to_phoneme import get_phonemes
 from . import themes as themes_module
 from . import mastery
+from app.services.phoneme.svg import get_phoneme_card
+from app.services.phoneme.drill import get_acoustic_feedback
 import logging
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,20 @@ def random_word(
 @router.get("/characters")
 def characters(patient_id: str = Depends(get_current_patient_id)):
     return {"characters": get_characters()}
+
+
+@router.get("/phoneme-card/{phoneme}")
+def phoneme_card(phoneme: str):
+    """
+    Mouth-shape diagram + tip for a single ARPAbet phoneme, e.g. /flashcards/phoneme-card/SH.
+    Same shape as speech-repeater's /phoneme-card/{phoneme} -- {ipa, name, example_word,
+    tip, mouth_svg, common_errors, category} -- so the frontend result panel can fetch
+    a card for each phoneme the kid got wrong and show how to fix it.
+    """
+    card = get_phoneme_card(phoneme.upper())
+    if not card:
+        raise HTTPException(status_code=404, detail=f"No phoneme data for '{phoneme}'")
+    return card
 
 
 @router.get("/mastery")
@@ -216,6 +232,19 @@ async def evaluate(
         except Exception as e:
             logger.info(f"mastery.record_attempt failed (non-fatal): {e}")
 
-        return result
+        # Bonus feedback only -- doesn't touch result.repeat_needed/composite_score,
+        # which still drive pass/fail exactly as before. acoustic_tips are general
+        # voice-quality tips (loudness/pitch/rate); the frontend fetches per-phoneme
+        # mouth-diagram cards separately via GET /phoneme-card/{phoneme} for whichever
+        # phonemes in result.phoneme_scores.matches came back incorrect.
+        try:
+            acoustic_tips = get_acoustic_feedback(acoustic_raw, condition)
+        except Exception as e:
+            logger.info(f"get_acoustic_feedback failed (non-fatal): {e}")
+            acoustic_tips = []
+
+        result_dict = result.model_dump()
+        result_dict["acoustic_tips"] = acoustic_tips
+        return result_dict
     finally:
         os.unlink(tmp_path)
