@@ -55,6 +55,13 @@ export function getImageForPhrase(phrase) {
   return api.post(`${FC}/image`, form, { responseType: 'blob', headers: { 'Content-Type': undefined } }).then(r => r.data)
 }
 
+// Mouth-shape diagram + tip for a single phoneme, e.g. getPhonemeCard('SH').
+// Used by the result screen's "How to fix this sound" panel -- called once
+// per wrong phoneme after an attempt comes back, not during recording.
+export function getPhonemeCard(phoneme) {
+  return api.get(`${FC}/phoneme-card/${phoneme}`).then(r => r.data)
+}
+
 export function evaluateAttempt({ audio, targetWord, character, language, sessionId, attemptNumber, theme }) {
   const form = new FormData()
   form.append('audio', audio, 'attempt.wav')
