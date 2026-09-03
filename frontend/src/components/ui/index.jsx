@@ -81,6 +81,49 @@ export function Spinner({ size = 'md' }) {
   )
 }
 
+// Same 4-bar soundwave mark as favicon.svg (amber/coral bars, alternating
+// heights), animated into a bouncing equalizer -- reuses the app's own
+// icon as its loading mark instead of a generic spinner ring, for the
+// full-page loader everyone sees on every route.
+export function SoundBarLoader({ size = 'lg' }) {
+  const dims = { sm: { h: 24, w: 5 }, md: { h: 36, w: 6 }, lg: { h: 48, w: 8 } }
+  const { h, w } = dims[size] || dims.lg
+  const bars = [
+    { color: '#F4B942', peak: 0.55, delay: '0ms' },
+    { color: '#F0604A', peak: 1,    delay: '120ms' },
+    { color: '#F0604A', peak: 0.7,  delay: '240ms' },
+    { color: '#F4B942', peak: 0.9,  delay: '360ms' },
+  ]
+  return (
+    <div className="flex items-end gap-1.5" style={{ height: h }}>
+      {bars.map((bar, i) => (
+        <div
+          key={i}
+          className="rounded-full animate-soundbar"
+          style={{
+            width: w,
+            height: '100%',
+            backgroundColor: bar.color,
+            animationDelay: bar.delay,
+            transformOrigin: 'bottom',
+            '--soundbar-peak': bar.peak,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes soundbar {
+          0%, 100% { transform: scaleY(0.28); opacity: 0.75; }
+          50% { transform: scaleY(var(--soundbar-peak)); opacity: 1; }
+        }
+        .animate-soundbar { animation: soundbar 1.1s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-soundbar { animation: none; transform: scaleY(0.7); }
+        }
+      `}</style>
+    </div>
+  )
+}
+
 export function StarRating({ stars = 0, max = 3, size = 'md' }) {
   const sizes = { sm: 'text-lg', md: 'text-2xl', lg: 'text-3xl' }
   return (
@@ -127,7 +170,7 @@ export function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
+        <SoundBarLoader size="lg" />
         <p className="text-white/50 text-sm">Loading…</p>
       </div>
     </div>

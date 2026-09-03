@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { MouthDiagram } from "./MouthDiagram";
-import { ALPHABET_SOUNDS, PHONIC_SOUNDS, KEYBOARD_ROWS } from "./alphabetData";
+import MouthShapeGuide from "../vaakmirror/components/MouthShapeGuide";
+import { ALPHABET_SOUNDS, PHONIC_SOUNDS, SVGKEY_TO_MOUTH_SHAPE, KEYBOARD_ROWS } from "./alphabetData";
 import "./Assessment.css";
 
 // Deliberately its own base URL, not api/client.js's axios instance --
@@ -1905,8 +1905,13 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
 
             <div className="articulation-content">
               <div className="mouth-visual">
-                <MouthDiagram svgKey={selectedSound.svgKey} />
-                <span>Side view of tongue and mouth</span>
+                <div style={{ width: "160px", height: "160px" }}>
+                  <MouthShapeGuide
+                    shape={(SVGKEY_TO_MOUTH_SHAPE[selectedSound.svgKey] || SVGKEY_TO_MOUTH_SHAPE.mid_mid).shape}
+                    manner={(SVGKEY_TO_MOUTH_SHAPE[selectedSound.svgKey] || {}).manner}
+                  />
+                </div>
+                <span>Real mouth shape reference</span>
               </div>
               <div className="position-guide">
                 <div className="position-summary">
