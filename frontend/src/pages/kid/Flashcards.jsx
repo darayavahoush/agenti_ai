@@ -5,7 +5,7 @@ import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
 import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
-import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles } from "../../flashcards/SelectionUI";
+import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
 import { evaluateAttempt, speakWord, getRandomWord, getThemes } from "../../flashcards/lib/api";
 import { getErrorMessage } from "../../api/client";
@@ -74,6 +74,7 @@ export default function Flashcards() {
   const [showTopicSwitcher, setShowTopicSwitcher] = useState(false); // NEW: topic switcher
 
   const th = character ? getTheme(character, false) : null;
+  const loadingEmoji = useCyclingEmoji(["🔍", "🎴", "✨"]);
 
   const fetchThemeNames = () => {
     setThemeError(null);
@@ -228,6 +229,10 @@ export default function Flashcards() {
     <div className="flex min-h-screen" data-fc-root>
       <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
       <div className="flex-1 flex flex-col" style={{ background: th?.bg || '#0d0d1a' }}>
+        {/* Keyframes (floatY, wiggle, ...) also live inside CharacterSelect/
+            ThemeSelect/WordSelect, but those unmount once practice starts --
+            mounted here too so the loading/error states below can use them. */}
+        <GlobalSelectionStyles />
 
         {stage === "theme" ? (
           <ThemeSelect onPick={handleThemePick} />
@@ -236,19 +241,22 @@ export default function Flashcards() {
         ) : stage === "character" ? (
           <CharacterSelect onPick={handleCharacterPick} />
         ) : loadingWord ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <p style={{ color: th.text, fontFamily: "Nunito, sans-serif" }}>Loading a card…</p>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "14px" }}>
+            <div style={{ fontSize: "2.5rem", animation: "floatY 1.6s ease-in-out infinite" }}>{loadingEmoji}</div>
+            <p style={{ color: th.text, fontFamily: "Nunito, sans-serif", opacity: 0.7 }}>Loading a card…</p>
           </div>
         ) : wordError ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "14px", padding: "24px", textAlign: "center" }}>
+            <div style={{ fontSize: "2.5rem", animation: "wiggle 2.2s ease-in-out infinite" }}>😕</div>
             <p style={{ color: th?.text || "#fff", fontFamily: "Nunito, sans-serif", fontSize: "1rem" }}>{wordError}</p>
             <button onClick={() => loadNextWord()} style={{ background: th?.accent || "#A78BFA", border: "none", borderRadius: "14px", padding: "12px 24px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
               Try again
             </button>
           </div>
         ) : !wordData ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <p style={{ color: th?.text || "#fff", fontFamily: "Nunito, sans-serif" }}>Loading a card…</p>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "14px" }}>
+            <div style={{ fontSize: "2.5rem", animation: "floatY 1.6s ease-in-out infinite" }}>{loadingEmoji}</div>
+            <p style={{ color: th?.text || "#fff", fontFamily: "Nunito, sans-serif", opacity: 0.7 }}>Loading a card…</p>
           </div>
         ) : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", position: "relative" }}>

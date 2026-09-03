@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Flame, Star, Calendar } from 'lucide-react'
-import { Avatar } from '../../components/ui'
+import { ArrowLeft, Flame, Star, Calendar, CloudOff } from 'lucide-react'
+import { Avatar, Button } from '../../components/ui'
 import { meAPI } from '../../api/client'
 
 // Kid-facing progress view. The backend endpoint this reads from
@@ -39,18 +39,38 @@ export default function MyProgress() {
         </button>
 
         {status === 'loading' && (
-          <div className="text-center py-20 text-white/40">Loading your progress…</div>
+          // Skeleton shaped like the real avatar+stat-card layout below,
+          // not a bare loading line -- same treatment as Account History.
+          <div aria-label="Loading your progress">
+            <div className="text-center mb-10 flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full bg-white/10 animate-pulse" />
+              <div className="h-7 rounded-full bg-white/10 w-48 mt-5 animate-pulse" />
+              <div className="h-4 rounded-full bg-white/[0.06] w-32 mt-3 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl p-6 text-center border border-white/10 bg-white/5 animate-pulse"
+                  style={{ animationDelay: `${i * 120}ms` }}
+                >
+                  <div className="w-12 h-12 rounded-full bg-white/10 mx-auto mb-3" />
+                  <div className="h-7 rounded-full bg-white/10 w-10 mx-auto" />
+                  <div className="h-2.5 rounded-full bg-white/[0.06] w-16 mx-auto mt-2" />
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {status === 'error' && (
-          <div className="text-center py-20">
-            <p className="text-white/50 mb-2">Couldn't load your progress right now.</p>
-            <button
-              onClick={fetchProgress}
-              className="text-white/60 hover:text-white text-sm underline underline-offset-2 transition-colors"
-            >
-              Try again
-            </button>
+          <div className="text-center py-16 flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-brand-coral/15 flex items-center justify-center mb-5">
+              <CloudOff className="w-6 h-6 text-brand-coral" />
+            </div>
+            <p className="text-white/70 font-medium mb-1">Couldn't load your progress</p>
+            <p className="text-white/40 text-sm mb-6">Check your connection and give it another try.</p>
+            <Button variant="ghost" size="sm" onClick={fetchProgress}>Try again</Button>
           </div>
         )}
 
