@@ -148,6 +148,18 @@ export default function GamePicker() {
   const navigate = useNavigate()
   const [mounted, setMounted] = useState(false)
   const [summary, setSummary] = useState({})
+  // "Switch player" logs the kid straight out with no undo -- it used to sit
+  // with the exact same visual weight as harmless buttons like "My Results"
+  // right next to it, so a stray tap ended the whole session. A two-tap
+  // confirm (auto-resets after 3s) is enough friction to prevent that
+  // without a full modal component for one button.
+  const [confirmLogout, setConfirmLogout] = useState(false)
+
+  useEffect(() => {
+    if (!confirmLogout) return
+    const t = setTimeout(() => setConfirmLogout(false), 3000)
+    return () => clearTimeout(t)
+  }, [confirmLogout])
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 30)
@@ -186,17 +198,27 @@ export default function GamePicker() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <button onClick={() => navigate('/play/account')} className="flex items-center gap-1.5 text-white/40 hover:text-white hover:bg-white/5 text-sm transition-colors px-2.5 py-1.5 rounded-lg">
-              <TrendingUp size={15} /> My Account
+            <button onClick={() => navigate('/play/account')} className="flex items-center gap-1.5 text-white/65 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95">
+              <TrendingUp size={16} /> My Account
             </button>
-            <button onClick={() => navigate('/assessment')} className="flex items-center gap-1.5 text-white/40 hover:text-white hover:bg-white/5 text-sm transition-colors px-2.5 py-1.5 rounded-lg">
-              <Mic size={15} /> Assessment
+            <button onClick={() => navigate('/assessment')} className="flex items-center gap-1.5 text-white/65 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95">
+              <Mic size={16} /> Assessment
             </button>
-            <button onClick={() => navigate('/assessment/report')} className="flex items-center gap-1.5 text-white/40 hover:text-white hover:bg-white/5 text-sm transition-colors px-2.5 py-1.5 rounded-lg">
-              <Sparkles size={15} /> My Results
+            <button onClick={() => navigate('/assessment/report')} className="flex items-center gap-1.5 text-white/65 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95">
+              <Sparkles size={16} /> My Results
             </button>
-            <button onClick={logout} className="text-white/30 hover:text-white/60 text-sm transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 ml-1">
-              Switch player
+            {/* Divider so "Switch player" doesn't visually blend into the row
+                above -- it's the one button here that ends the session. */}
+            <div className="w-px h-5 bg-white/10 mx-1" />
+            <button
+              onClick={() => (confirmLogout ? logout() : setConfirmLogout(true))}
+              className={`text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95 ${
+                confirmLogout
+                  ? 'bg-orange-500/20 text-orange-200 hover:bg-orange-500/30'
+                  : 'text-white/45 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              {confirmLogout ? 'Tap again to confirm' : 'Switch player'}
             </button>
           </div>
         </div>
@@ -212,8 +234,8 @@ export default function GamePicker() {
             </h1>
             <p className="text-white/40 mt-3 flex items-center justify-center gap-1.5">
               Pick a world to play in — each one starts the same way, take a breath 🌬️
-              <button onClick={replayGreeting} className="text-white/25 hover:text-white/50 transition-colors" aria-label="Hear this again">
-                <Volume2 className="w-3.5 h-3.5" />
+              <button onClick={replayGreeting} className="text-white/60 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" aria-label="Hear this again">
+                <Volume2 className="w-4 h-4" />
               </button>
             </p>
           </div>
@@ -226,25 +248,28 @@ export default function GamePicker() {
                 <button
                   key={app.id}
                   onClick={() => navigate(app.path)}
-                  className={`group relative text-left rounded-3xl overflow-hidden transition-all duration-500
-                             hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-2
+                  // iOS Safari only applies :active styles on elements with a
+                  // touch listener somewhere in the chain -- without this,
+                  // group-active below silently never fires on iPhone/iPad.
+                  onTouchStart={() => {}}
+                  className={`group relative text-left rounded-3xl overflow-hidden transition-all duration-300
+                             active:scale-[0.97] hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-2
                              focus-visible:ring-white/70 focus-visible:ring-offset-2
                              focus-visible:ring-offset-[#12142E] ${isWide ? 'lg:col-span-2' : ''} ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
-                  style={{ transitionDelay: mounted ? `${i * 90}ms` : '0ms' }}
+                  style={{
+                    transitionDelay: mounted ? `${i * 90}ms` : '0ms',
+                    '--card-accent': app.accent + '55',
+                    '--card-glow': app.glow,
+                  }}
                 >
                   <div
-                    className={`relative h-full rounded-3xl border-2 transition-all duration-300 ${isWide ? 'p-6 flex items-center gap-6' : 'p-7'}`}
+                    className={`relative h-full rounded-3xl border-2 transition-all duration-200
+                               group-hover:border-[color:var(--card-accent)] group-active:border-[color:var(--card-accent)]
+                               group-hover:shadow-[0_12px_30px_-8px_var(--card-glow)] group-active:shadow-[0_12px_30px_-8px_var(--card-glow)]
+                               ${isWide ? 'p-6 flex items-center gap-6' : 'p-7'}`}
                     style={{
                       background: `linear-gradient(160deg, ${app.accentSoft} 0%, #1E1E3F 65%)`,
                       borderColor: 'rgba(255,255,255,0.08)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = app.accent + '55'
-                      e.currentTarget.style.boxShadow = `0 12px 30px -8px ${app.glow}`
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
-                      e.currentTarget.style.boxShadow = 'none'
                     }}
                   >
                     <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full blur-2xl opacity-40"
@@ -263,8 +288,8 @@ export default function GamePicker() {
                             <p className="text-white/45 text-xs leading-relaxed">{app.desc}</p>
                             <ProgressPill app={app} s={summary[app.id]} accent={app.accent} />
                           </div>
-                          <span className="flex items-center gap-1 text-xs font-semibold shrink-0 transition-transform duration-300 group-hover:translate-x-1" style={{ color: app.accent }}>
-                            {summary[app.id]?.plays > 0 ? 'Continue' : 'Play now'} <ArrowRight size={13} />
+                          <span className="flex items-center gap-1.5 text-sm font-bold shrink-0 transition-transform duration-300 group-hover:translate-x-1 group-active:translate-x-1" style={{ color: app.accent }}>
+                            {summary[app.id]?.plays > 0 ? 'Continue' : 'Play now'} <ArrowRight size={15} />
                           </span>
                         </div>
                       </>
@@ -276,8 +301,8 @@ export default function GamePicker() {
                         <h3 className="font-vm-display font-bold text-white text-lg mb-1.5">{app.name}</h3>
                         <p className="text-white/45 text-xs leading-relaxed">{app.desc}</p>
                         <ProgressPill app={app} s={summary[app.id]} accent={app.accent} />
-                        <span className="flex items-center gap-1 text-xs font-semibold transition-transform duration-300 group-hover:translate-x-1 mt-6" style={{ color: app.accent }}>
-                          {summary[app.id]?.plays > 0 ? 'Continue' : 'Play now'} <ArrowRight size={13} />
+                        <span className="flex items-center gap-1.5 text-sm font-bold transition-transform duration-300 group-hover:translate-x-1 group-active:translate-x-1 mt-6" style={{ color: app.accent }}>
+                          {summary[app.id]?.plays > 0 ? 'Continue' : 'Play now'} <ArrowRight size={15} />
                         </span>
                       </div>
                     )}
