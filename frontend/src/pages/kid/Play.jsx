@@ -443,7 +443,7 @@ export default function KidPlay() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden" style={BG}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 pt-24 relative overflow-x-hidden overflow-y-auto" style={BG}>
       <div className="absolute inset-0 pointer-events-none motion-reduce:hidden" aria-hidden="true">
         {EMBERS.map((e, i) => (
           <span key={i}
