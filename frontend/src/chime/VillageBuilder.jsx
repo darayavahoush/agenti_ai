@@ -25,6 +25,13 @@ const SILENCE_MS = 400
 const MAX_RECORD_MS = 4000
 const MIN_RECORD_MS = 400
 
+// Cap on how many spoken attempts a child gets on one word before the game
+// moves them along to the next one regardless of score — without this,
+// a word that's consistently mis-heard (mic noise, an unusual pronunciation,
+// a too-strict adaptive threshold) can trap a session forever. 5 is the
+// default; drop to 3 for a snappier round.
+const MAX_ATTEMPTS_PER_WORD = 5
+
 // Local pacing agent — same shape as the other five games: SAFE_RANGE is
 // the safety envelope the threshold can never leave, applied whether the
 // decision came from the real trained agent or this offline fallback.
@@ -137,6 +144,7 @@ export default function VillageBuilder() {
     currentRms: 0,
     matchThreshold: 0.45,
     currentWordIndex: 0,
+    attemptsForWord: 0,
     housesBuilt: 0,
     houseGrowPulse: new Array(initialWordList.length).fill(0),
     attemptNumber: 0,
@@ -474,11 +482,17 @@ export default function VillageBuilder() {
 
   const setTargetWordIndex = useCallback((index) => {
     s.currentWordIndex = index
+    s.attemptsForWord = 0
     setTargetWord(wordListRef.current[index])
   }, [s])
 
-  const showRecentAttempt = (transcript, matched) => {
-    setRecentAttempt({ text: matched ? `✅ Heard "${transcript}" — great job!` : `Heard "${transcript}" — try again!`, visible: true })
+  const showRecentAttempt = (transcript, matched, trialsExhausted) => {
+    const text = matched
+      ? `✅ Heard "${transcript}" — great job!`
+      : trialsExhausted
+        ? `Nice try! Let's build the next house.`
+        : `Heard "${transcript}" — try again!`
+    setRecentAttempt({ text, visible: true })
     setTimeout(() => setRecentAttempt(r => ({ ...r, visible: false })), 1800)
   }
 
@@ -507,6 +521,7 @@ export default function VillageBuilder() {
 
   const handleAttempt = useCallback(async (transcript, confidence) => {
     s.attemptNumber++
+    s.attemptsForWord++
     const target = wordListRef.current[s.currentWordIndex]
     let result
     try {
@@ -516,6 +531,9 @@ export default function VillageBuilder() {
       result = localWordMatch(transcript, target, confidence)
     }
     const passedThreshold = result.match_score >= s.matchThreshold
+    // Ran out of tries on this word without a passing score — move on
+    // anyway instead of looping forever on one word.
+    const trialsExhausted = !passedThreshold && s.attemptsForWord >= MAX_ATTEMPTS_PER_WORD
 
     try {
       await logEvent({
@@ -540,10 +558,11 @@ export default function VillageBuilder() {
         setDifficultyMsg(decision.message)
       })
 
-    showRecentAttempt(transcript, passedThreshold)
+    showRecentAttempt(transcript, passedThreshold, trialsExhausted)
 
     const numHouses = wordListRef.current.length
-    if (result.is_valid_attempt && passedThreshold && s.housesBuilt < numHouses) {
+    const shouldAdvance = (result.is_valid_attempt && passedThreshold) || trialsExhausted
+    if (shouldAdvance && s.housesBuilt < numHouses) {
       buildHouse(s.housesBuilt)
       s.housesBuilt++
       setHousesBuilt(s.housesBuilt)
@@ -724,27 +743,27 @@ export default function VillageBuilder() {
 
       {phase === 'playing' && (
         <>
-          <div className="fixed top-0 left-0 right-0 z-20 flex justify-between items-start px-5 pt-16 md:pt-5">
-            <div>
+          <div className="fixed top-4 right-4 z-20 flex flex-col items-end gap-2 max-w-[calc(100vw-32px)]">
+            <div className="flex items-center gap-2">
               <div className="bg-white/92 rounded-3xl px-8 py-3.5 flex items-center gap-2 shadow-lg">
                 <span className="villb-title text-2xl md:text-3xl" style={{ color: '#2E4A2E' }}>{targetWord}</span>
                 <button onClick={speakTargetWord} className="villb-icon-btn" style={{ width: 36, height: 36, fontSize: '1.1rem' }} aria-label="Hear the word">
                   <Volume2 size={16} />
                 </button>
               </div>
-              <div className="villb-listening mt-2 inline-block">{listeningLabel}</div>
-              <div className="mt-2 w-36 h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                <div ref={meterFillRef} className="h-full rounded-full" style={{ width: '0%', background: '#6FBF73', transition: 'width 0.06s linear, background 0.1s linear' }} />
-              </div>
-              <p className="text-white/85 text-xs font-bold mt-2">🏘️ {housesBuilt} / {numHouses} houses built</p>
+              <button onClick={() => setSettingsOpen(v => !v)} className="villb-icon-btn" aria-label="Settings">
+                <Settings size={18} />
+              </button>
             </div>
-            <button onClick={() => setSettingsOpen(v => !v)} className="villb-icon-btn" aria-label="Settings">
-              <Settings size={18} />
-            </button>
+            <div className="villb-listening">{listeningLabel}</div>
+            <div className="w-36 h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.15)' }}>
+              <div ref={meterFillRef} className="h-full rounded-full" style={{ width: '0%', background: '#6FBF73', transition: 'width 0.06s linear, background 0.1s linear' }} />
+            </div>
+            <p className="text-white/85 text-xs font-bold">🏘️ {housesBuilt} / {numHouses} houses built</p>
           </div>
 
           {settingsOpen && (
-            <div className="fixed z-30 bg-white/92 rounded-2xl px-5 py-4 w-60 text-left" style={{ top: 150, right: 18, color: '#2E4A2E' }}>
+            <div className="fixed z-30 bg-white/92 rounded-2xl px-5 py-4 w-60 text-left" style={{ top: 90, right: 18, color: '#2E4A2E' }}>
               <h3 className="villb-title text-base mb-3">Settings</h3>
               <div className="flex items-center justify-between font-bold text-sm mb-3">
                 <span>Reduce motion</span>
