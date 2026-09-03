@@ -14,36 +14,45 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "tts_cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+# NOTE: none of these entries carry their own asetrate/atempo anymore. Pitch
+# differentiation per character is already applied once, upstream, in
+# _render_gtts() via GTTS_PITCH_SHIFT. Every entry here used to *also* run its
+# own asetrate/aresample/atempo block on top of that — a double pitch-shift on
+# every single character (not just a subset), which is what "character sounds
+# aren't applying" actually was: garbled/overpitched audio, not silence. Only
+# the timbral effect (aecho/vibrato/chorus/aphaser/tremolo) belongs here, plus
+# a sane volume and an alimiter so the historically very high gains (up to
+# volume=6.0, with no limiter at all) can't clip.
 CHARACTERS = {
     "BOLT": {
         "voice": "hm_omega", "speed": 1.0,
-        "ffmpeg": "asetrate=16000,aresample=24000,atempo=1.5,aecho=0.9:0.7:35:0.5,volume=4.0",
-        "ffmpeg_question": "asetrate=16000,aresample=24000,atempo=1.5,aecho=0.9:0.7:35:0.5,vibrato=f=2:d=0.15,volume=4.0",
+        "ffmpeg": "aecho=0.9:0.7:35:0.5,volume=2.0,alimiter=limit=0.9",
+        "ffmpeg_question": "aecho=0.9:0.7:35:0.5,vibrato=f=2:d=0.15,volume=2.0,alimiter=limit=0.9",
     },
     "ZARA": {
         "voice": "hf_alpha", "speed": 1.0,
-        "ffmpeg": "asetrate=32000,aresample=24000,atempo=0.75,vibrato=f=5:d=0.25,aphaser=in_gain=0.8:out_gain=0.9:delay=3:decay=0.4:speed=1.5:type=t,volume=3.0",
-        "ffmpeg_question": "asetrate=32000,aresample=24000,atempo=0.75,vibrato=f=7:d=0.35,aphaser=in_gain=0.8:out_gain=0.9:delay=3:decay=0.4:speed=2.0:type=t,volume=3.5",
+        "ffmpeg": "vibrato=f=5:d=0.25,aphaser=in_gain=0.8:out_gain=0.9:delay=3:decay=0.4:speed=1.5:type=t,volume=1.8,alimiter=limit=0.9",
+        "ffmpeg_question": "vibrato=f=7:d=0.35,aphaser=in_gain=0.8:out_gain=0.9:delay=3:decay=0.4:speed=2.0:type=t,volume=2.0,alimiter=limit=0.9",
     },
     "NOVA": {
         "voice": "hf_beta", "speed": 1.0,
-        "ffmpeg": "asetrate=21000,aresample=24000,atempo=1.14,chorus=0.5:0.9:50:0.4:0.25:2,volume=3.0",
-        "ffmpeg_question": "asetrate=21000,aresample=24000,atempo=1.14,chorus=0.6:0.9:50:0.5:0.3:2,vibrato=f=1.5:d=0.1,volume=3.0",
+        "ffmpeg": "chorus=0.5:0.9:50:0.4:0.25:2,volume=1.8,alimiter=limit=0.9",
+        "ffmpeg_question": "chorus=0.6:0.9:50:0.5:0.3:2,vibrato=f=1.5:d=0.1,volume=1.8,alimiter=limit=0.9",
     },
     "BEEP": {
         "voice": "hm_psi", "speed": 1.0,
-        "ffmpeg": "asetrate=38000,aresample=24000,atempo=0.63,vibrato=f=8:d=0.3,volume=4.0",
-        "ffmpeg_question": "asetrate=38000,aresample=24000,atempo=0.63,vibrato=f=12:d=0.4,aecho=0.7:0.4:15:0.2,volume=4.5",
+        "ffmpeg": "vibrato=f=8:d=0.3,volume=2.0,alimiter=limit=0.9",
+        "ffmpeg_question": "vibrato=f=12:d=0.4,aecho=0.7:0.4:15:0.2,volume=2.2,alimiter=limit=0.9",
     },
     "ECHO": {
         "voice": "hm_omega", "speed": 1.0,
-        "ffmpeg": "asetrate=18000,aresample=24000,atempo=1.33,aecho=0.8:0.6:60:0.4,tremolo=f=2:d=0.3,volume=4.0",
-        "ffmpeg_question": "asetrate=18000,aresample=24000,atempo=1.33,aecho=0.8:0.6:60:0.4,tremolo=f=3:d=0.4,vibrato=f=1:d=0.2,volume=4.0",
+        "ffmpeg": "aecho=0.8:0.6:60:0.4,tremolo=f=2:d=0.3,volume=2.0,alimiter=limit=0.9",
+        "ffmpeg_question": "aecho=0.8:0.6:60:0.4,tremolo=f=3:d=0.4,vibrato=f=1:d=0.2,volume=2.0,alimiter=limit=0.9",
     },
     "MIRA": {
         "voice": "hf_alpha", "speed": 1.0,
-        "ffmpeg": "asetrate=20000,aresample=24000,atempo=1.2,aphaser=in_gain=0.8:out_gain=0.9:delay=5:decay=0.5:speed=0.8:type=t,chorus=0.6:0.9:60:0.4:0.3:2,volume=6.0",
-        "ffmpeg_question": "asetrate=20000,aresample=24000,atempo=1.2,aphaser=in_gain=0.8:out_gain=0.9:delay=5:decay=0.5:speed=1.2:type=t,chorus=0.7:0.9:60:0.5:0.35:2,tremolo=f=4:d=0.3,volume=6.0",
+        "ffmpeg": "aphaser=in_gain=0.8:out_gain=0.9:delay=5:decay=0.5:speed=0.8:type=t,chorus=0.6:0.9:60:0.4:0.3:2,volume=1.8,alimiter=limit=0.9",
+        "ffmpeg_question": "aphaser=in_gain=0.8:out_gain=0.9:delay=5:decay=0.5:speed=1.2:type=t,chorus=0.7:0.9:60:0.5:0.35:2,tremolo=f=4:d=0.3,volume=2.0,alimiter=limit=0.9",
     },
 }
 
@@ -81,11 +90,18 @@ def _is_question(text: str) -> bool:
     question_words = ("shall", "can", "could", "would", "should", "is", "are", "do", "does", "did", "ready", "want")
     return t.endswith("?") or t.lower().startswith(question_words)
 
+# Bump this whenever CHARACTERS' ffmpeg/ffmpeg_question chains change, so
+# stale cached .wav files rendered with the old filters get a new cache key
+# instead of continuing to be served. v2: removed the redundant per-character
+# asetrate/atempo (was double pitch-shifting on top of GTTS_PITCH_SHIFT for
+# every character) and added alimiter to stop clipping at the old volume gains.
+AUDIO_FILTER_VERSION = 2
+
 def _cache_key(text: str, character: str, language: str, speed: float) -> str:
     # ffmpeg_filters/ffmpeg_question aren't part of the key: which one applies
     # is fully determined by _is_question(text), so text+character+language+speed
     # already pins down the exact audio that would be rendered.
-    raw = f"{language}|{character}|{speed}|{text}"
+    raw = f"{AUDIO_FILTER_VERSION}|{language}|{character}|{speed}|{text}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 def _cache_get(key: str) -> bytes | None:
