@@ -239,3 +239,17 @@ export function getSpokenForm(soundId) {
   const base = BASE_PHONEME[soundId]
   return SPOKEN_FORM[base] ?? soundId
 }
+
+// The on-screen letter/label shown next to the mouth-shape target. Blends
+// (sk, sl, st...) and CV syllables (sa, ta...) all speak as their base
+// phoneme via getSpokenForm — a kid practicing "sk" hears the exact same
+// "sss" as one practicing plain "s". Showing the raw taxonomy id ("sk")
+// there reads as a mismatch: audio says one thing, label shows another.
+// This resolves to the same base phoneme's label instead (PHONEME_CUES is
+// already keyed that way), so what's displayed always matches what's
+// spoken. Kept separate from getPhonemeCue/getSpokenForm since callers
+// that want the full cue object or the raw taxonomy id/label still can.
+export function getDisplayLabel(soundId) {
+  const base = BASE_PHONEME[soundId]
+  return PHONEME_CUES[base]?.label ?? soundId
+}
