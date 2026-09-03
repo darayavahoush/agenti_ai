@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "images"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "images"
 INDEX_PATH = DATA_DIR / "index.json"
 ARASAAC_API = "https://api.arasaac.org/v1"
 
