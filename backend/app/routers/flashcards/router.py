@@ -166,7 +166,15 @@ async def evaluate(
         transcript = " ".join([s.text.strip() for s in segments]).strip().lower()
         target_phonemes = get_phonemes(target_word, language)
         detected_phonemes = get_phonemes(transcript, language) if transcript else []
-        acoustic_raw = analyse_audio(tmp_path, transcript)
+        try:
+            acoustic_raw = analyse_audio(tmp_path, transcript)
+        except RuntimeError as e:
+            # load_and_clean() raises this for a broken/empty conversion (bad
+            # upload, unsupported codec, ffmpeg missing) -- logged in full so
+            # the actual cause shows up in server logs, but the kid just sees
+            # a clean "try recording again" rather than a raw 500.
+            logger.error(f"/flashcards/evaluate: audio processing failed for patient={patient_id}: {e}")
+            raise HTTPException(status_code=422, detail="We couldn't hear that clearly — try recording again.")
         result = build_attempt_result(
             session_id=session_id,
             child_id=patient_id,

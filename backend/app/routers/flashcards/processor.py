@@ -14,8 +14,30 @@ def load_and_clean(audio_path: str):
     # Convert to wav first (handles webm from browser)
     tmp_wav = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
     tmp_wav.close()
-    subprocess.run(['ffmpeg', '-y', '-i', audio_path, '-ar', '16000', '-ac', '1', tmp_wav.name],
-                   capture_output=True)
+    try:
+        proc = subprocess.run(
+            ['ffmpeg', '-y', '-i', audio_path, '-ar', '16000', '-ac', '1', tmp_wav.name],
+            capture_output=True,
+        )
+    except FileNotFoundError as e:
+        # ffmpeg itself isn't installed / not on PATH on this host -- this is
+        # a deployment problem, not a bad recording, so say so distinctly
+        # rather than letting it look like every other "couldn't check it"
+        # failure below.
+        os.unlink(tmp_wav.name)
+        raise RuntimeError("ffmpeg is not installed on this server") from e
+
+    # Previously unchecked: a failed conversion (corrupt/empty upload, an
+    # unsupported codec, a too-short recording ffmpeg refuses to touch)
+    # left tmp_wav as the empty file NamedTemporaryFile created above, and
+    # execution carried on into librosa.load() on that empty file -- which
+    # throws its own unrelated, harder-to-diagnose error further down.
+    # Surface the real ffmpeg failure here instead.
+    if proc.returncode != 0 or not os.path.getsize(tmp_wav.name):
+        stderr = proc.stderr.decode(errors='replace')[-500:] if proc.stderr else '(no stderr)'
+        os.unlink(tmp_wav.name)
+        raise RuntimeError(f"Audio conversion failed (ffmpeg exit {proc.returncode}): {stderr}")
+
     y, sr = librosa.load(tmp_wav.name, sr=16000, mono=True)
     os.unlink(tmp_wav.name)
     y_clean = nr.reduce_noise(y=y, sr=sr, stationary=False)
