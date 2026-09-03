@@ -1,8 +1,10 @@
 """
 tests/test_assessment_retake.py -- POST /assessment/start,
 POST /assessment/complete, GET /assessment/me/latest
-(routers/breathquest/assessment.py), specifically the retake-with-
-30-day-cooldown logic. See conftest.py for fixture setup.
+(routers/breathquest/assessment.py). Retakes are always allowed (no
+cooldown); these tests cover that already_completed reflects the raw
+flag and retake_available_at is always null. See conftest.py for
+fixture setup.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -43,7 +45,11 @@ async def test_first_time_start_is_not_blocked(client):
 
 
 @pytest.mark.asyncio
-async def test_complete_then_immediate_restart_is_blocked_for_30_days(client):
+async def test_complete_then_immediate_restart_is_allowed(client):
+    """Completing an assessment and immediately calling /start again
+    should not be blocked -- already_completed reflects that the kid has
+    finished one before, but retake_available_at stays null since
+    retakes are always allowed."""
     from tests.conftest import TestSessionLocal
     from sqlalchemy import select
     async with TestSessionLocal() as seed_db:
@@ -73,20 +79,14 @@ async def test_complete_then_immediate_restart_is_blocked_for_30_days(client):
     assert start_resp.status_code == 200
     body = start_resp.json()
     assert body["already_completed"] is True
-    assert body["retake_available_at"] is not None
-
-    retake_at = datetime.fromisoformat(body["retake_available_at"])
-    now = datetime.now(timezone.utc)
-    # Should be ~30 days out, not immediately available and not, say,
-    # a year away -- catches an off-by-unit error (days vs seconds etc).
-    assert timedelta(days=29) < (retake_at - now) < timedelta(days=31)
+    assert body["retake_available_at"] is None
 
 
 @pytest.mark.asyncio
-async def test_start_allows_retake_once_cooldown_elapsed(client):
-    """Same as above, but the completion happened 31 days ago -- cooldown
-    should have lifted, and /start should behave like a first-timer
-    again (already_completed=False) rather than staying blocked forever."""
+async def test_start_reflects_already_completed_regardless_of_when(client):
+    """A kid who completed an assessment, whether recently or long ago,
+    should always see already_completed=True and never be blocked from
+    retaking (retake_available_at stays null)."""
     from tests.conftest import TestSessionLocal
     async with TestSessionLocal() as seed_db:
         patient = await _seed_patient(
@@ -104,16 +104,16 @@ async def test_start_allows_retake_once_cooldown_elapsed(client):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["already_completed"] is False
+    assert body["already_completed"] is True
     assert body["retake_available_at"] is None
 
 
 @pytest.mark.asyncio
 async def test_legacy_completed_row_with_no_timestamp_is_eligible_immediately(client):
     """A row completed before assessment_completed_at existed
-    (assessment_completed=True, assessment_completed_at=None) shouldn't
-    be blocked forever just because we don't have the original
-    timestamp -- see _retake_available_at's own note on this."""
+    (assessment_completed=True, assessment_completed_at=None) should
+    still be retake-eligible -- there's no cooldown to compute in the
+    first place."""
     from tests.conftest import TestSessionLocal
     async with TestSessionLocal() as seed_db:
         patient = await _seed_patient(
@@ -131,11 +131,12 @@ async def test_legacy_completed_row_with_no_timestamp_is_eligible_immediately(cl
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["already_completed"] is False
+    assert body["already_completed"] is True
+    assert body["retake_available_at"] is None
 
 
 @pytest.mark.asyncio
-async def test_me_latest_carries_retake_available_at_while_on_cooldown(client):
+async def test_me_latest_retake_available_at_is_always_null(client):
     from tests.conftest import TestSessionLocal
     from app.models.patient import Patient as AssessmentPatient
     from app.models.session import Session as AssessmentSession
@@ -177,8 +178,4 @@ async def test_me_latest_carries_retake_available_at_while_on_cooldown(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body is not None
-    assert body["retake_available_at"] is not None
-    retake_at = datetime.fromisoformat(body["retake_available_at"])
-    # completed 5 days ago + 30 day cooldown => ~25 days still remaining
-    remaining = retake_at - datetime.now(timezone.utc)
-    assert timedelta(days=24) < remaining < timedelta(days=26)
+    assert body["retake_available_at"] is None

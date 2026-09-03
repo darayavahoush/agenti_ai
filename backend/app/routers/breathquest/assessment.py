@@ -16,7 +16,7 @@ work, matching assessment_lookup.py's own note on why the Assessment side
 of this codebase stays sync.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
@@ -31,21 +31,13 @@ import asyncio
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
 
-RETAKE_COOLDOWN_DAYS = 30
-
-
 def _retake_available_at(patient: BreathQuestPatient) -> datetime | None:
-    """None if this kid has never completed an assessment. Otherwise the
-    timestamp their retake cooldown lifts -- assessment_completed_at (set
-    by /assessment/complete) plus RETAKE_COOLDOWN_DAYS. Legacy rows
-    completed before assessment_completed_at existed have no value to
-    compute from; treat those as eligible immediately (datetime.min)
-    rather than blocking a retake on data we simply don't have."""
-    if not patient.assessment_completed:
-        return None
-    if patient.assessment_completed_at is None:
-        return datetime.min.replace(tzinfo=timezone.utc)
-    return patient.assessment_completed_at + timedelta(days=RETAKE_COOLDOWN_DAYS)
+    """Retired: retakes are no longer cooldown-gated, so this always
+    returns None. Kept as a function (rather than inlined) so
+    /assessment/start and /assessment/me/latest don't need their own
+    special-casing, and so a cooldown could be reintroduced here again
+    later without touching either call site."""
+    return None
 
 
 @router.post("/start", response_model=AssessmentStartOut)
@@ -57,11 +49,11 @@ async def start_assessment(
     logged-in kid, and returns what AssessmentGate.jsx needs to render
     Assessment.jsx in authed mode.
 
-    already_completed here means "still on cooldown", not just "has ever
-    completed one" -- a kid past their cooldown gets already_completed=
-    False so AssessmentGate.jsx renders Assessment.jsx fresh, same as a
-    first-timer. assessment_completed itself never resets; only the
-    computed cooldown gates a retake."""
+    already_completed reflects the raw assessment_completed flag -- has
+    this kid ever finished one before. It no longer gates whether the
+    retake button shows (retakes are always allowed); it only changes
+    AssessmentGate.jsx's messaging ("Retake" vs "Start", returning-kid
+    copy, hiding the first-timer games preview)."""
     sync_db = SessionLocal()
     try:
         main_patient = None
@@ -83,14 +75,11 @@ async def start_assessment(
         db.add(patient)
         await db.commit()
 
-    retake_at = _retake_available_at(patient)
-    still_on_cooldown = retake_at is not None and retake_at > datetime.now(timezone.utc)
-
     return AssessmentStartOut(
         assessment_patient_id=str(main_patient.id),
         first_name=patient.first_name,
-        already_completed=still_on_cooldown,
-        retake_available_at=retake_at if still_on_cooldown else None,
+        already_completed=patient.assessment_completed,
+        retake_available_at=None,
     )
 
 
@@ -102,9 +91,10 @@ async def complete_assessment(
 ):
     """Marks the logged-in kid's assessment_completed flag and stores a
     lightweight summary (word count + severity read) for
-    AssessmentReport.jsx's free teaser. Also stamps
-    assessment_completed_at -- every completion (first time or a later
-    retake) restarts the RETAKE_COOLDOWN_DAYS clock from here."""
+    AssessmentReport.jsx's free teaser. Also stamps assessment_completed_at
+    as a history timestamp of when this completion (first time or a
+    retake) happened -- no longer gates anything, since retakes are
+    always allowed."""
     from sqlalchemy import select
 
     result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == patient.id))
@@ -125,15 +115,14 @@ async def get_my_latest_assessment(
     """Kid-authenticated 'my latest results' lookup, for
     pages/kid/AssessmentReport.jsx when revisited later (not just right
     after finishing an assessment via router state). Same in-process query
-    dashboard.py already uses, just exposed to the kid themselves. Also
-    carries retake_available_at so the report page can show a retake
-    button (or a "come back on <date>" note) without a second request."""
+    dashboard.py already uses, just exposed to the kid themselves.
+    retake_available_at is always null now (no cooldown) -- kept in the
+    response shape so the frontend doesn't need a schema change if a
+    cooldown-style feature ever comes back."""
     if not patient.assessment_patient_id:
         return None
     result = await asyncio.to_thread(get_latest_assessment, str(patient.assessment_patient_id))
     if result is None:
         return None
-    retake_at = _retake_available_at(patient)
-    still_on_cooldown = retake_at is not None and retake_at > datetime.now(timezone.utc)
-    result["retake_available_at"] = retake_at.isoformat() if still_on_cooldown else None
+    result["retake_available_at"] = None
     return result
