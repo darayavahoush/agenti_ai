@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import { loadFaceLandmarker } from './lib/faceLandmarker.js'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
 import { getPhonemeCue, getSpokenForm } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
@@ -133,12 +133,7 @@ export default function LipSyncHero() {
 
     async function setup() {
       try {
-        const fileset = await FilesetResolver.forVisionTasks(WASM_URL)
-        landmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
-          runningMode: 'VIDEO',
-          numFaces: 1,
-        })
+        landmarkerRef.current = await loadFaceLandmarker(WASM_URL, MODEL_URL)
 
         stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } })
         if (cancelled) {
