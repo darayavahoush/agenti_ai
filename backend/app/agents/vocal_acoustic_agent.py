@@ -60,8 +60,21 @@ class VocalAcousticAgent:
             vocal_notes.append("High pitch range detected, typical of pediatric vocalization.")
 
         # Populate state
+        # NOTE: was "reasoning", but that key is also written by
+        # speech_analysis_agent (audio-channel selection notes, e.g.
+        # "Isolated child voice segment selected for transcription").
+        # articulation_diagnostic and vocal_acoustic run in the same parallel
+        # graph step, and since both this agent and speech_analysis_agent
+        # wrote to "reasoning", one silently overwrote the other -- and
+        # downstream, routes/assessment.py's session save used whatever
+        # "reasoning" happened to still be around as the child-facing session
+        # feedback, so it was either debug audio-selection text or unrelated
+        # vocal-jitter jargon, never the actual pronunciation feedback from
+        # generate_feedback(). Using a distinct key here fixes both: nothing
+        # gets clobbered, and diagnostic_reporter_agent reads this one
+        # directly by name instead of guessing which write won.
         return {
-            "reasoning": " | ".join(vocal_notes),
+            "vocal_reasoning": " | ".join(vocal_notes),
             "recommendations": [
                 f"Vocal Jitter: {jitter_val:.3f}% (Normal < 1.04%)",
                 f"Vocal Shimmer: {shimmer_val:.3f} dB (Normal < 0.38 dB)",

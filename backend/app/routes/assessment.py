@@ -688,6 +688,7 @@ async def analyze_assessment_pronunciation(
             feedback=None,
             stars=None,
             reasoning=None,
+            vocal_reasoning=None,
             recommendations=[],
             error_patterns=[],
             severity_score=None,
@@ -731,7 +732,15 @@ async def analyze_assessment_pronunciation(
                         target_word=target_word,
                         spoken_word=result_state.get("spoken_word", ""),
                         accuracy=int(accuracy) if accuracy else 0,
-                        feedback=result_state.get("reasoning", "")[:500],  # Limit feedback length
+                        # NOTE: was result_state.get("reasoning", ...) -- "reasoning"
+                        # is speech_analysis_agent's internal audio-channel-selection
+                        # note (e.g. "Isolated child voice segment selected"), which
+                        # was also getting silently overwritten by vocal_acoustic_agent
+                        # writing to the same key (see vocal_acoustic_agent.py). Neither
+                        # value is meant for the child/parent -- the actual pronunciation
+                        # feedback ("Excellent pronunciation! 🎉", "Try full word 'X'.")
+                        # is generate_feedback()'s output, stored in state["feedback"].
+                        feedback=result_state.get("feedback", "")[:500],  # Limit feedback length
                         stars=stars,
                         f0_mean=result_state.get("pitch"),
                         mpt=result_state.get("duration"),
