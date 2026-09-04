@@ -844,18 +844,23 @@ export default function WindChimeGarden() {
       {successVisible && (
         <div className="fixed inset-0 flex items-center justify-center z-40 bg-[rgba(42,33,88,0.4)]">
           <div className="bg-[rgba(42,33,88,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full text-center backdrop-blur-md shadow-2xl">
-            <div className="text-6xl mb-3">✨</div>
-            <h1 className="text-3xl font-extrabold mb-2">Sky full of bubbles!</h1>
-            <p className="text-lg font-bold text-[#FFD166] mb-1">You filled the evening with glowing bubbles!</p>
+            <div className="text-6xl mb-3">🫧</div>
+            <h1 className="text-3xl font-extrabold mb-2">Garden full of bubbles!</h1>
+            <p className="text-lg font-bold text-[#FFD166] mb-1">You filled the evening sky with glowing bubbles!</p>
             {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
-            {getNextLevelRoute(LEVEL_ID) && (
-              <button onClick={() => navigate(getNextLevelRoute(LEVEL_ID))} className="font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E] mb-3">
-                Next Level →
+            <div className="flex flex-col gap-3 items-center">
+              {getNextLevelRoute(LEVEL_ID) && (
+                <button
+                  onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}
+                  className="font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E] hover:-translate-y-0.5 transition-transform"
+                >
+                  Next Level →
+                </button>
+              )}
+              <button onClick={handlePlayAgain} className="font-bold text-sm text-white/70 hover:text-white/90 underline underline-offset-4">
+                Play Again!
               </button>
-            )}
-            <button onClick={handlePlayAgain} className="font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E]">
-              Play Again!
-            </button>
+            </div>
           </div>
         </div>
       )}

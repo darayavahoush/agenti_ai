@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Rocket, Waves, Sparkles, Wind, Droplets, Bell, PawPrint, Mic } from 'lucide-react'
+import { Rocket, Waves, Sparkles, Feather, Droplets, Bell, PawPrint, Mic } from 'lucide-react'
 import ChimeGameCard from './ChimeGameCard.jsx'
 import { Sidebar } from '../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../lib/kidSidebarItems'
@@ -18,9 +18,9 @@ const GAMES = [
   { levelId: 'ma', to: LEVEL_ROUTES.ma, title: 'Firefly Jar',
     blurb: 'Say "ma-ma-ma" to catch fireflies and fill your jar.',
     accent: '#F4B942', icon: Sparkles },
-  { levelId: 'fa', to: LEVEL_ROUTES.fa, title: 'Wind Chime Garden',
-    blurb: 'A long, breathy "ffff" stirs the chimes in the breeze.',
-    accent: '#1D9E75', icon: Wind },
+  { levelId: 'fa', to: LEVEL_ROUTES.fa, title: 'Bubble Garden',
+    blurb: 'A long "yaaa" blows glowing bubbles into the evening sky.',
+    accent: '#1D9E75', icon: Feather },
   { levelId: 'ha', to: LEVEL_ROUTES.ha, title: 'Bubble Wrap Pop',
     blurb: 'A sharp "ha!" pops the bubbles one by one.',
     accent: '#7850DC', icon: Droplets },

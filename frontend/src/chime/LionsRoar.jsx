@@ -822,14 +822,19 @@ export default function LionsRoar() {
             <h1 className="text-3xl font-extrabold mb-2">RAWR! What a roar!</h1>
             <p className="text-lg font-bold text-[#F0604A] mb-1">You gathered the whole pride!</p>
             {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
-            {getNextLevelRoute(LEVEL_ID) && (
-              <button onClick={() => navigate(getNextLevelRoute(LEVEL_ID))} className="font-bold text-xl rounded-full px-10 py-4 text-[#2A1A3E] bg-[#F0604A] shadow-[0_6px_0_#B23F2E] mb-3">
-                Next Level →
+            <div className="flex flex-col gap-3 items-center">
+              {getNextLevelRoute(LEVEL_ID) && (
+                <button
+                  onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}
+                  className="font-bold text-xl rounded-full px-10 py-4 text-[#2A1A3E] bg-[#F0604A] shadow-[0_6px_0_#B23F2E] hover:-translate-y-0.5 transition-transform"
+                >
+                  Next Level →
+                </button>
+              )}
+              <button onClick={handlePlayAgain} className="font-bold text-sm text-white/70 hover:text-white/90 underline underline-offset-4">
+                Play Again!
               </button>
-            )}
-            <button onClick={handlePlayAgain} className="font-bold text-xl rounded-full px-10 py-4 text-[#2A1A3E] bg-[#F0604A] shadow-[0_6px_0_#B23F2E]">
-              Play Again!
-            </button>
+            </div>
           </div>
         </div>
       )}
