@@ -18,9 +18,13 @@ from .common import FeatureResult
 NOISE_FLOOR_RMS = 0.01
 
 # RMS value that should map to a full-strength (score = 1.0) attempt.
-# This is a starting point — needs calibration against real child voices,
-# which tend to have a narrower dynamic range than adult calibration data.
-MAX_EXPECTED_RMS = 0.3
+# Was 0.3, an adult-loudness figure a child's voice rarely reaches even at
+# full effort (children have a narrower dynamic range than adults on a
+# typical laptop/tablet mic), which meant near-perfect "aaa" attempts were
+# capped at a mediocre score. Lowered to a more reachable child-voice
+# ceiling. Still a starting point pending real calibration against logged
+# child attempts, not a substitute for it.
+MAX_EXPECTED_RMS = 0.15
 
 
 def extract(audio_chunk: np.ndarray, sample_rate: int = 16000) -> FeatureResult:

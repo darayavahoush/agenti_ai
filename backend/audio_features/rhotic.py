@@ -28,13 +28,17 @@ from .common import FeatureResult
 # Hz of F2 (sometimes below it). A wider F3-F2 gap signals a weaker/absent
 # rhotic (e.g. a /w/-like substitution, which keeps F3 much higher).
 TARGET_F3_MINUS_F2_HZ = 200.0
-GAP_TOLERANCE_HZ = 600.0  # gap this wide or wider scores ~0 rhoticity
+GAP_TOLERANCE_HZ = 700.0  # gap this wide or wider scores ~0 rhoticity (widened from 600)
 
-# Absolute F3 also needs to be depressed relative to a typical non-rhotic F3
-# (~2700-3000Hz for adults) — the gap alone can't distinguish a genuinely
-# low F3 from both F2 and F3 just being unusually high together.
-TARGET_F3_HZ = 2000.0
-F3_TOLERANCE_HZ = 700.0
+# Absolute F3 also needs to be depressed relative to a typical non-rhotic F3.
+# TARGET_F3_HZ/F3_TOLERANCE_HZ were adult values (~2000Hz baseline) — kids'
+# formants, including F3, sit meaningfully higher due to shorter vocal
+# tracts, so a genuinely well-formed child /r/ was landing outside the
+# adult-tuned window and scoring near zero. Shifted the target up and
+# widened the tolerance. Still a starting point pending recalibration
+# against real child speech samples, not a substitute for it.
+TARGET_F3_HZ = 2400.0
+F3_TOLERANCE_HZ = 850.0
 
 MIN_VALID_DURATION_S = 0.12  # /r/ attempts are often shorter than sustained vowels
 
