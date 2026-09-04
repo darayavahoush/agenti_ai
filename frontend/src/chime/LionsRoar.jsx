@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -43,6 +43,35 @@ const DURATION_BOOST_MAX = 0.6
 const DURATION_BOOST_SECONDS = 1.6
 
 const TARGET_ROARS_DEFAULT = 4
+
+// Rolling ~2s window for real speech verification — same shape as Firefly
+// Jar's VERIFY_WINDOW_MS: the client-side detector above (ROAR_THRESHOLD +
+// hold/cooldown) only ever measures loudness/timing, so a slammed door or a
+// loud cough completes a "roar" exactly like a real growl does. Every
+// completed hold still counts a provisional roar the instant it happens
+// (completeRoar, below — kids need snappy feedback), but every ~2s the clip
+// covering that batch of roars gets sent to Whisper (transcribeAudio) and
+// checked for actual growl-like content. See startVerificationWindow /
+// finishVerificationWindow.
+const VERIFY_WINDOW_MS = 2000
+
+// Unlike countMaOccurrences in Firefly Jar, this can't reliably count *how
+// many* growls happened — "rrrr" is a growl, not a word, and Whisper's
+// behavior on non-speech vocalizations is much less predictable than on
+// vowel-like sounds ("ya"/"aaa"/"oooo"/"eeee"): it might transcribe a real
+// growl as "rrrr", as "grr", as unrelated nonsense syllables, or as nothing
+// at all. So this only answers a coarser question — does this window's
+// transcript look r-dominated enough to plausibly be a growl at all — and
+// deliberately errs permissive/low-bar: a false negative here silently
+// retracts a real roar a kid worked for, which is worse than occasionally
+// letting a loud non-growl noise slip through. Needs validation against
+// real transcripts more than any of the vowel-based checks.
+function isGrowlSound(transcript) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (cleaned.length < 2) return false
+  const rCount = (cleaned.match(/r/g) || []).length
+  return rCount >= 2 && rCount / cleaned.length >= 0.25
+}
 
 const DIFFICULTY_AGENT = {
   SAFE_RANGE: [3, 8],
@@ -91,6 +120,9 @@ export default function LionsRoar() {
     attemptStartTime: 0, attemptNumber: 0,
     inVoicing: false, voicingScores: [],
     W: 0, H: 0, DPR: 1,
+    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
+    windowStartRoarsDone: 0,
+    verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -107,6 +139,10 @@ export default function LionsRoar() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       if (state.mediaStream) state.mediaStream.getTracks().forEach(t => t.stop())
     }
@@ -176,6 +212,25 @@ export default function LionsRoar() {
       osc.connect(gain).connect(a.destination)
       osc.start(); osc.stop(a.currentTime + 0.55)
     }, i * 110))
+  }
+
+  // Soft descending tone when a window's provisional roars turn out not to
+  // be real growls once the transcript comes back — deliberately gentler
+  // than playRoarTone, not a "wrong buzzer". Mirrors Firefly Jar's
+  // playRetract.
+  function playRetract() {
+    const s = stateRef.current
+    if (mutedRef.current || !s.audioCtx) return
+    const a = s.audioCtx
+    ;[220, 165].forEach((f, i) => setTimeout(() => {
+      const osc = a.createOscillator(), gain = a.createGain()
+      osc.type = 'sine'; osc.frequency.value = f
+      gain.gain.setValueAtTime(0, a.currentTime)
+      gain.gain.linearRampToValueAtTime(0.035, a.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.18)
+      osc.connect(gain).connect(a.destination)
+      osc.start(); osc.stop(a.currentTime + 0.2)
+    }, i * 60))
   }
 
   async function requestMicAndCalibrate() {
@@ -259,6 +314,7 @@ export default function LionsRoar() {
     s.attemptStartTime = performance.now()
     setAriaMsg('Ready! Give a big, growly "rrrr" to make the lion roar.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   async function logVoicingAttempt(scores) {
@@ -271,6 +327,77 @@ export default function LionsRoar() {
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
     }
+  }
+
+  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // client-side hold/cooldown detector above. Every completed hold in that
+  // window has already counted a provisional roar immediately (for snappy
+  // feedback — see completeRoar/gameLoop), but none of those are "confirmed"
+  // until this resolves: only windows whose transcript is r-dominated enough
+  // to plausibly be a growl (isGrowlSound) get to keep their roars.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasFinished || !s.mediaStream) return
+
+    s.windowStartRoarsDone = s.roarsDone
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
+  async function finishVerificationWindow(chunks) {
+    const s = stateRef.current
+    // How many roars this window's holds provisionally added, before we know
+    // whether the transcript actually sounds like a growl.
+    const addedThisWindow = s.roarsDone - s.windowStartRoarsDone
+
+    if (addedThisWindow > 0 && chunks.length > 0) {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = ''
+      try {
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
+      } catch (err) {
+        console.warn('Backend transcription unavailable — window left unverified, provisional roars stand:', err)
+        transcript = null
+      }
+      // Unlike Firefly Jar's per-occurrence count, there's no reliable way to
+      // tell how many of this window's roars were real growls — so if the
+      // transcript doesn't look growl-like at all, retract the whole
+      // window's worth rather than guess a partial count. A failed
+      // transcription (transcript === null) leaves the window unverified
+      // instead of retracting, same as Firefly Jar's fallback.
+      if (transcript !== null && !isGrowlSound(transcript)) {
+        s.roarsDone = Math.max(s.windowStartRoarsDone, 0)
+        s.holdSeconds = 0
+        s.inRoar = false
+        playRetract()
+        setAriaMsg('That didn\'t quite sound like a roar — try a strong, growly "rrrr"!')
+      }
+    }
+
+    // Only check the win condition here, after this window's count is final —
+    // not the instant a provisional roar hits targetRoars in completeRoar,
+    // since that provisional count could still get retracted moments later.
+    if (s.roarsDone >= s.targetRoars && !s.hasFinished) {
+      s.hasFinished = true
+      onPrideSuccess()
+      return
+    }
+    if (!s.hasFinished) startVerificationWindow()
   }
 
   async function updateDifficultyFromAttempt(timeToWinSeconds) {
@@ -377,10 +504,10 @@ export default function LionsRoar() {
 
     render()
 
-    if (s.roarsDone >= s.targetRoars && !s.hasFinished) {
-      s.hasFinished = true
-      onPrideSuccess()
-    }
+    // Win condition is checked in finishVerificationWindow, not here — a
+    // provisional roar (see completeRoar) hitting targetRoars doesn't mean
+    // the pride is genuinely gathered until the ~2s verification window
+    // confirms the growls were real.
     if (!s.hasFinished) rafRef.current = requestAnimationFrame(gameLoop)
   }
 
