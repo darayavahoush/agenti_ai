@@ -1,13 +1,33 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const LEVEL_ID = 'ee'
 const AGENT_POLICY = 'tabular_q'
 const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise blips
+
+// Rolling window for real speech verification — same approach as Rocket
+// Launch's altitude climb, adapted here for height. Height still rises the
+// instant a loud sound is detected (kids need snappy feedback), but every
+// ~2s the window's audio gets transcribed and checked for a real sustained
+// "e" vowel (the "eeee" this game asks for). If it wasn't real voicing,
+// whatever height that window gained is quietly given back.
+const VERIFY_WINDOW_MS = 2000
+
+// Whisper doesn't reliably render a pure sustained vowel as one clean word —
+// it commonly comes back as "e", "ee", "eee", or a run of the vowel itself
+// rather than a consistent spelling. Rather than pattern-match specific
+// spellings, check whether the transcript is dominated by the target vowel
+// letter — same approach as Rocket Launch's isSustainedVowel.
+function isSustainedVowel(transcript, vowelChar) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (cleaned.length < 2) return false
+  const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
+  return vowelCount / cleaned.length >= 0.4
+}
 
 // ============================================================
 // Pure scoring/state logic — ported 1:1 from Rocket Launch's loudness +
@@ -88,6 +108,9 @@ export default function XylophoneTower() {
     requiredSustainSeconds: 3,
     inVoicing: false, voicingScores: [],
     W: 0, H: 0, DPR: 1,
+    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
+    windowStartHeight: 0,
+    verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -104,6 +127,10 @@ export default function XylophoneTower() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       if (state.mediaStream) state.mediaStream.getTracks().forEach(t => t.stop())
     }
@@ -174,6 +201,26 @@ export default function XylophoneTower() {
       osc.connect(gain).connect(a.destination)
       osc.start(); osc.stop(a.currentTime + 0.5)
     }, i * 90))
+  }
+
+  function playTone(freq, duration, type = 'sine', gainPeak = 0.06) {
+    const s = stateRef.current
+    if (mutedRef.current || !s.audioCtx) return
+    const a = s.audioCtx
+    const osc = a.createOscillator(), gain = a.createGain()
+    osc.type = type; osc.frequency.value = freq
+    gain.gain.setValueAtTime(0, a.currentTime)
+    gain.gain.linearRampToValueAtTime(gainPeak, a.currentTime + 0.03)
+    gain.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + duration)
+    osc.connect(gain).connect(a.destination)
+    osc.start(); osc.stop(a.currentTime + duration + 0.05)
+  }
+
+  // Soft descending tone when a window's climb turns out not to be real
+  // voicing once the transcript comes back — same gentle "not quite" cue
+  // as Rocket Launch's playRetract, not a "wrong" buzzer.
+  function playRetract() {
+    ;[440, 330].forEach((f, i) => setTimeout(() => playTone(f, 0.18, 'sine', 0.035), i * 60))
   }
 
   async function requestMicAndCalibrate() {
@@ -256,6 +303,67 @@ export default function XylophoneTower() {
     s.attemptStartTime = performance.now()
     setAriaMsg('Ready! Take a breath and let out a long, bright "eeee" to climb the tower.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
+  }
+
+  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // client-side loudness detector in gameLoop. Height has already been
+  // climbing for the whole window (for snappy feedback), but that climb
+  // isn't "confirmed" until this resolves: only height gained during a
+  // window backed by a real sustained "e" gets to stay.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasFinished || !s.mediaStream) return
+
+    s.windowStartHeight = s.height
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
+  async function finishVerificationWindow(chunks) {
+    const s = stateRef.current
+    const gained = Math.max(0, s.height - s.windowStartHeight)
+
+    if (gained > 0 && chunks.length > 0) {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = ''
+      try {
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
+      } catch (err) {
+        console.warn('Backend transcription unavailable — window left unverified, provisional climb stands:', err)
+      }
+      if (!isSustainedVowel(transcript, 'e')) {
+        s.height = Math.max(0, s.height - gained)
+        s.sustainedSeconds = 0
+        playRetract()
+        setAriaMsg('That wasn\'t quite a long "eeee" — try again!')
+      }
+    }
+
+    // Only check tower completion here, after this window's height is
+    // final — not the instant a provisional climb hits 1.0 in gameLoop,
+    // since that provisional height could still get given back moments later.
+    if (s.height >= 0.999 && !s.hasFinished) {
+      s.hasFinished = true
+      onTowerComplete()
+      return
+    }
+    if (!s.hasFinished) startVerificationWindow()
   }
 
   async function logVoicingAttempt(scores) {
@@ -345,10 +453,6 @@ export default function XylophoneTower() {
 
     render()
 
-    if (s.height >= 0.999 && !s.hasFinished) {
-      s.hasFinished = true
-      onTowerComplete()
-    }
     if (!s.hasFinished) rafRef.current = requestAnimationFrame(gameLoop)
   }
 
@@ -532,6 +636,7 @@ export default function XylophoneTower() {
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {
