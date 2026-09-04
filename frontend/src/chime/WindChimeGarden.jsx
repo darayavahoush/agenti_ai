@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -13,37 +13,48 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // Pure logic — ported 1:1 from wind_chime_garden.html / chime_garden_logic.js.
 // Do not change the math without re-running chime_garden_logic.test.js
 // against an equivalent copy.
+//
+// "ya" is a glide into a voiced vowel — tonal/harmonic, the opposite acoustic
+// signature from the earlier "ffff" target (turbulent, noise-shaped
+// frication). Detection is periodicity-based (autocorrelation on raw
+// time-domain samples), not spectral-centroid-based — see computePeriodicity.
 // ============================================================
-function computeSpectralCentroid(dbMagnitudes, sampleRate, fftSize) {
-  const binHz = sampleRate / fftSize
-  let weightedSum = 0, magSum = 0
-  for (let i = 0; i < dbMagnitudes.length; i++) {
-    const linearMag = Math.pow(10, dbMagnitudes[i] / 20)
-    weightedSum += (i * binHz) * linearMag
-    magSum += linearMag
+function computePeriodicity(timeDomainData, sampleRate, minFreqHz = 120, maxFreqHz = 500) {
+  const n = timeDomainData.length
+  let energy = 0
+  for (let i = 0; i < n; i++) energy += timeDomainData[i] * timeDomainData[i]
+  if (energy < 1e-6) return 0
+  const minLag = Math.max(1, Math.floor(sampleRate / maxFreqHz))
+  const maxLag = Math.min(n - 1, Math.floor(sampleRate / minFreqHz))
+  let bestCorr = 0
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let corr = 0
+    for (let i = 0; i < n - lag; i++) corr += timeDomainData[i] * timeDomainData[i + lag]
+    const normCorr = corr / energy
+    if (normCorr > bestCorr) bestCorr = normCorr
   }
-  return magSum > 0 ? weightedSum / magSum : 0
+  return Math.max(0, Math.min(1, bestCorr))
 }
-const MIN_CENTROID_HZ_DEFAULT = 2500.0
-const MAX_EXPECTED_CENTROID_HZ_DEFAULT = 6000.0
-function computeFricationScore(rms, centroidHz, noiseFloor = 0.01, minCentroid = MIN_CENTROID_HZ_DEFAULT, maxCentroid = MAX_EXPECTED_CENTROID_HZ_DEFAULT) {
+const MIN_PERIODICITY_DEFAULT = 0.15
+const MAX_EXPECTED_PERIODICITY_DEFAULT = 0.85
+function computeVoicingScore(rms, periodicity, noiseFloor = 0.01, minPeriodicity = MIN_PERIODICITY_DEFAULT, maxPeriodicity = MAX_EXPECTED_PERIODICITY_DEFAULT) {
   if (rms < noiseFloor) return { score: 0, isValidAttempt: false }
-  if (centroidHz < minCentroid) return { score: 0.05, isValidAttempt: true }
-  const score = Math.max(0, Math.min(1, (centroidHz - minCentroid) / (maxCentroid - minCentroid)))
+  if (periodicity < minPeriodicity) return { score: 0.05, isValidAttempt: true }
+  const score = Math.max(0, Math.min(1, (periodicity - minPeriodicity) / (maxPeriodicity - minPeriodicity)))
   return { score, isValidAttempt: true }
 }
-function personalizeCentroidRange(centroidReadings, fallbackMin = MIN_CENTROID_HZ_DEFAULT, fallbackMax = MAX_EXPECTED_CENTROID_HZ_DEFAULT) {
-  const valid = centroidReadings.filter(c => c > 0)
-  if (valid.length < 3) return { minCentroid: fallbackMin, maxCentroid: fallbackMax, usedFallback: true }
-  const mean = valid.reduce((s, c) => s + c, 0) / valid.length
-  const minCentroid = Math.max(1200, mean * 0.6)
-  const maxCentroid = Math.min(8000, mean * 1.3)
-  return { minCentroid, maxCentroid, usedFallback: false }
+function personalizeVoicingRange(periodicityReadings, fallbackMin = MIN_PERIODICITY_DEFAULT, fallbackMax = MAX_EXPECTED_PERIODICITY_DEFAULT) {
+  const valid = periodicityReadings.filter(p => p > 0)
+  if (valid.length < 3) return { minPeriodicity: fallbackMin, maxPeriodicity: fallbackMax, usedFallback: true }
+  const mean = valid.reduce((s, p) => s + p, 0) / valid.length
+  const minPeriodicity = Math.max(0.05, mean * 0.5)
+  const maxPeriodicity = Math.min(0.98, mean * 1.25)
+  return { minPeriodicity, maxPeriodicity, usedFallback: false }
 }
-function updateChimeRotation(currentAngle, currentSpeed, fricationScore, dt, config, sustainedSeconds = 0) {
+function updateChimeRotation(currentAngle, currentSpeed, voicingScore, dt, config, sustainedSeconds = 0) {
   const { maxSpeed, spinUpRate, decayRate } = config
   const durationMultiplier = 1 + DURATION_BOOST_MAX * Math.min(1, sustainedSeconds / DURATION_BOOST_SECONDS)
-  const targetSpeed = fricationScore * maxSpeed * durationMultiplier
+  const targetSpeed = voicingScore * maxSpeed * durationMultiplier
   const nextSpeed = currentSpeed < targetSpeed ? Math.min(targetSpeed, currentSpeed + spinUpRate * dt) : Math.max(targetSpeed, currentSpeed - decayRate * dt)
   const nextAngle = currentAngle + nextSpeed * dt
   const fullRotations = Math.floor(nextAngle / (2 * Math.PI)) - Math.floor(currentAngle / (2 * Math.PI))
@@ -53,13 +64,33 @@ function updateChimeRotation(currentAngle, currentSpeed, fricationScore, dt, con
 const ROTATION_CONFIG = { maxSpeed: 5, spinUpRate: 8, decayRate: 3 }
 const TARGET_BUBBLES_DEFAULT = 4
 
-// Rewards sticking with the "ffff" sound, not just being fricative for one frame:
+// Rewards sticking with the "ya" sound, not just being voiced for one frame:
 // the chimes spin faster the longer voicing has been continuously held, capping
-// at DURATION_BOOST_MAX extra once DURATION_BOOST_SECONDS of unbroken frication
+// at DURATION_BOOST_MAX extra once DURATION_BOOST_SECONDS of unbroken voicing
 // is reached. Resets to 0 the instant voicing breaks (see gameLoop) — ported
 // 1:1 from Rocket Launch / Submarine Dive's duration-boost mechanic.
 const DURATION_BOOST_MAX = 0.6
 const DURATION_BOOST_SECONDS = 2.5
+
+// Rolling window for real speech verification — same approach as Bubble Wrap
+// Pop / Rocket Launch / Submarine Dive. Bubbles still spawn the instant the
+// local periodicity detector rings a rotation (kids need snappy feedback),
+// but every ~2s the window's audio gets transcribed and checked for a real
+// "ya" attempt. If it wasn't real voicing, whatever bubbles that window
+// spawned are quietly popped and taken back.
+const VERIFY_WINDOW_MS = 2000
+
+// "ya" is a glide (the onset "y") into a vowel, not a bare sustained vowel —
+// unlike Rocket Launch's "aaa" or Submarine Dive's "oooo", whisper may or
+// may not render the glide's onset. Require a lower vowel-dominance ratio
+// when the onset did come through (the "y" itself is real signal), and a
+// stricter one when it didn't, so stray non-"ya" noise can't false-accept.
+function isYaSound(transcript) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (cleaned.length < 2) return false
+  const aRatio = (cleaned.match(/a/g) || []).length / cleaned.length
+  return cleaned.startsWith('y') ? aRatio >= 0.3 : aRatio >= 0.5
+}
 
 const DIFFICULTY_AGENT = {
   SAFE_RANGE: [4, 14],
@@ -98,17 +129,19 @@ export default function WindChimeGarden() {
   const [ariaMsg, setAriaMsg] = useState('')
 
   const stateRef = useRef({
-    audioCtx: null, analyser: null, timeDomainData: null, freqData: null, mediaStream: null,
+    audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
     noiseFloor: 0.01,
     angle: 0, speed: 0, bubblesSpawned: 0, targetBubbles: TARGET_BUBBLES_DEFAULT,
     smoothedScore: 0, lastFrameTime: 0, quietStreak: 0,
     hasFinished: false, particles: [],
     attemptStartTime: 0, attemptNumber: 0,
     stars: [], fireflies: [], bubbles: [],
-    minCentroid: MIN_CENTROID_HZ_DEFAULT, maxCentroid: MAX_EXPECTED_CENTROID_HZ_DEFAULT,
+    minPeriodicity: MIN_PERIODICITY_DEFAULT, maxPeriodicity: MAX_EXPECTED_PERIODICITY_DEFAULT,
     bubbleNotes: [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5],
     inVoicing: false, voicingScores: [], sustainedSeconds: 0,
     W: 0, H: 0, DPR: 1,
+    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
+    spawnedThisWindow: [], verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -117,7 +150,7 @@ export default function WindChimeGarden() {
   useEffect(() => { mutedRef.current = muted; localStorage.setItem('chime_muted', muted) }, [muted])
 
   const replayInstruction = useSpokenInstruction(
-    'Say a long ffff to blow glowing bubbles into the evening sky!',
+    'Say a long yaaa to blow glowing bubbles into the evening sky!',
     { enabled: screen === 'start' && !muted },
   )
 
@@ -125,6 +158,10 @@ export default function WindChimeGarden() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       if (state.mediaStream) state.mediaStream.getTracks().forEach(t => t.stop())
     }
@@ -185,6 +222,24 @@ export default function WindChimeGarden() {
     osc.start(); osc.stop(a.currentTime + 0.65)
   }
 
+  // Soft descending tone when a window's bubbles turn out not to be real
+  // voicing once the transcript comes back — deliberately gentler than
+  // playSuccessChime, not a "wrong buzzer". Matches RocketLaunch/SubmarineDive.
+  function playRetract() {
+    const s = stateRef.current
+    ;[440, 330].forEach((f, i) => setTimeout(() => {
+      if (mutedRef.current || !s.audioCtx) return
+      const a = s.audioCtx
+      const osc = a.createOscillator(), gain = a.createGain()
+      osc.type = 'sine'; osc.frequency.value = f
+      gain.gain.setValueAtTime(0, a.currentTime)
+      gain.gain.linearRampToValueAtTime(0.035, a.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.18)
+      osc.connect(gain).connect(a.destination)
+      osc.start(); osc.stop(a.currentTime + 0.2)
+    }, i * 60))
+  }
+
   function playSuccessChime() {
     const s = stateRef.current
     ;[523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => setTimeout(() => {
@@ -212,7 +267,6 @@ export default function WindChimeGarden() {
       s.analyser = s.audioCtx.createAnalyser()
       s.analyser.fftSize = 2048
       s.timeDomainData = new Float32Array(s.analyser.fftSize)
-      s.freqData = new Float32Array(s.analyser.frequencyBinCount)
       source.connect(s.analyser)
       runCalibration()
     } catch (err) {
@@ -228,7 +282,7 @@ export default function WindChimeGarden() {
     const QUIET_MS = 1200
     const LOUD_MS = 1800
     let quietSamples = []
-    let centroidReadings = []
+    let periodicityReadings = []
 
     setCalibLabel({ title: "Let's find quiet...", subtitle: 'Stay nice and quiet for a moment', emoji: '🤫' })
     setCalibProgress(0)
@@ -249,7 +303,7 @@ export default function WindChimeGarden() {
     }
 
     function startLoudPhase() {
-      setCalibLabel({ title: 'Now say "ffff"!', subtitle: 'Like blowing gently through your teeth', emoji: '💨' })
+      setCalibLabel({ title: 'Now say "yaaa"!', subtitle: 'Nice and clear, like cheering', emoji: '🗣️' })
       setCalibProgress(0)
       const loudStart = performance.now()
       function loudStep(now) {
@@ -257,16 +311,16 @@ export default function WindChimeGarden() {
         const s = stateRef.current
         const rms = readCurrentRMS()
         if (rms > s.noiseFloor * 1.5) {
-          s.analyser.getFloatFrequencyData(s.freqData)
-          centroidReadings.push(computeSpectralCentroid(s.freqData, s.audioCtx.sampleRate, s.analyser.fftSize))
+          s.analyser.getFloatTimeDomainData(s.timeDomainData)
+          periodicityReadings.push(computePeriodicity(s.timeDomainData, s.audioCtx.sampleRate))
         }
         setCalibProgress(Math.min(1, elapsed / LOUD_MS))
         if (elapsed < LOUD_MS) {
           requestAnimationFrame(loudStep)
         } else {
-          const { minCentroid, maxCentroid } = personalizeCentroidRange(centroidReadings)
-          s.minCentroid = minCentroid
-          s.maxCentroid = maxCentroid
+          const { minPeriodicity, maxPeriodicity } = personalizeVoicingRange(periodicityReadings)
+          s.minPeriodicity = minPeriodicity
+          s.maxPeriodicity = maxPeriodicity
           finishCalibration()
         }
       }
@@ -281,14 +335,16 @@ export default function WindChimeGarden() {
     setHudVisible(true)
     const s = stateRef.current
     s.angle = 0; s.speed = 0; s.bubblesSpawned = 0; s.bubbles = []; s.hasFinished = false; s.sustainedSeconds = 0
+    s.spawnedThisWindow = []
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
-    setAriaMsg('Ready! Say a long "ffff" to blow bubbles.')
+    setAriaMsg('Ready! Say a long "yaaa" to blow bubbles.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
-  // One backend event per sustained stretch of "ffff" voicing, scored on the
-  // real average frication quality (spectral centroid match), not on how long
+  // One backend event per sustained stretch of "ya" voicing, scored on the
+  // real average voicing quality (periodicity/pitch match), not on how long
   // filling the whole sky took.
   async function logVoicingAttempt(scores) {
     const s = stateRef.current
@@ -321,15 +377,81 @@ export default function WindChimeGarden() {
 
   function spawnBubble(index) {
     const s = stateRef.current
-    s.bubbles.push({
+    const bubble = {
       x: s.W / 2 + (Math.random() - 0.5) * 40, y: s.H * 0.85,
       r: Math.random() * 22 + 32,
       vy: -(0.35 + Math.random() * 0.3),
       swayPhase: Math.random() * Math.PI * 2, swayAmount: Math.random() * 22 + 12,
       shimmerPhase: Math.random() * Math.PI * 2,
       hue: index / s.bubbleNotes.length,
-    })
+    }
+    s.bubbles.push(bubble)
+    s.spawnedThisWindow.push(bubble)
     playBubbleNote(index)
+  }
+
+  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // client-side periodicity detector above. Bubbles have already been spawning
+  // for the whole window (for snappy feedback — see gameLoop), but that spawn
+  // isn't "confirmed" until this resolves: only bubbles spawned during a
+  // window backed by a real "ya" attempt get to stay in the sky.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasFinished || !s.mediaStream) return
+
+    s.spawnedThisWindow = []
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
+  async function finishVerificationWindow(chunks) {
+    const s = stateRef.current
+    const spawned = s.spawnedThisWindow
+
+    if (spawned.length > 0 && chunks.length > 0) {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = ''
+      try {
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
+      } catch (err) {
+        console.warn('Backend transcription unavailable — window left unverified, provisional bubbles stand:', err)
+      }
+      if (!isYaSound(transcript)) {
+        // Un-spawn exactly the bubbles this window optimistically added — by
+        // reference, not by count, so a bubble from an already-confirmed
+        // earlier window can never accidentally get swept up here.
+        s.bubbles = s.bubbles.filter(b => !spawned.includes(b))
+        s.bubblesSpawned = Math.max(0, s.bubblesSpawned - spawned.length)
+        s.sustainedSeconds = 0
+        playRetract()
+        setAriaMsg('That wasn\'t quite a "yaaa" — try again!')
+      }
+    }
+
+    // Only check garden completion here, after this window's bubble count is
+    // final — not the instant a provisional spawn hits targetBubbles in
+    // gameLoop, since those bubbles could still get taken back moments later.
+    if (s.bubblesSpawned >= s.targetBubbles && !s.hasFinished) {
+      s.hasFinished = true
+      onGardenSuccess()
+      return
+    }
+    if (!s.hasFinished) startVerificationWindow()
   }
 
   function gameLoop(now) {
@@ -338,12 +460,12 @@ export default function WindChimeGarden() {
     s.lastFrameTime = now
 
     const rms = readCurrentRMS()
-    s.analyser.getFloatFrequencyData(s.freqData)
-    const centroid = computeSpectralCentroid(s.freqData, s.audioCtx.sampleRate, s.analyser.fftSize)
-    const { score, isValidAttempt } = computeFricationScore(rms, centroid, s.noiseFloor, s.minCentroid, s.maxCentroid)
+    s.analyser.getFloatTimeDomainData(s.timeDomainData)
+    const periodicity = computePeriodicity(s.timeDomainData, s.audioCtx.sampleRate)
+    const { score, isValidAttempt } = computeVoicingScore(rms, periodicity, s.noiseFloor, s.minPeriodicity, s.maxPeriodicity)
     s.smoothedScore = s.smoothedScore * 0.7 + score * 0.3
 
-    // Track sustained frication duration BEFORE computing rotation, so this
+    // Track sustained voicing duration BEFORE computing rotation, so this
     // frame's boost reflects voicing held up to (not including) this frame —
     // matches Rocket Launch / Submarine Dive's ordering exactly.
     if (isValidAttempt && score > 0.05) {
@@ -376,10 +498,9 @@ export default function WindChimeGarden() {
 
     render()
 
-    if (s.bubblesSpawned >= s.targetBubbles && !s.hasFinished) {
-      s.hasFinished = true
-      onGardenSuccess()
-    }
+    // Garden completion is checked in finishVerificationWindow, not here — a
+    // provisional bubble count that hits targetBubbles this frame might
+    // still get taken back once that window's transcript comes back.
     if (!s.hasFinished) rafRef.current = requestAnimationFrame(gameLoop)
   }
 
@@ -604,15 +725,21 @@ export default function WindChimeGarden() {
     const s = stateRef.current
     setSuccessVisible(false)
     s.angle = 0; s.speed = 0; s.bubblesSpawned = 0; s.bubbles = []; s.hasFinished = false; s.particles = []; s.sustainedSeconds = 0
+    s.spawnedThisWindow = []
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {
     setSettingsOpen(false)
     setHudVisible(false)
     cancelAnimationFrame(rafRef.current)
+    clearTimeout(stateRef.current.verifyTimer)
+    if (stateRef.current.mediaRecorderRef && stateRef.current.mediaRecorderRef.state !== 'inactive') {
+      try { stateRef.current.mediaRecorderRef.onstop = null; stateRef.current.mediaRecorderRef.stop() } catch { /* already stopped */ }
+    }
     runCalibration()
   }
 
@@ -635,7 +762,7 @@ export default function WindChimeGarden() {
             <div className="text-6xl mb-3">🫧</div>
             <h1 className="text-4xl font-extrabold mb-2">Bubble Garden</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-7 leading-relaxed flex items-center justify-center gap-2 flex-wrap">
-              Say a long "ffff" to blow glowing bubbles into the evening sky!
+              Say a long "yaaa" to blow glowing bubbles into the evening sky!
               <button onClick={replayInstruction} className="text-[#FFD166]/60 hover:text-[#FFD166] transition-colors" aria-label="Hear this again">
                 <Volume2 size={18} />
               </button>
@@ -685,7 +812,7 @@ export default function WindChimeGarden() {
           <div
             className={`font-bold text-lg bg-[rgba(42,33,88,0.65)] border border-white/10 rounded-full px-6 py-2.5 backdrop-blur-md max-w-[70vw] transition-opacity ${encourageVisible ? 'opacity-100' : 'opacity-0'}`}
           >
-            Try a long "ffff" sound, like blowing gently!
+            Try a long "yaaa" sound, nice and clear!
           </div>
           <button
             onClick={() => setSettingsOpen(v => !v)}

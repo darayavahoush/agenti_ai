@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -9,6 +9,28 @@ const LEVEL_ID = 'aa'
 const AGENT_POLICY = 'tabular_q'
 const PITCH_CHECK_EVERY_N_FRAMES = 3
 const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise blips
+
+// Rolling window for real speech verification — same approach as Firefly Jar
+// and Bubble Wrap Pop, adapted for a continuous climb instead of discrete
+// units. Altitude still rises the instant a loud sound is detected (kids need
+// snappy feedback), but every ~2s the window's audio gets transcribed and
+// checked for a real sustained "a" vowel. If it wasn't real voicing, whatever
+// altitude that window gained is quietly given back.
+const VERIFY_WINDOW_MS = 2000
+
+// Whisper doesn't reliably render a pure sustained vowel as one clean word —
+// it commonly comes back as "ah", "aah", "ahh", "aaaah", or a run of the
+// vowel itself rather than a consistent spelling. Rather than pattern-match
+// specific spellings, check whether the transcript is dominated by the
+// target vowel letter — the same "listen for the sound, not the exact ASR
+// spelling" idea as Firefly Jar's countMaOccurrences, adapted for a sustained
+// tone instead of a discrete syllable.
+function isSustainedVowel(transcript, vowelChar) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (cleaned.length < 2) return false
+  const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
+  return vowelCount / cleaned.length >= 0.4
+}
 
 // ============================================================
 // Pure scoring/state logic — ported 1:1 from rocket_launch.html /
@@ -155,6 +177,9 @@ export default function RocketLaunch() {
     inVoicing: false, voicingScores: [], sustainedSeconds: 0,
     scrollY: 0,
     W: 0, H: 0, DPR: 1,
+    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
+    windowStartAltitude: 0,
+    verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -174,6 +199,10 @@ export default function RocketLaunch() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       // audioCtx.close() does NOT stop the underlying getUserMedia
       // tracks — those are a separate object from the AudioContext and
@@ -237,6 +266,13 @@ export default function RocketLaunch() {
 
   function playSuccessChime() {
     ;[523.25, 659.25, 783.99, 1046.5].forEach((f, i) => setTimeout(() => playTone(f, 0.5, 'triangle', 0.05), i * 110))
+  }
+
+  // Soft descending tone when a window's climb turns out not to be real voicing
+  // once the transcript comes back — deliberately gentler than playSuccessChime,
+  // not a "wrong buzzer".
+  function playRetract() {
+    ;[440, 330].forEach((f, i) => setTimeout(() => playTone(f, 0.18, 'sine', 0.035), i * 60))
   }
 
   async function requestMicAndCalibrate() {
@@ -322,6 +358,67 @@ export default function RocketLaunch() {
     s.attemptStartTime = performance.now()
     setAriaMsg('Ready! Say aaa to launch your rocket.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
+  }
+
+  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // client-side loudness detector above. Altitude has already been climbing
+  // for the whole window (for snappy feedback — see gameLoop), but that climb
+  // isn't "confirmed" until this resolves: only altitude gained during a
+  // window backed by a real sustained vowel gets to stay.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasLaunched || !s.mediaStream) return
+
+    s.windowStartAltitude = s.altitude
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
+  async function finishVerificationWindow(chunks) {
+    const s = stateRef.current
+    const gained = Math.max(0, s.altitude - s.windowStartAltitude)
+
+    if (gained > 0 && chunks.length > 0) {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = ''
+      try {
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
+      } catch (err) {
+        console.warn('Backend transcription unavailable — window left unverified, provisional climb stands:', err)
+      }
+      if (!isSustainedVowel(transcript, 'a')) {
+        s.altitude = Math.max(0, s.altitude - gained)
+        s.sustainedSeconds = 0
+        playRetract()
+        setAriaMsg('That wasn\'t quite a loud "aaaa" — try again!')
+      }
+    }
+
+    // Only check launch completion here, after this window's altitude is
+    // final — not the instant a provisional climb hits 1.0 in gameLoop,
+    // since that provisional altitude could still get given back moments later.
+    if (s.altitude >= 0.999 && !s.hasLaunched) {
+      s.hasLaunched = true
+      onLaunchSuccess()
+      return
+    }
+    if (!s.hasLaunched) startVerificationWindow()
   }
 
   // Logs one real per-attempt event per sustained stretch of loud "aaa" voicing,
@@ -481,10 +578,9 @@ export default function RocketLaunch() {
 
     render()
 
-    if (s.altitude >= 0.999 && !s.hasLaunched) {
-      s.hasLaunched = true
-      onLaunchSuccess()
-    }
+    // Launch completion is checked in finishVerificationWindow, not here — a
+    // provisional altitude that hits 1.0 this frame might still get given
+    // back once that window's transcript comes back.
     if (!s.hasLaunched) rafRef.current = requestAnimationFrame(gameLoop)
   }
 
@@ -702,6 +798,7 @@ export default function RocketLaunch() {
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {

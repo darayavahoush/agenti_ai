@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -19,6 +19,20 @@ const DURATION_BOOST_MAX = 0.6
 const LEVEL_ID = 'oo'
 const AGENT_POLICY = 'tabular_q'
 const FISH_COLORS = ['#FF8C69', '#FFD166', '#A6E8FF', '#FF6B9D', '#7FE8C0']
+
+// Rolling window for real speech verification — see RocketLaunch.jsx for the
+// full rationale (same continuous-mechanic adaptation of Firefly Jar's
+// pattern). Depth still sinks the instant a good-quality sound is detected,
+// but every ~2s the window gets transcribed and checked for a real sustained
+// "o" vowel; unconfirmed windows give their depth back.
+const VERIFY_WINDOW_MS = 2000
+
+function isSustainedVowel(transcript, vowelChar) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (cleaned.length < 2) return false
+  const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
+  return vowelCount / cleaned.length >= 0.4
+}
 
 function computeRMS(floatSamples) {
   let s = 0
@@ -183,6 +197,9 @@ export default function SubmarineDive() {
     attemptNumber: 0,
     inVoicing: false, voicingScores: [], sustainedSeconds: 0,
     W: 0, H: 0, DPR: 1,
+    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
+    windowStartDepth: 0,
+    verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -199,6 +216,10 @@ export default function SubmarineDive() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       // See RocketLaunch.jsx's cleanup for why this is separate from
       // audioCtx.close() — the mic stream isn't released by that call.
@@ -284,6 +305,12 @@ export default function SubmarineDive() {
   }
   function playSuccessChime() {
     [392, 493.88, 587.33, 783.99].forEach((f, i) => setTimeout(() => playTone(f, 0.5, 'sine', 0.045), i * 120))
+  }
+
+  // Soft descending tone when a window's sink turns out not to be real voicing
+  // once the transcript comes back — deliberately gentler than playSuccessChime.
+  function playRetract() {
+    [440, 330].forEach((f, i) => setTimeout(() => playTone(f, 0.18, 'sine', 0.035), i * 60))
   }
 
   async function requestMicAndCalibrate() {
@@ -380,6 +407,67 @@ export default function SubmarineDive() {
     s.attemptStartTime = performance.now()
     setAriaMsg('Ready! Say a long "oooo" to dive.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
+  }
+
+  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // client-side loudness/formant detector above. Depth has already been
+  // sinking for the whole window (for snappy feedback — see gameLoop), but
+  // that sink isn't "confirmed" until this resolves: only depth gained during
+  // a window backed by a real sustained vowel gets to stay.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasFinished || !s.mediaStream) return
+
+    s.windowStartDepth = s.depth
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
+  async function finishVerificationWindow(chunks) {
+    const s = stateRef.current
+    const gained = Math.max(0, s.depth - s.windowStartDepth)
+
+    if (gained > 0 && chunks.length > 0) {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = ''
+      try {
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
+      } catch (err) {
+        console.warn('Backend transcription unavailable — window left unverified, provisional dive stands:', err)
+      }
+      if (!isSustainedVowel(transcript, 'o')) {
+        s.depth = Math.max(0, s.depth - gained)
+        s.sustainedSeconds = 0
+        playRetract()
+        setAriaMsg('That wasn\'t quite a long "oooo" — try again!')
+      }
+    }
+
+    // Only check dive completion here, after this window's depth is final —
+    // not the instant a provisional sink hits 1.0 in gameLoop, since that
+    // provisional depth could still get given back moments later.
+    if (s.depth >= 0.999 && !s.hasFinished) {
+      s.hasFinished = true
+      onDiveSuccess()
+      return
+    }
+    if (!s.hasFinished) startVerificationWindow()
   }
 
   // "oo" is sustained, not discrete bursts, so there's no natural single instant to
@@ -524,10 +612,9 @@ export default function SubmarineDive() {
 
     render()
 
-    if (s.depth >= 0.999 && !s.hasFinished) {
-      s.hasFinished = true
-      onDiveSuccess()
-    }
+    // Dive completion is checked in finishVerificationWindow, not here — a
+    // provisional depth that hits 1.0 this frame might still get given back
+    // once that window's transcript comes back.
     if (!s.hasFinished) rafRef.current = requestAnimationFrame(gameLoop)
   }
 
@@ -786,6 +873,7 @@ export default function SubmarineDive() {
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {

@@ -248,7 +248,14 @@ async def transcribe_audio(
     if not audio_bytes:
         return TranscribeOut(transcript="", confidence=0.0)
 
-    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+    # Suffix matters for faster-whisper's underlying ffmpeg/av decode step to
+    # pick the right demuxer -- derive it from what was actually uploaded
+    # (Village Builder sends .webm from MediaRecorder, Bubble Wrap Pop's burst
+    # verification sends .wav from its own encoder) instead of assuming webm.
+    suffix = Path(audio.filename).suffix if audio.filename else ".webm"
+    if suffix not in (".webm", ".wav", ".ogg", ".m4a", ".mp3"):
+        suffix = ".webm"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
 
