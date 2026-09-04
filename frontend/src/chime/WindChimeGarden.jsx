@@ -760,7 +760,7 @@ export default function WindChimeGarden() {
         <div className="fixed inset-0 flex flex-col items-center justify-center text-center px-6 z-10">
           <div className="bg-[rgba(42,33,88,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full backdrop-blur-md shadow-2xl">
             <div className="text-6xl mb-3">🫧</div>
-            <h1 className="text-4xl font-extrabold mb-2">Bubble Garden</h1>
+            <h1 className="font-['Baloo_2'] text-4xl font-extrabold mb-2">Bubble Garden</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-7 leading-relaxed flex items-center justify-center gap-2 flex-wrap">
               Say a long "yaaa" to blow glowing bubbles into the evening sky!
               <button onClick={replayInstruction} className="text-[#FFD166]/60 hover:text-[#FFD166] transition-colors" aria-label="Hear this again">
@@ -769,7 +769,7 @@ export default function WindChimeGarden() {
             </p>
             <button
               onClick={requestMicAndCalibrate}
-              className="font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E] hover:-translate-y-0.5 transition-transform"
+              className="font-['Baloo_2'] font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E] hover:-translate-y-0.5 transition-transform"
             >
               Let's Play!
             </button>
@@ -781,9 +781,9 @@ export default function WindChimeGarden() {
         <div className="fixed inset-0 flex flex-col items-center justify-center text-center px-6 z-10">
           <div className="bg-[rgba(42,33,88,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full backdrop-blur-md shadow-2xl">
             <div className="text-6xl mb-3">🎤</div>
-            <h1 className="text-2xl font-extrabold mb-2">We need to hear you!</h1>
+            <h1 className="font-['Baloo_2'] text-2xl font-extrabold mb-2">We need to hear you!</h1>
             <p className="text-sm text-[#FFD3D3] mb-5">{micErrorMsg}</p>
-            <button onClick={requestMicAndCalibrate} className="font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E]">
+            <button onClick={requestMicAndCalibrate} className="font-['Baloo_2'] font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E]">
               Try Again
             </button>
           </div>
@@ -794,14 +794,15 @@ export default function WindChimeGarden() {
         <div className="fixed inset-0 flex flex-col items-center justify-center text-center px-6 z-10">
           <div className="bg-[rgba(42,33,88,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full backdrop-blur-md shadow-2xl">
             <div className="relative w-[150px] h-[150px] mx-auto mb-5">
-              <svg width="150" height="150" className="-rotate-90">
-                <circle cx="75" cy="75" r="60" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="10" />
-                <circle cx="75" cy="75" r="60" fill="none" stroke="#FFD166" strokeWidth="10" strokeLinecap="round"
-                  strokeDasharray={circ} strokeDashoffset={circ * (1 - calibProgress)} style={{ transition: 'stroke-dashoffset 0.1s linear' }} />
+              <svg width="150" height="150" className="-rotate-90 overflow-visible">
+                <circle cx="75" cy="75" r="60" fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="14" />
+                <circle cx="75" cy="75" r="60" fill="none" stroke="#FFD166" strokeWidth="14" strokeLinecap="round"
+                  strokeDasharray={circ} strokeDashoffset={circ * (1 - calibProgress)}
+                  style={{ transition: 'stroke-dashoffset 0.08s linear', filter: 'drop-shadow(0 0 8px rgba(255,209,102,0.85))' }} />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center text-3xl">{calibLabel.emoji}</div>
             </div>
-            <h1 className="text-2xl font-extrabold mb-2">{calibLabel.title}</h1>
+            <h1 className="font-['Baloo_2'] text-2xl font-extrabold mb-2">{calibLabel.title}</h1>
             <p className="text-lg font-bold text-[#FFD166]">{calibLabel.subtitle}</p>
           </div>
         </div>
@@ -845,14 +846,14 @@ export default function WindChimeGarden() {
         <div className="fixed inset-0 flex items-center justify-center z-40 bg-[rgba(42,33,88,0.4)]">
           <div className="bg-[rgba(42,33,88,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full text-center backdrop-blur-md shadow-2xl">
             <div className="text-6xl mb-3">🫧</div>
-            <h1 className="text-3xl font-extrabold mb-2">Garden full of bubbles!</h1>
+            <h1 className="font-['Baloo_2'] text-3xl font-extrabold mb-2">Garden full of bubbles!</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-1">You filled the evening sky with glowing bubbles!</p>
             {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (
                 <button
                   onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}
-                  className="font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E] hover:-translate-y-0.5 transition-transform"
+                  className="font-['Baloo_2'] font-bold text-xl rounded-full px-10 py-4 text-[#2A2158] bg-[#FFD166] shadow-[0_6px_0_#C99A2E] hover:-translate-y-0.5 transition-transform"
                 >
                   Next Level →
                 </button>

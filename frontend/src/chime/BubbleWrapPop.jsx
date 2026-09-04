@@ -818,8 +818,9 @@ export default function BubbleWrapPop() {
         .bwp-error-text { font-size: 0.95rem; color: #FFF0F0; margin-top: 14px; line-height: 1.5; }
         .bwp-ring-wrap { position: relative; width: 150px; height: 150px; margin: 0 auto 22px; }
         .bwp-ring-wrap svg { transform: rotate(-90deg); }
-        .bwp-ring-bg { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 10; }
-        .bwp-ring-fg { fill: none; stroke: var(--cloud-white); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.1s linear; }
+        .bwp-ring-wrap svg { overflow: visible; }
+        .bwp-ring-bg { fill: none; stroke: rgba(255,255,255,0.2); stroke-width: 14; }
+        .bwp-ring-fg { fill: none; stroke: var(--gold); stroke-width: 14; stroke-linecap: round; transition: stroke-dashoffset 0.08s linear; filter: drop-shadow(0 0 8px rgba(255,209,102,0.85)); }
         .bwp-ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
         .bwp-hud { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 20px; z-index: 20; pointer-events: none; }
         .bwp-hud > * { pointer-events: auto; }
