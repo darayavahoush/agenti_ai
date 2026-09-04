@@ -28,6 +28,10 @@ export default function GamePage() {
   const eventBatch  = useRef([])
   const flushTimer  = useRef(null)
   const breatheTimer = useRef(null)
+  const breatheMaxTimer = useRef(null)
+  const breatheSpeechDone = useRef(false)
+  const breatheMinElapsed = useRef(false)
+  const breatheStarted = useRef(false)
   const lastTime    = useRef(null)
   const metricsRef  = useRef({ timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 })
   const startTime   = useRef(null)
@@ -63,10 +67,40 @@ export default function GamePage() {
   // useSpokenInstruction correctly re-speaks on every re-entry into an
   // enabled state, not just the first time ever (see its doc comment).
   const replayReady = useSpokenInstruction(meta?.tagline, { enabled: phase === 'ready' && unlocked })
+  // Real (scored) gameplay used to start on a flat 2200ms timer that raced
+  // this sentence's actual read-aloud length -- on a slower device voice
+  // the exhale window could start scoring while the cue was still talking.
+  // beginPlaying (below) now waits for this callback (real speech
+  // completion, not a guess) AND a minimum floor, with a safety cap in
+  // case a browser never fires the completion event at all.
+  const onBreatheSpeechEnd = useCallback(() => {
+    breatheSpeechDone.current = true
+    maybeBeginPlaying()
+  }, [])
   const replayBreathe = useSpokenInstruction(
     'Take a big breath in! Fill up your belly like a balloon, then get ready to blow.',
-    { enabled: phase === 'breathe' },
+    { enabled: phase === 'breathe', onEnd: onBreatheSpeechEnd },
   )
+
+  // beginPlaying is the single place real (scored) gameplay actually
+  // starts, guarded so it only ever fires once per breathe-in cue no
+  // matter which of the two paths below reaches it first.
+  const beginPlaying = () => {
+    if (breatheStarted.current) return
+    breatheStarted.current = true
+    clearTimeout(breatheTimer.current)
+    clearTimeout(breatheMaxTimer.current)
+    setPhase('playing')
+    startTime.current = performance.now()
+    startGameLoop()
+    flushTimer.current = setInterval(flushEvents, 2500)
+  }
+  // Only actually begins once the breathe-in cue has genuinely finished
+  // AND a minimum floor has elapsed (so it never feels instant on a
+  // device where TTS is unavailable/silent and onEnd fires immediately).
+  const maybeBeginPlaying = () => {
+    if (breatheSpeechDone.current && breatheMinElapsed.current) beginPlaying()
+  }
 
   const startGame = async () => {
     if (!unlocked) return
@@ -106,13 +140,25 @@ export default function GamePage() {
       // scoring their exhale — the in-breath is what actually powers a
       // strong, controlled out-breath, so cueing it explicitly matters more
       // here than in a typical "ready, set, go" countdown.
+      //
+      // This used to be a flat setTimeout(2200) with no relationship at
+      // all to how long "Take a big breath in..." actually takes a given
+      // device's voice to read -- real scoring (startGameLoop) could and
+      // did start while the cue was still talking. Now it waits for the
+      // real completion signal from useSpokenInstruction's onEnd (see
+      // onBreatheSpeechEnd above), gated by a floor so a silent/unavailable
+      // TTS engine doesn't make the screen feel instant, and a safety cap
+      // in case a browser never fires the completion event at all (real,
+      // known Web Speech API flakiness -- see lib/speech.js).
+      breatheStarted.current = false
+      breatheSpeechDone.current = false
+      breatheMinElapsed.current = false
       setPhase('breathe')
       breatheTimer.current = setTimeout(() => {
-        setPhase('playing')
-        startTime.current = performance.now()
-        startGameLoop()
-        flushTimer.current = setInterval(flushEvents, 2500)
-      }, 2200)
+        breatheMinElapsed.current = true
+        maybeBeginPlaying()
+      }, 1200)
+      breatheMaxTimer.current = setTimeout(beginPlaying, 6000)
     }
 
     engine.onBreath = (v) => {
@@ -236,6 +282,7 @@ export default function GamePage() {
     cancelAnimationFrame(rafRef.current)
     clearInterval(flushTimer.current)
     clearTimeout(breatheTimer.current)
+    clearTimeout(breatheMaxTimer.current)
     engineRef.current?.stop()
   }
 
