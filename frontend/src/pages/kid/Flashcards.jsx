@@ -80,6 +80,7 @@ export default function Flashcards() {
   const [phase, setPhase] = useState("listen");
   const [playingChar, setPlayingChar] = useState(false);
   const [playingChild, setPlayingChild] = useState(false);
+  const [playingInstructions, setPlayingInstructions] = useState(false);
   const [speed, setSpeed] = useState(1.0);  // slidable playback speed, 0.5-1.5x (matches backend atempo range)
   const { isRecording, audioBlob, audioUrl, startRecording, stopRecording, reset } = useAudio();
   const [showSwitcher, setShowSwitcher] = useState(false);      // character switcher (existing)
@@ -166,6 +167,27 @@ export default function Flashcards() {
     const audio = new Audio(audioUrl);
     audio.play();
     audio.onended = () => setPlayingChild(false);
+  };
+
+  // Speaks the phoneme-card tip text ("Put your top teeth on your bottom
+  // lip...") -- same speakWord endpoint the word/phoneme audio already
+  // uses, just with the tip's sentence as the text instead of a single
+  // word. Mirrors playWord's browser-TTS fallback so this doesn't go
+  // silent if the backend voice endpoint is down.
+  const playInstructions = async () => {
+    if (!exploredCard?.tip) return;
+    setPlayingInstructions(true);
+    try {
+      const blob = await speakWord(exploredCard.tip, character, 0.95);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+      audio.onended = () => setPlayingInstructions(false);
+    } catch (err) {
+      console.error('Flashcards: backend speakWord failed for instructions, falling back to browser TTS', err);
+      speakBrowserTTS(exploredCard.tip, { rate: 0.9, pitch: CHARACTERS[character]?.pitch ?? 1.0 });
+      setPlayingInstructions(false);
+    }
   };
 
   const handleRecord = async () => {
@@ -279,7 +301,7 @@ export default function Flashcards() {
         ) : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", position: "relative" }}>
             <CharacterBackdrop character={character} />
-            <div style={{ width: "100%", maxWidth: "480px", display: "flex", flexDirection: "column", gap: "16px", position: "relative", zIndex: 1 }}>
+            <div style={{ width: "100%", maxWidth: "980px", display: "flex", flexDirection: "column", gap: "16px", position: "relative", zIndex: 1 }}>
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -333,7 +355,8 @@ export default function Flashcards() {
                 </div>
               )}
 
-              <div style={{ background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}33`, borderRadius: "24px", padding: "28px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", boxShadow: `0 4px 24px ${th.accent}18` }}>
+              <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center", width: "100%" }}>
+              <div style={{ flex: "1 1 380px", maxWidth: "480px", background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}33`, borderRadius: "24px", padding: "28px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", boxShadow: `0 4px 24px ${th.accent}18` }}>
                 {imageUrl ? (
                   <img src={imageUrl} alt={wordData.word} style={{ width: "180px", height: "180px", objectFit: "contain", borderRadius: "16px" }} />
                 ) : (
@@ -347,7 +370,7 @@ export default function Flashcards() {
 
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center" }}>
                   {(wordData?.phonemes || []).map((p, i) => (
-                    <div key={i} title={phonemeExample(p)}
+                    <div key={i} title={`Tap to hear more about /${p}/${phonemeExample(p) ? ` — ${phonemeExample(p)}` : ""}`}
                       onClick={async () => {
                         if (exploredPhoneme === p) { setExploredPhoneme(null); return; }
                         setExploredPhoneme(p);
@@ -367,33 +390,47 @@ export default function Flashcards() {
                     </div>
                   ))}
                 </div>
-
-                {exploredPhoneme && (
-                  <div style={{ width: "100%", background: getSurface(false, 0.8), border: `1.5px solid ${th.accent}33`, borderRadius: "14px", padding: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "1.1rem", color: th.accent, fontWeight: 700 }}>{friendlyPhoneme(exploredPhoneme)}</span>
-                      <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.65rem", opacity: 0.7 }}>/{exploredPhoneme}/</span>
-                      {exploredCard && <span style={{ color: th.text, fontSize: "0.8rem", fontFamily: "Nunito, sans-serif", fontWeight: 700 }}>{exploredCard.name}</span>}
-                    </div>
-                    {exploredCard === undefined && <p style={{ color: th.sub, fontSize: "0.75rem", margin: 0 }}>Loading...</p>}
-                    {exploredCard === null && <p style={{ color: th.sub, fontSize: "0.75rem", margin: 0 }}>No tip available for this sound yet.</p>}
-                    {exploredCard?.mouth_svg && (
-                      <div style={{ width: "170px", height: "110px", alignSelf: "center" }} dangerouslySetInnerHTML={{ __html: exploredCard.mouth_svg }} />
-                    )}
-                    {exploredCard?.tip && (
-                      <p style={{ color: th.text, fontSize: "0.8rem", margin: 0, lineHeight: 1.5, paddingLeft: "10px", borderLeft: `3px solid ${th.accent}` }}>
-                        {exploredCard.tip}
-                      </p>
-                    )}
-                    {exploredCard?.example_word && (
-                      <p style={{ color: th.sub, fontSize: "0.7rem", margin: 0 }}>
-                        Example: <span style={{ color: th.text, fontFamily: "Nunito, sans-serif", fontWeight: 700 }}>{exploredCard.example_word}</span>
-                      </p>
-                    )}
-                  </div>
-                )}
+                <p style={{ color: th.sub, fontSize: "0.65rem", textAlign: "center", margin: "-8px 0 0 0", opacity: 0.7 }}>Tap a sound to learn how to make it</p>
               </div>
 
+              {exploredPhoneme && (
+                <div style={{ flex: "1 1 380px", maxWidth: "460px", alignSelf: "stretch", background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}33`, borderRadius: "16px", padding: "24px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "18px" }}>
+                  {exploredCard === undefined && <p style={{ color: th.sub, fontSize: "0.8rem", margin: 0, textAlign: "center" }}>Loading...</p>}
+                  {exploredCard === null && <p style={{ color: th.sub, fontSize: "0.8rem", margin: 0, textAlign: "center" }}>No tip available for this sound yet.</p>}
+                  {exploredCard && (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "1.1rem", color: th.accent, fontWeight: 700 }}>{friendlyPhoneme(exploredPhoneme)}</span>
+                        <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.65rem", opacity: 0.7 }}>/{exploredPhoneme}/</span>
+                      </div>
+                      {exploredCard.mouth_svg && (
+                        <div style={{ width: "220px", height: "180px", flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: exploredCard.mouth_svg }} />
+                      )}
+                      {exploredCard.tip && (
+                        <p style={{ color: th.sub, fontSize: "0.95rem", margin: 0, lineHeight: 1.6, textAlign: "center" }}>
+                          {exploredCard.tip}
+                        </p>
+                      )}
+                      {exploredCard.name && (
+                        <p style={{ color: th.text, fontWeight: 800, fontSize: "1.1rem", margin: 0, fontFamily: "Nunito, sans-serif", textAlign: "center" }}>{exploredCard.name}</p>
+                      )}
+                      {exploredCard.example_word && (
+                        <p style={{ color: th.sub, fontSize: "0.75rem", margin: 0 }}>
+                          Example: <span style={{ color: th.text, fontFamily: "Nunito, sans-serif", fontWeight: 700 }}>{exploredCard.example_word}</span>
+                        </p>
+                      )}
+                      {exploredCard.tip && (
+                        <button onClick={playInstructions} disabled={playingInstructions} style={{ background: `${th.accent}22`, border: `1.5px solid ${th.accent}44`, borderRadius: "12px", padding: "12px 20px", color: th.accent, fontSize: "0.9rem", fontWeight: 700, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
+                          {playingInstructions ? "Playing..." : "🔊 Hear instructions"}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              </div>
+
+              <div style={{ width: "100%", maxWidth: "480px", alignSelf: "center", display: "flex", flexDirection: "column", gap: "16px" }}>
               {phase !== "result" && (
                 <>
                   <div style={{ background: getSurface(false, 0.7), border: `1.5px solid ${th.accent}44`, borderRadius: "14px", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -556,6 +593,7 @@ export default function Flashcards() {
                   </div>
                 );
               })()}
+              </div>
             </div>
 
             <style>{`
