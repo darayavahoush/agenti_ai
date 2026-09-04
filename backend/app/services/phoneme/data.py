@@ -102,6 +102,16 @@ PHONEME_DATA = {
         "common_errors": ["B", "F", "W"],  # V/W merge is standard in Indian English
         "category": "fricative"
     },
+    "HH": {
+        "ipa": "h",
+        "name": "h sound",
+        "example_word": "hair",
+        "tip": "Open your mouth and breathe out a soft puff of air, like fogging up a mirror. No voice.",
+        "mouth_shape": "mouth_open_breathe",
+        "acoustic_target": {"min_duration_ms": 100, "voiced": False},
+        "common_errors": [],
+        "category": "fricative"
+    },
     "S": {
         "ipa": "s",
         "name": "s sound",
