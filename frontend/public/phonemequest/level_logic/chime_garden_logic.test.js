@@ -1,45 +1,56 @@
 const assert = require('assert');
-const { computeSpectralCentroid, computeFricationScore, updateChimeRotation, personalizeCentroidRange } = require('./chime_garden_logic.js');
+const { computePeriodicity, computeVoicingScore, updateChimeRotation, personalizeVoicingRange } = require('./chime_garden_logic.js');
 
 const SR = 44100;
-const FFT_SIZE = 2048;
-const NUM_BINS = FFT_SIZE / 2;
-const SILENCE_DB = -100;
+const WINDOW = 2048;
 
-function makeSpectrum(peakHz, spreadBins = 3) {
-  const binHz = SR / FFT_SIZE;
-  const peakBin = Math.round(peakHz / binHz);
-  const mags = new Array(NUM_BINS).fill(SILENCE_DB);
-  for (let i = Math.max(0, peakBin - spreadBins); i < Math.min(NUM_BINS, peakBin + spreadBins); i++) {
-    mags[i] = -10; // loud relative to silence floor
+// A clean sine wave at a given pitch — stands in for a voiced "ya" glide,
+// which is tonal/harmonic.
+function makeVoicedWaveform(freqHz, amplitude = 0.3) {
+  const data = new Float32Array(WINDOW);
+  for (let i = 0; i < WINDOW; i++) {
+    data[i] = amplitude * Math.sin((2 * Math.PI * freqHz * i) / SR);
   }
-  return mags;
+  return data;
 }
 
-// --- computeSpectralCentroid ---
-const lowSpectrum = makeSpectrum(500);
-const lowCentroid = computeSpectralCentroid(lowSpectrum, SR, FFT_SIZE);
-assert.ok(Math.abs(lowCentroid - 500) < 100, `centroid of energy at 500Hz should be near 500Hz, got ${lowCentroid}`);
+// Pseudo-random noise — stands in for unvoiced/breathy sound (e.g. the old
+// "ffff" target), which has no strong single periodicity.
+function makeNoiseWaveform(amplitude = 0.3) {
+  const data = new Float32Array(WINDOW);
+  let seed = 42;
+  for (let i = 0; i < WINDOW; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    data[i] = amplitude * ((seed / 0x7fffffff) * 2 - 1);
+  }
+  return data;
+}
 
-const highSpectrum = makeSpectrum(4000);
-const highCentroid = computeSpectralCentroid(highSpectrum, SR, FFT_SIZE);
-assert.ok(Math.abs(highCentroid - 4000) < 150, `centroid of energy at 4000Hz should be near 4000Hz, got ${highCentroid}`);
+function makeSilence() {
+  return new Float32Array(WINDOW);
+}
 
-const silentSpectrum = new Array(NUM_BINS).fill(SILENCE_DB);
-const silentCentroid = computeSpectralCentroid(silentSpectrum, SR, FFT_SIZE);
-assert.ok(silentCentroid >= 0, 'silence should not produce a negative or NaN centroid');
+// --- computePeriodicity ---
+const voicedPeriodicity = computePeriodicity(makeVoicedWaveform(220), SR);
+assert.ok(voicedPeriodicity > 0.7, `a clean tone should show strong periodicity, got ${voicedPeriodicity}`);
 
-// --- computeFricationScore ---
-const quiet = computeFricationScore(0.005, 3000);
-assert.strictEqual(quiet.isValidAttempt, false, 'below noise floor should be an invalid attempt regardless of centroid');
+const noisePeriodicity = computePeriodicity(makeNoiseWaveform(), SR);
+assert.ok(noisePeriodicity < voicedPeriodicity, 'noise should show weaker periodicity than a clean tone');
 
-const lowToneNotFricative = computeFricationScore(0.1, 500);
-assert.ok(lowToneNotFricative.score < 0.2, 'loud but low-centroid sound (not fricative-shaped) should score low');
-assert.strictEqual(lowToneNotFricative.isValidAttempt, true, 'but still counts as a valid attempt for engagement purposes');
+const silentPeriodicity = computePeriodicity(makeSilence(), SR);
+assert.strictEqual(silentPeriodicity, 0, 'silence should have zero periodicity');
 
-const goodFricative = computeFricationScore(0.1, 5000);
-assert.ok(goodFricative.score > 0.7, `high centroid should score well, got ${goodFricative.score}`);
-assert.ok(goodFricative.score > lowToneNotFricative.score, 'fricative-shaped sound should score higher than non-fricative sound at same volume');
+// --- computeVoicingScore ---
+const quiet = computeVoicingScore(0.005, 0.8);
+assert.strictEqual(quiet.isValidAttempt, false, 'below noise floor should be an invalid attempt regardless of periodicity');
+
+const noisyNotVoiced = computeVoicingScore(0.1, 0.05);
+assert.ok(noisyNotVoiced.score < 0.2, 'loud but low-periodicity sound (not voiced-shaped) should score low');
+assert.strictEqual(noisyNotVoiced.isValidAttempt, true, 'but still counts as a valid attempt for engagement purposes');
+
+const goodVoicing = computeVoicingScore(0.1, 0.8);
+assert.ok(goodVoicing.score > 0.7, `high periodicity should score well, got ${goodVoicing.score}`);
+assert.ok(goodVoicing.score > noisyNotVoiced.score, 'voiced-shaped sound should score higher than non-voiced sound at same volume');
 
 // --- updateChimeRotation ---
 const config = { maxSpeed: 4, spinUpRate: 8, decayRate: 3 };
@@ -49,32 +60,32 @@ for (let i = 0; i < 100; i++) {
   state = updateChimeRotation(state.angle, state.speed, 0.9, 0.05, config);
   totalChimes += state.chimesRung;
 }
-assert.ok(totalChimes > 0, `sustained high frication should eventually ring at least one chime, got ${totalChimes}`);
-assert.ok(state.speed > 0, 'speed should be positive while sustaining good frication');
+assert.ok(totalChimes > 0, `sustained high voicing should eventually ring at least one chime, got ${totalChimes}`);
+assert.ok(state.speed > 0, 'speed should be positive while sustaining good voicing');
 
-// speed should decay toward zero once frication stops
+// speed should decay toward zero once voicing stops
 let decayState = { angle: 0, speed: 3 };
 for (let i = 0; i < 50; i++) decayState = updateChimeRotation(decayState.angle, decayState.speed, 0, 0.05, config);
-assert.ok(decayState.speed < 0.5, `speed should decay toward 0 once frication stops, got ${decayState.speed}`);
+assert.ok(decayState.speed < 0.5, `speed should decay toward 0 once voicing stops, got ${decayState.speed}`);
 
 console.log('All chime_garden_logic tests passed.');
 
-// --- computeFricationScore actually respects a passed-in calibrated noise floor ---
-// (regression test for a real bug: an earlier version ignored the calibrated
-// value and used a hardcoded constant instead)
-const highCalibratedFloor = computeFricationScore(0.03, 5000, 0.05); // rms below this child's calibrated floor
+// --- computeVoicingScore actually respects a passed-in calibrated noise floor ---
+// (regression test carried over from the frication version: an earlier
+// version ignored the calibrated value and used a hardcoded constant instead)
+const highCalibratedFloor = computeVoicingScore(0.03, 0.8, 0.05); // rms below this child's calibrated floor
 assert.strictEqual(highCalibratedFloor.isValidAttempt, false, 'a rms below the passed-in calibrated noise floor should be invalid, even if it would pass the old default');
 
-const passesCalibratedFloor = computeFricationScore(0.03, 5000, 0.01); // same rms, lower calibrated floor
+const passesCalibratedFloor = computeVoicingScore(0.03, 0.8, 0.01); // same rms, lower calibrated floor
 assert.strictEqual(passesCalibratedFloor.isValidAttempt, true, 'the same rms should be valid once the calibrated floor is lower than it');
 
-// --- personalizeCentroidRange ---
-const readings = [3000, 3200, 0, 2900, 3100, 3050];
-const personalized = personalizeCentroidRange(readings);
+// --- personalizeVoicingRange ---
+const readings = [0.6, 0.65, 0, 0.55, 0.62, 0.58];
+const personalized = personalizeVoicingRange(readings);
 assert.strictEqual(personalized.usedFallback, false);
-assert.ok(personalized.minCentroid < 3050 && personalized.maxCentroid > 3050, 'personalized range should bracket the child\'s actual observed centroid');
+assert.ok(personalized.minPeriodicity < 0.58 && personalized.maxPeriodicity > 0.58, 'personalized range should bracket the child\'s actual observed periodicity');
 
-const tooFew = personalizeCentroidRange([3000, 0, 0]);
+const tooFew = personalizeVoicingRange([0.6, 0, 0]);
 assert.strictEqual(tooFew.usedFallback, true, 'too few valid readings should fall back to defaults');
 
 console.log('All chime_garden_logic calibration tests passed.');

@@ -18,9 +18,9 @@ export function scoreWord(transcript, targetWord, asrConfidence = 1.0) {
   }).then(r => r.data)
 }
 
-export function transcribeAudio(audioBlob) {
+export function transcribeAudio(audioBlob, filename = 'recording.webm') {
   const form = new FormData()
-  form.append('audio', audioBlob, 'recording.webm')
+  form.append('audio', audioBlob, filename)
 
   // Override the instance's default 'Content-Type: application/json' —
   // multipart uploads need the browser to set the boundary itself, so we

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio, scoreWord } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { encodeWavMono } from './lib/wavEncoder'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
@@ -13,6 +14,20 @@ const MAX_TARGET_POPS = 20
 const BASE_POP_THRESHOLD = 0.1
 const LEVEL_ID = 'ha'
 const AGENT_POLICY = 'tabular_q'
+
+// Real "ha" verification, added because aspiration_burst.py's backend check
+// (peak loudness + duration only, no spectral discrimination) would pass a
+// clap, cough, or table thump exactly as easily as a real "ha" -- it's the
+// same crude burst detector as scoreBurst below, just on the server. A
+// clean confirmation needs the actual ASR pipeline Village Builder already
+// uses: transcribe the burst with faster-whisper, then fuzzy-match the
+// transcript against the target word. See verifyBurst().
+const HA_TARGET_WORD = 'ha'
+const HA_MATCH_THRESHOLD = 0.35
+const RING_BUFFER_SECONDS = 2
+const MIN_VERIFY_CLIP_S = 0.35 // pad short bursts so whisper has enough audio to work with
+const VERIFY_CLIP_PAD_S = 0.15
+const VERIFY_TOAST_MS = 1800
 
 function scoreBurst(rmsEnvelope, durationS, minPeakRms = MIN_PEAK_RMS_DEFAULT, maxExpectedPeakRms = MAX_EXPECTED_PEAK_RMS_DEFAULT) {
   if (!rmsEnvelope.length) return { score: 0, isValidAttempt: false }
@@ -30,6 +45,38 @@ function personalizeBurstRange(peakRmsReadings, noiseFloor, fallbackMax = MAX_EX
   const maxObserved = Math.max(...valid)
   const maxExpectedPeakRms = Math.max(minPeakRms + 0.05, maxObserved)
   return { minPeakRms, maxExpectedPeakRms, usedFallback: false }
+}
+
+// Ring buffer of raw mic samples, fed continuously by a ScriptProcessorNode
+// (see requestMicAndCalibrate) so the exact audio behind a burst is already
+// captured by the time gameLoop notices the burst has ended -- there's no
+// "start recording now" step that could miss the onset.
+function writeToRingBuffer(s, chunk) {
+  const buf = s.ringBuffer
+  if (!buf) return
+  let pos = s.ringWritePos
+  for (let i = 0; i < chunk.length; i++) {
+    buf[pos] = chunk[i]
+    pos = (pos + 1) % buf.length
+  }
+  s.ringWritePos = pos
+  s.ringSamplesWritten = Math.min(buf.length, s.ringSamplesWritten + chunk.length)
+}
+
+// Reads the most recently written `durationS` seconds out of the ring
+// buffer, ending at the current write position ("now"). Good enough here
+// because gameLoop calls this right as it detects the burst ended, so the
+// ring buffer's write head is already at (or a couple ms past) that moment.
+function readRingBufferWindow(s, durationS) {
+  const buf = s.ringBuffer
+  if (!buf) return null
+  const wantSamples = Math.min(buf.length, Math.round(durationS * s.ringSampleRate))
+  const availSamples = Math.min(wantSamples, s.ringSamplesWritten)
+  if (availSamples <= 0) return null
+  const out = new Float32Array(availSamples)
+  const start = (s.ringWritePos - availSamples + buf.length * 2) % buf.length
+  for (let i = 0; i < availSamples; i++) out[i] = buf[(start + i) % buf.length]
+  return out
 }
 
 function popNextBubble(poppedFlags, burstScore, popThreshold = 0.3) {
@@ -95,13 +142,19 @@ export default function BubbleWrapPop() {
   const [successVisible, setSuccessVisible] = useState(false)
   const [agentFeedback, setAgentFeedback] = useState('')
   const [ariaMsg, setAriaMsg] = useState('')
+  const [verifyToast, setVerifyToast] = useState(null) // { status: 'checking'|'verified'|'rejected', message }
+  const [verifiedCount, setVerifiedCount] = useState(0)
+  const [targetPopsDisplay, setTargetPopsDisplay] = useState(MIN_TARGET_POPS)
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
+    scriptProcessor: null, silentGain: null,
+    ringBuffer: null, ringSampleRate: 44100, ringWritePos: 0, ringSamplesWritten: 0,
     noiseFloor: 0.01,
     targetPops: MIN_TARGET_POPS,
     gridCols: 3, gridRows: 2,
-    poppedFlags: [], popPulse: [],
+    poppedFlags: [], verifiedFlags: [], popPulse: [],
+    sheetGeneration: 0,
     popThreshold: BASE_POP_THRESHOLD,
     burstEnvelope: [], inBurst: false, burstStartTime: 0,
     popStreak: 0, lastPopTime: -1,
@@ -128,6 +181,8 @@ export default function BubbleWrapPop() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
+      if (state.scriptProcessor) state.scriptProcessor.disconnect()
+      if (state.silentGain) state.silentGain.disconnect()
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       if (state.mediaStream) state.mediaStream.getTracks().forEach(t => t.stop())
     }
@@ -204,6 +259,26 @@ export default function BubbleWrapPop() {
       s.analyser.fftSize = 2048
       s.timeDomainData = new Float32Array(s.analyser.fftSize)
       source.connect(s.analyser)
+
+      // Continuously fills the ring buffer with raw samples so a burst's
+      // exact audio is already captured once gameLoop notices it ended.
+      // ScriptProcessorNode needs a path to the destination to keep firing
+      // in some browsers, so it's routed through a zero-gain node rather
+      // than actually being audible.
+      s.ringSampleRate = s.audioCtx.sampleRate
+      s.ringBuffer = new Float32Array(Math.round(RING_BUFFER_SECONDS * s.ringSampleRate))
+      s.ringWritePos = 0
+      s.ringSamplesWritten = 0
+      s.scriptProcessor = s.audioCtx.createScriptProcessor(2048, 1, 1)
+      s.scriptProcessor.onaudioprocess = (e) => {
+        writeToRingBuffer(s, e.inputBuffer.getChannelData(0))
+      }
+      s.silentGain = s.audioCtx.createGain()
+      s.silentGain.gain.value = 0
+      source.connect(s.scriptProcessor)
+      s.scriptProcessor.connect(s.silentGain)
+      s.silentGain.connect(s.audioCtx.destination)
+
       runCalibration()
     } catch (err) {
       setMicErrorMsg(err.name === 'NotAllowedError'
@@ -278,13 +353,17 @@ export default function BubbleWrapPop() {
     s.gridCols = grid.cols
     s.gridRows = grid.rows
     s.poppedFlags = new Array(s.gridCols * s.gridRows).fill(false)
+    s.verifiedFlags = new Array(s.gridCols * s.gridRows).fill(false)
     s.popPulse = new Array(s.gridCols * s.gridRows).fill(0)
+    s.sheetGeneration++
     s.hasFinished = false
     s.particles = []
     s.popStreak = 0
     s.lastPopTime = -1
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
+    setVerifiedCount(0)
+    setTargetPopsDisplay(s.targetPops)
   }
 
   function finishCalibration() {
@@ -311,6 +390,62 @@ export default function BubbleWrapPop() {
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
     }
+  }
+
+  // Real "ha" verification: pop the bubble optimistically the instant the local
+  // burst detector fires (instant, satisfying feedback), but only count it toward
+  // real sheet progress once this confirms it -- same transcribe-then-match
+  // pattern Village Builder already uses, applied to a burst instead of a word.
+  //
+  // generation guards against a race where the child finishes/restarts the
+  // sheet (startNewSheet reassigns poppedFlags/verifiedFlags to new arrays)
+  // while a verification from the *previous* sheet is still in flight -- without
+  // it, a late result could flip a bubble on a sheet the child isn't even on.
+  async function verifyBurst(idx, generation, audioWindow, sampleRate, localScore) {
+    const s = stateRef.current
+    setVerifyToast({ status: 'checking', message: 'Checking your "ha"...' })
+
+    let matchScore = 0
+    let isValidAttempt = false
+    try {
+      const wavBlob = encodeWavMono(audioWindow, sampleRate)
+      const { transcript, confidence } = await transcribeAudio(wavBlob, 'burst.wav')
+      let result
+      try {
+        result = await scoreWord(transcript, HA_TARGET_WORD, confidence)
+      } catch (err) {
+        console.warn('Backend word-scoring unavailable, matching locally:', err)
+        const t = transcript.trim().toLowerCase()
+        result = { match_score: t.startsWith('ha') ? 1 : 0, is_valid_attempt: t.length > 0 }
+      }
+      matchScore = result.match_score
+      isValidAttempt = result.is_valid_attempt
+    } catch (err) {
+      // Transcription itself is unreachable (offline / whisper model not up) --
+      // fall back to trusting the local burst heuristic rather than stranding
+      // a kid mid-sheet because the verification service is down.
+      console.warn('Burst verification unavailable, trusting the local burst detector instead:', err)
+      matchScore = localScore
+      isValidAttempt = true
+    }
+
+    logBurstAttempt(matchScore, isValidAttempt)
+
+    if (generation !== s.sheetGeneration) return // sheet changed under us -- discard
+
+    const verified = matchScore >= HA_MATCH_THRESHOLD
+    if (verified) {
+      s.verifiedFlags[idx] = true
+      setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+      setVerifyToast({ status: 'verified', message: 'Great "ha"! 🎉' })
+    } else {
+      // Un-pop it -- the sound that triggered the optimistic pop wasn't
+      // actually a "ha", so this slot goes back to needing a real attempt.
+      s.poppedFlags[idx] = false
+      s.popPulse[idx] = 0
+      setVerifyToast({ status: 'rejected', message: 'Didn\'t quite catch a "ha" — try again!' })
+    }
+    setTimeout(() => setVerifyToast(cur => (cur && cur.message === (verified ? 'Great "ha"! 🎉' : 'Didn\'t quite catch a "ha" — try again!') ? null : cur)), VERIFY_TOAST_MS)
   }
 
   // Sheet-completion pacing only: asks the difficulty agent whether to grow/shrink the
@@ -410,36 +545,56 @@ export default function BubbleWrapPop() {
 
           let flags = result.poppedFlags
           s.popPulse[result.justPopped] = 1
+          const poppedIndices = [result.justPopped]
           for (let i = 0; i < bonus; i++) {
             const extra = popNextBubble(flags, score, s.popThreshold)
             if (extra.justPopped < 0) break
             flags = extra.poppedFlags
             s.popPulse[extra.justPopped] = 1
+            poppedIndices.push(extra.justPopped)
           }
           s.poppedFlags = flags
           playPopSound()
+
+          // Kick off real verification for every bubble this burst optimistically
+          // popped -- a streak bonus pop borrows the same burst audio since it's
+          // still one physical "ha", just counted as extra under the streak rule.
+          const clipDurationS = Math.max(MIN_VERIFY_CLIP_S, durationS + VERIFY_CLIP_PAD_S)
+          const audioWindow = readRingBufferWindow(s, clipDurationS)
+          const generation = s.sheetGeneration
+          if (audioWindow) {
+            for (const idx of poppedIndices) {
+              verifyBurst(idx, generation, audioWindow, s.ringSampleRate, score)
+            }
+          } else {
+            // No ring buffer audio available (shouldn't normally happen once
+            // mic setup succeeded) -- trust the local detector rather than
+            // leaving these bubbles permanently unverifiable.
+            for (const idx of poppedIndices) {
+              s.verifiedFlags[idx] = true
+              logBurstAttempt(score, isValidAttempt)
+            }
+            setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+          }
         } else {
           // A real attempt that didn't pop a bubble breaks the streak, same
           // as it would if this were a sustain mechanic losing voicing quality.
           s.popStreak = 0
         }
       }
-      // One backend event per detected burst, scored on real audio quality — matches
-      // how every other level logs one event per phoneme attempt.
-      logBurstAttempt(score, isValidAttempt)
       s.inBurst = false
       s.burstEnvelope = []
     }
 
     for (let i = 0; i < s.popPulse.length; i++) if (s.popPulse[i] > 0) s.popPulse[i] = Math.max(0, s.popPulse[i] - dt * 2.5)
 
-    const numPopped = s.poppedFlags.filter(Boolean).length
+    const numVerified = s.verifiedFlags.filter(Boolean).length
     if (rms < s.noiseFloor * 1.5) s.quietStreak += dt; else s.quietStreak = 0
-    setEncourageVisible(s.quietStreak > 4 && numPopped === 0)
+    setEncourageVisible(s.quietStreak > 4 && numVerified === 0)
 
     render()
 
-    if (numPopped >= s.targetPops && !s.hasFinished) {
+    if (numVerified >= s.targetPops && !s.hasFinished) {
       s.hasFinished = true
       onSheetSuccess()
     }
@@ -590,8 +745,14 @@ export default function BubbleWrapPop() {
           <button className="bwp-icon-btn" onClick={() => navigate('/play/chime')} aria-label="Back to Chime">
             <ArrowLeft size={20} />
           </button>
-          <div className={`bwp-encourage ${encourageVisible ? 'visible' : ''}`}>
-            Try a quick, strong "HA!" burst!
+          <div className="bwp-hud-center">
+            <div className="bwp-progress-pill">{verifiedCount} / {targetPopsDisplay} popped</div>
+            {verifyToast && (
+              <div className={`bwp-verify-toast bwp-verify-toast--${verifyToast.status}`}>{verifyToast.message}</div>
+            )}
+            <div className={`bwp-encourage ${encourageVisible ? 'visible' : ''}`}>
+              Try a quick, strong "HA!" burst!
+            </div>
           </div>
           <button className="bwp-icon-btn" onClick={() => setSettingsOpen(o => !o)} aria-label="Settings">
             <Settings size={20} />
@@ -662,6 +823,14 @@ export default function BubbleWrapPop() {
         .bwp-ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
         .bwp-hud { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 20px; z-index: 20; pointer-events: none; }
         .bwp-hud > * { pointer-events: auto; }
+        .bwp-hud-center { display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+        .bwp-hud-center > * { pointer-events: auto; }
+        .bwp-progress-pill { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: clamp(0.9rem, 3vw, 1.1rem); background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 999px; padding: 8px 20px; backdrop-filter: blur(8px); }
+        .bwp-verify-toast { font-weight: 700; font-size: clamp(0.85rem, 3vw, 1rem); border-radius: 999px; padding: 7px 18px; max-width: 70vw; text-align: center; animation: bwp-toast-in 0.2s ease; }
+        .bwp-verify-toast--checking { background: rgba(255,255,255,0.25); color: var(--cloud-white); }
+        .bwp-verify-toast--verified { background: var(--mint); color: #163019; }
+        .bwp-verify-toast--rejected { background: rgba(255,255,255,0.85); color: var(--cozy-deep); }
+        @keyframes bwp-toast-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
         .bwp-encourage { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: clamp(1rem, 3.5vw, 1.4rem); background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 999px; padding: 10px 22px; opacity: 0; transition: opacity 0.4s ease; max-width: 60vw; }
         .bwp-encourage.visible { opacity: 1; }
         .bwp-icon-btn { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 999px; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(0,0,0,0.2); padding: 0; color: var(--cloud-white); backdrop-filter: blur(8px); transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
