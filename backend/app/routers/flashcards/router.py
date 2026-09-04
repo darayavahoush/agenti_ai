@@ -23,7 +23,7 @@ from app.vaakmirror_auth import get_current_patient_id
 from app.database import get_db
 
 from .tts import speak as tts_speak, get_characters
-from .matcher import get_image_for_phrase
+from app.services.image.matcher import get_image_for_phrase
 from .processor import analyse_audio
 from .scorer import build_attempt_result
 from .grapheme_to_phoneme import get_phonemes
@@ -43,10 +43,20 @@ router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
 
 
 def _word_payload(word: str, language: str) -> dict:
+    # Used to read raw bytes straight out of data/flashcard_images/index.json --
+    # a small, hand-curated cache of old Wikimedia/OpenClipart scrapes, separate
+    # from (and lower quality than) the ARASAAC-backed image service Assessment's
+    # alphabet screen and VaakMirror already use. get_image_for_phrase gives real
+    # pictogram matches (with a semantic-similarity fallback for anything not
+    # pre-downloaded yet), same as everywhere else in the app -- this index.json
+    # lookup here is now only for confirming `word` is a real flashcard word;
+    # themes.py still owns the actual word list.
     with open(_INDEX_PATH) as f:
         index = json.load(f)
-    image_path = _DATA_DIR / index[word]
-    image_b64 = base64.b64encode(image_path.read_bytes()).decode() if image_path.exists() else None
+    if word not in index:
+        raise KeyError(word)
+    result = get_image_for_phrase(word)
+    image_b64 = base64.b64encode(result["image_bytes"]).decode() if result.get("found") and result.get("image_bytes") else None
     return {
         "word": word,
         "language": language,
@@ -157,7 +167,6 @@ async def image_endpoint(
         headers={
             "X-Matched-Word": result["matched_word"],
             "X-Match-Type": result["match_type"],
-            "X-Confidence": str(result["confidence"]),
         },
     )
 

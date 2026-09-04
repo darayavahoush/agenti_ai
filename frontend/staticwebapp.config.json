@@ -4,5 +4,18 @@
     "exclude": [
       "*.{css,scss,js,png,gif,ico,jpg,jpeg,svg,webp,woff,woff2,ttf,eot}"
     ]
+  },
+  "routes": [
+    {
+      "route": "/index.html",
+      "headers": { "Cache-Control": "no-cache" }
+    },
+    {
+      "route": "/assets/*",
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" }
+    }
+  ],
+  "globalHeaders": {
+    "Cache-Control": "no-cache"
   }
 }
