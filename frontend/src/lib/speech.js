@@ -66,9 +66,17 @@ function pickPreferredVoice() {
 
 let pendingSpeakTimer = null
 
-export function speak(text, { rate = 0.95, pitch = 1.0 } = {}) {
+// onEnd (optional) fires exactly once when this utterance finishes --
+// on the real 'end' event, on an 'error' (e.g. no matching voice), or
+// immediately if speech synthesis isn't available/there's no text at all.
+// Added so callers can gate a real state transition (not just a "hear it
+// again" button) on the instruction actually finishing, instead of a
+// guessed setTimeout duration racing against however long the sentence
+// actually takes a given device's voice to read -- see GamePage.jsx's
+// breathe-in cue, the bug this was written for.
+export function speak(text, { rate = 0.95, pitch = 1.0, onEnd } = {}) {
   try {
-    if (!text || !window.speechSynthesis) return
+    if (!text || !window.speechSynthesis) { onEnd?.(); return }
     if (pendingSpeakTimer) clearTimeout(pendingSpeakTimer)
     window.speechSynthesis.cancel()
     // Chrome and Firefox both have a long-standing bug where calling
@@ -89,10 +97,17 @@ export function speak(text, { rate = 0.95, pitch = 1.0 } = {}) {
       utter.lang = 'en-IN'
       const voice = pickPreferredVoice()
       if (voice) utter.voice = voice
+      if (onEnd) {
+        let fired = false
+        const fireOnce = () => { if (!fired) { fired = true; onEnd() } }
+        utter.onend = fireOnce
+        utter.onerror = fireOnce
+      }
       window.speechSynthesis.speak(utter)
     }, 80)
   } catch {
     // Ignore — voice is a layer on top of the visual UI, never load-bearing.
+    onEnd?.()
   }
 }
 
@@ -127,7 +142,7 @@ export function stopSpeaking() {
 // Safe under React StrictMode's dev-only double-invoke: the second
 // invocation sees the same (text, enabled) as the first and doesn't
 // re-fire, since prevRef is only updated once per actual effect run.
-export function useSpokenInstruction(text, { enabled = true, rate, pitch } = {}) {
+export function useSpokenInstruction(text, { enabled = true, rate, pitch, onEnd } = {}) {
   const prevRef = useRef({ text: null, enabled: false })
 
   useEffect(() => {
@@ -135,10 +150,10 @@ export function useSpokenInstruction(text, { enabled = true, rate, pitch } = {})
     const enabledRisingEdge = enabled && !prev.enabled
     const textChangedWhileEnabled = enabled && prev.enabled && text !== prev.text
     if (enabled && text && (enabledRisingEdge || textChangedWhileEnabled)) {
-      speak(text, { rate, pitch })
+      speak(text, { rate, pitch, onEnd })
     }
     prevRef.current = { text, enabled }
-  }, [text, enabled, rate, pitch])
+  }, [text, enabled, rate, pitch, onEnd])
 
-  return () => { if (text) speak(text, { rate, pitch }) }
+  return () => { if (text) speak(text, { rate, pitch, onEnd }) }
 }
