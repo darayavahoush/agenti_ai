@@ -16,8 +16,12 @@ import numpy as np
 import librosa
 from .common import FeatureResult
 
-MIN_PEAK_RMS = 0.05        # burst must be reasonably loud to register at all
-MAX_EXPECTED_PEAK_RMS = 0.4
+MIN_PEAK_RMS = 0.03        # burst must be reasonably loud to register at all
+                            # (lowered from 0.05 — was cutting off quieter but
+                            # genuine child bursts as silence)
+MAX_EXPECTED_PEAK_RMS = 0.2  # was 0.4, an adult-loudness ceiling a child's burst
+                              # rarely reaches on a typical laptop/tablet mic, which
+                              # kept full-effort "ha" bursts from ever scoring near 1.0
 MAX_BURST_DURATION_S = 0.5  # longer than this looks more like sustained "fa" than a "ha" burst
 
 

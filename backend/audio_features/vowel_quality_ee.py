@@ -18,12 +18,16 @@ import numpy as np
 import parselmouth
 from .common import FeatureResult
 
-# Typical adult "ee" (as in "see") formant targets in Hz. As with oo, kids'
-# formants run higher due to shorter vocal tracts — recalibrate against real
-# child speech samples before trusting this for scoring, not just prototyping.
-TARGET_F1 = 270.0
-TARGET_F2 = 2300.0
-FORMANT_TOLERANCE_HZ = 350.0  # wider than oo's tolerance — F2 for "ee" varies more across speakers
+# "ee" (as in "see") formant targets in Hz. As with oo, these were adult
+# values (F1=270, F2=2300) and kids' formants run higher due to shorter
+# vocal tracts — front vowels like "ee" show an especially large F2 gap
+# between children and adults. Shifted toward typical child-speech targets
+# and widened the tolerance so correct child attempts aren't scored as
+# off-target. Still a starting point pending recalibration against real
+# child speech samples, not a substitute for it.
+TARGET_F1 = 310.0
+TARGET_F2 = 2750.0
+FORMANT_TOLERANCE_HZ = 450.0  # wider than oo's tolerance — F2 for "ee" varies more across speakers
 
 MIN_VALID_DURATION_S = 0.15  # shorter than this, treat as not a real attempt
 

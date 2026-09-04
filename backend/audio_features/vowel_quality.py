@@ -14,13 +14,17 @@ import numpy as np
 import parselmouth
 from .common import FeatureResult
 
-# Typical adult "oo" (as in "boot") formant targets in Hz. Children's formants
-# run higher due to shorter vocal tracts — these need recalibration against
-# real child speech samples before this is trustworthy for scoring, not just
-# for the prototype.
-TARGET_F1 = 300.0
-TARGET_F2 = 870.0
-FORMANT_TOLERANCE_HZ = 250.0  # how far off-target still counts as "rounding toward oo"
+# "oo" (as in "boot") formant targets in Hz. Was set to adult values
+# (F1=300, F2=870, tolerance=250) — children's formants run meaningfully
+# higher than adults' due to shorter vocal tracts, so a child saying "oo"
+# correctly was consistently landing outside the adult tolerance band and
+# scoring low. Shifted toward typical child-speech targets (~15-25% higher,
+# per published pediatric formant norms) and widened the tolerance to
+# absorb the wider spread across ages. Still a starting point pending
+# recalibration against real child speech samples, not a substitute for it.
+TARGET_F1 = 380.0
+TARGET_F2 = 1050.0
+FORMANT_TOLERANCE_HZ = 350.0  # how far off-target still counts as "rounding toward oo"
 
 MIN_VALID_DURATION_S = 0.15  # shorter than this, treat as not a real attempt
 

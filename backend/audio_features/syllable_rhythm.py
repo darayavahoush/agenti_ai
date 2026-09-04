@@ -13,8 +13,13 @@ import numpy as np
 import librosa
 from .common import FeatureResult
 
-TARGET_ONSETS_PER_SEC = 2.5  # typical child DDK rate target, needs calibration
-TIMING_TOLERANCE_S = 0.15    # how close an onset needs to be to the target beat
+TARGET_ONSETS_PER_SEC = 2.0  # typical child DDK rate target (lowered from 2.5 —
+                              # young children's diadochokinetic rate runs slower
+                              # than the adult-typical ~5-6/sec this was closer to)
+TIMING_TOLERANCE_S = 0.25    # how close an onset needs to be to the target beat
+                              # (widened from 0.15 — a child's repetition rhythm is
+                              # naturally less metronomic than that tolerance allowed
+                              # for, so on-target attempts were still scoring low)
 
 
 def extract(audio_chunk: np.ndarray, sample_rate: int = 16000) -> FeatureResult:

@@ -31,6 +31,67 @@ INDIAN_ACCENT_EQUIVALENTS = {
     frozenset(["R", "RD"]),      # tapped r
 }
 
+def _is_accent_equivalent(ep: str, dp: str) -> bool:
+    return frozenset([ep, dp]) in INDIAN_ACCENT_EQUIVALENTS
+
+
+def _align(exp_upper: List[str], det_upper: List[str]) -> List[tuple]:
+    """
+    Backtrace the Levenshtein DP table to get an actual alignment between
+    expected and detected phonemes, instead of assuming they line up by
+    raw index. This matters because a single dropped or inserted phoneme
+    early in the word used to shift every phoneme after it out of sync,
+    marking correctly-produced sounds as wrong.
+
+    Substitution cost is 0 for an exact match or an accepted Indian-accent
+    equivalent, so the alignment itself prefers lining up sounds that are
+    "close enough" rather than the plain character-identity alignment a
+    generic Levenshtein would produce.
+
+    Returns a list of (op, exp_idx_or_None, det_idx_or_None) tuples where
+    op is one of "match", "sub", "del" (omission), "ins" (addition).
+    """
+    m, n = len(exp_upper), len(det_upper)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            ep, dpn = exp_upper[i - 1], det_upper[j - 1]
+            sub_cost = 0 if (ep == dpn or _is_accent_equivalent(ep, dpn)) else 1
+            dp[i][j] = min(
+                dp[i - 1][j - 1] + sub_cost,  # match/substitute
+                dp[i - 1][j] + 1,             # deletion (omission)
+                dp[i][j - 1] + 1,             # insertion (addition)
+            )
+
+    # Backtrace from (m, n) to (0, 0)
+    ops = []
+    i, j = m, n
+    while i > 0 or j > 0:
+        if i > 0 and j > 0:
+            ep, dpn = exp_upper[i - 1], det_upper[j - 1]
+            sub_cost = 0 if (ep == dpn or _is_accent_equivalent(ep, dpn)) else 1
+            if dp[i][j] == dp[i - 1][j - 1] + sub_cost:
+                ops.append(("match" if sub_cost == 0 else "sub", i - 1, j - 1))
+                i, j = i - 1, j - 1
+                continue
+        if i > 0 and dp[i][j] == dp[i - 1][j] + 1:
+            ops.append(("del", i - 1, None))
+            i -= 1
+            continue
+        if j > 0 and dp[i][j] == dp[i][j - 1] + 1:
+            ops.append(("ins", None, j - 1))
+            j -= 1
+            continue
+        # Shouldn't happen, but avoid an infinite loop on unexpected ties
+        break
+    ops.reverse()
+    return ops
+
+
 def score_phonemes(expected: List[str], detected: List[str]) -> PhonemeScores:
     matches = []
     error_types = set()
@@ -39,28 +100,34 @@ def score_phonemes(expected: List[str], detected: List[str]) -> PhonemeScores:
     exp_upper = [p.upper() for p in expected]
     det_upper = [p.upper() for p in detected]
 
-    for i, ep in enumerate(exp_upper):
-        if i < len(det_upper):
-            dp = det_upper[i]
-            correct = ep == dp
-            # Accept Indian accent equivalents as correct
-            if not correct:
-                pair = frozenset([ep, dp])
-                if pair in INDIAN_ACCENT_EQUIVALENTS:
-                    correct = True
-                    error_types.add("indian_variant")
-            # Partial credit: single-char near miss
-            if not correct:
-                if len(ep) == len(dp) == 1 and abs(ord(ep) - ord(dp)) <= 3:
-                    error_types.add("near_miss")
-                else:
-                    error_types.add("substitution")
-            matches.append(PhonemeMatch(expected=expected[i], detected=detected[i] if i < len(detected) else None, correct=correct))
-        else:
-            matches.append(PhonemeMatch(expected=expected[i], detected=None, correct=False))
+    ops = _align(exp_upper, det_upper)
+
+    for op, exp_idx, det_idx in ops:
+        if op == "ins":
+            # Extra detected phoneme with no corresponding expected one --
+            # doesn't produce a PhonemeMatch (nothing was "expected" here),
+            # but still counts toward the addition error type below.
+            continue
+
+        ep_display = expected[exp_idx]
+        dp_display = detected[det_idx] if det_idx is not None else None
+
+        if op == "match":
+            matches.append(PhonemeMatch(expected=ep_display, detected=dp_display, correct=True))
+            if exp_upper[exp_idx] != det_upper[det_idx]:
+                error_types.add("indian_variant")
+        elif op == "sub":
+            ep, dp = exp_upper[exp_idx], det_upper[det_idx]
+            if len(ep) == len(dp) == 1 and abs(ord(ep) - ord(dp)) <= 3:
+                error_types.add("near_miss")
+            else:
+                error_types.add("substitution")
+            matches.append(PhonemeMatch(expected=ep_display, detected=dp_display, correct=False))
+        elif op == "del":
+            matches.append(PhonemeMatch(expected=ep_display, detected=None, correct=False))
             error_types.add("omission")
 
-    if len(detected) > len(expected):
+    if any(op == "ins" for op, _, _ in ops):
         error_types.add("addition")
 
     dist = levenshtein(exp_upper, det_upper)
