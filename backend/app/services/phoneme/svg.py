@@ -84,7 +84,7 @@ MOUTH_SVGS = {
 
 "lips_closed_puff_voiceless": _wrap(
     _face() + _lips_sealed() + _puff(),
-    "lips shut → air puff, no voice",
+    "lips shut, then air puff, no voice",
     "/P/"
 ),
 
@@ -102,7 +102,7 @@ MOUTH_SVGS = {
 
 "tongue_tip_up_voiceless": _wrap(
     _face() + _lips_open() + _teeth_open() + _tongue_tip() + _puff(),
-    "tongue tip up → air puff",
+    "tongue tip up, then air puff",
     "/T/"
 ),
 
@@ -120,7 +120,7 @@ MOUTH_SVGS = {
 
 "tongue_back_up_voiceless": _wrap(
     _face() + _lips_open() + _teeth_open() + _tongue_back() + _puff(),
-    "back tongue → air puff",
+    "back tongue, then air puff",
     "/K/"
 ),
 
@@ -201,7 +201,7 @@ MOUTH_SVGS = {
 
 "lips_rounded_open": _wrap(
     _face() + _rounded_lips(28),
-    "tight circle → open wide",
+    "tight circle, then open wide",
     "/W/"
 ),
 
@@ -296,6 +296,75 @@ MOUTH_SVGS = {
   <text x="95" y="60" text-anchor="middle" font-size="8" fill="#FFD166" font-family="sans-serif">retroflex</text>''',
     "retroflex D — voiced",
     "/RD/"
+),
+
+"tongue_between_teeth_voiced": _wrap(
+    _face() + _lips_open() + '''
+  <rect x="58" y="66" width="74" height="10" rx="2" fill="white"/>
+  <rect x="58" y="78" width="74" height="10" rx="2" fill="white"/>
+  <ellipse cx="95" cy="74" rx="22" ry="7" fill="#E8756A" stroke="#C04848" stroke-width="1.5"/>
+  <path d="M 140 71 L 162 67" stroke="#6AABFF" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M 140 74 L 165 74" stroke="#6AABFF" stroke-width="2" fill="none" stroke-linecap="round"/>''' + _voiced(),
+    "tongue between teeth, buzzing",
+    "/DH/"
+),
+
+"mouth_relaxed_open": _wrap(
+    _face() + '''
+  <path d="M 52 68 Q 70 61 95 60 Q 120 61 138 68" fill="#CC5548" stroke="#AA3830" stroke-width="1"/>
+  <path d="M 52 82 Q 70 91 95 92 Q 120 91 138 82" fill="#CC5548" stroke="#AA3830" stroke-width="1"/>
+  <rect x="58" y="66" width="74" height="9" rx="2" fill="white"/>
+  <rect x="58" y="79" width="74" height="9" rx="2" fill="white"/>
+  <ellipse cx="95" cy="75" rx="32" ry="13" fill="#1a0000" opacity="0.5"/>''',
+    "relaxed open, cup / grunt",
+    "/AH/"
+),
+
+"lips_rounded_relaxed": _wrap(
+    _face() + '''
+  <ellipse cx="95" cy="74" rx="20" ry="17" fill="none" stroke="#CC5548" stroke-width="5"/>
+  <ellipse cx="95" cy="74" rx="9" ry="8" fill="#1a0000" opacity="0.6"/>''',
+    "loose round, book / put",
+    "/UH/"
+),
+
+"lips_rounding_glide": _wrap(
+    _face() + '''
+  <ellipse cx="95" cy="74" rx="32" ry="22" fill="none" stroke="#CC5548" stroke-width="3" stroke-dasharray="3,3" opacity="0.5"/>''' + _rounded_lips(16) + '''
+  <path d="M 128 60 Q 138 74 128 88" stroke="#FFD166" stroke-width="1.5" fill="none" stroke-dasharray="2,2" marker-end="none"/>''',
+    "lips round as it glides, go",
+    "/OW/"
+),
+
+"lips_spread_glide": _wrap(
+    _face() + '''
+  <path d="M 50 66 Q 70 58 95 57 Q 120 58 140 66" fill="#CC5548" stroke="#AA3830" stroke-width="1"/>
+  <path d="M 50 82 Q 70 92 95 94 Q 120 92 140 82" fill="#CC5548" stroke="#AA3830" stroke-width="1"/>
+  <rect x="56" y="64" width="78" height="10" rx="2" fill="white"/>
+  <rect x="56" y="80" width="78" height="10" rx="2" fill="white"/>
+  <ellipse cx="95" cy="74" rx="36" ry="13" fill="#1a0000" opacity="0.55"/>
+  <path d="M 46 72 Q 70 63 95 62 Q 120 63 144 72" stroke="#FFD166" stroke-width="1.5" fill="none" stroke-dasharray="2,2" opacity="0.8"/>''',
+    "half open, glides into a smile",
+    "/EY/"
+),
+
+"mouth_wide_glide_close": _wrap(
+    _face() + '''
+  <path d="M 46 62 Q 68 50 95 48 Q 122 50 144 62" fill="#CC5548" stroke="#AA3830" stroke-width="1.5"/>
+  <path d="M 46 88 Q 68 102 95 104 Q 122 102 144 88" fill="#CC5548" stroke="#AA3830" stroke-width="1.5"/>
+  <rect x="52" y="60" width="86" height="11" rx="2" fill="white"/>
+  <rect x="52" y="85" width="86" height="11" rx="2" fill="white"/>
+  <ellipse cx="95" cy="76" rx="40" ry="18" fill="#1a0000" opacity="0.6"/>
+  <path d="M 62 72 Q 78 70 95 70 Q 112 70 128 72" stroke="#FFD166" stroke-width="1.5" fill="none" stroke-dasharray="2,2" opacity="0.8"/>''',
+    "wide open, glides toward a smile",
+    "/AY/"
+),
+
+"tongue_curled_mid": _wrap(
+    _face() + _lips_open() + _teeth_open() + '''
+  <path d="M 68 84 Q 78 79 86 75 Q 92 72 97 73 Q 102 70 99 67" stroke="#E8756A" stroke-width="3" fill="none" stroke-linecap="round"/>''',
+    "tongue curls mid, like r",
+    "/ER/"
 ),
 
 }
