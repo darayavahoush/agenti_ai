@@ -79,8 +79,13 @@ export default function LevelSelect() {
                 onClick={() => unlocked && navigate(`/play/game/${level.id}`)}
                 onMouseEnter={() => setHovering(level.id)}
                 onMouseLeave={() => setHovering(null)}
+                // Mirrors onMouseEnter so touch devices get the same
+                // glow/border treatment immediately on tap instead of only
+                // after a hover event that touchscreens never fire.
+                onTouchStart={() => unlocked && setHovering(level.id)}
                 disabled={!unlocked}
                 className="relative text-left rounded-2xl overflow-hidden transition-all duration-200
+                           active:scale-[0.97]
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
                            focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d1a]"
                 style={{
