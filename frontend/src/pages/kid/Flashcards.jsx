@@ -11,6 +11,8 @@ import { evaluateAttempt, speakWord, getRandomWord, getThemes, getPhonemeCard } 
 import { getErrorMessage } from "../../api/client";
 import { speak as speakBrowserTTS } from "../../lib/speech";
 import { friendlyPhoneme, phonemeExample } from "../../flashcards/utils/phonemeMap";
+import { mouthShapeForArpabet } from "../../flashcards/utils/mouthShapeFromPhoneme";
+import MouthShapeGuide from "../../vaakmirror/components/MouthShapeGuide";
 import { getTheme, getSurface } from "../../flashcards/utils/themes";
 import PhonemeHelp from "../../flashcards/PhonemeHelp";
 
@@ -403,9 +405,24 @@ export default function Flashcards() {
                         <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "1.1rem", color: th.accent, fontWeight: 700 }}>{friendlyPhoneme(exploredPhoneme)}</span>
                         <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.65rem", opacity: 0.7 }}>/{exploredPhoneme}/</span>
                       </div>
-                      {exploredCard.mouth_svg && (
-                        <div style={{ width: "220px", height: "180px", flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: exploredCard.mouth_svg }} />
-                      )}
+                      {(() => {
+                        // Same real illustrated mouth-shape photos Assessment's
+                        // alphabet screen and every vaakmirror game use, instead
+                        // of the backend's abstract line-art SVG -- only for
+                        // phonemes the shared taxonomy actually covers (see
+                        // mouthShapeFromPhoneme.js for why vowels fall back).
+                        const realShape = mouthShapeForArpabet(exploredPhoneme)
+                        if (realShape) {
+                          return (
+                            <div style={{ width: "180px", height: "180px", flexShrink: 0 }}>
+                              <MouthShapeGuide shape={realShape.shape} manner={realShape.manner} className="w-full h-full" />
+                            </div>
+                          )
+                        }
+                        return exploredCard.mouth_svg ? (
+                          <div style={{ width: "220px", height: "180px", flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: exploredCard.mouth_svg }} />
+                        ) : null
+                      })()}
                       {exploredCard.tip && (
                         <p style={{ color: th.sub, fontSize: "0.95rem", margin: 0, lineHeight: 1.6, textAlign: "center" }}>
                           {exploredCard.tip}
