@@ -756,7 +756,7 @@ _ACCESS_TOKEN_FACTORIES = {
 
 @router.post("/refresh", response_model=RefreshTokenResponse)
 async def refresh_access_token(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
-    token = await get_valid_refresh_token(db, data.refresh_token)
+    token = await get_valid_refresh_token(db, data.refresh_token, allow_recent_reuse=True)
     if token is None:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
