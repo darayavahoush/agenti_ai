@@ -346,8 +346,15 @@ export default function XylophoneTower() {
         transcript = res.transcript || ''
       } catch (err) {
         console.warn('Backend transcription unavailable — window left unverified, provisional climb stands:', err)
+        transcript = null
       }
-      if (!isSustainedVowel(transcript, 'e')) {
+      // An empty-but-successful transcript is common for a real sustained
+      // "eeee" — Whisper often can't render a pure non-lexical vowel as text
+      // at all, even when it was said perfectly. Only retract when we got a
+      // real, non-empty transcript that clearly isn't the target vowel; a
+      // failed request or a blank result is treated as unverifiable, not as
+      // proof the sound was wrong.
+      if (transcript !== null && transcript.trim() && !isSustainedVowel(transcript, 'e')) {
         s.height = Math.max(0, s.height - gained)
         s.sustainedSeconds = 0
         playRetract()

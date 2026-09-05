@@ -379,8 +379,11 @@ export default function LionsRoar() {
       // transcript doesn't look growl-like at all, retract the whole
       // window's worth rather than guess a partial count. A failed
       // transcription (transcript === null) leaves the window unverified
-      // instead of retracting, same as Firefly Jar's fallback.
-      if (transcript !== null && !isGrowlSound(transcript)) {
+      // instead of retracting, same as Firefly Jar's fallback — and so does
+      // a request that succeeded but came back blank: Whisper commonly
+      // fails to render a growl as text at all even when it was a real,
+      // strong "rrrr", so an empty result isn't evidence the roar was fake.
+      if (transcript !== null && transcript.trim() && !isGrowlSound(transcript)) {
         s.roarsDone = Math.max(s.windowStartRoarsDone, 0)
         s.holdSeconds = 0
         s.inRoar = false
