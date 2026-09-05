@@ -603,6 +603,9 @@ Then `alembic upgrade head` from `backend/` as above.
 - Archived an orphaned, never-mounted second LangGraph pipeline (`routes/speech.py`) in favor of the one actually in use (`routes/assessment.py`)
 - Added therapist-launched Assessment/Live Therapy sessions, a "today's recommendation" card driven by the adaptive-difficulty agent, and dashboard visibility for assessment-linked patients with no game history yet
 - Removed dead/orphaned routes and pre-merge auth code left over from the consolidation
+- Flashcards' word images now come from the same ARASAAC-backed pictogram service Assessment and VaakMirror use, replacing a smaller hand-curated Wikimedia/OpenClipart cache
+- Fixed a Chime bug where the periodic "did they really make this sound" ASR verification would retract a child's already-earned progress (climb/depth/roars/fireflies/bubbles) whenever Whisper returned an empty transcript for a sustained non-lexical sound (eeee/aaaa/oooo/rrrr/ma/ya) — common even on a correct attempt — or whenever the transcription request itself failed; both cases are now treated as unverified rather than as a wrong sound, across Xylophone Tower, Rocket Launch, Submarine Dive, Wind Chime Garden, Lion's Roar, and Firefly Jar
+- Fixed 7 of 35 Flashcards phoneme mouth-diagrams (`DH`, `AH`, `UH`, `OW`, `EY`, `AY`, `ER`) silently falling back to the wrong diagram (`EH`'s "half-open mouth") because their `mouth_shape` keys had never been added to the diagram library; added real diagrams for each
 
 ## Technologies
 
