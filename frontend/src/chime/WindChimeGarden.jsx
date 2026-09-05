@@ -430,8 +430,14 @@ export default function WindChimeGarden() {
         transcript = res.transcript || ''
       } catch (err) {
         console.warn('Backend transcription unavailable — window left unverified, provisional bubbles stand:', err)
+        transcript = null
       }
-      if (!isYaSound(transcript)) {
+      // An empty-but-successful transcript is common for a real "ya" — Whisper
+      // often can't render a short glide+vowel as text at all, even when it
+      // was said perfectly. Only retract when we got a real, non-empty
+      // transcript that clearly isn't "ya"; a failed request or a blank
+      // result is treated as unverifiable, not as proof the sound was wrong.
+      if (transcript !== null && transcript.trim() && !isYaSound(transcript)) {
         // Un-spawn exactly the bubbles this window optimistically added — by
         // reference, not by count, so a bubble from an already-confirmed
         // earlier window can never accidentally get swept up here.

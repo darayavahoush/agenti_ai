@@ -372,19 +372,27 @@ export default function FireflyJar() {
         transcript = res.transcript || ''
       } catch (err) {
         console.warn('Backend transcription unavailable — window left unverified, provisional catches stand:', err)
+        transcript = null
       }
-      const maCount = countMaOccurrences(transcript)
-      const confirmedCount = Math.min(addedThisWindow, maCount)
-      const toRetract = addedThisWindow - confirmedCount
+      // A blank result is common even for a real "ma" burst — Whisper can
+      // fail to render a short vocalization as text at all. Treat "got
+      // nothing back" (failed request or empty transcript) as unverifiable
+      // rather than as zero confirmed "ma"s, so a real catch is never
+      // retracted just because the STT model came up empty.
+      if (transcript !== null && transcript.trim()) {
+        const maCount = countMaOccurrences(transcript)
+        const confirmedCount = Math.min(addedThisWindow, maCount)
+        const toRetract = addedThisWindow - confirmedCount
 
-      if (toRetract > 0) {
-        s.jarFireflies.splice(s.jarFireflies.length - toRetract, toRetract)
-        s.firefliesCaught = Math.max(s.windowStartFirefliesCaught + confirmedCount, 0)
-        s.catchStreak = 0
-        playRetract()
-        setAriaMsg(confirmedCount > 0
-          ? `Heard ${confirmedCount} clear "ma"! ${toRetract} didn't quite sound like "ma" — try again.`
-          : 'That wasn\'t quite "ma" — try again!')
+        if (toRetract > 0) {
+          s.jarFireflies.splice(s.jarFireflies.length - toRetract, toRetract)
+          s.firefliesCaught = Math.max(s.windowStartFirefliesCaught + confirmedCount, 0)
+          s.catchStreak = 0
+          playRetract()
+          setAriaMsg(confirmedCount > 0
+            ? `Heard ${confirmedCount} clear "ma"! ${toRetract} didn't quite sound like "ma" — try again.`
+            : 'That wasn\'t quite "ma" — try again!')
+        }
       }
     }
 

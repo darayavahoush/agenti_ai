@@ -450,8 +450,15 @@ export default function SubmarineDive() {
         transcript = res.transcript || ''
       } catch (err) {
         console.warn('Backend transcription unavailable — window left unverified, provisional dive stands:', err)
+        transcript = null
       }
-      if (!isSustainedVowel(transcript, 'o')) {
+      // An empty-but-successful transcript is common for a real sustained
+      // "oooo" — Whisper often can't render a pure non-lexical vowel as text
+      // at all, even when it was said perfectly. Only retract when we got a
+      // real, non-empty transcript that clearly isn't the target vowel; a
+      // failed request or a blank result is treated as unverifiable, not as
+      // proof the sound was wrong.
+      if (transcript !== null && transcript.trim() && !isSustainedVowel(transcript, 'o')) {
         s.depth = Math.max(0, s.depth - gained)
         s.sustainedSeconds = 0
         playRetract()
