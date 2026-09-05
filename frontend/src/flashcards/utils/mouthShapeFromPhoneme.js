@@ -8,11 +8,18 @@ import { SOUNDS } from '../../vaakmirror/data/soundTaxonomy'
 // so Flashcards can show the same real photos instead of the backend's
 // abstract line-art SVG.
 //
-// Deliberately CONSONANTS ONLY. Vowels have no entry here on purpose: the
-// 8 existing shape images were illustrated for consonant articulation
-// (lip/teeth/tongue placement), and forcing a vowel onto the closest-looking
-// one risks showing a child an inaccurate mouth position for a sound this
-// app is actively trying to teach them to produce correctly. Better to fall
+// Deliberately CONSONANTS ONLY (vowels excluded on purpose -- see below).
+// Glides (W, Y) ARE included: soundTaxonomy.js has real dedicated entries
+// for 'w' (round-forward, same bucket as sh/ch/j) and 'y' (wide-narrow,
+// same bucket as s/z/r) -- they were just missing from this bridge, so W
+// and Y were falling back to the plainer backend SVG despite a real photo
+// already existing for them.
+//
+// Vowels have no entry here on purpose: the existing shape images were
+// illustrated for consonant/glide articulation (lip/teeth/tongue
+// placement), and forcing a vowel onto the closest-looking one risks
+// showing a child an inaccurate mouth position for a sound this app is
+// actively trying to teach them to produce correctly. Better to fall
 // back to the existing (already-correct, just plainer) backend SVG for
 // vowels than to guess.
 const ARPABET_TO_TAXONOMY_ID = {
@@ -25,13 +32,15 @@ const ARPABET_TO_TAXONOMY_ID = {
   NG: 'g',   // no dedicated velar-nasal image yet; k/g's back-of-mouth closure is the closest visual proxy
   TH: 'f',   // interdental th has no image of its own yet; lip-teeth is the closest available approximation, not a perfect substitute
   DH: 'v',
+  W: 'w',
+  Y: 'y',
 }
 
 const byId = Object.fromEntries(SOUNDS.map(s => [s.id, s]))
 
 // Returns { shape, manner } for a real mouth-shape illustration, or null if
-// this phoneme isn't covered (vowels, glides, HH) -- callers should fall
-// back to their existing rendering in that case.
+// this phoneme isn't covered (vowels, HH) -- callers should fall back to
+// their existing rendering in that case.
 export function mouthShapeForArpabet(phoneme) {
   const base = (phoneme || '').replace(/[0-9]/g, '').toUpperCase()
   const taxonomyId = ARPABET_TO_TAXONOMY_ID[base]
