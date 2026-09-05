@@ -1,4 +1,4 @@
-import { Smile, Wand2, Music, Users, Blend } from 'lucide-react'
+import { Smile, Music, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import GameCard from './components/GameCard.jsx'
 import MouthMotif from './components/MouthMotif.jsx'
@@ -67,14 +67,13 @@ export default function Landing() {
       <section className="max-w-6xl mx-auto px-6 py-20">
         <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
           <div>
-            <h2 className="font-vm-display text-3xl font-bold text-ink mb-2">Four ways to practice</h2>
+            <h2 className="font-vm-display text-3xl font-bold text-ink mb-2">Two ways to practice</h2>
             <p className="text-ink/55 max-w-lg">
-              Each game targets a different skill — shape matching, tongue positioning,
-              sound-to-shape timing, and telling two similar sounds apart.
+              Each game targets a different skill — shape matching, and sound-to-shape timing.
             </p>
           </div>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid md:grid-cols-2 gap-5">
           <GameCard
             to="/play/vaakmirror/mirror-mirror"
             eyebrow="Game 1"
@@ -84,30 +83,12 @@ export default function Landing() {
             icon={Smile}
           />
           <GameCard
-            to="/play/vaakmirror/tongue-tamer"
-            eyebrow="Game 2"
-            title="Tongue Tamer"
-            blurb="Follow the animated tongue to the roof of your mouth, behind your teeth, and back."
-            accent="#2FB8A6"
-            icon={Wand2}
-            live={true}
-          />
-          <GameCard
             to="/play/vaakmirror/lip-sync-hero"
-            eyebrow="Game 3"
+            eyebrow="Game 2"
             title="Lip Sync Hero"
             blurb="Catch each sound as it reaches you by shaping your mouth in time."
             accent="#F0604A"
             icon={Music}
-            live={true}
-          />
-          <GameCard
-            to="/play/vaakmirror/minimal-pair-drill"
-            eyebrow="Game 4"
-            title="Minimal Pair Drill"
-            blurb="Practice two easily-confused sounds back to back — like s/sh or l/r — picked from what this kid actually struggles with."
-            accent="#8B7FD6"
-            icon={Blend}
             live={true}
           />
         </div>
