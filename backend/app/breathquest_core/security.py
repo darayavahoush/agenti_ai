@@ -161,10 +161,34 @@ async def create_refresh_token(db: AsyncSession, owner_kind: str, owner_id: str)
     return raw_token
 
 
-async def get_valid_refresh_token(db: AsyncSession, raw_token: str):
+REFRESH_TOKEN_REUSE_GRACE_SECONDS = 15
+# /auth/refresh hard-revokes the old refresh token the instant a new one is
+# issued (see refresh_access_token). That's correct in general (rotation is
+# what makes a leaked-then-used token only good for one use), but it has a
+# real failure mode: two tabs/devices sharing one login can both have access
+# tokens expire around the same moment, both hit a 401, and both race into
+# _attemptSilentRefresh() independently -- the frontend's in-flight dedup
+# only covers one browser tab's JS memory, not other tabs or devices. The
+# loser of that race gets a real 401 from a token that WAS valid a moment
+# ago, and the frontend interceptor treats any refresh failure as a dead
+# session: it wipes localStorage and hard-redirects to login, for everyone,
+# even though the account's session was completely fine seconds earlier.
+# A short grace window on a *just*-revoked token absorbs that race without
+# reopening the actual security case rotation exists for (a token revoked
+# more than ~15s ago, or one that's ever been used to complete a full
+# rotation once already via this grace path, still fails as it should).
+
+
+async def get_valid_refresh_token(db: AsyncSession, raw_token: str, allow_recent_reuse: bool = False):
     """Returns the RefreshToken row if raw_token hashes to a stored,
-    unrevoked, unexpired token -- else None. Caller decides what to do
-    with None (401 for /refresh, treat /logout as already-logged-out)."""
+    unrevoked (or revoked within the reuse grace window, if allowed),
+    unexpired token -- else None. Caller decides what to do with None (401
+    for /refresh, treat /logout as already-logged-out).
+
+    allow_recent_reuse=True is for the /auth/refresh path only -- see
+    REFRESH_TOKEN_REUSE_GRACE_SECONDS above. Logout intentionally never
+    passes this: an explicit logout should be an immediate, unambiguous
+    revoke regardless of any in-flight race elsewhere."""
     from app.models.breathquest_models import RefreshToken
 
     result = await db.execute(
@@ -174,7 +198,12 @@ async def get_valid_refresh_token(db: AsyncSession, raw_token: str):
     if token is None:
         return None
     if token.revoked_at is not None:
-        return None
+        within_grace = (
+            allow_recent_reuse
+            and (datetime.now(timezone.utc) - token.revoked_at).total_seconds() <= REFRESH_TOKEN_REUSE_GRACE_SECONDS
+        )
+        if not within_grace:
+            return None
     if token.expires_at <= datetime.now(timezone.utc):
         return None
     return token

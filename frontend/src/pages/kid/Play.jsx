@@ -42,10 +42,10 @@ const EMBERS = [
 
 // Small inline "hear it again" affordance, reused across every spoken
 // screen in this file so the tap target and icon are consistent.
-function SpeakButton({ onClick, className = 'text-white/25 hover:text-white/50' }) {
+function SpeakButton({ onClick, className = 'text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90' }) {
   return (
     <button onClick={onClick} className={`inline-flex transition-colors ${className}`} aria-label="Hear this again">
-      <Volume2 className="w-3.5 h-3.5" />
+      <Volume2 className="w-4 h-4" />
     </button>
   )
 }
@@ -616,7 +616,7 @@ export default function KidPlay() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
           <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center flex items-center justify-center gap-2">
-            Create Account <SpeakButton onClick={replayRegister} className="text-white/25 hover:text-white/50" />
+            Create Account <SpeakButton onClick={replayRegister} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" />
           </h1>
 
           {/* Name */}
@@ -737,7 +737,7 @@ export default function KidPlay() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
           <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center flex items-center justify-center gap-2">
-            Welcome Back! <SpeakButton onClick={replayLogin} className="text-white/25 hover:text-white/50" />
+            Welcome Back! <SpeakButton onClick={replayLogin} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" />
           </h1>
 
           {sessionExpired && (
@@ -877,7 +877,7 @@ export default function KidPlay() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </button>
           <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center flex items-center justify-center gap-2">
-            Find Your Name <SpeakButton onClick={replayAssessment} className="text-white/25 hover:text-white/50" />
+            Find Your Name <SpeakButton onClick={replayAssessment} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" />
           </h1>
 
           {candidatesLoading && <p className="text-white/40 text-center text-sm mb-4">Loading…</p>}

@@ -415,8 +415,8 @@ export default function GamePage() {
               <h2 className="font-display text-4xl font-black text-white mb-1">{meta.name}</h2>
               <p className="text-white/40 mb-2 flex items-center justify-center gap-1.5">
                 {meta.tagline}
-                <button onClick={replayReady} className="text-white/25 hover:text-white/50 transition-colors" aria-label="Hear this again">
-                  <Volume2 size={14} />
+                <button onClick={replayReady} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90 transition-colors" aria-label="Hear this again">
+                  <Volume2 size={16} />
                 </button>
               </p>
 
@@ -480,8 +480,8 @@ export default function GamePage() {
               </h2>
               <p className="text-white/40 flex items-center justify-center gap-1.5">
                 Fill up your belly like a balloon… then get ready to blow 💨
-                <button onClick={replayBreathe} className="text-white/25 hover:text-white/50 transition-colors" aria-label="Hear this again">
-                  <Volume2 size={14} />
+                <button onClick={replayBreathe} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90 transition-colors" aria-label="Hear this again">
+                  <Volume2 size={16} />
                 </button>
               </p>
             </div>

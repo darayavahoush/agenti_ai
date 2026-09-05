@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { getPhonemeCard } from "./lib/api";
 import { friendlyPhoneme } from "./utils/phonemeMap";
 import { getSurface } from "./utils/themes";
+import { mouthShapeForArpabet } from "./utils/mouthShapeFromPhoneme";
+import MouthShapeGuide from "../vaakmirror/components/MouthShapeGuide";
 
 // "How to fix these sounds" -- one mouth-shape diagram + tip per phoneme
 // the kid got wrong on this attempt. Bonus feedback only: doesn't touch
@@ -40,9 +42,24 @@ export default function PhonemeHelp({ matches, th, darkMode = false }) {
             </div>
             {card === undefined && <p style={{ color: th.sub, fontSize: "0.8rem", margin: 0 }}>Loading...</p>}
             {card === null && <p style={{ color: th.sub, fontSize: "0.8rem", margin: 0 }}>No tip available for this sound yet.</p>}
-            {card?.mouth_svg && (
-              <div style={{ width: "190px", height: "120px", alignSelf: "center" }} dangerouslySetInnerHTML={{ __html: card.mouth_svg }} />
-            )}
+            {card && (() => {
+              // Same real illustrated mouth-shape photos the explore panel
+              // (Flashcards.jsx) and every vaakmirror game use, instead of
+              // the backend's abstract line-art SVG -- only for phonemes the
+              // shared taxonomy actually covers (see mouthShapeFromPhoneme.js
+              // for why vowels fall back to the SVG).
+              const realShape = mouthShapeForArpabet(ph);
+              if (realShape) {
+                return (
+                  <div style={{ width: "160px", height: "120px", alignSelf: "center" }}>
+                    <MouthShapeGuide shape={realShape.shape} manner={realShape.manner} className="w-full h-full" />
+                  </div>
+                );
+              }
+              return card.mouth_svg ? (
+                <div style={{ width: "190px", height: "120px", alignSelf: "center" }} dangerouslySetInnerHTML={{ __html: card.mouth_svg }} />
+              ) : null;
+            })()}
             {card?.tip && (
               <p style={{ color: th.text, fontSize: "0.85rem", margin: 0, lineHeight: 1.6, paddingLeft: "12px", borderLeft: `3px solid ${th.accent}` }}>
                 {card.tip}
