@@ -34,13 +34,14 @@ const ARPABET_TO_TAXONOMY_ID = {
   DH: 'v',
   W: 'w',
   Y: 'y',
+  HH: 'h',   // soundTaxonomy has a dedicated glottal entry (neutral-open) -- just wasn't bridged from ARPAbet yet
 }
 
 const byId = Object.fromEntries(SOUNDS.map(s => [s.id, s]))
 
 // Returns { shape, manner } for a real mouth-shape illustration, or null if
-// this phoneme isn't covered (vowels, HH) -- callers should fall back to
-// their existing rendering in that case.
+// this phoneme isn't covered (vowels) -- callers should fall back to their
+// existing rendering in that case.
 export function mouthShapeForArpabet(phoneme) {
   const base = (phoneme || '').replace(/[0-9]/g, '').toUpperCase()
   const taxonomyId = ARPABET_TO_TAXONOMY_ID[base]
