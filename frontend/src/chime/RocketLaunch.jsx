@@ -38,7 +38,7 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // still rise the instant it hears anything loud (so it stays snappy), but a
 // wrong sound's climb only survives for up to ~700ms before being reverted,
 // instead of up to 2s.
-const VERIFY_WINDOW_MS = 700
+const VERIFY_WINDOW_MS = 450
 
 // Below this combined formant-quality/duration score (see
 // vowel_quality_aa.py's FeatureResult.score), a window's climb gets given
@@ -215,8 +215,7 @@ export default function RocketLaunch() {
     inVoicing: false, voicingScores: [], sustainedSeconds: 0, quietGraceRemaining: 0,
     scrollY: 0,
     W: 0, H: 0, DPR: 1,
-    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
-    windowStartAltitude: 0,
+    // Verification window timing — see VERIFY_WINDOW_MS above.
     verifyTimer: null, mediaRecorderRef: null,
   })
 
@@ -399,16 +398,24 @@ export default function RocketLaunch() {
     startVerificationWindow()
   }
 
-  // Records a rolling ~2s clip of whatever the mic hears, independent of the
-  // client-side loudness detector above. Altitude has already been climbing
-  // for the whole window (for snappy feedback — see gameLoop), but that climb
-  // isn't "confirmed" until this resolves: only altitude gained during a
-  // window backed by a real sustained vowel gets to stay.
+  // Records rolling ~450ms clips of whatever the mic hears, independent of
+  // the client-side loudness detector above. Altitude has already been
+  // climbing for the whole window (for snappy feedback — see gameLoop), but
+  // that climb isn't "confirmed" until scoring resolves: only altitude
+  // gained during a window backed by a real sustained vowel gets to stay.
+  //
+  // Recording and scoring are decoupled: the next window starts the instant
+  // this one's clip is captured, without waiting on the network round-trip
+  // for the previous window's score. Each window snapshots its own altitude
+  // delta synchronously in onstop (before any await), so a slow or
+  // out-of-order backend response can only ever retract *that window's own*
+  // climb -- it can't touch progress a later window has already earned,
+  // regardless of which network response comes back first.
   function startVerificationWindow() {
     const s = stateRef.current
     if (s.hasLaunched || !s.mediaStream) return
 
-    s.windowStartAltitude = s.altitude
+    const windowStartAltitude = s.altitude
 
     const chunks = []
     let recorder
@@ -419,7 +426,11 @@ export default function RocketLaunch() {
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
-    recorder.onstop = () => finishVerificationWindow(chunks)
+    recorder.onstop = () => {
+      const gained = Math.max(0, s.altitude - windowStartAltitude)
+      if (!s.hasLaunched) startVerificationWindow()
+      finishVerificationWindow(chunks, gained)
+    }
     s.mediaRecorderRef = recorder
     recorder.start()
     s.verifyTimer = setTimeout(() => {
@@ -427,9 +438,8 @@ export default function RocketLaunch() {
     }, VERIFY_WINDOW_MS)
   }
 
-  async function finishVerificationWindow(chunks) {
+  async function finishVerificationWindow(chunks, gained) {
     const s = stateRef.current
-    const gained = Math.max(0, s.altitude - s.windowStartAltitude)
 
     if (gained > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
@@ -454,15 +464,16 @@ export default function RocketLaunch() {
       }
     }
 
-    // Only check launch completion here, after this window's altitude is
-    // final — not the instant a provisional climb hits 1.0 in gameLoop,
-    // since that provisional altitude could still get given back moments later.
+    // Only check launch completion here, after this window's altitude
+    // correction (if any) has been applied -- not the instant a provisional
+    // climb hits 1.0 in gameLoop, since that provisional altitude could
+    // still get given back moments later. The next window is already
+    // recording by the time this runs (started in onstop above), so this
+    // check doesn't gate anything else.
     if (s.altitude >= 0.999 && !s.hasLaunched) {
       s.hasLaunched = true
       onLaunchSuccess()
-      return
     }
-    if (!s.hasLaunched) startVerificationWindow()
   }
 
   // Logs one real per-attempt event per sustained stretch of loud "aaa" voicing,
