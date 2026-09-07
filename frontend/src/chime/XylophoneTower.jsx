@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -12,22 +12,26 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // Rolling window for real speech verification — same approach as Rocket
 // Launch's altitude climb, adapted here for height. Height still rises the
 // instant a loud sound is detected (kids need snappy feedback), but every
-// ~2s the window's audio gets transcribed and checked for a real sustained
-// "e" vowel (the "eeee" this game asks for). If it wasn't real voicing,
-// whatever height that window gained is quietly given back.
+// ~2s the window's audio gets sent to the backend's formant-based
+// /chime/phoneme/score/ee endpoint and checked for real "ee" vowel quality
+// (not a Whisper transcript). If it wasn't a genuine held "eeee", whatever
+// height that window gained is quietly given back.
+//
+// This replaces the previous Whisper-transcript verification, for the same
+// reason RocketLaunch's was replaced (see that file's comment): Whisper
+// doesn't reliably render a pure sustained vowel as a clean word, and this
+// endpoint sidesteps that whole class of false negative since it never goes
+// through a language model at all. Like "oo", "ee" already had a real
+// formant-tracking extractor on the backend (backend/audio_features/
+// vowel_quality_ee.py) -- it just wasn't wired into this game's frontend yet.
 const VERIFY_WINDOW_MS = 2000
 
-// Whisper doesn't reliably render a pure sustained vowel as one clean word —
-// it commonly comes back as "e", "ee", "eee", or a run of the vowel itself
-// rather than a consistent spelling. Rather than pattern-match specific
-// spellings, check whether the transcript is dominated by the target vowel
-// letter — same approach as Rocket Launch's isSustainedVowel.
-function isSustainedVowel(transcript, vowelChar) {
-  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
-  if (cleaned.length < 2) return false
-  const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
-  return vowelCount / cleaned.length >= 0.4
-}
+// Below this combined formant-quality/duration score (see
+// vowel_quality_ee.py's FeatureResult.score), a window's climb gets given
+// back. Same reasoning and same value as RocketLaunch.jsx's
+// VERIFY_SCORE_THRESHOLD -- a verification gate against wrong-vowel/noise
+// windows, not a strict grading threshold.
+const VERIFY_SCORE_THRESHOLD = 0.35
 
 // ============================================================
 // Pure scoring/state logic — ported 1:1 from Rocket Launch's loudness +
@@ -340,21 +344,19 @@ export default function XylophoneTower() {
 
     if (gained > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
-      let transcript = ''
+      let result = null
       try {
-        const res = await transcribeAudio(blob)
-        transcript = res.transcript || ''
+        result = await scorePhoneme(LEVEL_ID, blob)
       } catch (err) {
-        console.warn('Backend transcription unavailable — window left unverified, provisional climb stands:', err)
-        transcript = null
+        console.warn('Backend phoneme scoring unavailable — window left unverified, provisional climb stands:', err)
       }
-      // An empty-but-successful transcript is common for a real sustained
-      // "eeee" — Whisper often can't render a pure non-lexical vowel as text
-      // at all, even when it was said perfectly. Only retract when we got a
-      // real, non-empty transcript that clearly isn't the target vowel; a
-      // failed request or a blank result is treated as unverifiable, not as
-      // proof the sound was wrong.
-      if (transcript !== null && transcript.trim() && !isSustainedVowel(transcript, 'e')) {
+      // A real result telling us this wasn't a genuine attempt at all
+      // (silence/noise -- is_valid_attempt false) or scored below the
+      // formant-quality threshold (wrong vowel, or too brief) gets its
+      // provisional climb given back. A failed request is treated as
+      // unverifiable, not as proof the sound was wrong -- same policy as
+      // the old Whisper-based check.
+      if (result && (!result.is_valid_attempt || result.score < VERIFY_SCORE_THRESHOLD)) {
         s.height = Math.max(0, s.height - gained)
         s.sustainedSeconds = 0
         playRetract()

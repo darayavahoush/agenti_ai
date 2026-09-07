@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -20,19 +20,28 @@ const LEVEL_ID = 'oo'
 const AGENT_POLICY = 'tabular_q'
 const FISH_COLORS = ['#FF8C69', '#FFD166', '#A6E8FF', '#FF6B9D', '#7FE8C0']
 
-// Rolling window for real speech verification — see RocketLaunch.jsx for the
-// full rationale (same continuous-mechanic adaptation of Firefly Jar's
-// pattern). Depth still sinks the instant a good-quality sound is detected,
-// but every ~2s the window gets transcribed and checked for a real sustained
-// "o" vowel; unconfirmed windows give their depth back.
+// Rolling window for real speech verification — same continuous-mechanic
+// adaptation of Firefly Jar's pattern as RocketLaunch.jsx. Depth still sinks
+// the instant a good-quality sound is detected, but every ~2s the window's
+// audio gets sent to the backend's formant-based /chime/phoneme/score/oo
+// endpoint and checked for real "oo" vowel quality (not a Whisper
+// transcript); unconfirmed windows give their depth back.
+//
+// This replaces the previous Whisper-transcript verification, for the same
+// reason RocketLaunch's was replaced (see that file's comment): Whisper
+// doesn't reliably render a pure sustained vowel as a clean word, and this
+// endpoint sidesteps that whole class of false negative since it never goes
+// through a language model at all. Unlike RocketLaunch, "oo" already had a
+// real formant-tracking extractor on the backend (backend/audio_features/
+// vowel_quality.py) -- it just wasn't wired into this game's frontend yet.
 const VERIFY_WINDOW_MS = 2000
 
-function isSustainedVowel(transcript, vowelChar) {
-  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
-  if (cleaned.length < 2) return false
-  const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
-  return vowelCount / cleaned.length >= 0.4
-}
+// Below this combined formant-quality/duration score (see
+// vowel_quality.py's FeatureResult.score), a window's dive gets given back.
+// Same reasoning and same value as RocketLaunch.jsx's VERIFY_SCORE_THRESHOLD
+// -- a verification gate against wrong-vowel/noise windows, not a strict
+// grading threshold.
+const VERIFY_SCORE_THRESHOLD = 0.35
 
 function computeRMS(floatSamples) {
   let s = 0
@@ -444,21 +453,19 @@ export default function SubmarineDive() {
 
     if (gained > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
-      let transcript = ''
+      let result = null
       try {
-        const res = await transcribeAudio(blob)
-        transcript = res.transcript || ''
+        result = await scorePhoneme(LEVEL_ID, blob)
       } catch (err) {
-        console.warn('Backend transcription unavailable — window left unverified, provisional dive stands:', err)
-        transcript = null
+        console.warn('Backend phoneme scoring unavailable — window left unverified, provisional dive stands:', err)
       }
-      // An empty-but-successful transcript is common for a real sustained
-      // "oooo" — Whisper often can't render a pure non-lexical vowel as text
-      // at all, even when it was said perfectly. Only retract when we got a
-      // real, non-empty transcript that clearly isn't the target vowel; a
-      // failed request or a blank result is treated as unverifiable, not as
-      // proof the sound was wrong.
-      if (transcript !== null && transcript.trim() && !isSustainedVowel(transcript, 'o')) {
+      // A real result telling us this wasn't a genuine attempt at all
+      // (silence/noise -- is_valid_attempt false) or scored below the
+      // formant-quality threshold (wrong vowel, or too brief) gets its
+      // provisional dive given back. A failed request is treated as
+      // unverifiable, not as proof the sound was wrong -- same policy as
+      // the old Whisper-based check.
+      if (result && (!result.is_valid_attempt || result.score < VERIFY_SCORE_THRESHOLD)) {
         s.depth = Math.max(0, s.depth - gained)
         s.sustainedSeconds = 0
         playRetract()
