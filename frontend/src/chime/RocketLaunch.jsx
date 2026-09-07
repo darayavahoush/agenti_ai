@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -13,35 +13,31 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // Rolling window for real speech verification — same approach as Firefly Jar
 // and Bubble Wrap Pop, adapted for a continuous climb instead of discrete
 // units. Altitude still rises the instant a loud sound is detected (kids need
-// snappy feedback), but every ~2s the window's audio gets transcribed and
-// checked for a real sustained "a" vowel. If it wasn't real voicing, whatever
-// altitude that window gained is quietly given back.
+// snappy feedback), but every ~2s the window's audio gets sent to the
+// backend's formant-based /chime/phoneme/score/aa endpoint and checked for
+// real "aa" vowel quality (not just volume). If it wasn't a genuine
+// held "aa", whatever altitude that window gained is quietly given back.
+//
+// This replaces the previous Whisper-transcript verification (transcribing
+// the window and checking the text for a real sustained vowel). Whisper
+// doesn't reliably render a pure sustained vowel as a clean word -- it often
+// has no real word to spell a held tone with and reaches for an unrelated
+// filler ("uh", "um", "hmm"), which isn't evidence the child said something
+// else, just evidence of Whisper's own limits. The formant-tracking endpoint
+// sidesteps that whole class of false negative since it never goes through a
+// language model at all -- it's the same real acoustic-phonetics technique
+// already used for oo/ee, just newly written for "aa" (see
+// backend/audio_features/vowel_quality_aa.py).
 const VERIFY_WINDOW_MS = 2000
 
-// Whisper doesn't reliably render a pure sustained vowel as one clean word.
-// The vowel-density check below already treated "ah"/"aah" as valid, but it
-// had two real gaps that would retract a genuinely correct "aaaa":
-//   1. A transcript of exactly "a" (Whisper transcribing it perfectly!) was
-//      rejected outright by the old `cleaned.length < 2` guard before the
-//      vowel-density check even ran.
-//   2. Just as often, there's no real word for a held vowel drone at all,
-//      so Whisper reaches for an unrelated filler -- "uh", "um", "huh",
-//      "hmm" -- that happens to contain none of the target letter. Those
-//      aren't evidence the child said something else; they're evidence
-//      Whisper had nothing better to spell a held tone with. Rejecting
-//      them is exactly the "wrong to the right sound" bug.
-// Both are fixed below: an exact vowel match or a known non-lexical filler
-// is accepted outright; only a transcript that reads as an actual
-// different, non-filler word still counts as real evidence and retracts.
-const NON_LEXICAL_FILLERS = new Set(['uh', 'um', 'umm', 'huh', 'hmm', 'hm', 'mm', 'mmm', 'eh', 'er', 'erm', 'oh', 'ah', 'ahh', 'aah'])
-function isSustainedVowel(transcript, vowelChar) {
-  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
-  if (!cleaned) return false
-  if (cleaned === vowelChar || NON_LEXICAL_FILLERS.has(cleaned)) return true
-  if (cleaned.length < 2) return false
-  const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
-  return vowelCount / cleaned.length >= 0.4
-}
+// Below this combined formant-quality/duration score (see
+// vowel_quality_aa.py's FeatureResult.score), a window's climb gets given
+// back. Set below what a genuinely full-quality, fully-held "aa" would
+// score (which needs ~1.5s of held, on-target vowel to hit 1.0) so a
+// reasonably close, reasonably sustained attempt still counts -- this is a
+// verification gate against wrong-vowel/noise windows, not a strict grading
+// threshold.
+const VERIFY_SCORE_THRESHOLD = 0.35
 
 // ============================================================
 // Pure scoring/state logic — ported 1:1 from rocket_launch.html /
@@ -427,21 +423,19 @@ export default function RocketLaunch() {
 
     if (gained > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
-      let transcript = ''
+      let result = null
       try {
-        const res = await transcribeAudio(blob)
-        transcript = res.transcript || ''
+        result = await scorePhoneme(LEVEL_ID, blob)
       } catch (err) {
-        console.warn('Backend transcription unavailable — window left unverified, provisional climb stands:', err)
-        transcript = null
+        console.warn('Backend phoneme scoring unavailable — window left unverified, provisional climb stands:', err)
       }
-      // An empty-but-successful transcript is common for a real sustained
-      // "aaaa" — Whisper often can't render a pure non-lexical vowel as text
-      // at all, even when it was said perfectly. Only retract when we got a
-      // real, non-empty transcript that clearly isn't the target vowel; a
-      // failed request or a blank result is treated as unverifiable, not as
-      // proof the sound was wrong.
-      if (transcript !== null && transcript.trim() && !isSustainedVowel(transcript, 'a')) {
+      // A real result telling us this wasn't a genuine attempt at all
+      // (silence/noise -- is_valid_attempt false) or scored below the
+      // formant-quality threshold (wrong vowel, or too brief) gets its
+      // provisional climb given back. A failed request is treated as
+      // unverifiable, not as proof the sound was wrong -- same policy as
+      // the old Whisper-based check.
+      if (result && (!result.is_valid_attempt || result.score < VERIFY_SCORE_THRESHOLD)) {
         s.altitude = Math.max(0, s.altitude - gained)
         s.sustainedSeconds = 0
         s.quietGraceRemaining = 0
