@@ -34,8 +34,8 @@ from .common import FeatureResult
 # Still a starting point pending recalibration against real child speech
 # samples, not a substitute for it -- same caveat as the other two
 # formant-based extractors in this module.
-TARGET_F1 = 900.0
-TARGET_F2 = 1450.0
+TARGET_F1 = 869.0  # calibrated from 3-rep real-mic recording, was 900.0
+TARGET_F2 = 1546.0  # calibrated from 3-rep real-mic recording, was 1450.0
 FORMANT_TOLERANCE_HZ = 400.0  # widest of the three vowels -- "aa" has the most open-jaw variability
 
 MIN_VALID_DURATION_S = 0.15  # shorter than this, treat as not a real attempt
