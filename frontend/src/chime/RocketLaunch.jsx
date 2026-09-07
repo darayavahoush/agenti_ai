@@ -47,7 +47,7 @@ const VERIFY_WINDOW_MS = 450
 // reasonably close, reasonably sustained attempt still counts -- this is a
 // verification gate against wrong-vowel/noise windows, not a strict grading
 // threshold.
-const VERIFY_SCORE_THRESHOLD = 0.35
+const VERIFY_SCORE_THRESHOLD = 0.25
 
 // ============================================================
 // Pure scoring/state logic — ported 1:1 from rocket_launch.html /
@@ -167,7 +167,7 @@ const BASE_ALTITUDE_CONFIG = { riseRate: 0.55, fallRate: 0.18, scoreThreshold: 0
 // within SAFE_RANGE, mirroring the safety-envelope principle: a controller
 // should only ever nudge within pre-approved bounds, never jump.
 const DIFFICULTY_AGENT = {
-  SAFE_RANGE: [0.20, 0.55],
+  SAFE_RANGE: [0.12, 0.55],
   STEP: 0.05,
   FAST_S: 4,
   SLOW_S: 12,
@@ -373,7 +373,7 @@ export default function RocketLaunch() {
           // sustained (p55), not peak — gameplay needs SUSTAINED loud "aaaa",
           // which decays below peak almost immediately.
           const sorted = [...loudSamples].sort((a, b) => a - b)
-          const loudSustained = sorted[Math.floor(sorted.length * 0.55)] || 0.2
+          const loudSustained = sorted[Math.floor(sorted.length * 0.35)] || 0.2
           const s = stateRef.current
           s.maxExpectedRms = Math.max(s.noiseFloor + 0.05, loudSustained)
           finishCalibration()
