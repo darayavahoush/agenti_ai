@@ -15,17 +15,23 @@ _DATA_DIR = Path(__file__).resolve().parents[3] / 'data' / 'flashcard_images'
 _INDEX_PATH = _DATA_DIR / 'index.json'
 
 THEMES = {
-    "animals":  {"name": "Animals",     "emoji": "🐶", "words": ["dog","cat","cow","elephant","lion","tiger","monkey","parrot","fish","bird","rabbit","horse","goat","duck","butterfly"]},
-    "food":     {"name": "Food",        "emoji": "🍎", "words": ["apple","banana","mango","rice","bread","milk","water","egg","potato","tomato","onion","carrot","orange","grapes"]},
-    "family":   {"name": "Family",      "emoji": "👨‍👩‍👧", "words": ["mother","father","baby","girl","boy","grandfather","grandmother"]},
-    "body":     {"name": "My Body",     "emoji": "🖐️", "words": ["hand","eye","ear","nose","mouth","foot","head","hair"]},
-    "home":     {"name": "Around Home", "emoji": "🏠", "words": ["ball","book","chair","table","cup","bag","car","bus","house","door","window","bed"]},
-    "nature":   {"name": "Nature",      "emoji": "🌳", "words": ["tree","flower","sun","moon"]},
-    "actions":  {"name": "Actions",     "emoji": "🏃", "words": ["eat","drink","sleep","run","jump","sit","stand","walk","read","write","play","cry","laugh","sing"]},
-    "feelings": {"name": "Feelings",    "emoji": "😊", "words": ["happy","sad","angry","scared","surprised"]},
-    "colors":   {"name": "Colors",      "emoji": "🎨", "words": ["red","blue","green","yellow","purple","white","black"]},
-    "numbers":  {"name": "Numbers",     "emoji": "🔢", "words": ["one","two","three","four","five"]},
-    "school":   {"name": "School",      "emoji": "✏️", "words": ["pencil","pen","paper","school","teacher"]},
+    "core_words":        {"name": "Core Words",        "emoji": "💬", "words": ["eat","drink","sleep","run","jump","sit","stand","walk","read","write","play","cry","laugh","sing"]},
+    "safari_animals":    {"name": "Safari Animals",     "emoji": "🦁", "words": ["elephant","lion","tiger","monkey"]},
+    "birds":             {"name": "Birds",              "emoji": "🐦", "words": ["bird","parrot"]},
+    "sea_animals":       {"name": "Sea Animals",        "emoji": "🐬", "words": ["octopus","shark","dolphin","whale","crab"]},
+    "insects":           {"name": "Insects",            "emoji": "🐝", "words": ["ant","bee","ladybug","mosquito","butterfly"]},
+    "fruits":            {"name": "Fruits",             "emoji": "🍎", "words": ["apple","banana","mango","grapes","orange"]},
+    "vegetables":        {"name": "Vegetables",         "emoji": "🥕", "words": ["carrot","onion","potato","tomato"]},
+    "food":               {"name": "Food",               "emoji": "🍞", "words": ["bread","rice","milk","water","egg"]},
+    "school_supplies":   {"name": "School Supplies",    "emoji": "✏", "words": ["pen","pencil","paper","book"]},
+    "music":             {"name": "Music",              "emoji": "🎸", "words": ["guitar","piano","drum","trumpet","violin"]},
+    "community_helpers": {"name": "Community Helpers",  "emoji": "👩", "words": ["teacher"]},
+    "living_room":       {"name": "Living Room",        "emoji": "🛋", "words": ["chair","table","window","door"]},
+    "bedroom":           {"name": "Bedroom",            "emoji": "🛏", "words": ["bed"]},
+    "bathroom":          {"name": "Bathroom",           "emoji": "🛁", "words": ["toilet","bathtub","toothbrush","shower","soap"]},
+    "numbers":           {"name": "Numbers",            "emoji": "🔢", "words": ["one","two","three","four","five"]},
+    "ten_plus":          {"name": "Ten+",               "emoji": "🔟", "words": ["six","seven","eight","nine","ten"]},
+    "shapes":            {"name": "Shapes",             "emoji": "⭐", "words": ["circle","square","triangle","star","diamond"]},
 }
 
 
