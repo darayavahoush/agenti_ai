@@ -123,5 +123,12 @@
   "square": "square.png",
   "triangle": "triangle.png",
   "star": "star.png",
-  "diamond": "diamond.png"
+  "diamond": "diamond.png",
+  "doctor": "doctor.png",
+  "police": "police.png",
+  "firefighter": "firefighter.png",
+  "farmer": "farmer.png",
+  "lamp": "lamp.png",
+  "clock": "clock.png",
+  "teddybear": "teddybear.png"
 }
