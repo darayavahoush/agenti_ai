@@ -31,6 +31,17 @@ export function transcribeAudio(audioBlob, filename = 'recording.webm') {
   }).then(r => r.data)
 }
 
+export function scorePhoneme(levelId, audioBlob, filename = 'recording.webm') {
+  const form = new FormData()
+  form.append('audio', audioBlob, filename)
+
+  // Same Content-Type override as transcribeAudio above -- multipart upload,
+  // let the browser set the boundary itself.
+  return api.post(`${CHIME}/phoneme/score/${levelId}`, form, {
+    headers: { 'Content-Type': undefined },
+  }).then(r => r.data)
+}
+
 export function logEvent(event) {
   return api.post(`${CHIME}/events`, event).then(r => r.data)
 }
