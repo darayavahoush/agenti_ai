@@ -228,7 +228,7 @@ export function getPhonemeCue(soundId) {
 const SPOKEN_FORM = {
   p: 'puh', b: 'buh', m: 'mmm', f: 'fff', v: 'vvv', s: 'sss', z: 'zzz',
   t: 'tuh', d: 'duh', n: 'nnn', l: 'lll', r: 'rrr',
-  sh: 'shhh', ch: 'ch', j: 'juh', k: 'kuh', g: 'guh',
+  sh: 'shhh', ch: 'chuh', j: 'juh', k: 'kuh', g: 'guh',
   'th-unvoiced': 'thh', 'th-voiced': 'thh',
   w: 'wuh', wh: 'wuh', y: 'yuh', qu: 'kwuh', h: 'huh', ng: 'nng',
   ah: 'ah', ee: 'ee', oo: 'oo',
