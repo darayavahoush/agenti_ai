@@ -17,11 +17,27 @@ const AGENT_POLICY = 'tabular_q'
 // Rolling window for real speech verification: the client-side burst detector
 // below (scoreBurst) only ever measured volume/timing, so a clap or a cough
 // scored identically to a real "ma". Every burst still spawns a firefly the
-// instant it's detected (kids need snappy feedback), but every ~2s the clip
-// covering that batch of bursts gets sent to Whisper (transcribeAudio) and
-// checked for actual "ma" syllables. Any fireflies beyond what got confirmed
-// are quietly removed — see startVerificationWindow/finishVerificationWindow.
-const VERIFY_WINDOW_MS = 2000
+// instant it's detected (kids need snappy feedback), but every window the
+// clip covering that batch of bursts gets sent to Whisper (transcribeAudio)
+// and checked for actual "ma" syllables. Any fireflies beyond what got
+// confirmed are quietly removed — see startVerificationWindow/finishVerificationWindow.
+//
+// Not a candidate for the backend's syllable_rhythm.py extractor (level_id
+// "ma") -- that extractor scores the *timing/rhythm* of repeated onsets
+// against a target diadochokinetic rate, but librosa.onset.onset_detect
+// fires on any percussive event regardless of content, so a rhythmic clap
+// or tongue-click would pass its onset-rate check exactly as well as a real
+// "ma-ma-ma" would. It doesn't verify *what* was said, only *when* -- the
+// opposite gap from frication.py's mismatch in Wind Chime Garden, but the
+// same conclusion: switching to it here would make content verification
+// weaker, not stronger. Whisper's transcript-based occurrence count
+// (countMaOccurrences) is doing real content verification and should stay.
+//
+// Shortened from 2000ms to 1200ms, same reasoning as Wind Chime Garden --
+// Whisper needs more audio than a formant tracker to transcribe reliably,
+// so this can't drop as low as the vowel games' 700ms, but is still
+// meaningfully faster than before.
+const VERIFY_WINDOW_MS = 1200
 
 // Whisper commonly renders repeated "ma" bursts as "ma ma ma", "mama", "maa",
 // etc. rather than one clean token per burst, so count syllable-like "ma"

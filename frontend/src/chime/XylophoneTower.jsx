@@ -12,7 +12,7 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // Rolling window for real speech verification — same approach as Rocket
 // Launch's altitude climb, adapted here for height. Height still rises the
 // instant a loud sound is detected (kids need snappy feedback), but every
-// ~2s the window's audio gets sent to the backend's formant-based
+// window the audio gets sent to the backend's formant-based
 // /chime/phoneme/score/ee endpoint and checked for real "ee" vowel quality
 // (not a Whisper transcript). If it wasn't a genuine held "eeee", whatever
 // height that window gained is quietly given back.
@@ -24,7 +24,12 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // through a language model at all. Like "oo", "ee" already had a real
 // formant-tracking extractor on the backend (backend/audio_features/
 // vowel_quality_ee.py) -- it just wasn't wired into this game's frontend yet.
-const VERIFY_WINDOW_MS = 2000
+//
+// Shortened from 2000ms to 700ms, same as RocketLaunch.jsx/SubmarineDive.jsx
+// -- vowel_quality_ee only needs a stable ~200-500ms voiced window, so a
+// wrong sound's provisional climb now only survives up to ~700ms before
+// being corrected instead of up to 2s.
+const VERIFY_WINDOW_MS = 700
 
 // Below this combined formant-quality/duration score (see
 // vowel_quality_ee.py's FeatureResult.score), a window's climb gets given

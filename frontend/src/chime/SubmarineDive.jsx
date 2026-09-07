@@ -22,7 +22,7 @@ const FISH_COLORS = ['#FF8C69', '#FFD166', '#A6E8FF', '#FF6B9D', '#7FE8C0']
 
 // Rolling window for real speech verification — same continuous-mechanic
 // adaptation of Firefly Jar's pattern as RocketLaunch.jsx. Depth still sinks
-// the instant a good-quality sound is detected, but every ~2s the window's
+// the instant a good-quality sound is detected, but every window the
 // audio gets sent to the backend's formant-based /chime/phoneme/score/oo
 // endpoint and checked for real "oo" vowel quality (not a Whisper
 // transcript); unconfirmed windows give their depth back.
@@ -34,7 +34,12 @@ const FISH_COLORS = ['#FF8C69', '#FFD166', '#A6E8FF', '#FF6B9D', '#7FE8C0']
 // through a language model at all. Unlike RocketLaunch, "oo" already had a
 // real formant-tracking extractor on the backend (backend/audio_features/
 // vowel_quality.py) -- it just wasn't wired into this game's frontend yet.
-const VERIFY_WINDOW_MS = 2000
+//
+// Shortened from 2000ms to 700ms, same as RocketLaunch.jsx -- vowel_quality
+// only needs a stable ~200-500ms voiced window, so a wrong sound's
+// provisional dive now only survives up to ~700ms before being corrected
+// instead of up to 2s.
+const VERIFY_WINDOW_MS = 700
 
 // Below this combined formant-quality/duration score (see
 // vowel_quality.py's FeatureResult.score), a window's dive gets given back.

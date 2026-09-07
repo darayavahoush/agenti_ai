@@ -13,10 +13,10 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // Rolling window for real speech verification — same approach as Firefly Jar
 // and Bubble Wrap Pop, adapted for a continuous climb instead of discrete
 // units. Altitude still rises the instant a loud sound is detected (kids need
-// snappy feedback), but every ~2s the window's audio gets sent to the
-// backend's formant-based /chime/phoneme/score/aa endpoint and checked for
-// real "aa" vowel quality (not just volume). If it wasn't a genuine
-// held "aa", whatever altitude that window gained is quietly given back.
+// snappy feedback), but every window the audio gets sent to the backend's
+// formant-based /chime/phoneme/score/aa endpoint and checked for real "aa"
+// vowel quality (not just volume). If it wasn't a genuine held "aa",
+// whatever altitude that window gained is quietly given back.
 //
 // This replaces the previous Whisper-transcript verification (transcribing
 // the window and checking the text for a real sustained vowel). Whisper
@@ -28,7 +28,17 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // language model at all -- it's the same real acoustic-phonetics technique
 // already used for oo/ee, just newly written for "aa" (see
 // backend/audio_features/vowel_quality_aa.py).
-const VERIFY_WINDOW_MS = 2000
+//
+// Shortened from 2000ms (the Whisper-based window's length, needed to give
+// Whisper enough audio for a usable transcript) to 700ms -- vowel_quality_aa
+// only needs a stable ~200-500ms voiced window to track formants reliably,
+// so there was no acoustic reason left to wait a full 2s before a wrong
+// vowel's provisional climb got corrected. This is the main lever for
+// "movement should only happen with the right sound" here: the rocket can
+// still rise the instant it hears anything loud (so it stays snappy), but a
+// wrong sound's climb only survives for up to ~700ms before being reverted,
+// instead of up to 2s.
+const VERIFY_WINDOW_MS = 700
 
 // Below this combined formant-quality/duration score (see
 // vowel_quality_aa.py's FeatureResult.score), a window's climb gets given

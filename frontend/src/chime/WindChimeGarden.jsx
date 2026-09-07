@@ -75,10 +75,37 @@ const DURATION_BOOST_SECONDS = 2.5
 // Rolling window for real speech verification — same approach as Bubble Wrap
 // Pop / Rocket Launch / Submarine Dive. Bubbles still spawn the instant the
 // local periodicity detector rings a rotation (kids need snappy feedback),
-// but every ~2s the window's audio gets transcribed and checked for a real
-// "ya" attempt. If it wasn't real voicing, whatever bubbles that window
+// but every window the window's audio gets transcribed and checked for a
+// real "ya" attempt. If it wasn't real voicing, whatever bubbles that window
 // spawned are quietly popped and taken back.
-const VERIFY_WINDOW_MS = 2000
+//
+// IMPORTANT: unlike Rocket Launch/Submarine Dive/Xylophone Tower/Lion's
+// Roar, this game is NOT a candidate for the backend's formant-tracking
+// EXTRACTORS -- the "fa" level's extractor (backend/audio_features/
+// frication.py) is built for the acoustic opposite of what this game
+// actually asks for. frication.py scores a sustained *unvoiced* fricative
+// noise ("ffff": broadband high-frequency energy, high spectral centroid),
+// but this game's instruction and every in-game string ask for "yaaa" -- a
+// *voiced* glide into an open vowel (tonal/harmonic, low spectral centroid,
+// high periodicity). Wiring frication.py to this game's recordings would
+// score a correct "yaaa" as low as an incorrect one, since neither is
+// fricative-shaped -- it would break verification rather than improve it.
+// (The level_id "fa" and the mismatch with the game's actual "ya" target
+// look like a leftover from an earlier version of this level; flagging
+// this rather than silently forcing a wrong fix.) The client-side
+// periodicity detector (computePeriodicity/computeVoicingScore above)
+// already does the acoustically-appropriate real-time check -- it
+// distinguishes voiced, periodic sound from noise/breath before a chime
+// even spins -- so Whisper here is verifying *content* (was it actually
+// "ya", not just any voiced sound) the same legitimate way Village
+// Builder/Bubble Wrap Pop use it for real words, not standing in for a
+// missing acoustic-phonetics check.
+//
+// Shortened from 2000ms to 1200ms -- shorter than the vowel-quality games
+// can go (Whisper needs more audio than a formant tracker to render a
+// usable transcript, so this can't safely drop as low as 700ms), but still
+// notably faster than before for catching a wrong word.
+const VERIFY_WINDOW_MS = 1200
 
 // "ya" is a glide (the onset "y") into a vowel, not a bare sustained vowel —
 // unlike Rocket Launch's "aaa" or Submarine Dive's "oooo", whisper may or
