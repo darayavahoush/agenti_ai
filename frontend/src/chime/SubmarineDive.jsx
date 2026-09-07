@@ -39,7 +39,7 @@ const FISH_COLORS = ['#FF8C69', '#FFD166', '#A6E8FF', '#FF6B9D', '#7FE8C0']
 // only needs a stable ~200-500ms voiced window, so a wrong sound's
 // provisional dive now only survives up to ~700ms before being corrected
 // instead of up to 2s.
-const VERIFY_WINDOW_MS = 700
+const VERIFY_WINDOW_MS = 450
 
 // Below this combined formant-quality/duration score (see
 // vowel_quality.py's FeatureResult.score), a window's dive gets given back.
@@ -211,8 +211,7 @@ export default function SubmarineDive() {
     attemptNumber: 0,
     inVoicing: false, voicingScores: [], sustainedSeconds: 0,
     W: 0, H: 0, DPR: 1,
-    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
-    windowStartDepth: 0,
+    // Verification window timing — see VERIFY_WINDOW_MS above.
     verifyTimer: null, mediaRecorderRef: null,
   })
 
@@ -424,16 +423,23 @@ export default function SubmarineDive() {
     startVerificationWindow()
   }
 
-  // Records a rolling ~2s clip of whatever the mic hears, independent of the
-  // client-side loudness/formant detector above. Depth has already been
+  // Records rolling ~450ms clips of whatever the mic hears, independent of
+  // the client-side loudness/formant detector above. Depth has already been
   // sinking for the whole window (for snappy feedback — see gameLoop), but
-  // that sink isn't "confirmed" until this resolves: only depth gained during
-  // a window backed by a real sustained vowel gets to stay.
+  // that sink isn't "confirmed" until scoring resolves: only depth gained
+  // during a window backed by a real sustained vowel gets to stay.
+  //
+  // Recording and scoring are decoupled: the next window starts the instant
+  // this one's clip is captured, without waiting on the network round-trip
+  // for the previous window's score. Each window snapshots its own depth
+  // delta synchronously in onstop (before any await), so a slow or
+  // out-of-order backend response can only ever retract *that window's own*
+  // sink -- it can't touch progress a later window has already earned.
   function startVerificationWindow() {
     const s = stateRef.current
     if (s.hasFinished || !s.mediaStream) return
 
-    s.windowStartDepth = s.depth
+    const windowStartDepth = s.depth
 
     const chunks = []
     let recorder
@@ -444,7 +450,11 @@ export default function SubmarineDive() {
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
-    recorder.onstop = () => finishVerificationWindow(chunks)
+    recorder.onstop = () => {
+      const gained = Math.max(0, s.depth - windowStartDepth)
+      if (!s.hasFinished) startVerificationWindow()
+      finishVerificationWindow(chunks, gained)
+    }
     s.mediaRecorderRef = recorder
     recorder.start()
     s.verifyTimer = setTimeout(() => {
@@ -452,9 +462,8 @@ export default function SubmarineDive() {
     }, VERIFY_WINDOW_MS)
   }
 
-  async function finishVerificationWindow(chunks) {
+  async function finishVerificationWindow(chunks, gained) {
     const s = stateRef.current
-    const gained = Math.max(0, s.depth - s.windowStartDepth)
 
     if (gained > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
@@ -478,15 +487,16 @@ export default function SubmarineDive() {
       }
     }
 
-    // Only check dive completion here, after this window's depth is final —
-    // not the instant a provisional sink hits 1.0 in gameLoop, since that
-    // provisional depth could still get given back moments later.
+    // Only check dive completion here, after this window's depth correction
+    // (if any) has been applied -- not the instant a provisional sink hits
+    // 1.0 in gameLoop, since that provisional depth could still get given
+    // back moments later. The next window is already recording by the time
+    // this runs (started in onstop above), so this check doesn't gate
+    // anything else.
     if (s.depth >= 0.999 && !s.hasFinished) {
       s.hasFinished = true
       onDiveSuccess()
-      return
     }
-    if (!s.hasFinished) startVerificationWindow()
   }
 
   // "oo" is sustained, not discrete bursts, so there's no natural single instant to

@@ -29,7 +29,7 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // -- vowel_quality_ee only needs a stable ~200-500ms voiced window, so a
 // wrong sound's provisional climb now only survives up to ~700ms before
 // being corrected instead of up to 2s.
-const VERIFY_WINDOW_MS = 700
+const VERIFY_WINDOW_MS = 450
 
 // Below this combined formant-quality/duration score (see
 // vowel_quality_ee.py's FeatureResult.score), a window's climb gets given
@@ -117,8 +117,7 @@ export default function XylophoneTower() {
     requiredSustainSeconds: 3,
     inVoicing: false, voicingScores: [],
     W: 0, H: 0, DPR: 1,
-    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
-    windowStartHeight: 0,
+    // Verification window timing — see VERIFY_WINDOW_MS above.
     verifyTimer: null, mediaRecorderRef: null,
   })
 
@@ -315,16 +314,23 @@ export default function XylophoneTower() {
     startVerificationWindow()
   }
 
-  // Records a rolling ~2s clip of whatever the mic hears, independent of the
-  // client-side loudness detector in gameLoop. Height has already been
+  // Records rolling ~450ms clips of whatever the mic hears, independent of
+  // the client-side loudness detector in gameLoop. Height has already been
   // climbing for the whole window (for snappy feedback), but that climb
-  // isn't "confirmed" until this resolves: only height gained during a
+  // isn't "confirmed" until scoring resolves: only height gained during a
   // window backed by a real sustained "e" gets to stay.
+  //
+  // Recording and scoring are decoupled: the next window starts the instant
+  // this one's clip is captured, without waiting on the network round-trip
+  // for the previous window's score. Each window snapshots its own height
+  // delta synchronously in onstop (before any await), so a slow or
+  // out-of-order backend response can only ever retract *that window's own*
+  // climb -- it can't touch progress a later window has already earned.
   function startVerificationWindow() {
     const s = stateRef.current
     if (s.hasFinished || !s.mediaStream) return
 
-    s.windowStartHeight = s.height
+    const windowStartHeight = s.height
 
     const chunks = []
     let recorder
@@ -335,7 +341,11 @@ export default function XylophoneTower() {
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
-    recorder.onstop = () => finishVerificationWindow(chunks)
+    recorder.onstop = () => {
+      const gained = Math.max(0, s.height - windowStartHeight)
+      if (!s.hasFinished) startVerificationWindow()
+      finishVerificationWindow(chunks, gained)
+    }
     s.mediaRecorderRef = recorder
     recorder.start()
     s.verifyTimer = setTimeout(() => {
@@ -343,9 +353,8 @@ export default function XylophoneTower() {
     }, VERIFY_WINDOW_MS)
   }
 
-  async function finishVerificationWindow(chunks) {
+  async function finishVerificationWindow(chunks, gained) {
     const s = stateRef.current
-    const gained = Math.max(0, s.height - s.windowStartHeight)
 
     if (gained > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
@@ -369,15 +378,16 @@ export default function XylophoneTower() {
       }
     }
 
-    // Only check tower completion here, after this window's height is
-    // final — not the instant a provisional climb hits 1.0 in gameLoop,
-    // since that provisional height could still get given back moments later.
+    // Only check tower completion here, after this window's height
+    // correction (if any) has been applied -- not the instant a provisional
+    // climb hits 1.0 in gameLoop, since that provisional height could still
+    // get given back moments later. The next window is already recording by
+    // the time this runs (started in onstop above), so this check doesn't
+    // gate anything else.
     if (s.height >= 0.999 && !s.hasFinished) {
       s.hasFinished = true
       onTowerComplete()
-      return
     }
-    if (!s.hasFinished) startVerificationWindow()
   }
 
   async function logVoicingAttempt(scores) {

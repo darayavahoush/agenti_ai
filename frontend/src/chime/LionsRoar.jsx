@@ -61,7 +61,7 @@ const TARGET_ROARS_DEFAULT = 4
 // wrong sound's provisional roars got corrected. A shorter window means a
 // door slam or cough gets caught and retracted much faster, without giving
 // up any accuracy.
-const VERIFY_WINDOW_MS = 700
+const VERIFY_WINDOW_MS = 450
 
 // Below this combined formant-quality/duration score (see rhotic.py's
 // FeatureResult.score), a window's roars get retracted. Same reasoning as
@@ -116,8 +116,7 @@ export default function LionsRoar() {
     attemptStartTime: 0, attemptNumber: 0,
     inVoicing: false, voicingScores: [],
     W: 0, H: 0, DPR: 1,
-    // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
-    windowStartRoarsDone: 0,
+    // Verification window timing — see VERIFY_WINDOW_MS above.
     verifyTimer: null, mediaRecorderRef: null,
   })
 
@@ -325,17 +324,27 @@ export default function LionsRoar() {
     }
   }
 
-  // Records a rolling clip of whatever the mic hears, independent of the
-  // client-side hold/cooldown detector above. Every completed hold in that
-  // window has already counted a provisional roar immediately (for snappy
-  // feedback — see completeRoar/gameLoop), but none of those are "confirmed"
-  // until this resolves: only windows whose formant score clears the rhotic
-  // threshold (VERIFY_SCORE_THRESHOLD) get to keep their roars.
+  // Records rolling ~450ms clips of whatever the mic hears, independent of
+  // the client-side hold/cooldown detector above. Every completed hold in
+  // that window has already counted a provisional roar immediately (for
+  // snappy feedback — see completeRoar/gameLoop), but none of those are
+  // "confirmed" until scoring resolves: only windows whose formant score
+  // clears the rhotic threshold (VERIFY_SCORE_THRESHOLD) get to keep their
+  // roars.
+  //
+  // Recording and scoring are decoupled: the next window starts the instant
+  // this one's clip is captured, without waiting on the network round-trip
+  // for the previous window's score. Each window snapshots its own
+  // roars-added count synchronously in onstop (before any await) and
+  // retracts by subtracting that count -- not by resetting to an absolute
+  // snapshot -- so a slow or out-of-order backend response can only ever
+  // undo *that window's own* roars, never a later window's already-earned
+  // ones.
   function startVerificationWindow() {
     const s = stateRef.current
     if (s.hasFinished || !s.mediaStream) return
 
-    s.windowStartRoarsDone = s.roarsDone
+    const windowStartRoarsDone = s.roarsDone
 
     const chunks = []
     let recorder
@@ -346,7 +355,11 @@ export default function LionsRoar() {
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
-    recorder.onstop = () => finishVerificationWindow(chunks)
+    recorder.onstop = () => {
+      const addedThisWindow = s.roarsDone - windowStartRoarsDone
+      if (!s.hasFinished) startVerificationWindow()
+      finishVerificationWindow(chunks, addedThisWindow)
+    }
     s.mediaRecorderRef = recorder
     recorder.start()
     s.verifyTimer = setTimeout(() => {
@@ -354,11 +367,8 @@ export default function LionsRoar() {
     }, VERIFY_WINDOW_MS)
   }
 
-  async function finishVerificationWindow(chunks) {
+  async function finishVerificationWindow(chunks, addedThisWindow) {
     const s = stateRef.current
-    // How many roars this window's holds provisionally added, before we know
-    // whether the transcript actually sounds like a growl.
-    const addedThisWindow = s.roarsDone - s.windowStartRoarsDone
 
     if (addedThisWindow > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
@@ -376,7 +386,7 @@ export default function LionsRoar() {
       // window unverified instead of retracting -- a network hiccup isn't
       // evidence the roar was fake.
       if (result && (!result.is_valid_attempt || result.score < VERIFY_SCORE_THRESHOLD)) {
-        s.roarsDone = Math.max(s.windowStartRoarsDone, 0)
+        s.roarsDone = Math.max(0, s.roarsDone - addedThisWindow)
         s.holdSeconds = 0
         s.inRoar = false
         playRetract()
@@ -384,15 +394,16 @@ export default function LionsRoar() {
       }
     }
 
-    // Only check the win condition here, after this window's count is final —
-    // not the instant a provisional roar hits targetRoars in completeRoar,
-    // since that provisional count could still get retracted moments later.
+    // Only check the win condition here, after this window's count
+    // correction (if any) has been applied -- not the instant a provisional
+    // roar hits targetRoars in completeRoar, since that provisional count
+    // could still get retracted moments later. The next window is already
+    // recording by the time this runs (started in onstop above), so this
+    // check doesn't gate anything else.
     if (s.roarsDone >= s.targetRoars && !s.hasFinished) {
       s.hasFinished = true
       onPrideSuccess()
-      return
     }
-    if (!s.hasFinished) startVerificationWindow()
   }
 
   async function updateDifficultyFromAttempt(timeToWinSeconds) {
