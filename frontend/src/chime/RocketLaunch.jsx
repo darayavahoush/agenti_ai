@@ -47,7 +47,7 @@ const VERIFY_WINDOW_MS = 450
 // reasonably close, reasonably sustained attempt still counts -- this is a
 // verification gate against wrong-vowel/noise windows, not a strict grading
 // threshold.
-const VERIFY_SCORE_THRESHOLD = 0.25
+const VERIFY_SCORE_THRESHOLD = 0.35
 
 // ============================================================
 // Pure scoring/state logic — ported 1:1 from rocket_launch.html /
