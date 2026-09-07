@@ -18,15 +18,26 @@ const MIN_VOICING_FRAMES = 3 // ~50ms at 60fps; filters out single-frame noise b
 // altitude that window gained is quietly given back.
 const VERIFY_WINDOW_MS = 2000
 
-// Whisper doesn't reliably render a pure sustained vowel as one clean word —
-// it commonly comes back as "ah", "aah", "ahh", "aaaah", or a run of the
-// vowel itself rather than a consistent spelling. Rather than pattern-match
-// specific spellings, check whether the transcript is dominated by the
-// target vowel letter — the same "listen for the sound, not the exact ASR
-// spelling" idea as Firefly Jar's countMaOccurrences, adapted for a sustained
-// tone instead of a discrete syllable.
+// Whisper doesn't reliably render a pure sustained vowel as one clean word.
+// The vowel-density check below already treated "ah"/"aah" as valid, but it
+// had two real gaps that would retract a genuinely correct "aaaa":
+//   1. A transcript of exactly "a" (Whisper transcribing it perfectly!) was
+//      rejected outright by the old `cleaned.length < 2` guard before the
+//      vowel-density check even ran.
+//   2. Just as often, there's no real word for a held vowel drone at all,
+//      so Whisper reaches for an unrelated filler -- "uh", "um", "huh",
+//      "hmm" -- that happens to contain none of the target letter. Those
+//      aren't evidence the child said something else; they're evidence
+//      Whisper had nothing better to spell a held tone with. Rejecting
+//      them is exactly the "wrong to the right sound" bug.
+// Both are fixed below: an exact vowel match or a known non-lexical filler
+// is accepted outright; only a transcript that reads as an actual
+// different, non-filler word still counts as real evidence and retracts.
+const NON_LEXICAL_FILLERS = new Set(['uh', 'um', 'umm', 'huh', 'hmm', 'hm', 'mm', 'mmm', 'eh', 'er', 'erm', 'oh', 'ah', 'ahh', 'aah'])
 function isSustainedVowel(transcript, vowelChar) {
   const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (!cleaned) return false
+  if (cleaned === vowelChar || NON_LEXICAL_FILLERS.has(cleaned)) return true
   if (cleaned.length < 2) return false
   const vowelCount = (cleaned.match(new RegExp(vowelChar, 'g')) || []).length
   return vowelCount / cleaned.length >= 0.4
@@ -55,6 +66,7 @@ function computeLoudnessScore(rms, noiseFloor, maxExpected) {
 // is reached. Resets to 0 the instant voicing breaks (see gameLoop).
 const DURATION_BOOST_MAX = 0.6 // up to +60% extra rise rate at full sustain
 const DURATION_BOOST_SECONDS = 2.5 // seconds of continuous voicing to hit max boost
+const SUSTAIN_GRACE_SECONDS = 0.35 // a brief breath between bursts doesn't reset the ramp
 
 function updateAltitude(currentAltitude, score, dt, config, pitchBoost = 0, sustainedSeconds = 0) {
   const { riseRate, fallRate, scoreThreshold } = config
@@ -73,8 +85,28 @@ function updateAltitude(currentAltitude, score, dt, config, pitchBoost = 0, sust
 
 // Autocorrelation pitch detection — first strong local peak (shortest lag), not
 // the global max, to avoid octave errors on clean tones.
-function detectPitch(floatSamples, sampleRate, minHz = 80, maxHz = 600) {
-  const SIZE = floatSamples.length
+//
+// minHz/maxHz bound the lag search range, so raising minHz shrinks the range
+// and cuts real compute — was 80Hz (a floor useful for adult male voices
+// down to ~85Hz), but this game's target speaker is always a child
+// sustaining "aaaa" (realistically 200-450Hz), so 80Hz bought nothing here
+// except a much wider, much more expensive search. That, combined with a
+// full 2048-sample window (the analyser's fftSize), made every call roughly
+// (551-73) lags x up to 2048 samples x 3 multiply-adds — near 2.5 million
+// floating-point ops, run every 3rd animation frame (PITCH_CHECK_EVERY_N_FRAMES)
+// on the main thread. On the underpowered/older tablets this app actually
+// runs on, that's real, visible jank — dropped frames right when a kid is
+// mid-"aaaa" waiting to see the rocket respond, part of what "takes forever"
+// was describing (the other, bigger part being the ~2s verification window
+// below). Narrowing the range to a child-appropriate 150-600Hz and using
+// only the first 1024 samples of the buffer (still ~23ms of audio — several
+// full periods even at the low end of that range, plenty for autocorrelation)
+// cuts this to roughly (294-73) lags x up to 1024 samples x 3 — about 5x
+// less work per call, with no accuracy loss for the frequencies this game
+// actually needs.
+const PITCH_DETECT_SAMPLES = 1024
+function detectPitch(floatSamples, sampleRate, minHz = 150, maxHz = 600) {
+  const SIZE = Math.min(PITCH_DETECT_SAMPLES, floatSamples.length)
   const maxLag = Math.floor(sampleRate / minHz)
   const minLag = Math.floor(sampleRate / maxHz)
 
@@ -174,7 +206,7 @@ export default function RocketLaunch() {
     stars: [], particles: [], sparkles: [],
     difficultyConfig: { ...BASE_ALTITUDE_CONFIG },
     attemptStartTime: 0, attemptNumber: 0,
-    inVoicing: false, voicingScores: [], sustainedSeconds: 0,
+    inVoicing: false, voicingScores: [], sustainedSeconds: 0, quietGraceRemaining: 0,
     scrollY: 0,
     W: 0, H: 0, DPR: 1,
     // Rolling ~2s speech-verification window (see VERIFY_WINDOW_MS above).
@@ -412,6 +444,7 @@ export default function RocketLaunch() {
       if (transcript !== null && transcript.trim() && !isSustainedVowel(transcript, 'a')) {
         s.altitude = Math.max(0, s.altitude - gained)
         s.sustainedSeconds = 0
+        s.quietGraceRemaining = 0
         playRetract()
         setAriaMsg('That wasn\'t quite a loud "aaaa" — try again!')
       }
@@ -553,8 +586,19 @@ export default function RocketLaunch() {
     // Track sustained voicing duration BEFORE computing altitude, so this
     // frame's climb already reflects how long the current burst has run —
     // rewards sticking with it, not just being loud for a single frame.
+    //
+    // A quick natural breath between "aaaa" bursts used to zero this
+    // instantly (rawScore <= 0.15 for even one frame reset it to 0),
+    // erasing the whole duration-boost ramp on top of whatever the
+    // verification window separately retracts. A short grace window lets
+    // a brief dip (a breath, a stutter) pass without losing the ramp,
+    // while a genuine pause still resets it same as before once the
+    // grace runs out.
     if (rawScore > 0.15) {
       s.sustainedSeconds += dt
+      s.quietGraceRemaining = SUSTAIN_GRACE_SECONDS
+    } else if (s.quietGraceRemaining > 0) {
+      s.quietGraceRemaining -= dt
     } else {
       s.sustainedSeconds = 0
     }
@@ -801,6 +845,7 @@ export default function RocketLaunch() {
     s.hasLaunched = false
     s.particles = []
     s.sustainedSeconds = 0
+    s.quietGraceRemaining = 0
     s.scrollY = 0
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
