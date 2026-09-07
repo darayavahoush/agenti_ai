@@ -108,6 +108,15 @@ export default function ParentSettings() {
             </div>
           )}
         </div>
+
+        <p className="text-paper/25 text-[11px] text-center mt-6">
+          Flashcard icons by{' '}
+          <a href="https://openmoji.org" target="_blank" rel="noopener noreferrer"
+             className="underline hover:text-paper/40 transition-colors">
+            OpenMoji
+          </a>{' '}
+          — the open-source emoji and icon project (CC BY-SA 4.0)
+        </p>
       </div>
     </div>
   )
