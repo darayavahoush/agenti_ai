@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -44,34 +44,30 @@ const DURATION_BOOST_SECONDS = 1.6
 
 const TARGET_ROARS_DEFAULT = 4
 
-// Rolling ~2s window for real speech verification — same shape as Firefly
-// Jar's VERIFY_WINDOW_MS: the client-side detector above (ROAR_THRESHOLD +
-// hold/cooldown) only ever measures loudness/timing, so a slammed door or a
-// loud cough completes a "roar" exactly like a real growl does. Every
-// completed hold still counts a provisional roar the instant it happens
-// (completeRoar, below — kids need snappy feedback), but every ~2s the clip
-// covering that batch of roars gets sent to Whisper (transcribeAudio) and
-// checked for actual growl-like content. See startVerificationWindow /
-// finishVerificationWindow.
-const VERIFY_WINDOW_MS = 2000
+// Verification window for real speech confirmation. The client-side detector
+// above (ROAR_THRESHOLD + hold/cooldown) only ever measures loudness/timing,
+// so a slammed door or a loud cough completes a "roar" exactly like a real
+// growl does. Every completed hold still counts a provisional roar the
+// instant it happens (completeRoar, below — kids need snappy feedback), but
+// every window the clip covering that batch of roars gets sent to the
+// backend's formant-based /chime/phoneme/score/r endpoint (the F3-dip
+// rhotic marker, the real clinical/acoustic signature of a genuine "rrr" —
+// see backend/audio_features/rhotic.py) and checked for actual rhotic
+// content. See startVerificationWindow / finishVerificationWindow.
+//
+// Shortened from 2000ms (the previous Whisper-based window) to 700ms — the
+// backend's rhotic extractor only needs a stable ~200-500ms voiced window
+// to track F3, so there was no acoustic reason to wait a full 2s before a
+// wrong sound's provisional roars got corrected. A shorter window means a
+// door slam or cough gets caught and retracted much faster, without giving
+// up any accuracy.
+const VERIFY_WINDOW_MS = 700
 
-// Unlike countMaOccurrences in Firefly Jar, this can't reliably count *how
-// many* growls happened — "rrrr" is a growl, not a word, and Whisper's
-// behavior on non-speech vocalizations is much less predictable than on
-// vowel-like sounds ("ya"/"aaa"/"oooo"/"eeee"): it might transcribe a real
-// growl as "rrrr", as "grr", as unrelated nonsense syllables, or as nothing
-// at all. So this only answers a coarser question — does this window's
-// transcript look r-dominated enough to plausibly be a growl at all — and
-// deliberately errs permissive/low-bar: a false negative here silently
-// retracts a real roar a kid worked for, which is worse than occasionally
-// letting a loud non-growl noise slip through. Needs validation against
-// real transcripts more than any of the vowel-based checks.
-function isGrowlSound(transcript) {
-  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z]/g, '')
-  if (cleaned.length < 2) return false
-  const rCount = (cleaned.match(/r/g) || []).length
-  return rCount >= 2 && rCount / cleaned.length >= 0.25
-}
+// Below this combined formant-quality/duration score (see rhotic.py's
+// FeatureResult.score), a window's roars get retracted. Same reasoning as
+// the vowel-based games' VERIFY_SCORE_THRESHOLD -- a verification gate
+// against non-growl noise, not a strict grading threshold.
+const VERIFY_SCORE_THRESHOLD = 0.35
 
 const DIFFICULTY_AGENT = {
   SAFE_RANGE: [3, 8],
@@ -329,12 +325,12 @@ export default function LionsRoar() {
     }
   }
 
-  // Records a rolling ~2s clip of whatever the mic hears, independent of the
+  // Records a rolling clip of whatever the mic hears, independent of the
   // client-side hold/cooldown detector above. Every completed hold in that
   // window has already counted a provisional roar immediately (for snappy
   // feedback — see completeRoar/gameLoop), but none of those are "confirmed"
-  // until this resolves: only windows whose transcript is r-dominated enough
-  // to plausibly be a growl (isGrowlSound) get to keep their roars.
+  // until this resolves: only windows whose formant score clears the rhotic
+  // threshold (VERIFY_SCORE_THRESHOLD) get to keep their roars.
   function startVerificationWindow() {
     const s = stateRef.current
     if (s.hasFinished || !s.mediaStream) return
@@ -366,24 +362,20 @@ export default function LionsRoar() {
 
     if (addedThisWindow > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
-      let transcript = ''
+      let result = null
       try {
-        const res = await transcribeAudio(blob)
-        transcript = res.transcript || ''
+        result = await scorePhoneme(LEVEL_ID, blob)
       } catch (err) {
-        console.warn('Backend transcription unavailable — window left unverified, provisional roars stand:', err)
-        transcript = null
+        console.warn('Backend phoneme scoring unavailable — window left unverified, provisional roars stand:', err)
       }
       // Unlike Firefly Jar's per-occurrence count, there's no reliable way to
       // tell how many of this window's roars were real growls — so if the
-      // transcript doesn't look growl-like at all, retract the whole
-      // window's worth rather than guess a partial count. A failed
-      // transcription (transcript === null) leaves the window unverified
-      // instead of retracting, same as Firefly Jar's fallback — and so does
-      // a request that succeeded but came back blank: Whisper commonly
-      // fails to render a growl as text at all even when it was a real,
-      // strong "rrrr", so an empty result isn't evidence the roar was fake.
-      if (transcript !== null && transcript.trim() && !isGrowlSound(transcript)) {
+      // window as a whole wasn't a valid rhotic attempt (silence/noise) or
+      // scored below the formant threshold, retract the whole window's
+      // worth rather than guess a partial count. A failed request leaves the
+      // window unverified instead of retracting -- a network hiccup isn't
+      // evidence the roar was fake.
+      if (result && (!result.is_valid_attempt || result.score < VERIFY_SCORE_THRESHOLD)) {
         s.roarsDone = Math.max(s.windowStartRoarsDone, 0)
         s.holdSeconds = 0
         s.inRoar = false
