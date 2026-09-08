@@ -80,7 +80,7 @@ export default function ParentDashboard() {
   const trend = data?.improvement_trend
 
   return (
-    <div className="min-h-screen bg-ink relative flex">
+    <div className="min-h-dvh bg-ink relative flex">
       {/* Ambient glow header — same elevated-dashboard language as the
           therapist side, in the parent flow's own coral/mint accent pair
           instead of teal/green. */}

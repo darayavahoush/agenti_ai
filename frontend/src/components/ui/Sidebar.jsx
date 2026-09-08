@@ -113,7 +113,7 @@ export default function Sidebar({
   return (
     <aside
       style={{ background: LANDING_GRADIENT }}
-      className={`sticky top-0 h-screen shrink-0 flex flex-col border-r border-white/[0.08]
+      className={`sticky top-0 h-dvh shrink-0 flex flex-col border-r border-white/[0.08]
                   shadow-[4px_0_24px_-8px_rgba(0,0,0,0.5)]
                   transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}
     >

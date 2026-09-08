@@ -15,7 +15,7 @@ export default function ParentSettings() {
   const [deleteError, setDeleteError] = useState('')
 
   return (
-    <div className="min-h-screen bg-ink relative flex">
+    <div className="min-h-dvh bg-ink relative flex">
       <div className="absolute top-0 left-0 w-full h-80 overflow-hidden pointer-events-none">
         <div className="absolute -top-32 -left-24 w-[28rem] h-[28rem] rounded-full bg-coral/[0.08] blur-[100px]" />
         <div className="absolute -top-40 right-0 w-[26rem] h-[26rem] rounded-full bg-mint/[0.06] blur-[100px]" />
