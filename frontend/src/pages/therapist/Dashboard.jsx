@@ -85,7 +85,7 @@ export default function TherapistDashboard() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen relative flex"
+      <div className="min-h-dvh relative flex"
            style={{ background: 'radial-gradient(ellipse 1400px 800px at 15% -10%, #1D9E75 0%, #16332D 35%, #12122A 70%)' }}>
         <AmbientGlow />
         <Sidebar
@@ -115,7 +115,7 @@ export default function TherapistDashboard() {
   const today = new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
-    <div className="min-h-screen relative flex"
+    <div className="min-h-dvh relative flex"
          style={{ background: 'radial-gradient(ellipse 1400px 800px at 15% -10%, #1D9E75 0%, #16332D 35%, #12122A 70%)' }}>
       {/* A real gradient now, not just a couple of faint blur blobs on a flat
           fill — same idea as the login screen's radial panel, in the

@@ -15,7 +15,7 @@ export default function TherapistSettings() {
   const [deleteError, setDeleteError] = useState('')
 
   return (
-    <div className="min-h-screen relative flex"
+    <div className="min-h-dvh relative flex"
          style={{ background: 'radial-gradient(ellipse 1400px 800px at 15% -10%, #1D9E75 0%, #16332D 35%, #12122A 70%)' }}>
       <AmbientGlow />
 
