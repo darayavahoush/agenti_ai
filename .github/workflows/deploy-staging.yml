@@ -90,4 +90,18 @@ jobs:
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --set-env-vars CORS_ORIGINS=https://vaaksudhi.manaslearning.com GOOGLE_CLIENT_ID=1088227083197-50cv8i40hq4qcta48t2haf2o22klp53u.apps.googleusercontent.com
+            --set-env-vars CORS_ORIGINS=https://vaaksudhi.manaslearning.com GOOGLE_CLIENT_ID=1088227083197-50cv8i40hq4qcta48t2haf2o22klp53u.apps.googleusercontent.com "SMTP_HOST=${{ secrets.SMTP_HOST }}" "SMTP_USER=${{ secrets.SMTP_USER }}" "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}"
+        # SMTP_HOST/USER/PASSWORD were never set here before -- every call to
+        # send_otp_email (and the other mailers in services/email.py) has its
+        # own "if not settings.SMTP_HOST or not settings.SMTP_USER or not
+        # settings.SMTP_PASSWORD" dev-fallback that silently logs the code to
+        # the container's server-side logs instead of emailing it, and still
+        # returns 200 either way -- so this wasn't erroring, it just never
+        # had real credentials to send with. Needs three GitHub Actions
+        # secrets added under Settings -> Secrets and variables -> Actions
+        # before this actually starts sending: SMTP_HOST (smtp.gmail.com for
+        # Gmail), SMTP_USER (the sending Gmail address), SMTP_PASSWORD (a
+        # 16-character Gmail *app password* -- https://myaccount.google.com/apppasswords
+        # -- not the account's normal login password, which won't work with
+        # smtplib). SMTP_PORT defaults to 587 in config.py and doesn't need
+        # setting here unless that changes.
