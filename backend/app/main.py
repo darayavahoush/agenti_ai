@@ -198,6 +198,9 @@ app.include_router(vaakmirror_sessions_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_dashboard_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_exercises_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_labeling_router, prefix="/api/v1/vaakmirror")
+from app.routers.event_feedback import router as event_feedback_router
+app.include_router(event_feedback_router, prefix="/api/v1")
+
 app.include_router(flashcards_router, prefix="/api/v1")
 
 # Ensure assets/audio directory exists
