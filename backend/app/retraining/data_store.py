@@ -89,6 +89,8 @@ def add_event(child_id, level_id: str, attempt_number: int, score: float,
         )
         session.add(event)
         session.commit()
+        session.refresh(event)
+        return event.id
 
 
 def get_events(child_id=None, since_id: int = None, db_path=None):

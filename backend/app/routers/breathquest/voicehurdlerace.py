@@ -70,22 +70,26 @@ async def create_session(
     # kid_progress.py/parent.py/chime.py/vaakmirror's sessions.py in this
     # pass — every direct call here blocks the whole app's event loop for
     # every other concurrent request while the write happens).
-    await asyncio.to_thread(_log_race_to_agent, patient.id, data)
+    rl_event_id = await asyncio.to_thread(_log_race_to_agent, patient.id, data)
 
-    return session
+    result = VoiceHurdleRaceSessionOut.model_validate(session)
+    result.rl_event_id = rl_event_id
+    return result
 
 
 def _log_race_to_agent(patient_id: str, data: VoiceHurdleRaceSessionCreate):
     """VoiceHurdleRace logs one row per *completed* race, not a start/end
     pair — there's no separate abandonment case to log here the way the
     other three games have (see weekly_summary.py's docstring on this same
-    point). Never lets agent bookkeeping break the actual game flow."""
+    point). Never lets agent bookkeeping break the actual game flow.
+    Returns the created RLTrainingEvent's id (or None on failure) so the
+    caller can surface it for feedback -- see event_feedback.py."""
     try:
         level_key = _vhr_level_key(data.level_id)
         existing = data_store.get_events(child_id=patient_id, db_path=data_store.DEFAULT_DB_PATH)
         attempt_number = len([e for e in existing if e["level_id"] == level_key]) + 1
 
-        data_store.add_event(
+        event_id = data_store.add_event(
             child_id=patient_id,
             level_id=level_key,
             attempt_number=attempt_number,
@@ -101,6 +105,7 @@ def _log_race_to_agent(patient_id: str, data: VoiceHurdleRaceSessionCreate):
             db_path=data_store.DEFAULT_DB_PATH,
         )
         _agent_service.maybe_update_tabular_q_from_new_event(patient_id, level_key, False)
+        return event_id
     except Exception:
         logger.exception("Failed to log VoiceHurdleRace session to the adaptive-difficulty agent")
 
