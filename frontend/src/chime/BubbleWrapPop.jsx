@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio, scoreWord, submitEventFeedback } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
-import { encodeWavMono } from './lib/wavEncoder'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
@@ -17,16 +16,18 @@ const AGENT_POLICY = 'tabular_q'
 
 // Real "ha" verification, added because aspiration_burst.py's backend check
 // (peak loudness + duration only, no spectral discrimination) would pass a
-// clap, cough, or table thump exactly as easily as a real "ha" -- it's the
-// same crude burst detector as scoreBurst below, just on the server. A
-// clean confirmation needs the actual ASR pipeline Village Builder already
-// uses: transcribe the burst with faster-whisper, then fuzzy-match the
-// transcript against the target word. See verifyBurst().
-const HA_TARGET_WORD = 'ha'
-const HA_MATCH_THRESHOLD = 0.35
-const RING_BUFFER_SECONDS = 2
-const MIN_VERIFY_CLIP_S = 0.35 // pad short bursts so whisper has enough audio to work with
-const VERIFY_CLIP_PAD_S = 0.15
+// clap, cough, or table thump exactly as easily as a real "ha". A clean
+// confirmation needs the actual ASR pipeline (transcribe with faster-whisper),
+// but an isolated ~0.35-0.65s clip per burst -- what this used to send -- is
+// close to worst case for Whisper: no surrounding phonetic context, so a
+// clean "ha" would often transcribe as noise or nothing and get wrongly
+// rejected. Batched into a rolling window instead, same pattern as Firefly
+// Jar's "ma": every burst still pops a bubble instantly (kids need snappy
+// feedback), but confirmation waits for the window to close and counts how
+// many "ha"-like tokens Whisper actually heard in that longer, more-context
+// clip, retracting any pops beyond that count. See
+// startVerificationWindow/finishVerificationWindow.
+const VERIFY_WINDOW_MS = 1200
 const VERIFY_TOAST_MS = 1800
 
 function scoreBurst(rmsEnvelope, durationS, minPeakRms = MIN_PEAK_RMS_DEFAULT, maxExpectedPeakRms = MAX_EXPECTED_PEAK_RMS_DEFAULT) {
@@ -47,36 +48,25 @@ function personalizeBurstRange(peakRmsReadings, noiseFloor, fallbackMax = MAX_EX
   return { minPeakRms, maxExpectedPeakRms, usedFallback: false }
 }
 
-// Ring buffer of raw mic samples, fed continuously by a ScriptProcessorNode
-// (see requestMicAndCalibrate) so the exact audio behind a burst is already
-// captured by the time gameLoop notices the burst has ended -- there's no
-// "start recording now" step that could miss the onset.
-function writeToRingBuffer(s, chunk) {
-  const buf = s.ringBuffer
-  if (!buf) return
-  let pos = s.ringWritePos
-  for (let i = 0; i < chunk.length; i++) {
-    buf[pos] = chunk[i]
-    pos = (pos + 1) % buf.length
+// Whisper commonly renders repeated "ha" bursts as "ha ha ha", "haha",
+// "haa", etc. rather than one clean token per burst, so count "ha"-style
+// syllable occurrences directly rather than a whole-transcript similarity
+// ratio -- same approach as Firefly Jar's countMaOccurrences, applied to "ha".
+function countHaOccurrences(transcript) {
+  const cleaned = (transcript || '').toLowerCase().replace(/[^a-z\s]/g, ' ')
+  const tokens = cleaned.split(/\s+/).filter(Boolean)
+  let count = 0
+  for (const tok of tokens) {
+    // Only count a token made up ENTIRELY of one or more "ha"-style
+    // syllables back to back -- e.g. "ha" -> 1, "haha" -> 2, "haaha" -> 2.
+    // A token that merely contains "ha" inside another word ("hat")
+    // doesn't match the full-token pattern and is skipped.
+    if (/^(?:ha+)+$/.test(tok)) {
+      const syllables = tok.match(/ha+/g)
+      if (syllables) count += syllables.length
+    }
   }
-  s.ringWritePos = pos
-  s.ringSamplesWritten = Math.min(buf.length, s.ringSamplesWritten + chunk.length)
-}
-
-// Reads the most recently written `durationS` seconds out of the ring
-// buffer, ending at the current write position ("now"). Good enough here
-// because gameLoop calls this right as it detects the burst ended, so the
-// ring buffer's write head is already at (or a couple ms past) that moment.
-function readRingBufferWindow(s, durationS) {
-  const buf = s.ringBuffer
-  if (!buf) return null
-  const wantSamples = Math.min(buf.length, Math.round(durationS * s.ringSampleRate))
-  const availSamples = Math.min(wantSamples, s.ringSamplesWritten)
-  if (availSamples <= 0) return null
-  const out = new Float32Array(availSamples)
-  const start = (s.ringWritePos - availSamples + buf.length * 2) % buf.length
-  for (let i = 0; i < availSamples; i++) out[i] = buf[(start + i) % buf.length]
-  return out
+  return count
 }
 
 function popNextBubble(poppedFlags, burstScore, popThreshold = 0.3) {
@@ -151,8 +141,6 @@ export default function BubbleWrapPop() {
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
-    scriptProcessor: null, silentGain: null,
-    ringBuffer: null, ringSampleRate: 44100, ringWritePos: 0, ringSamplesWritten: 0,
     noiseFloor: 0.01,
     targetPops: MIN_TARGET_POPS,
     gridCols: 3, gridRows: 2,
@@ -168,6 +156,9 @@ export default function BubbleWrapPop() {
     attemptStartTime: 0,
     attemptNumber: 0,
     W: 0, H: 0, DPR: 1,
+    // Rolling ~1.2s speech-verification window (see VERIFY_WINDOW_MS above).
+    windowStartPopCount: 0, windowPoppedIndices: [],
+    verifyTimer: null, mediaRecorderRef: null,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -184,8 +175,10 @@ export default function BubbleWrapPop() {
     const state = stateRef.current
     return () => {
       cancelAnimationFrame(rafRef.current)
-      if (state.scriptProcessor) state.scriptProcessor.disconnect()
-      if (state.silentGain) state.silentGain.disconnect()
+      clearTimeout(state.verifyTimer)
+      if (state.mediaRecorderRef && state.mediaRecorderRef.state !== 'inactive') {
+        try { state.mediaRecorderRef.onstop = null; state.mediaRecorderRef.stop() } catch { /* already stopped */ }
+      }
       if (state.audioCtx) state.audioCtx.close().catch(() => {})
       if (state.mediaStream) state.mediaStream.getTracks().forEach(t => t.stop())
     }
@@ -262,25 +255,6 @@ export default function BubbleWrapPop() {
       s.analyser.fftSize = 2048
       s.timeDomainData = new Float32Array(s.analyser.fftSize)
       source.connect(s.analyser)
-
-      // Continuously fills the ring buffer with raw samples so a burst's
-      // exact audio is already captured once gameLoop notices it ended.
-      // ScriptProcessorNode needs a path to the destination to keep firing
-      // in some browsers, so it's routed through a zero-gain node rather
-      // than actually being audible.
-      s.ringSampleRate = s.audioCtx.sampleRate
-      s.ringBuffer = new Float32Array(Math.round(RING_BUFFER_SECONDS * s.ringSampleRate))
-      s.ringWritePos = 0
-      s.ringSamplesWritten = 0
-      s.scriptProcessor = s.audioCtx.createScriptProcessor(2048, 1, 1)
-      s.scriptProcessor.onaudioprocess = (e) => {
-        writeToRingBuffer(s, e.inputBuffer.getChannelData(0))
-      }
-      s.silentGain = s.audioCtx.createGain()
-      s.silentGain.gain.value = 0
-      source.connect(s.scriptProcessor)
-      s.scriptProcessor.connect(s.silentGain)
-      s.silentGain.connect(s.audioCtx.destination)
 
       runCalibration()
     } catch (err) {
@@ -359,6 +333,8 @@ export default function BubbleWrapPop() {
     s.verifiedFlags = new Array(s.gridCols * s.gridRows).fill(false)
     s.popPulse = new Array(s.gridCols * s.gridRows).fill(0)
     s.sheetGeneration++
+    s.windowStartPopCount = 0
+    s.windowPoppedIndices = []
     s.hasFinished = false
     s.particles = []
     s.popStreak = 0
@@ -375,6 +351,7 @@ export default function BubbleWrapPop() {
     startNewSheet()
     setAriaMsg('Ready! Say a quick "ha!" to pop a bubble.')
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   // Logs one real, per-burst event to the backend the same way the scorePhoneme-based
@@ -412,60 +389,97 @@ export default function BubbleWrapPop() {
     }
   }
 
-  // Real "ha" verification: pop the bubble optimistically the instant the local
-  // burst detector fires (instant, satisfying feedback), but only count it toward
-  // real sheet progress once this confirms it -- same transcribe-then-match
-  // pattern Village Builder already uses, applied to a burst instead of a word.
-  //
+  // Records a rolling ~1.2s clip of whatever the mic hears, independent of
+  // the client-side burst detector above. Every burst in that window has
+  // already popped a bubble optimistically (instant, satisfying feedback --
+  // see gameLoop), but none of those pops are "confirmed" until this
+  // resolves: only pops backed by an actual "ha" in the transcript get to
+  // stay. Same pattern as Firefly Jar's startVerificationWindow.
+  function startVerificationWindow() {
+    const s = stateRef.current
+    if (s.hasFinished || !s.mediaStream) return
+
+    s.windowStartPopCount = s.poppedFlags.filter(Boolean).length
+    s.windowPoppedIndices = []
+    const generation = s.sheetGeneration
+
+    const chunks = []
+    let recorder
+    try {
+      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+    } catch (err) {
+      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => finishVerificationWindow(chunks, generation)
+    s.mediaRecorderRef = recorder
+    recorder.start()
+    s.verifyTimer = setTimeout(() => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    }, VERIFY_WINDOW_MS)
+  }
+
   // generation guards against a race where the child finishes/restarts the
   // sheet (startNewSheet reassigns poppedFlags/verifiedFlags to new arrays)
-  // while a verification from the *previous* sheet is still in flight -- without
+  // while a window from the *previous* sheet is still resolving -- without
   // it, a late result could flip a bubble on a sheet the child isn't even on.
-  async function verifyBurst(idx, generation, audioWindow, sampleRate, localScore) {
+  async function finishVerificationWindow(chunks, generation) {
     const s = stateRef.current
-    setVerifyToast({ status: 'checking', message: 'Checking your "ha"...' })
+    const windowIndices = s.windowPoppedIndices
+    const addedThisWindow = windowIndices.length
 
-    let matchScore = 0
-    let isValidAttempt = false
-    try {
-      const wavBlob = encodeWavMono(audioWindow, sampleRate)
-      const { transcript, confidence } = await transcribeAudio(wavBlob, 'burst.wav')
-      let result
+    if (addedThisWindow > 0 && chunks.length > 0) {
+      setVerifyToast({ status: 'checking', message: 'Checking your "ha"s...' })
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      let transcript = null
       try {
-        result = await scoreWord(transcript, HA_TARGET_WORD, confidence)
+        const res = await transcribeAudio(blob)
+        transcript = res.transcript || ''
       } catch (err) {
-        console.warn('Backend word-scoring unavailable, matching locally:', err)
-        const t = transcript.trim().toLowerCase()
-        result = { match_score: t.startsWith('ha') ? 1 : 0, is_valid_attempt: t.length > 0 }
+        console.warn('Backend transcription unavailable — window left unverified, provisional pops stand:', err)
+        transcript = null
       }
-      matchScore = result.match_score
-      isValidAttempt = result.is_valid_attempt
-    } catch (err) {
-      // Transcription itself is unreachable (offline / whisper model not up) --
-      // fall back to trusting the local burst heuristic rather than stranding
-      // a kid mid-sheet because the verification service is down.
-      console.warn('Burst verification unavailable, trusting the local burst detector instead:', err)
-      matchScore = localScore
-      isValidAttempt = true
+
+      if (generation === s.sheetGeneration) {
+        // A blank result is common even for a real "ha" burst -- Whisper can
+        // fail to render a short vocalization as text at all. Treat "got
+        // nothing back" (failed request or empty transcript) as unverifiable
+        // rather than retracting a real pop just because the STT model came
+        // up empty.
+        if (transcript !== null && transcript.trim()) {
+          const haCount = countHaOccurrences(transcript)
+          const confirmedCount = Math.min(addedThisWindow, haCount)
+          const toRetract = addedThisWindow - confirmedCount
+
+          for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[windowIndices[i]] = true
+          if (toRetract > 0) {
+            for (let i = confirmedCount; i < windowIndices.length; i++) {
+              const idx = windowIndices[i]
+              s.poppedFlags[idx] = false
+              s.popPulse[idx] = 0
+            }
+          }
+          setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+          const message = toRetract > 0
+            ? (confirmedCount > 0
+                ? `Heard ${confirmedCount} clear "ha"! ${toRetract} didn't quite catch — try again.`
+                : 'Didn\'t quite catch a "ha" — try again!')
+            : 'Great "ha"! 🎉'
+          setVerifyToast({ status: toRetract > 0 ? 'rejected' : 'verified', message })
+          setTimeout(() => setVerifyToast(cur => (cur && cur.message === message ? null : cur)), VERIFY_TOAST_MS)
+        } else {
+          // Unverifiable window (transcription failed or came back empty) --
+          // trust the local burst detector rather than stranding a kid
+          // mid-sheet because verification is down.
+          for (const idx of windowIndices) s.verifiedFlags[idx] = true
+          setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+          setVerifyToast(null)
+        }
+      }
     }
 
-    logBurstAttempt(matchScore, isValidAttempt)
-
-    if (generation !== s.sheetGeneration) return // sheet changed under us -- discard
-
-    const verified = matchScore >= HA_MATCH_THRESHOLD
-    if (verified) {
-      s.verifiedFlags[idx] = true
-      setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
-      setVerifyToast({ status: 'verified', message: 'Great "ha"! 🎉' })
-    } else {
-      // Un-pop it -- the sound that triggered the optimistic pop wasn't
-      // actually a "ha", so this slot goes back to needing a real attempt.
-      s.poppedFlags[idx] = false
-      s.popPulse[idx] = 0
-      setVerifyToast({ status: 'rejected', message: 'Didn\'t quite catch a "ha" — try again!' })
-    }
-    setTimeout(() => setVerifyToast(cur => (cur && cur.message === (verified ? 'Great "ha"! 🎉' : 'Didn\'t quite catch a "ha" — try again!') ? null : cur)), VERIFY_TOAST_MS)
+    if (generation === s.sheetGeneration && !s.hasFinished) startVerificationWindow()
   }
 
   // Sheet-completion pacing only: asks the difficulty agent whether to grow/shrink the
@@ -576,26 +590,16 @@ export default function BubbleWrapPop() {
           s.poppedFlags = flags
           playPopSound()
 
-          // Kick off real verification for every bubble this burst optimistically
-          // popped -- a streak bonus pop borrows the same burst audio since it's
-          // still one physical "ha", just counted as extra under the streak rule.
-          const clipDurationS = Math.max(MIN_VERIFY_CLIP_S, durationS + VERIFY_CLIP_PAD_S)
-          const audioWindow = readRingBufferWindow(s, clipDurationS)
-          const generation = s.sheetGeneration
-          if (audioWindow) {
-            for (const idx of poppedIndices) {
-              verifyBurst(idx, generation, audioWindow, s.ringSampleRate, score)
-            }
-          } else {
-            // No ring buffer audio available (shouldn't normally happen once
-            // mic setup succeeded) -- trust the local detector rather than
-            // leaving these bubbles permanently unverifiable.
-            for (const idx of poppedIndices) {
-              s.verifiedFlags[idx] = true
-              logBurstAttempt(score, isValidAttempt)
-            }
-            setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
-          }
+          // Every bubble this burst optimistically popped is queued into the
+          // current verification window -- a streak bonus pop still counts as
+          // one physical "ha", so it just adds another confirmable slot to
+          // the same window instead of triggering its own Whisper call.
+          for (const idx of poppedIndices) s.windowPoppedIndices.push(idx)
+          // One backend event per detected burst, scored on real audio
+          // quality -- same one-event-per-physical-attempt shape as the
+          // other chime games, regardless of how many bubbles the streak
+          // bonus popped from it.
+          logBurstAttempt(score, isValidAttempt)
         } else {
           // A real attempt that didn't pop a bubble breaks the streak, same
           // as it would if this were a sustain mechanic losing voicing quality.
@@ -699,6 +703,7 @@ export default function BubbleWrapPop() {
     setSuccessVisible(false)
     startNewSheet()
     rafRef.current = requestAnimationFrame(gameLoop)
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {

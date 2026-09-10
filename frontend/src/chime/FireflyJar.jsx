@@ -729,6 +729,12 @@ export default function FireflyJar() {
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     rafRef.current = requestAnimationFrame(gameLoop)
+    // Without this, the previous jar's verification-window chain already
+    // stopped itself (finishVerificationWindow only re-arms while
+    // !s.hasFinished, which flipped true when that jar completed) -- so the
+    // new jar would otherwise run with zero speech verification, every
+    // catch standing whether or not it was a real "ma".
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {
