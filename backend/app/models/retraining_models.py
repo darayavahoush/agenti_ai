@@ -52,6 +52,8 @@ class RLTrainingEvent(Base):
     downgrade_reason:          Mapped[str | None]    = mapped_column(String, nullable=True)
     recommended_action:         Mapped[str | None]    = mapped_column(String, nullable=True)
     recommendation_message:     Mapped[str | None]    = mapped_column(String, nullable=True)
+    feedback:                Mapped[str | None]    = mapped_column(String, nullable=True)   # "up" | "down"
+    feedback_at:             Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class RetrainCheckpoint(Base):

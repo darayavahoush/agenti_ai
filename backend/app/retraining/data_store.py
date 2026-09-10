@@ -181,3 +181,15 @@ def set_checkpoint(scope: str, event_count: int, db_path=None):
         )
         session.execute(stmt)
         session.commit()
+
+
+def set_event_feedback(event_id: int, child_id, feedback: str, db_path=None):
+    with RetrainingSessionLocal() as session:
+        event = session.get(RLTrainingEvent, event_id)
+        if event is None or event.child_id != child_id:
+            return None
+        event.feedback = feedback
+        event.feedback_at = datetime.now(timezone.utc)
+        session.commit()
+        session.refresh(event)
+        return event
