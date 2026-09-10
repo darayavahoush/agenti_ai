@@ -1062,7 +1062,8 @@ export default function RocketLaunch() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[rgba(42,26,62,0.75)] border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold">
           <span>Did we score that right?</span>
           <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
-          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" className="hover:scale-110 transition-transform">👎</button>
+          <button onClick={() => handleFeedback('too_strict')} aria-label="No, too strict -- a good attempt should have scored higher" className="hover:scale-110 transition-transform">😖</button>
+          <button onClick={() => handleFeedback('too_generous')} aria-label="No, too generous -- a weak attempt scored too well" className="hover:scale-110 transition-transform">😅</button>
         </div>
       )}
 

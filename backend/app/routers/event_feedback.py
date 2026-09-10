@@ -19,7 +19,12 @@ router = APIRouter(tags=["event-feedback"])
 
 
 class FeedbackIn(BaseModel):
-    feedback: Literal["up", "down"]
+    # "up"/"down" cover the simple chip (burst games, VoiceHurdleRace).
+    # "too_generous"/"too_strict" are the vowel games' 3-way variant --
+    # same "up" for a correct score, but a split "down" that says which
+    # direction the miss went, which is what actually tells you whether
+    # to widen or narrow that game's formant tolerance.
+    feedback: Literal["up", "down", "too_generous", "too_strict"]
 
 
 class FeedbackOut(BaseModel):
