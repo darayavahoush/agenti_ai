@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -106,6 +106,9 @@ export default function XylophoneTower() {
   const [successVisible, setSuccessVisible] = useState(false)
   const [agentFeedback, setAgentFeedback] = useState('')
   const [ariaMsg, setAriaMsg] = useState('')
+  const [feedbackEventId, setFeedbackEventId] = useState(null)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const feedbackTimeoutRef = useRef(null)
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
@@ -116,6 +119,7 @@ export default function XylophoneTower() {
     attemptStartTime: 0, attemptNumber: 0,
     requiredSustainSeconds: 3,
     inVoicing: false, voicingScores: [],
+    lastVerificationScore: null, lastVerificationCorrect: null,
     W: 0, H: 0, DPR: 1,
     // Verification window timing — see VERIFY_WINDOW_MS above.
     verifyTimer: null, mediaRecorderRef: null,
@@ -364,6 +368,12 @@ export default function XylophoneTower() {
       } catch (err) {
         console.warn('Backend phoneme scoring unavailable — window left unverified, provisional climb stands:', err)
       }
+
+      if (result) {
+        s.lastVerificationScore = result.score
+        s.lastVerificationCorrect = result.is_valid_attempt && result.score >= VERIFY_SCORE_THRESHOLD
+      }
+
       // A real result telling us this wasn't a genuine attempt at all
       // (silence/noise -- is_valid_attempt false) or scored below the
       // formant-quality threshold (wrong vowel, or too brief) gets its
@@ -395,10 +405,48 @@ export default function XylophoneTower() {
     if (scores.length < MIN_VOICING_FRAMES) return
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length
     s.attemptNumber++
+    // See RocketLaunch.jsx's logVoicingAttempt for the full rationale on
+    // this raw_features shape and why it rides on the existing per-segment
+    // log call.
     try {
-      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: avgScore, is_valid_attempt: true })
+      const result = await logEvent({
+        level_id: LEVEL_ID,
+        attempt_number: s.attemptNumber,
+        score: avgScore,
+        is_valid_attempt: true,
+        raw_features: {
+          correct: s.lastVerificationCorrect,
+          last_verification_score: s.lastVerificationScore,
+          verify_score_threshold: VERIFY_SCORE_THRESHOLD,
+          verify_window_ms: VERIFY_WINDOW_MS,
+          rise_rate: RISE_RATE,
+          fall_rate: FALL_RATE,
+          score_threshold: SCORE_THRESHOLD,
+          duration_boost_max: DURATION_BOOST_MAX,
+          duration_boost_seconds: DURATION_BOOST_SECONDS,
+          required_sustain_seconds: s.requiredSustainSeconds,
+          safe_range: DIFFICULTY_AGENT.SAFE_RANGE,
+        },
+      })
+      if (result && result.id != null) {
+        setFeedbackEventId(result.id)
+        setFeedbackSubmitted(false)
+        clearTimeout(feedbackTimeoutRef.current)
+        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
+      }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
+    }
+  }
+
+  async function handleFeedback(value) {
+    if (feedbackEventId == null) return
+    setFeedbackSubmitted(true)
+    clearTimeout(feedbackTimeoutRef.current)
+    try {
+      await submitEventFeedback(feedbackEventId, value)
+    } catch (err) {
+      console.warn('Feedback submission failed:', err)
     }
   }
 
@@ -789,6 +837,14 @@ export default function XylophoneTower() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[rgba(42,26,62,0.75)] border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold">
+          <span>Did we score that right?</span>
+          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
+          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" className="hover:scale-110 transition-transform">👎</button>
         </div>
       )}
 
