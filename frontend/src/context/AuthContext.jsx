@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authAPI, assessmentAPI, patientsAPI } from '../api/client'
+import { listKnownAccounts, upsertKnownAccount, forgetKnownAccount, currentAccountKey } from '../api/knownAccounts'
 
 const AuthContext = createContext(null)
 
@@ -12,6 +13,22 @@ export function AuthProvider({ children }) {
   // startSupervisedSession below -- holds the therapist's own session so
   // endSupervisedSession can restore it without a fresh login.
   const [supervisorBackup, setSupervisorBackup] = useState(null)
+  // Everyone who has ever logged in on this device, for the profile
+  // switcher -- separate from which ONE of them is active right now (that's
+  // still just the plain bq_token/bq_user_type/bq_user_data keys below).
+  const [knownAccounts, setKnownAccounts] = useState([])
+
+  // Single place every login/register function below persists a session --
+  // sets the four active-session keys, and upserts this account into the
+  // device's switcher roster so it's there to switch back into later
+  // without re-entering a PIN or password.
+  const _persistSession = (userType, data) => {
+    localStorage.setItem('bq_token',         data.access_token)
+    localStorage.setItem('bq_refresh_token', data.refresh_token)
+    localStorage.setItem('bq_user_type',     userType)
+    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    setKnownAccounts(upsertKnownAccount(userType, data, data.refresh_token))
+  }
 
   useEffect(() => {
     const token    = localStorage.getItem('bq_token')
@@ -27,15 +44,13 @@ export function AuthProvider({ children }) {
     if (backupRaw) {
       try { setSupervisorBackup(JSON.parse(backupRaw)) } catch { /* corrupt -- ignore */ }
     }
+    setKnownAccounts(listKnownAccounts())
     setLoading(false)
   }, [])
 
   const loginTherapist = async (email, password) => {
     const { data } = await authAPI.login({ email, password })
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'therapist')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('therapist', data)
     setTherapist(data); setPatient(null); setParent(null)
     return data
   }
@@ -46,20 +61,14 @@ export function AuthProvider({ children }) {
   // beyond what the verified Google token already gives us.
   const loginTherapistGoogle = async (idToken) => {
     const { data } = await authAPI.googleAuthTherapist(idToken)
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'therapist')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('therapist', data)
     setTherapist(data); setPatient(null); setParent(null)
     return data
   }
 
   const registerTherapist = async (formData) => {
     const { data } = await authAPI.register(formData)
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'therapist')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('therapist', data)
     setTherapist(data); setPatient(null); setParent(null)
     return data
   }
@@ -73,30 +82,21 @@ export function AuthProvider({ children }) {
       first_name: firstName, avatar, pin,
       parent_email: parentEmail, parent_phone: parentPhone,
     })
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'patient')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('patient', data)
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
 
   const setupKidPin = async (assessmentPatientId, avatar, pin) => {
     const { data } = await authAPI.kidPinSetup({ patient_id: assessmentPatientId, avatar, pin })
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'patient')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('patient', data)
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
 
   const loginKid = async (playerCode, pin) => {
     const { data } = await authAPI.kidLogin({ player_code: playerCode, pin })
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'patient')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('patient', data)
     setPatient(data); setTherapist(null); setParent(null)
     return data
   }
@@ -188,10 +188,7 @@ export function AuthProvider({ children }) {
         email, password, full_name: fullName, phone,
       }
       const { data } = await authAPI.parentKidRegister(payload)
-      localStorage.setItem('bq_token',         data.access_token)
-      localStorage.setItem('bq_refresh_token', data.refresh_token)
-      localStorage.setItem('bq_user_type',     'parent')
-      localStorage.setItem('bq_user_data',     JSON.stringify(data))
+      _persistSession('parent', data)
       setParent(data); setTherapist(null); setPatient(null)
       return data
     }
@@ -204,10 +201,7 @@ export function AuthProvider({ children }) {
       player_code: code,
     }
     const { data } = await authAPI.parentRegister(payload)
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'parent')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('parent', data)
     setParent(data); setTherapist(null); setPatient(null)
     return data
   }
@@ -216,7 +210,55 @@ export function AuthProvider({ children }) {
   // local auth state regardless of which role called it, since deleting
   // an account should always end in a fully logged-out state (same
   // cleanup logout() already does).
+  // Instantly switches the active session to a different profile already
+  // remembered on this device -- no PIN or password re-entry, matching a
+  // Netflix-style profile picker. Gets a fresh access/refresh token pair
+  // via a real refresh call rather than reusing whatever's cached (the
+  // stored refresh token could be idle for days between switches, and
+  // refresh both validates it's still alive AND rotates it), but keeps the
+  // account's cached display info (name/avatar/etc.) from its last real
+  // login rather than re-fetching, since /auth/refresh only ever returns
+  // tokens, not profile data.
+  const switchAccount = async (key) => {
+    const entry = listKnownAccounts().find((a) => a.key === key)
+    if (!entry) return { ok: false, reason: 'not_found' }
+    try {
+      const { data } = await authAPI.refresh(entry.refreshToken)
+      const merged = { ...entry.userData, access_token: data.access_token, refresh_token: data.refresh_token }
+      _persistSession(entry.userType, merged)
+      setTherapist(entry.userType === 'therapist' ? merged : null)
+      setPatient(entry.userType === 'patient' ? merged : null)
+      setParent(entry.userType === 'parent' ? merged : null)
+      setSupervisorBackup(null) // switching profiles ends any supervised-session overlay
+      localStorage.removeItem('bq_supervisor_backup')
+      return { ok: true }
+    } catch {
+      // Refresh token itself is dead -- idle past its 14-30 day window, or
+      // revoked (e.g. that profile was deleted elsewhere). Can't be
+      // quick-switched into anymore; drop it rather than leaving a
+      // switcher entry that will just fail the same way next time.
+      forgetKnownAccount(key)
+      setKnownAccounts(listKnownAccounts())
+      return { ok: false, reason: 'expired', userType: entry.userType }
+    }
+  }
+
+  // Removes one profile from this device's switcher roster. If it's the
+  // one currently active, this also ends that session properly (server
+  // -side revoke + clearing the active keys) rather than just vanishing it
+  // from the list while leaving the user signed in with no way to find it
+  // again in the switcher.
+  const forgetAccount = async (key) => {
+    const wasActive = key === currentAccountKey()
+    forgetKnownAccount(key)
+    setKnownAccounts(listKnownAccounts())
+    if (wasActive) await logout()
+  }
+
   const _clearSession = () => {
+    const key = currentAccountKey()
+    if (key) forgetKnownAccount(key)
+    setKnownAccounts(listKnownAccounts())
     localStorage.removeItem('bq_token')
     localStorage.removeItem('bq_refresh_token')
     localStorage.removeItem('bq_user_type')
@@ -241,10 +283,7 @@ export function AuthProvider({ children }) {
 
   const loginParent = async (email, password) => {
     const { data } = await authAPI.parentLogin({ email, password })
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'parent')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('parent', data)
     setParent(data); setTherapist(null); setPatient(null)
     return data
   }
@@ -258,10 +297,7 @@ export function AuthProvider({ children }) {
   // Google-auth equivalent yet (see backend schema's docstring).
   const loginParentGoogle = async (idToken) => {
     const { data } = await authAPI.parentGoogleLogin(idToken)
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'parent')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('parent', data)
     setParent(data); setTherapist(null); setPatient(null)
     return data
   }
@@ -274,10 +310,7 @@ export function AuthProvider({ children }) {
       player_code: code,
     }
     const { data } = await authAPI.parentGoogleRegister(payload)
-    localStorage.setItem('bq_token',         data.access_token)
-    localStorage.setItem('bq_refresh_token', data.refresh_token)
-    localStorage.setItem('bq_user_type',     'parent')
-    localStorage.setItem('bq_user_data',     JSON.stringify(data))
+    _persistSession('parent', data)
     setParent(data); setTherapist(null); setPatient(null)
     return data
   }
@@ -307,6 +340,15 @@ export function AuthProvider({ children }) {
       // than surfaced to the caller.
       try { await authAPI.logout(refreshToken) } catch { /* ignore */ }
     }
+    // An explicit "Log out" is a deliberate "I'm done here" from whoever's
+    // using the device -- unlike switchAccount (which leaves the profile
+    // you're leaving in the roster to switch back into later), this drops
+    // it from the switcher too, matching what a person expects "log out"
+    // to mean rather than leaving a ghost entry that still quick-switches
+    // back in with no password.
+    const key = currentAccountKey()
+    if (key) forgetKnownAccount(key)
+    setKnownAccounts(listKnownAccounts())
     localStorage.removeItem('bq_token')
     localStorage.removeItem('bq_refresh_token')
     localStorage.removeItem('bq_user_type')
@@ -326,6 +368,8 @@ export function AuthProvider({ children }) {
       loginParent, registerParent, loginParentGoogle, registerParentGoogle, logout,
       deleteParentAccount, deleteKidAccount, deleteTherapistAccount,
       updatePatient,
+      knownAccounts, switchAccount, forgetAccount,
+      currentAccountKey: currentAccountKey(),
       isTherapist: !!therapist,
       isKid:       !!patient,
       isParent:    !!parent,
