@@ -1047,7 +1047,8 @@ export default function SubmarineDive() {
         }}>
           <span>Did we score that dive right?</span>
           <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👍</button>
-          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👎</button>
+          <button onClick={() => handleFeedback('too_strict')} aria-label="No, too strict -- a good attempt should have scored higher" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>😖</button>
+          <button onClick={() => handleFeedback('too_generous')} aria-label="No, too generous -- a weak attempt scored too well" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>😅</button>
         </div>
       )}
 
