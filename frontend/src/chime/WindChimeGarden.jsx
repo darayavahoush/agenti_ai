@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -154,6 +154,9 @@ export default function WindChimeGarden() {
   const [successVisible, setSuccessVisible] = useState(false)
   const [agentFeedback, setAgentFeedback] = useState('')
   const [ariaMsg, setAriaMsg] = useState('')
+  const [feedbackEventId, setFeedbackEventId] = useState(null)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const feedbackTimeoutRef = useRef(null)
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
@@ -379,9 +382,26 @@ export default function WindChimeGarden() {
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length
     s.attemptNumber++
     try {
-      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: avgScore, is_valid_attempt: true })
+      const result = await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: avgScore, is_valid_attempt: true })
+      if (result && result.id != null) {
+        setFeedbackEventId(result.id)
+        setFeedbackSubmitted(false)
+        clearTimeout(feedbackTimeoutRef.current)
+        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
+      }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
+    }
+  }
+
+  async function handleFeedback(value) {
+    if (feedbackEventId == null) return
+    setFeedbackSubmitted(true)
+    clearTimeout(feedbackTimeoutRef.current)
+    try {
+      await submitEventFeedback(feedbackEventId, value)
+    } catch (err) {
+      console.warn('Feedback submission failed:', err)
     }
   }
 
@@ -896,6 +916,14 @@ export default function WindChimeGarden() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[rgba(42,26,62,0.75)] border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold">
+          <span>Did we score that right?</span>
+          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
+          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" className="hover:scale-110 transition-transform">👎</button>
         </div>
       )}
 
