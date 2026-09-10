@@ -33,6 +33,7 @@ class VoiceHurdleRaceSessionOut(BaseModel):
     loudness_accuracy: float
     stars: int
     created_at: datetime
+    rl_event_id: int | None = None  # RLTrainingEvent id for this race, if agent logging succeeded -- lets the frontend attach feedback
 
 
 class LeaderboardEntryOut(BaseModel):
