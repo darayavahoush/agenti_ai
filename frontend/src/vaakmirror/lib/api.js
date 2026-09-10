@@ -46,6 +46,13 @@ export function logAttempt(sessionId, attempt) {
   return api.post(`${VM}/sessions/${sessionId}/attempts`, attempt).then(r => r.data)
 }
 
+// Shared across every game (see backend/app/routers/event_feedback.py) --
+// not VaakMirror-specific, but re-exported here so game components only
+// need one import from this file rather than reaching into Chime's lib/api.
+export function submitEventFeedback(eventId, feedback) {
+  return api.patch(`/events/${eventId}/feedback`, { feedback }).then(r => r.data)
+}
+
 export function endGameSession(sessionId) {
   return api.patch(`${VM}/sessions/${sessionId}/end`).then(r => r.data)
 }

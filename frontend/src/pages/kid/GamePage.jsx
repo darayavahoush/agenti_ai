@@ -5,7 +5,7 @@ import { sessionsAPI, beaconPost, meAPI } from '../../api/client'
 import { BreathEngine } from '../../game/engine/BreathEngine.js'
 import { LEVEL_FACTORIES, LEVEL_META } from '../../game/index.js'
 import { calcStars, saveScore, loadScores, mergeServerScores, isUnlocked, LEVEL_ORDER } from '../../game/scoring/index.js'
-import { getBreathAgentDecision, logBreathEvent } from '../../game/lib/api.js'
+import { getBreathAgentDecision, logBreathEvent, submitEventFeedback } from '../../game/lib/api.js'
 import {
   DEFAULT_DIFFICULTY, applyAction, loadStoredDifficulty, saveStoredDifficulty,
   loadAttemptNumber, saveAttemptNumber,
@@ -43,6 +43,11 @@ export default function GamePage() {
   const [result,      setResult]      = useState(null)
   const [earnedStars, setEarnedStars] = useState(0)
   const [starAnim,    setStarAnim]    = useState(0)
+  // RLTrainingEvent id for the level just completed, once logBreathEvent
+  // resolves -- null until then, which the feedback chip uses to decide
+  // whether it has anything to attach to yet.
+  const [rlEventId,     setRlEventId]     = useState(null)
+  const [feedbackGiven, setFeedbackGiven] = useState(null)
   const [debug,       setDebug]       = useState({ raw: 0, floor: 0, above: 0, breath: 0 })
 
   // Check unlock. Seeded from whatever this browser's localStorage cache
@@ -214,6 +219,8 @@ export default function GamePage() {
     cancelAnimationFrame(rafRef.current)
     clearInterval(flushTimer.current)
     engineRef.current?.stop()
+    setRlEventId(null)
+    setFeedbackGiven(null)
 
     const m = metricsRef.current
     // Let level pass its own metrics via result object
@@ -260,7 +267,7 @@ export default function GamePage() {
     const attemptNumber = loadAttemptNumber(levelId) + 1
     saveAttemptNumber(levelId, attemptNumber)
     try {
-      await logBreathEvent({
+      const logged = await logBreathEvent({
         level_id: levelId,
         attempt_number: attemptNumber,
         score: stars / 3,
@@ -268,6 +275,7 @@ export default function GamePage() {
         threshold_at_time: difficultyRef.current,
         quit_flag: false,
       })
+      setRlEventId(logged?.id ?? null)
     } catch {}
   }, [levelId])
 
@@ -532,6 +540,38 @@ export default function GamePage() {
                   <span className="ml-2 text-brand-green">↑ New best!</span>
                 )}
               </p>
+
+              {rlEventId && (
+                <div className="flex items-center gap-3 mb-6 text-sm font-semibold text-white/70">
+                  {feedbackGiven ? (
+                    <span>Thanks for the feedback!</span>
+                  ) : (
+                    <>
+                      <span>Did we score that right?</span>
+                      <button
+                        onClick={() => {
+                          setFeedbackGiven('up')
+                          submitEventFeedback(rlEventId, 'up').catch(() => {})
+                        }}
+                        aria-label="Yes, that was scored correctly"
+                        className="hover:scale-110 transition-transform text-lg"
+                      >
+                        👍
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFeedbackGiven('down')
+                          submitEventFeedback(rlEventId, 'down').catch(() => {})
+                        }}
+                        aria-label="No, that was scored wrong"
+                        className="hover:scale-110 transition-transform text-lg"
+                      >
+                        👎
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Buttons */}
               <div className="flex gap-3 flex-wrap justify-center">

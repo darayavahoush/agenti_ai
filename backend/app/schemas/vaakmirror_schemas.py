@@ -67,6 +67,13 @@ class AttemptOut(BaseModel):
     predicted_tier: Optional[str] = None
     therapist_label: Optional[AttemptLabel] = None
     labeled_at: Optional[datetime] = None
+    # RLTrainingEvent id for this attempt, if logging succeeded -- lets the
+    # frontend attach a "was this scored right?" feedback chip. Not an ORM
+    # column on Attempt itself (it lives in a different table entirely,
+    # written separately by data_store.add_event), so this has to be set
+    # explicitly on the response object rather than picked up automatically
+    # by from_attributes.
+    rl_event_id: Optional[int] = None
     labeled_by: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

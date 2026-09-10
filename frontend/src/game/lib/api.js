@@ -25,3 +25,10 @@ export function getBreathDifficulty(levelId) {
 export function getBreathAgentDecision(levelId, policy = 'tabular_q') {
   return api.get(`${BREATH}/agent/decide/${levelId}`, { params: { policy } }).then(r => r.data)
 }
+
+// Shared across every game (see backend/app/routers/event_feedback.py) --
+// not breath-specific, but re-exported here so GamePage.jsx only needs one
+// import from this file rather than reaching into chime/lib/api.js.
+export function submitEventFeedback(eventId, feedback) {
+  return api.patch(`/events/${eventId}/feedback`, { feedback }).then(r => r.data)
+}

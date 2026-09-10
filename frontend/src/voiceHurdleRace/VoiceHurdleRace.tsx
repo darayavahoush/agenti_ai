@@ -87,6 +87,15 @@ export default function VoiceHurdleRace() {
     setIsGameOver,
   ] = useState(false);
 
+  // RLTrainingEvent id for the just-finished race, once the session POST
+  // resolves -- null until then (and if logging failed server-side), which
+  // GameOver uses to decide whether the feedback chip has anything to
+  // attach to yet.
+  const [
+    rlEventId,
+    setRlEventId,
+  ] = useState<number | null>(null);
+
   const [
     isStarting,
     setIsStarting,
@@ -444,6 +453,7 @@ export default function VoiceHurdleRace() {
 
           // Save session to backend — patient identity comes from the
           // auth token (get_current_patient), not the request body.
+          setRlEventId(null)
           voiceHurdleRaceApi.createVoiceHurdleRaceSession({
             level_id: selectedLevel.id,
             level_name: selectedLevel.name,
@@ -453,6 +463,8 @@ export default function VoiceHurdleRace() {
             loudness_accuracy: state.loudnessAccuracy,
             stars: stars,
             difficulty: difficultyRef.current,
+          }).then(saved => {
+            setRlEventId(saved.rl_event_id ?? null)
           }).catch(err => {
             console.error('Failed to save session:', err);
           });
@@ -1077,6 +1089,9 @@ export default function VoiceHurdleRace() {
             }
             level={
               selectedLevel
+            }
+            rlEventId={
+              rlEventId
             }
             onAgain={
               handlePlayAgain
@@ -7024,14 +7039,26 @@ function VoiceMeter({
 function GameOver({
   state,
   level,
+  rlEventId,
   onAgain,
   onLevels,
 }: {
   state: GameState;
   level: LevelConfig | null;
+  rlEventId: number | null;
   onAgain: () => void;
   onLevels: () => void;
 }) {
+  const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
+
+  const handleFeedback = (value: 'up' | 'down') => {
+    if (!rlEventId || feedbackGiven) return;
+    setFeedbackGiven(value); // optimistic -- matches Chime's games, a failed PATCH isn't worth surfacing to a kid mid-celebration
+    voiceHurdleRaceApi.submitEventFeedback(rlEventId, value).catch(err => {
+      console.error('Failed to submit feedback:', err);
+    });
+  };
+
   const total =
     level?.numHurdles ??
     3;
@@ -7216,6 +7243,43 @@ function GameOver({
             📋 Levels
           </button>
         </div>
+
+        {rlEventId && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 16,
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#7c5b43',
+            }}
+          >
+            {feedbackGiven ? (
+              <span>Thanks for the feedback!</span>
+            ) : (
+              <>
+                <span>Did we score that right?</span>
+                <button
+                  onClick={() => handleFeedback('up')}
+                  aria-label="Yes, that was scored correctly"
+                  style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}
+                >
+                  👍
+                </button>
+                <button
+                  onClick={() => handleFeedback('down')}
+                  aria-label="No, that was scored wrong"
+                  style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}
+                >
+                  👎
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
