@@ -17,6 +17,12 @@ from azure.storage.blob import BlobServiceClient
 
 AVATARS_CONTAINER = "avatars"
 
+# Per-child Q-learning state (see agent/child_q_store.py) -- same ephemeral-
+# filesystem problem avatars had: local JSON files under backend/agent/models/
+# don't survive a redeploy on Azure Container Apps, silently resetting every
+# child's learned difficulty-tuning progress each time the backend ships.
+AGENT_STATE_CONTAINER = "agent-state"
+
 
 @lru_cache(maxsize=1)
 def _get_blob_service_client() -> BlobServiceClient:
@@ -24,8 +30,23 @@ def _get_blob_service_client() -> BlobServiceClient:
     return BlobServiceClient.from_connection_string(conn_str)
 
 
+def _get_container_client(container_name: str):
+    """Generic container client getter, with create-if-missing so a new
+    container (like agent-state, added after avatars already existed)
+    doesn't require a manual one-off `az storage container create` before
+    first use in each environment."""
+    client = _get_blob_service_client().get_container_client(container_name)
+    if not client.exists():
+        client.create_container()
+    return client
+
+
 def get_avatars_container_client():
-    return _get_blob_service_client().get_container_client(AVATARS_CONTAINER)
+    return _get_container_client(AVATARS_CONTAINER)
+
+
+def get_agent_state_container_client():
+    return _get_container_client(AGENT_STATE_CONTAINER)
 
 
 def upload_avatar(filename: str, contents: bytes, content_type: str) -> None:
