@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Trash2, TrendingUp, CreditCard, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Sidebar } from '../../components/ui'
+import { Sidebar, ChildSwitcher } from '../../components/ui'
 import { getErrorMessage } from '../../api/client'
 
 export default function ParentSettings() {
@@ -28,6 +28,7 @@ export default function ParentSettings() {
         ]}
         name={parent?.child_first_name ? `${parent.child_first_name}'s Progress` : undefined}
         onLogout={logout}
+        extraFooter={<ChildSwitcher />}
       />
 
       <div className="relative flex-1 min-w-0 max-w-2xl mx-auto px-6 py-10">

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authAPI, assessmentAPI, patientsAPI } from '../api/client'
-import { listKnownAccounts, upsertKnownAccount, forgetKnownAccount, currentAccountKey } from '../api/knownAccounts'
+import { listKnownAccounts, upsertKnownAccount, forgetKnownAccount, currentAccountKey, accountKey } from '../api/knownAccounts'
 
 const AuthContext = createContext(null)
 
@@ -17,17 +17,34 @@ export function AuthProvider({ children }) {
   // switcher -- separate from which ONE of them is active right now (that's
   // still just the plain bq_token/bq_user_type/bq_user_data keys below).
   const [knownAccounts, setKnownAccounts] = useState([])
+  // A parent's full switchable child list (2026-09-10) -- separate from
+  // BOTH the device-level profile switcher above (which swaps which
+  // ACCOUNT is active on this device) and `patient` above (which stays
+  // the CURRENTLY ACTIVE child within a single parent account, since
+  // every existing dashboard/messages/session query already reads it
+  // that way). This is purely the set shown in the child-switcher UI.
+  const [childrenList, setChildrenList] = useState([])
 
   // Single place every login/register function below persists a session --
   // sets the four active-session keys, and upserts this account into the
   // device's switcher roster so it's there to switch back into later
-  // without re-entering a PIN or password.
+  // without re-entering a PIN or password. Also syncs childrenList: only
+  // parent sessions carry a `children` list at all, so any other role
+  // clears it (a therapist/kid session has no meaning for "which child is
+  // active" the way a parent one does).
   const _persistSession = (userType, data) => {
     localStorage.setItem('bq_token',         data.access_token)
     localStorage.setItem('bq_refresh_token', data.refresh_token)
     localStorage.setItem('bq_user_type',     userType)
     localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setKnownAccounts(upsertKnownAccount(userType, data, data.refresh_token))
+    if (userType === 'parent') {
+      setChildrenList(data.children || [])
+      localStorage.setItem('bq_parent_children', JSON.stringify(data.children || []))
+    } else {
+      setChildrenList([])
+      localStorage.removeItem('bq_parent_children')
+    }
   }
 
   useEffect(() => {
@@ -43,6 +60,12 @@ export function AuthProvider({ children }) {
     const backupRaw = localStorage.getItem('bq_supervisor_backup')
     if (backupRaw) {
       try { setSupervisorBackup(JSON.parse(backupRaw)) } catch { /* corrupt -- ignore */ }
+    }
+    if (userType === 'parent') {
+      const storedChildren = localStorage.getItem('bq_parent_children')
+      if (storedChildren) {
+        try { setChildrenList(JSON.parse(storedChildren)) } catch { /* corrupt -- ignore */ }
+      }
     }
     setKnownAccounts(listKnownAccounts())
     setLoading(false)
@@ -206,6 +229,82 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // Switches which child is active for this parent -- see backend's
+  // POST /auth/parent/switch-child docstring for why this doesn't mint
+  // new tokens at all (parent identity itself never changes, only which
+  // child.patient_id the account currently points at). Updates
+  // patient_id/child_first_name in-place on the existing parent object
+  // (React state, bq_user_data, AND the device-switcher's own roster
+  // entry -- see upsertKnownAccount call below), so every screen reading
+  // useAuth().parent.patient_id picks up the new active child immediately,
+  // with no re-login.
+  //
+  // Also re-upserts the known-accounts roster entry, not just bq_user_data
+  // -- without this, quick-switching away via the device-level "Switch
+  // profile" picker and back into this same parent would silently revert
+  // to whichever child was active before this switch (switchAccount reuses
+  // the roster's cached userData rather than refetching). Safe to reuse
+  // the current refresh token unchanged here since nothing about the
+  // token itself changed.
+  const switchChild = async (patientId) => {
+    const { data } = await authAPI.switchChild(patientId)
+    setParent((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, patient_id: data.patient_id, child_first_name: data.child_first_name }
+      localStorage.setItem('bq_user_data', JSON.stringify(next))
+      const refreshToken = localStorage.getItem('bq_refresh_token')
+      setKnownAccounts(upsertKnownAccount('parent', next, refreshToken))
+      return next
+    })
+    setChildrenList((prev) => {
+      const next = prev.map((c) => ({ ...c, is_active: c.patient_id === data.patient_id }))
+      localStorage.setItem('bq_parent_children', JSON.stringify(next))
+      return next
+    })
+    return data
+  }
+
+  // Creates a brand-new child under the logged-in parent ("add another
+  // child") and appends it to the switcher list -- does NOT switch to it
+  // automatically; the switcher UI decides whether to call switchChild
+  // right after, so a parent adding a child while actively viewing
+  // another child's dashboard doesn't get yanked away from what they were
+  // looking at.
+  const addChild = async (fields) => {
+    const { data: child } = await authAPI.addChild({
+      first_name: fields.firstName, avatar: fields.avatar, pin: fields.pin,
+    })
+    setChildrenList((prev) => {
+      const next = [...prev, child]
+      localStorage.setItem('bq_parent_children', JSON.stringify(next))
+      return next
+    })
+    return child
+  }
+
+  // Links an EXISTING child (created elsewhere) to this parent's
+  // switcher by player code -- see backend LinkChildRequest's docstring.
+  const linkChild = async (playerCode) => {
+    const { data: child } = await authAPI.linkChild({ player_code: playerCode })
+    setChildrenList((prev) => {
+      const next = [...prev, child]
+      localStorage.setItem('bq_parent_children', JSON.stringify(next))
+      return next
+    })
+    return child
+  }
+
+  // Re-fetches the children list from the backend -- useful after
+  // something outside this tab could have changed it (another
+  // device/tab adding a child), or just to recover from a stale local
+  // cache without a full re-login.
+  const refreshChildren = async () => {
+    const { data } = await authAPI.getChildren()
+    setChildrenList(data.children || [])
+    localStorage.setItem('bq_parent_children', JSON.stringify(data.children || []))
+    return data.children
+  }
+
   // Shared by all three delete-account flows: clears every piece of
   // local auth state regardless of which role called it, since deleting
   // an account should always end in a fully logged-out state (same
@@ -263,7 +362,9 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('bq_refresh_token')
     localStorage.removeItem('bq_user_type')
     localStorage.removeItem('bq_user_data')
+    localStorage.removeItem('bq_parent_children')
     setParent(null); setTherapist(null); setPatient(null)
+    setChildrenList([])
   }
 
   const deleteParentAccount = async (currentPassword) => {
@@ -354,8 +455,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('bq_user_type')
     localStorage.removeItem('bq_user_data')
     localStorage.removeItem('bq_supervisor_backup')
+    localStorage.removeItem('bq_parent_children')
     setSupervisorBackup(null)
     setTherapist(null); setPatient(null); setParent(null)
+    setChildrenList([])
   }
 
   return (
@@ -369,6 +472,7 @@ export function AuthProvider({ children }) {
       deleteParentAccount, deleteKidAccount, deleteTherapistAccount,
       updatePatient,
       knownAccounts, switchAccount, forgetAccount,
+      childrenList, switchChild, addChild, linkChild, refreshChildren,
       currentAccountKey: currentAccountKey(),
       isTherapist: !!therapist,
       isKid:       !!patient,

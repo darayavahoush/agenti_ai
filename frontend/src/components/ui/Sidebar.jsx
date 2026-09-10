@@ -227,6 +227,7 @@ export default function Sidebar({
   name,
   subtitle,
   onLogout,
+  extraFooter,           // optional ReactNode rendered between the name block and "Switch profile"/Log out -- e.g. ChildSwitcher for parent role. Independent of the device-level profile switcher below: that one swaps which ACCOUNT is active on this device, this is for a single parent account with more than one child.
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
@@ -280,6 +281,7 @@ export default function Sidebar({
             {subtitle && <p className={`text-xs leading-tight truncate ${t.subtitleText}`}>{subtitle}</p>}
           </div>
         )}
+        {!collapsed && extraFooter}
         {/* Only worth showing once there's more than the current profile to
             switch to -- with just one, "Log out" already covers it and an
             always-visible "Switch profile" that opens to an empty-ish list

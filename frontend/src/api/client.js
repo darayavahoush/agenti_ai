@@ -162,6 +162,13 @@ export const authAPI = {
   parentResetPassword: (data) => api.post('/auth/parent-reset-password', data),
   therapistResetPassword: (data) => api.post('/auth/reset-password', data),
 
+  // Multi-child support (2026-09-10) -- see AuthContext.jsx's children
+  // state / switchChild for how these get used.
+  getChildren:  () => api.get('/auth/parent/children'),
+  addChild:     (data) => api.post('/auth/parent/children', data),
+  linkChild:    (data) => api.post('/auth/parent/link-child', data),
+  switchChild:  (patientId) => api.post('/auth/parent/switch-child', { patient_id: patientId }),
+
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
   kidCandidates:       () => api.get('/auth/kid-candidates'),
   kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),

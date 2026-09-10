@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send, CloudOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar, Card, StatCard, Sidebar } from '../../components/ui'
+import { Avatar, Card, StatCard, Sidebar, ChildSwitcher } from '../../components/ui'
 import { useNavigate } from 'react-router-dom'
 import { parentAPI, getErrorMessage } from '../../api/client'
 import toast from 'react-hot-toast'
@@ -44,7 +44,7 @@ export default function ParentDashboard() {
     setStatus('loading')
     loadProgress(cancelledRef)
     parentAPI.guidedActivity()
-      .then(({ data }) => { if (!cancelled) setActivity(data) })
+      .then(({ data }) => { if (!cancelledRef.current) setActivity(data) })
       .catch(err => console.error('Failed to load guided activity:', err))
     parentAPI.listMessages()
       .then(({ data }) => {
@@ -59,7 +59,11 @@ export default function ParentDashboard() {
       })
       .catch(err => console.error('Failed to load messages:', err))
     return () => { cancelledRef.current = true }
-  }, [])
+    // Re-runs when the active child changes (multi-child switcher) -- every
+    // one of these endpoints is scoped server-side to parent.patient_id, so
+    // switching child without refetching would keep showing the previous
+    // child's progress/activity/messages under the new child's name.
+  }, [parent?.patient_id])
 
   const sendMessage = async () => {
     const body = newMessage.trim()
@@ -97,6 +101,7 @@ export default function ParentDashboard() {
         ]}
         name={(data?.child_first_name || parent?.child_first_name) ? `${data?.child_first_name || parent?.child_first_name}'s Progress` : undefined}
         onLogout={logout}
+        extraFooter={<ChildSwitcher />}
       />
 
       <div className="relative flex-1 min-w-0 max-w-3xl mx-auto px-6 py-10">

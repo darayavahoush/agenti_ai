@@ -21,7 +21,7 @@ import logging
 
 from app.database import get_db
 from app.models.breathquest_models import (
-    BreathQuestPatient, Parent, Subscription,
+    BreathQuestPatient, Parent, ParentChild, Subscription,
     TherapistNote, Assignment, Goal, Message, HomePracticeLog,
     GameSession,
 )
@@ -42,7 +42,10 @@ from app.schemas.breathquest_schemas import (
     ForgotPinRequest,
     ParentResetPasswordRequest,
     ParentDeleteAccountRequest,
-    KidDeleteAccountRequest,)
+    KidDeleteAccountRequest,
+    ChildSummary, ParentChildrenResponse, AddChildRequest, LinkChildRequest,
+    SwitchChildRequest, SwitchChildResponse,
+)
 from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
     hash_pin, verify_pin, create_kid_token, generate_unique_player_code,
@@ -249,6 +252,8 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
         phone=data.phone,
     )
     db.add(parent)
+    await db.flush()  # get parent.id for the link row below
+    db.add(ParentChild(parent_id=parent.id, patient_id=patient.id, is_primary=True))
     await db.commit()
     await db.refresh(parent)
 
@@ -534,10 +539,37 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
 # 501 for now; player_code (fully real -- BreathQuestPatient.player_code)
 # is the only working path today.
 
+async def _get_child_summaries(db: AsyncSession, parent: Parent) -> list[ChildSummary]:
+    """Shared by _make_parent_token_response and GET /auth/parent/children --
+    joins ParentChild to BreathQuestPatient rather than trusting client-
+    supplied ids, and marks is_active by comparing against parent.patient_id
+    (the one field every existing dashboard/messages/session query already
+    filters on) rather than anything the caller sent."""
+    rows = (await db.execute(
+        select(ParentChild, BreathQuestPatient)
+        .join(BreathQuestPatient, BreathQuestPatient.id == ParentChild.patient_id)
+        .where(ParentChild.parent_id == parent.id)
+        .order_by(ParentChild.is_primary.desc(), ParentChild.created_at.asc())
+    )).all()
+    return [
+        ChildSummary(
+            patient_id=str(child.id),
+            first_name=child.first_name,
+            avatar=child.avatar,
+            avatar_photo_url=child.avatar_photo_url,
+            player_code=child.player_code,
+            is_active=(child.id == parent.patient_id),
+            is_primary=link.is_primary,
+        )
+        for link, child in rows
+    ]
+
+
 async def _make_parent_token_response(db: AsyncSession, parent: Parent, child_first_name: str) -> ParentTokenResponse:
     token = create_parent_token(str(parent.id))
     refresh_token = await create_refresh_token(db, "parent", str(parent.id))
     await db.commit()
+    children = await _get_child_summaries(db, parent)
     return ParentTokenResponse(
         access_token=token,
         refresh_token=refresh_token,
@@ -546,6 +578,7 @@ async def _make_parent_token_response(db: AsyncSession, parent: Parent, child_fi
         email=parent.email,
         phone=parent.phone,
         child_first_name=child_first_name,
+        children=children,
     )
 
 
@@ -579,6 +612,8 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
         phone=data.phone,
     )
     db.add(parent)
+    await db.flush()  # get parent.id for the link row below
+    db.add(ParentChild(parent_id=parent.id, patient_id=child.id, is_primary=True))
     await db.commit()
     await db.refresh(parent)
     return await _make_parent_token_response(db, parent, child.first_name)
@@ -731,9 +766,121 @@ async def register_parent_google(request: Request, data: ParentGoogleRegisterReq
         google_sub=google_user.sub,
     )
     db.add(parent)
+    await db.flush()  # get parent.id for the link row below
+    db.add(ParentChild(parent_id=parent.id, patient_id=child.id, is_primary=True))
     await db.commit()
     await db.refresh(parent)
     return await _make_parent_token_response(db, parent, child.first_name)
+
+
+# ------------------------------------------------------------------ #
+#  Multi-child support (2026-09-10)                                    #
+# ------------------------------------------------------------------ #
+# See ParentChild's docstring in app/models/breathquest_models.py for the
+# overall design: parent.patient_id keeps meaning "currently active
+# child" (every existing dashboard/messages/session query already reads
+# it that way), and these four endpoints are the only things that ever
+# touch which children exist in a parent's ParentChild set or which one
+# patient_id currently points to.
+
+@router.get("/parent/children", response_model=ParentChildrenResponse)
+async def list_children(db: AsyncSession = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    return ParentChildrenResponse(children=await _get_child_summaries(db, parent))
+
+
+@router.post("/parent/children", response_model=ChildSummary, status_code=201)
+async def add_child(
+    data: AddChildRequest,
+    db: AsyncSession = Depends(get_db),
+    parent: Parent = Depends(get_current_parent),
+):
+    """Creates a brand-new child profile under the logged-in parent --
+    "add another child" from the switcher UI. Not the primary child
+    (is_primary=False): that flag stays with whichever child the parent
+    registered/linked first, same as ParentChild's docstring describes."""
+    player_code = await generate_unique_player_code(db, data.avatar)
+    child = BreathQuestPatient(
+        therapist_id=None,
+        first_name=data.first_name,
+        avatar=data.avatar,
+        pin_hash=hash_pin(data.pin),
+        player_code=player_code,
+        # No separate parent_email/consent fields here -- unlike
+        # kid-register/parent-kid-register, this parent is already an
+        # authenticated, consented account; there's no new adult entering
+        # the loop for this child to record consent against.
+    )
+    db.add(child)
+    await db.flush()  # get child.id for the link row below
+    db.add(ParentChild(parent_id=parent.id, patient_id=child.id, is_primary=False))
+    await db.commit()
+    return ChildSummary(
+        patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
+        avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
+        is_active=(child.id == parent.patient_id), is_primary=False,
+    )
+
+
+@router.post("/parent/link-child", response_model=ChildSummary, status_code=201)
+async def link_child(
+    data: LinkChildRequest,
+    db: AsyncSession = Depends(get_db),
+    parent: Parent = Depends(get_current_parent),
+):
+    """Adds an existing child (created elsewhere -- by a therapist, via
+    kid-register, or under a different parent account) to this parent's
+    switcher, by player_code -- the same lookup ParentRegisterRequest
+    already uses to link a first child at registration time."""
+    result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.player_code == data.player_code.strip().upper())
+    )
+    child = result.scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=404, detail="No child found with that player code")
+
+    existing_link = await db.execute(
+        select(ParentChild).where(ParentChild.parent_id == parent.id, ParentChild.patient_id == child.id)
+    )
+    if existing_link.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="This child is already in your account")
+
+    db.add(ParentChild(parent_id=parent.id, patient_id=child.id, is_primary=False))
+    await db.commit()
+    return ChildSummary(
+        patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
+        avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
+        is_active=(child.id == parent.patient_id), is_primary=False,
+    )
+
+
+@router.post("/parent/switch-child", response_model=SwitchChildResponse)
+async def switch_child(
+    data: SwitchChildRequest,
+    db: AsyncSession = Depends(get_db),
+    parent: Parent = Depends(get_current_parent),
+):
+    """Reassigns parent.patient_id to a different child already in this
+    parent's ParentChild set -- deliberately does NOT touch the parent's
+    access/refresh tokens (see SwitchChildResponse's docstring), so this
+    is the one place multi-child support diverges from a normal
+    login-shaped flow: no new token pair, just an in-place pointer swap
+    every existing dashboard/messages/session query keeps reading
+    unchanged."""
+    link = (await db.execute(
+        select(ParentChild).where(ParentChild.parent_id == parent.id, ParentChild.patient_id == data.patient_id)
+    )).scalar_one_or_none()
+    if not link:
+        raise HTTPException(status_code=404, detail="That child isn't linked to your account")
+
+    child = (await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.id == data.patient_id)
+    )).scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    parent.patient_id = child.id
+    await db.commit()
+    return SwitchChildResponse(patient_id=str(child.id), child_first_name=child.first_name)
 
 
 # ------------------------------------------------------------------ #
