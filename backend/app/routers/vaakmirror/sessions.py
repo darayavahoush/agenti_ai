@@ -128,7 +128,7 @@ async def log_attempt(
         severity_numeric, targeted_quests = 0.0, frozenset()
     is_targeted_sound = level_id in targeted_quests
 
-    await asyncio.to_thread(
+    rl_event_id = await asyncio.to_thread(
         data_store.add_event,
         child_id=patient_id,
         level_id=level_id,
@@ -156,7 +156,9 @@ async def log_attempt(
 
     background_tasks.add_task(run_retrain_if_due, DB_PATH)
 
-    return attempt
+    result = AttemptOut.model_validate(attempt)
+    result.rl_event_id = rl_event_id
+    return result
 
 
 @router.patch("/sessions/{session_id}/end", response_model=SessionOut)

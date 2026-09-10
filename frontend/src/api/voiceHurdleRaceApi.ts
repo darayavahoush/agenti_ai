@@ -33,6 +33,12 @@ export interface VoiceHurdleRaceSession extends VoiceHurdleRaceSessionCreate {
   id: string;
   patient_id: string;
   created_at: string;
+  // RLTrainingEvent id for this race, if agent logging succeeded --
+  // present so the "was this scored right?" chip has something to attach
+  // feedback to (see backend/app/routers/event_feedback.py). Absent
+  // rather than a hard failure when logging fails, since a race the kid
+  // just finished shouldn't be blocked on this.
+  rl_event_id?: number | null;
 }
 
 export interface LeaderboardEntry {
@@ -58,4 +64,10 @@ export const voiceHurdleRaceApi = {
 
   getAgentDecision: (levelId: number, policy: string = 'tabular_q') =>
     api.get<AgentDecision>(`/voicehurdlerace/agent/decide/${levelId}`, { params: { policy } }).then((r) => r.data),
+
+  // Shared across every game (see backend/app/routers/event_feedback.py) --
+  // not VoiceHurdleRace-specific, just re-exported here so callers in this
+  // file don't need a second import from the JS chime lib for one function.
+  submitEventFeedback: (eventId: number, feedback: 'up' | 'down') =>
+    api.patch(`/events/${eventId}/feedback`, { feedback }).then((r) => r.data),
 };

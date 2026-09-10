@@ -140,7 +140,7 @@ def log_breath_event(event: BreathEventIn, background_tasks: BackgroundTasks,
     recommended_action = last_decision["action"] if last_decision else None
     recommendation_message = last_decision["message"] if last_decision else None
 
-    data_store.add_event(
+    new_event_id = data_store.add_event(
         child_id=patient.id,
         level_id=event.level_id,
         attempt_number=event.attempt_number,
@@ -165,8 +165,13 @@ def log_breath_event(event: BreathEventIn, background_tasks: BackgroundTasks,
     # the fix: same shared, thread-safe trigger Chime uses.
     background_tasks.add_task(run_retrain_if_due, DB_PATH)
 
+    # Was re-fetching every event for this child and assuming the last one
+    # (by insertion order) was the one just written -- correct almost all
+    # the time, but not guaranteed under concurrent writes for the same
+    # child, and a wasteful full re-fetch on every single event regardless.
+    # add_event already hands back the exact row it just inserted.
     events = data_store.get_events(child_id=patient.id, db_path=DB_PATH)
-    latest = events[-1]
+    latest = next((e for e in events if e["id"] == new_event_id), events[-1])
     return _to_breath_event_out(latest)
 
 
