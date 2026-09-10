@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { updateActiveAccountToken, currentAccountKey, forgetKnownAccount } from './knownAccounts'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
@@ -22,6 +23,12 @@ async function _attemptSilentRefresh() {
     .then(({ data }) => {
       localStorage.setItem('bq_token', data.access_token)
       localStorage.setItem('bq_refresh_token', data.refresh_token)
+      // Refresh rotates the refresh token (old one revoked server-side) --
+      // without this, the profile switcher's roster would keep holding the
+      // now-dead pre-rotation token and fail the next time someone tries
+      // to switch back into this account after normal usage has silently
+      // refreshed it in the background.
+      updateActiveAccountToken(data.refresh_token)
       return data.access_token
     })
     .catch(() => null)
@@ -102,10 +109,15 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
       const userType = localStorage.getItem('bq_user_type')
+      const deadKey = currentAccountKey()
       localStorage.removeItem('bq_token')
       localStorage.removeItem('bq_refresh_token')
       localStorage.removeItem('bq_user_type')
       localStorage.removeItem('bq_user_data')
+      // This account's refresh token is dead (expired or revoked, not just
+      // this one access token) -- drop it from the switcher roster too, so
+      // it doesn't sit there looking switchable and failing every time.
+      if (deadKey) forgetKnownAccount(deadKey)
 
       const loginPath = userType === 'therapist' ? '/therapist/login'
         : userType === 'parent' ? '/parent/login'
