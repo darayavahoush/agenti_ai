@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -195,6 +195,12 @@ export default function SubmarineDive() {
   const [successVisible, setSuccessVisible] = useState(false)
   const [agentFeedback, setAgentFeedback] = useState('')
   const [ariaMsg, setAriaMsg] = useState('')
+  // "Was this attempt scored right?" chip -- ties to the id logEvent()
+  // returns from logVoicingAttempt below, not to scorePhoneme's result
+  // (that response has no persisted id).
+  const [feedbackEventId, setFeedbackEventId] = useState(null)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const feedbackTimeoutRef = useRef(null)
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
@@ -513,9 +519,26 @@ export default function SubmarineDive() {
     const attemptScore = Math.max(...scores) // peak of the stretch, not the average — matches burst-game scoring
     s.attemptNumber++
     try {
-      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: attemptScore, is_valid_attempt: isValidAttempt })
+      const result = await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: attemptScore, is_valid_attempt: isValidAttempt })
+      if (result && result.id != null) {
+        setFeedbackEventId(result.id)
+        setFeedbackSubmitted(false)
+        clearTimeout(feedbackTimeoutRef.current)
+        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
+      }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
+    }
+  }
+
+  async function handleFeedback(value) {
+    if (feedbackEventId == null) return
+    setFeedbackSubmitted(true)
+    clearTimeout(feedbackTimeoutRef.current)
+    try {
+      await submitEventFeedback(feedbackEventId, value)
+    } catch (err) {
+      console.warn('Feedback submission failed:', err)
     }
   }
 
@@ -1011,6 +1034,20 @@ export default function SubmarineDive() {
             )}
             <button className="sdv-btn sdv-btn-secondary" onClick={handlePlayAgain}>Dive Again!</button>
           </div>
+        </div>
+      )}
+
+      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: 'rgba(0,20,40,0.75)', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 9999, padding: '10px 20px', backdropFilter: 'blur(8px)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 14, fontWeight: 700, color: '#fff',
+        }}>
+          <span>Did we score that dive right?</span>
+          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👍</button>
+          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👎</button>
         </div>
       )}
 

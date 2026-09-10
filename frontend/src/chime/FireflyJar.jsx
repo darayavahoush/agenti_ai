@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, transcribeAudio } from './lib/api'
+import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -136,6 +136,9 @@ export default function FireflyJar() {
   const [successVisible, setSuccessVisible] = useState(false)
   const [agentFeedback, setAgentFeedback] = useState('')
   const [ariaMsg, setAriaMsg] = useState('')
+  const [feedbackEventId, setFeedbackEventId] = useState(null)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const feedbackTimeoutRef = useRef(null)
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
@@ -339,9 +342,26 @@ export default function FireflyJar() {
     const s = stateRef.current
     s.attemptNumber++
     try {
-      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score, is_valid_attempt: isValidAttempt })
+      const result = await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score, is_valid_attempt: isValidAttempt })
+      if (result && result.id != null) {
+        setFeedbackEventId(result.id)
+        setFeedbackSubmitted(false)
+        clearTimeout(feedbackTimeoutRef.current)
+        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
+      }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
+    }
+  }
+
+  async function handleFeedback(value) {
+    if (feedbackEventId == null) return
+    setFeedbackSubmitted(true)
+    clearTimeout(feedbackTimeoutRef.current)
+    try {
+      await submitEventFeedback(feedbackEventId, value)
+    } catch (err) {
+      console.warn('Feedback submission failed:', err)
     }
   }
 
@@ -825,6 +845,20 @@ export default function FireflyJar() {
             )}
             <button className="fjar-btn" onClick={handlePlayAgain}>Play Again!</button>
           </div>
+        </div>
+      )}
+
+      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 9999, padding: '10px 20px', backdropFilter: 'blur(8px)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 14, fontWeight: 700, color: '#fff',
+        }}>
+          <span>Did we score that right?</span>
+          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👍</button>
+          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👎</button>
         </div>
       )}
 
