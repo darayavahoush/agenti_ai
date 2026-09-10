@@ -263,9 +263,9 @@ class AgentService:
             )
 
         if policy == "tabular_q":
-            from agent.child_q_store import Q_TABLES_DIR
+            from agent.child_q_store import child_table_exists
             child_events = data_store.count_events(child_id=child_id, db_path=self.db_path)
-            has_own_table = (Q_TABLES_DIR / f"{child_id}.json").exists()
+            has_own_table = child_table_exists(child_id)
             if child_events < TABULAR_MIN_CHILD_EVENTS or not has_own_table:
                 return (
                     f"tabular_q needs {TABULAR_MIN_CHILD_EVENTS}+ of this child's own logged "

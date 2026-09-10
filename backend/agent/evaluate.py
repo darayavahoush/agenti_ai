@@ -14,7 +14,7 @@ import numpy as np
 
 from agent.env import DifficultyEnv
 from agent.baselines import RuleBasedAgent, EpsilonGreedyBanditAgent, TabularQAgent
-from agent.child_q_store import save_prior_from_agent, PRIOR_PATH
+from agent.child_q_store import save_prior_from_agent, PRIOR_BLOB_NAME
 
 
 def run_episode_tabular(env, agent, is_q_learning=False, greedy=False):
@@ -111,7 +111,7 @@ def run_ladder_once(env, args, batch_idx):
 
     if batch_idx == args.batches - 1:
         save_prior_from_agent(q_agent)
-        print("Saved trained tabular-Q agent as the shared cold-start prior -> " + str(PRIOR_PATH))
+        print("Saved trained tabular-Q agent as the shared cold-start prior -> agent-state/" + PRIOR_BLOB_NAME)
 
     try:
         from stable_baselines3 import PPO
