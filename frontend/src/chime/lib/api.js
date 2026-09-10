@@ -51,6 +51,14 @@ export function getEvents(levelId) {
   return api.get(`${CHIME}/events`, { params }).then(r => r.data)
 }
 
+// Shared across every game (Chime, VaakMirror, etc.) -- unlike the rest
+// of this file, this hits /api/v1/events/... directly, not /api/v1/chime/...,
+// since feedback keys off the RL training event's own id and isn't
+// Chime-specific. See backend/app/routers/event_feedback.py.
+export function submitEventFeedback(eventId, feedback) {
+  return api.patch(`/events/${eventId}/feedback`, { feedback }).then(r => r.data)
+}
+
 export function getDifficulty(levelId) {
   return api.get(`${CHIME}/difficulty/${levelId}`).then(r => r.data)
 }

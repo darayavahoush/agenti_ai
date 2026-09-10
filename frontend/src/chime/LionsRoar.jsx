@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
-import { logEvent, getAgentDecision, scorePhoneme } from './lib/api'
+import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
@@ -104,6 +104,12 @@ export default function LionsRoar() {
   const [successVisible, setSuccessVisible] = useState(false)
   const [agentFeedback, setAgentFeedback] = useState('')
   const [ariaMsg, setAriaMsg] = useState('')
+  // "Was this attempt scored right?" chip -- ties to the id logEvent()
+  // returns from logVoicingAttempt below, not to scorePhoneme's result
+  // (that response has no persisted id -- see finishVerificationWindow).
+  const [feedbackEventId, setFeedbackEventId] = useState(null)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const feedbackTimeoutRef = useRef(null)
 
   const stateRef = useRef({
     audioCtx: null, analyser: null, timeDomainData: null, mediaStream: null,
@@ -318,9 +324,30 @@ export default function LionsRoar() {
     const attemptScore = Math.max(...scores) // peak of the stretch, not the average -- matches burst-game scoring
     s.attemptNumber++
     try {
-      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: attemptScore, is_valid_attempt: true })
+      const result = await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: attemptScore, is_valid_attempt: true })
+      // Surface a brief feedback prompt for whoever's watching (parent/
+      // therapist) tied to this specific logged attempt's id -- not shown
+      // to the kid as a task, just available if an adult wants to flag a
+      // miss. Auto-dismisses so it never piles up across attempts.
+      if (result && result.id != null) {
+        setFeedbackEventId(result.id)
+        setFeedbackSubmitted(false)
+        clearTimeout(feedbackTimeoutRef.current)
+        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
+      }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
+    }
+  }
+
+  async function handleFeedback(value) {
+    if (feedbackEventId == null) return
+    setFeedbackSubmitted(true)
+    clearTimeout(feedbackTimeoutRef.current)
+    try {
+      await submitEventFeedback(feedbackEventId, value)
+    } catch (err) {
+      console.warn('Feedback submission failed:', err)
     }
   }
 
@@ -842,6 +869,14 @@ export default function LionsRoar() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[rgba(42,26,62,0.75)] border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold">
+          <span>Did we score that roar right?</span>
+          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
+          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" className="hover:scale-110 transition-transform">👎</button>
         </div>
       )}
 
