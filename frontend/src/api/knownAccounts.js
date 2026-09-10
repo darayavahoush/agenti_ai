@@ -24,8 +24,17 @@ const KEY = 'bq_known_accounts'
 // same person logging in again later updates their existing entry rather
 // than duplicating it. Different account types use different id fields
 // in their user-data blob, hence the fallback chain.
+//
+// parent_id is checked before id/patient_id specifically because a Parent
+// payload has no top-level `id` field -- without this, a parent's key
+// would fall through to patient_id, which is the CURRENTLY ACTIVE CHILD,
+// not the parent's own identity. That was harmless before multi-child
+// support (patient_id never changed for a given parent), but switchChild
+// (see AuthContext.jsx) reassigns it, which would otherwise silently
+// fragment one parent account into a new roster entry every time they
+// switched active child.
 export function accountKey(userType, userData) {
-  const id = userData?.id ?? userData?.patient_id ?? userData?.player_code ?? userData?.email
+  const id = userData?.parent_id ?? userData?.id ?? userData?.patient_id ?? userData?.player_code ?? userData?.email
   return `${userType}:${id}`
 }
 

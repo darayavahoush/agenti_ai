@@ -509,6 +509,21 @@ class ParentGoogleRegisterRequest(BaseModel):
     phone: Optional[str] = None
 
 
+class ChildSummary(BaseModel):
+    """One entry in a parent's child-switcher. Mirrors the handful of
+    BreathQuestPatient fields the switcher UI actually needs to render an
+    avatar tile -- deliberately not the full patient record (diagnosis
+    notes, assessment summary, etc. have no business leaving the active
+    child's own dashboard queries)."""
+    patient_id: str
+    first_name: str
+    avatar: str
+    avatar_photo_url: str | None = None
+    player_code: str
+    is_active: bool
+    is_primary: bool
+
+
 class ParentTokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -518,6 +533,73 @@ class ParentTokenResponse(BaseModel):
     child_first_name: str
     email: str
     phone: str | None = None
+    # Added 2026-09-10 for multi-child support: the full set of children
+    # this parent can switch between (patient_id/child_first_name above
+    # stay the CURRENTLY ACTIVE one for backward compatibility with every
+    # existing caller). See ChildSummary above.
+    children: list[ChildSummary] = []
+
+
+class ParentChildrenResponse(BaseModel):
+    children: list[ChildSummary]
+
+
+class AddChildRequest(BaseModel):
+    """Creates a brand-new child profile under the already-authenticated
+    parent -- the "add another child" path, as opposed to LinkChildRequest
+    below (an existing child created elsewhere, e.g. by a therapist).
+    Deliberately a much smaller field set than ParentKidRegisterRequest:
+    the parent's own email/password/consent are already established by
+    the fact they're calling this authenticated, so only the new child's
+    own fields are needed."""
+    first_name: str
+    avatar: str = "chick"
+    pin: str
+
+    @validator("first_name")
+    def first_name_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter your child's name")
+        return v
+
+    @validator("pin")
+    def pin_format(cls, v):
+        if not re.match(r"^\d{4}$", v):
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
+
+    @validator("avatar")
+    def avatar_valid(cls, v):
+        valid = {"chick", "dragon", "bunny", "fox", "rocket", "fish"}
+        if v not in valid:
+            raise ValueError(f"Avatar must be one of {valid}")
+        return v
+
+
+class LinkChildRequest(BaseModel):
+    """Adds an EXISTING child (already created via kid-register, a
+    therapist, or another parent's AddChildRequest) to this parent's
+    switcher, by the same player_code ParentRegisterRequest already uses
+    to link a first child -- this is that same lookup, just callable
+    again post-login for a second/third child instead of only at
+    registration time."""
+    player_code: str
+
+
+class SwitchChildRequest(BaseModel):
+    patient_id: str
+
+
+class SwitchChildResponse(BaseModel):
+    """Deliberately does NOT include a new access/refresh token pair --
+    switching which child is active doesn't change the parent's own
+    identity (the JWT's `sub` is parent_id, never patient_id), so nothing
+    about the existing token is invalidated or needs rotating. The caller
+    already holds a valid token; this just tells it what patient_id to
+    treat as active from now on."""
+    patient_id: str
+    child_first_name: str
 
 
 class RefreshTokenRequest(BaseModel):

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Integer, Float, Boolean, Text, DateTime,
-    ForeignKey, JSON, Enum as SAEnum
+    ForeignKey, JSON, Enum as SAEnum, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -255,6 +255,40 @@ class Parent(Base):
     last_login:       Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     patient: Mapped["BreathQuestPatient"] = relationship(back_populates="parent")
+
+
+class ParentChild(Base):
+    """Multi-child support (2026-09-10): links one Parent account to any
+    number of BreathQuestPatient children it can switch between, without
+    touching Parent.patient_id's existing meaning or any of the dozens of
+    call sites that already read it. Parent.patient_id keeps meaning
+    exactly what it always has -- "the currently active child for this
+    parent's session" -- every dashboard/messages/session query in
+    parent.py and auth.py that filters by parent.patient_id keeps working
+    unchanged. This table is purely the *set* of children a parent is
+    allowed to switch patient_id to; POST /auth/parent/switch-child is the
+    only place that ever reassigns patient_id, and it checks membership
+    here first.
+
+    is_primary marks the child a parent registered/linked first (the one
+    parent.patient_id pointed at originally) -- informational only for now
+    (e.g. for ordering the switcher UI), not enforced anywhere.
+
+    Deliberately allows the same child to appear under more than one
+    parent account (e.g. both parents of the same kid) -- that's a
+    separate, orthogonal question from Parent.patient_id's existing
+    unique=True (which still guarantees a child has at most one *primary*
+    parent account that can e.g. delete it), so no change was needed
+    there.
+    """
+    __tablename__ = "breathquest_parent_children"
+    __table_args__ = (UniqueConstraint("parent_id", "patient_id", name="uq_parent_child"),)
+
+    id:         Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
+    parent_id:  Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_parents.id"), nullable=False, index=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_patients.id"), nullable=False, index=True)
+    is_primary: Mapped[bool]      = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Subscription(Base):
