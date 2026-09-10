@@ -213,6 +213,7 @@ export default function RocketLaunch() {
     difficultyConfig: { ...BASE_ALTITUDE_CONFIG },
     attemptStartTime: 0, attemptNumber: 0,
     inVoicing: false, voicingScores: [], sustainedSeconds: 0, quietGraceRemaining: 0,
+    lastVerificationScore: null, lastVerificationCorrect: null,
     scrollY: 0,
     W: 0, H: 0, DPR: 1,
     // Verification window timing — see VERIFY_WINDOW_MS above.
@@ -449,6 +450,15 @@ export default function RocketLaunch() {
       } catch (err) {
         console.warn('Backend phoneme scoring unavailable — window left unverified, provisional climb stands:', err)
       }
+
+      // Tracked for logVoicingAttempt's raw_features below -- see that
+      // function's comment for why this rides on the existing per-segment
+      // log call rather than becoming a new event type.
+      if (result) {
+        s.lastVerificationScore = result.score
+        s.lastVerificationCorrect = result.is_valid_attempt && result.score >= VERIFY_SCORE_THRESHOLD
+      }
+
       // A real result telling us this wasn't a genuine attempt at all
       // (silence/noise -- is_valid_attempt false) or scored below the
       // formant-quality threshold (wrong vowel, or too brief) gets its
@@ -484,8 +494,39 @@ export default function RocketLaunch() {
     if (scores.length < MIN_VOICING_FRAMES) return
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length
     s.attemptNumber++
+    // raw_features records the exact config live for this attempt, plus a
+    // best-effort correct/incorrect label from the most recent backend
+    // verification result. Formant-window timing (VERIFY_WINDOW_MS) doesn't
+    // align 1:1 with voicing-segment boundaries, so this is "the last known
+    // verification outcome as of this segment ending", not a per-frame-
+    // precise label -- good enough for threshold-tuning analysis, which
+    // cares about aggregate pass rates at a given config, not per-frame
+    // precision. Deliberately reuses this existing per-segment logEvent
+    // call rather than adding a new event type, since count_events() (used
+    // for TABULAR_MIN_CHILD_EVENTS gating and retraining thresholds) counts
+    // every row in this table indiscriminately -- a new, more-frequent
+    // event type would silently inflate those counts.
     try {
-      await logEvent({ level_id: LEVEL_ID, attempt_number: s.attemptNumber, score: avgScore, is_valid_attempt: true })
+      await logEvent({
+        level_id: LEVEL_ID,
+        attempt_number: s.attemptNumber,
+        score: avgScore,
+        is_valid_attempt: true,
+        raw_features: {
+          correct: s.lastVerificationCorrect,
+          last_verification_score: s.lastVerificationScore,
+          verify_score_threshold: VERIFY_SCORE_THRESHOLD,
+          verify_window_ms: VERIFY_WINDOW_MS,
+          base_rise_rate: BASE_ALTITUDE_CONFIG.riseRate,
+          base_fall_rate: BASE_ALTITUDE_CONFIG.fallRate,
+          base_score_threshold: BASE_ALTITUDE_CONFIG.scoreThreshold,
+          current_score_threshold: s.difficultyConfig.scoreThreshold,
+          duration_boost_max: DURATION_BOOST_MAX,
+          duration_boost_seconds: DURATION_BOOST_SECONDS,
+          sustain_grace_seconds: SUSTAIN_GRACE_SECONDS,
+          safe_range: DIFFICULTY_AGENT.SAFE_RANGE,
+        },
+      })
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
     }
