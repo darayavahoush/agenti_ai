@@ -43,7 +43,7 @@ export default function Verify() {
     try {
       await verifyAPI.request({ email: targetEmail })
       setStep('code')
-      setCooldown(30)
+      setCooldown(60)
     } catch (err) {
       setError(getErrorMessage(err, "Couldn't send code — try again"))
       // If the auto-send failed, fall back to showing the email step so

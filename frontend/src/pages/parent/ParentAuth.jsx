@@ -181,7 +181,7 @@ export default function ParentAuth() {
     try {
       await verifyAPI.request({ email: forgotEmail.trim() })
       setForgotStep('verify')
-      setForgotCooldown(30)
+      setForgotCooldown(60)
     } catch (err) {
       setForgotError(getErrorMessage(err, "Couldn't send the code — try again"))
     } finally {
@@ -194,7 +194,7 @@ export default function ParentAuth() {
     try {
       await verifyAPI.request({ email: forgotEmail.trim() })
       setForgotResendMsg('Code resent!')
-      setForgotCooldown(30)
+      setForgotCooldown(60)
     } catch (err) {
       setForgotError(getErrorMessage(err, "Couldn't resend the code — try again"))
     } finally {
