@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, getErrorMessage, verifyAPI } from '../../api/client'
 import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
+import { SavedProfilesGate } from '../../components/ui'
 import {
   Heart, LineChart, MessageCircle,
   Mail, Lock, User, KeyRound, Phone, Eye, EyeOff, ArrowLeft,
@@ -30,7 +31,10 @@ function Field({ icon: Icon, rightElement, ...props }) {
   )
 }
 
-export default function ParentAuth() {
+// Wrapped by the default export below with SavedProfilesGate, so anyone
+// who has a saved parent profile on this device sees a "who's continuing"
+// picker instead of this form -- see SavedProfilesGate.jsx.
+function ParentAuthForm() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
@@ -531,5 +535,13 @@ export default function ParentAuth() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ParentAuth() {
+  return (
+    <SavedProfilesGate role="parent">
+      <ParentAuthForm />
+    </SavedProfilesGate>
   )
 }

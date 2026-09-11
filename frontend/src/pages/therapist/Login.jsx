@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage, authAPI, verifyAPI } from '../../api/client'
-import { Button, Input, Card } from '../../components/ui'
+import { Button, Input, Card, SavedProfilesGate } from '../../components/ui'
 import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
 import {
   ClipboardList, LineChart, ShieldCheck,
@@ -15,7 +15,10 @@ const VALUE_PROPS = [
   { icon: ShieldCheck, text: "Each patient links only to their own teacher — nothing shared" },
 ]
 
-export default function TherapistLogin() {
+// Wrapped by the default export below with SavedProfilesGate, so anyone
+// who has a saved therapist profile on this device sees a "who's
+// continuing" picker instead of this form -- see SavedProfilesGate.jsx.
+function TherapistLoginForm() {
   const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ email: '', password: '', full_name: '', clinic_name: '', phone: '' })
   const [showPassword, setShowPassword] = useState(false)
@@ -336,5 +339,13 @@ export default function TherapistLogin() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function TherapistLogin() {
+  return (
+    <SavedProfilesGate role="therapist">
+      <TherapistLoginForm />
+    </SavedProfilesGate>
   )
 }

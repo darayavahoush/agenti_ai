@@ -8,7 +8,7 @@ import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
 import { playChime, playFanfare, speakSound } from './lib/sound.js'
-import { createGameSession, logAttempt, endGameSession, getGameSettings } from './lib/api.js'
+import { createGameSession, logAttempt, endGameSession, getGameSettings, submitEventFeedback } from './lib/api.js'
 import { useEndSessionOnLeave } from './lib/useEndSessionOnLeave.js'
 import { useAuth } from '../context/AuthContext'
 import CelebrationOverlay from './components/CelebrationOverlay.jsx'
@@ -95,6 +95,12 @@ export default function MirrorMirror() {
   const [complete, setComplete] = useState(false)
   const [celebrate, setCelebrate] = useState(false)
   const [baselineSpread, setBaselineSpread] = useState(null)
+  // Non-blocking "was this scored right?" toast -- ties to the RLTrainingEvent
+  // id logAttempt returns (see AttemptOut.rl_event_id), auto-dismisses, never
+  // blocks advance().
+  const [feedbackEventId, setFeedbackEventId] = useState(null)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const feedbackTimeoutRef = useRef(null)
   const [calibProgress, setCalibProgress] = useState(0)
   const calibSamplesRef = useRef([])
   const calibStartRef = useRef(null)
@@ -272,7 +278,7 @@ export default function MirrorMirror() {
                 openness: smoothedRef.current?.openness ?? null,
                 spread: smoothedRef.current?.spread ?? null,
                 predicted_tier: t,
-              }).catch(() => {})
+              }).then(showFeedbackToast).catch(() => {})
             }
             advance({ skipped: true })
           }
@@ -295,7 +301,7 @@ export default function MirrorMirror() {
                   openness: smoothedRef.current?.openness ?? null,
                   spread: smoothedRef.current?.spread ?? null,
                   predicted_tier: t,
-                }).catch(() => {})
+                }).then(showFeedbackToast).catch(() => {})
               }
               advance()
             }
