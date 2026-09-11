@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
-import { Button, Avatar } from '../../components/ui'
+import { Button, Avatar, SavedProfilesGate } from '../../components/ui'
 import { Creature } from '../../components/ui/Creatures'
 import { speak } from '../../lib/speech'
 
@@ -125,7 +125,11 @@ function PinPad({ onDigit, onDelete }) {
   )
 }
 
-export default function KidPlay() {
+// Wrapped by the default export below with SavedProfilesGate, so anyone
+// who has a saved kid profile on this device sees a "who's continuing"
+// picker instead of this welcome/code-entry flow -- see
+// SavedProfilesGate.jsx.
+function KidPlayForm() {
   const [searchParams] = useSearchParams()
   const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
   // Normally kids land on the marketing chooser first -- but if we're here
@@ -940,5 +944,13 @@ export default function KidPlay() {
         </GlassPanel>
       )}
     </div>
+  )
+}
+
+export default function KidPlay() {
+  return (
+    <SavedProfilesGate role="kid">
+      <KidPlayForm />
+    </SavedProfilesGate>
   )
 }
