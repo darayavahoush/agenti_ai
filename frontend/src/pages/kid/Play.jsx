@@ -241,7 +241,7 @@ function KidPlayForm() {
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
       setRegisterStep('verifyEmail')
-      setResendCooldown(30)
+      setResendCooldown(60)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't send the verification code — try again"))
     } finally {
@@ -254,7 +254,7 @@ function KidPlayForm() {
     try {
       await verifyAPI.request({ email: parentEmail.trim() })
       setResendMsg('Code resent!')
-      setResendCooldown(30)
+      setResendCooldown(60)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't resend the code — try again"))
     } finally {
@@ -342,7 +342,7 @@ function KidPlayForm() {
     try {
       await verifyAPI.request({ email: forgotPinEmail.trim() })
       setForgotPinStep('verify')
-      setResendCooldown(30)
+      setResendCooldown(60)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't send the code — try again"))
     } finally {
@@ -355,7 +355,7 @@ function KidPlayForm() {
     try {
       await verifyAPI.request({ email: forgotPinEmail.trim() })
       setResendMsg('Code resent!')
-      setResendCooldown(30)
+      setResendCooldown(60)
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't resend the code — try again"))
     } finally {
