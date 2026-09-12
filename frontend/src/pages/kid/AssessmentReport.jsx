@@ -59,25 +59,44 @@ export default function AssessmentReport() {
     ? Math.max(0, Math.ceil((new Date(access.trial_ends_at) - new Date()) / 86400000))
     : null
 
+  // Only celebrate the very first time this page renders for a
+  // just-finished assessment -- not on every later revisit (e.g. tapping
+  // "My Results" from GamePicker), where a confetti burst would feel odd.
+  const isFreshResult = Boolean(routedSummary)
+
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-6 py-12"
+      className="min-h-screen flex items-center justify-center px-6 py-12 overflow-hidden"
       style={{ background: 'linear-gradient(180deg, #12142E 0%, #241F49 45%, #3A2C5C 100%)' }}
     >
-      <div className="max-w-md w-full text-center">
+      <div className="relative max-w-md w-full text-center">
+        {isFreshResult && (
+          <div className="pointer-events-none absolute inset-x-0 -top-6 flex justify-center gap-6 z-10">
+            {['🎉', '✨', '⭐️', '🎊'].map((e, i) => (
+              <span
+                key={i}
+                className="text-xl animate-[confettiFall_1.6s_ease-in_forwards]"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                {e}
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="flex justify-center mb-4">
-          <PartyPopper className="w-10 h-10 text-brand-green" />
+          <PartyPopper className={`w-10 h-10 text-brand-green ${isFreshResult ? 'animate-[popIn_0.5s_ease-out]' : ''}`} />
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">
+        <h1 className="text-2xl font-bold text-white mb-2 animate-[fadeIn_0.5s_ease-out]">
           Nice work{patient?.first_name ? `, ${patient.first_name}` : ''}!
         </h1>
-        <p className="text-white/50 text-sm mb-8">
+        <p className="text-white/50 text-sm mb-8 animate-[fadeIn_0.5s_ease-out_0.1s_backwards]">
           You just finished your first speech check-in.
         </p>
 
-        <Card className="text-left mb-6">
+        <Card className="text-left mb-6 animate-[cardIn_0.5s_ease-out_0.15s_backwards]">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-4 h-4 text-brand-green" />
+            <Sparkles className="w-4 h-4 text-brand-green animate-[spin_4s_linear_infinite]" />
             <span className="text-white font-semibold text-sm">Your free preview</span>
           </div>
           <div className="space-y-2 text-sm text-white/70">
@@ -117,7 +136,7 @@ export default function AssessmentReport() {
           <Button
             variant="primary"
             size="lg"
-            className="w-full mb-3"
+            className="w-full mb-3 animate-[cardIn_0.5s_ease-out_0.2s_backwards]"
             onClick={() => navigate('/parent/login')}
           >
             Ask a grown-up to start a free trial
@@ -151,6 +170,27 @@ export default function AssessmentReport() {
           Keep exploring the games →
         </button>
       </div>
+
+      <style>{`
+        @keyframes popIn {
+          0% { opacity: 0; transform: scale(0.6) rotate(-8deg); }
+          60% { transform: scale(1.12) rotate(4deg); }
+          100% { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translateY(-6px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cardIn {
+          0% { opacity: 0; transform: translateY(12px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes confettiFall {
+          0% { opacity: 0; transform: translateY(-10px) rotate(0deg); }
+          20% { opacity: 1; }
+          100% { opacity: 0; transform: translateY(50px) rotate(180deg); }
+        }
+      `}</style>
     </div>
   )
 }
