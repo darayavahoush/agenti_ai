@@ -52,10 +52,23 @@ export function AuthProvider({ children }) {
     const userType = localStorage.getItem('bq_user_type')
     const userData = localStorage.getItem('bq_user_data')
     if (token && userData) {
-      const parsed = JSON.parse(userData)
-      if (userType === 'therapist') setTherapist(parsed)
-      if (userType === 'patient')   setPatient(parsed)
-      if (userType === 'parent')    setParent(parsed)
+      try {
+        const parsed = JSON.parse(userData)
+        if (userType === 'therapist') setTherapist(parsed)
+        if (userType === 'patient')   setPatient(parsed)
+        if (userType === 'parent')    setParent(parsed)
+      } catch {
+        // Corrupted bq_user_data (partial write, storage quirk) -- drop the
+        // dead session keys rather than leaving them around to fail the
+        // same way on every future load, and fall through to a clean
+        // logged-out state instead of leaving `loading` stuck true forever
+        // (which is what happened before this try/catch existed: an
+        // uncaught throw here meant setLoading(false) below never ran).
+        localStorage.removeItem('bq_token')
+        localStorage.removeItem('bq_refresh_token')
+        localStorage.removeItem('bq_user_type')
+        localStorage.removeItem('bq_user_data')
+      }
     }
     const backupRaw = localStorage.getItem('bq_supervisor_backup')
     if (backupRaw) {
