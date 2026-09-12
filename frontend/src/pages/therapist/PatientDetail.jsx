@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, chimeAPI, vaakmirrorAPI } from '../../api/client'
 import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
-import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow } from '../../components/ui'
+import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
 import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings } from 'lucide-react'
@@ -391,7 +391,7 @@ export default function PatientDetail() {
       <nav className="relative border-b border-white/[0.08] px-6 py-4 flex items-center gap-4
                        sticky top-0 bg-brand-dark/85 backdrop-blur-xl z-10">
         <button onClick={() => navigate('/therapist/dashboard')}
-                className="text-white/40 hover:text-white text-sm transition-colors">← Dashboard</button>
+                className="text-white/65 hover:text-white text-sm transition-colors">← Dashboard</button>
         <span className="text-white/20">/</span>
         <span className="text-white font-semibold">{data.first_name}</span>
         <div className="flex-1" />
@@ -403,7 +403,7 @@ export default function PatientDetail() {
           <Play size={14} className="mr-1.5 inline" />
           {launchingSession === 'play' ? 'Launching…' : 'Launch Live Therapy'}
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/therapist/patients/${id}/agent`)}>
+        <Button variant="agent" size="sm" onClick={() => navigate(`/therapist/patients/${id}/agent`)}>
           <Brain size={14} className="mr-1.5 inline" />
           What the agent sees
         </Button>
@@ -435,11 +435,8 @@ export default function PatientDetail() {
               <span className={`text-sm font-semibold ${trendColor}`}>Trend: {trendLabel}</span>
             </div>
           </div>
-          <div className="text-right hidden md:block">
-            <p className="text-white/30 text-xs mb-1">Completion Rate</p>
-            <p className="font-display text-3xl font-bold text-brand-green">
-              {(data.completion_rate * 100).toFixed(0)}%
-            </p>
+          <div className="hidden md:block">
+            <ProgressRing value={data.completion_rate * 100} size={72} color="#A8FF6F" label="Completion Rate" />
           </div>
         </div>
 
@@ -641,11 +638,13 @@ export default function PatientDetail() {
                     </p>
                     <p className="text-white/30 text-xs">best stars</p>
                   </Card>
-                  <Card className="text-center">
-                    <p className="text-2xl font-bold font-display text-brand-teal">
-                      {Math.round(vhrSessions.reduce((sum, s) => sum + s.pitch_accuracy, 0) / vhrSessions.length)}%
-                    </p>
-                    <p className="text-white/30 text-xs">avg pitch accuracy</p>
+                  <Card className="text-center flex flex-col items-center justify-center">
+                    <ProgressRing
+                      value={vhrSessions.reduce((sum, s) => sum + s.pitch_accuracy, 0) / vhrSessions.length}
+                      size={64}
+                      color="#1D9E75"
+                      label="avg pitch accuracy"
+                    />
                   </Card>
                 </div>
                 {vhrSessions.map(s => (
@@ -921,7 +920,7 @@ export default function PatientDetail() {
                           </p>
                         </div>
                         <Badge color={g.achieved ? 'green' : 'gray'}>{g.achieved ? 'Achieved' : 'In progress'}</Badge>
-                        <button onClick={() => removeGoal(g.id)} className="text-white/20 hover:text-brand-coral"><X size={14} /></button>
+                        <button onClick={() => removeGoal(g.id)} className="text-white/45 hover:text-brand-coral"><X size={14} /></button>
                       </div>
                     ))}
                   </div>
@@ -1001,10 +1000,10 @@ export default function PatientDetail() {
                         <Badge color={a.status === 'completed' ? 'green' : a.status === 'overdue' ? 'coral' : 'gray'}>
                           {a.status}
                         </Badge>
-                        <button onClick={() => toggleAssignmentDone(a)} className="text-white/40 hover:text-brand-green text-xs">
+                        <button onClick={() => toggleAssignmentDone(a)} className="text-white/65 hover:text-brand-green text-xs">
                           {a.status === 'completed' ? 'Undo' : 'Done'}
                         </button>
-                        <button onClick={() => removeAssignment(a.id)} className="text-white/20 hover:text-brand-coral"><X size={14} /></button>
+                        <button onClick={() => removeAssignment(a.id)} className="text-white/45 hover:text-brand-coral"><X size={14} /></button>
                       </div>
                     ))}
                   </div>
