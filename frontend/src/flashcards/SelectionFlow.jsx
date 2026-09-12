@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getThemes, getWordsForTheme } from "./lib/api";
-import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, FUN_COLORS } from "./SelectionUI";
+import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, FUN_COLORS, SkeletonCard, EmptyState } from "./SelectionUI";
 
 // Playful, animated space-themed selection flow -- staggered pop-in cards,
 // twinkling starfield, per-card color cycling, wiggle-on-hover. Shared
@@ -9,11 +9,16 @@ import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles, useCyclingE
 
 export function ThemeSelect({ onPick }) {
   const [themeList, setThemeList] = useState(null);
+  const [themeLoadFailed, setThemeLoadFailed] = useState(false);
   const surpriseEmoji = useCyclingEmoji(["🎲", "✨", "🎉", "🌈"]);
 
-  useEffect(() => {
-    getThemes().then(d => setThemeList(d.themes)).catch(() => setThemeList([]));
-  }, []);
+  const loadThemes = () => {
+    setThemeList(null);
+    setThemeLoadFailed(false);
+    getThemes().then(d => setThemeList(d.themes)).catch(() => { setThemeList([]); setThemeLoadFailed(true); });
+  };
+
+  useEffect(() => { loadThemes(); }, []);
 
   return (
     <div className="flex-1 flex items-center justify-center" style={{ background: '#0d0d1a', position: "relative", overflow: "hidden" }}>
@@ -28,9 +33,25 @@ export function ThemeSelect({ onPick }) {
           Pick a topic for your cards
         </p>
         {themeList === null ? (
-          <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center" }}>Loading topics…</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} index={i} />)}
+          </div>
+        ) : themeList.length === 0 ? (
+          <EmptyState
+            emoji={themeLoadFailed ? "😕" : "📭"}
+            title={themeLoadFailed ? "Couldn't load topics" : "No topics yet"}
+            subtitle={themeLoadFailed ? "Check your connection and try again." : "Ask your therapist to add some!"}
+            action={themeLoadFailed && (
+              <button
+                onClick={loadThemes}
+                style={{ background: "#A78BFA", border: "none", borderRadius: "14px", padding: "10px 22px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif", marginTop: "4px" }}
+              >
+                Try again
+              </button>
+            )}
+          />
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
             {themeList.map((t, i) => (
               <PlayCard
                 key={t.id}
@@ -125,4 +146,3 @@ export function WordSelect({ theme, onPick, onBack }) {
     </div>
   );
 }
-

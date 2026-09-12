@@ -99,7 +99,42 @@ export function GlobalSelectionStyles() {
         0%, 100% { box-shadow: 0 0 0 0 rgba(167,139,250,0.5); }
         50% { box-shadow: 0 0 0 6px rgba(167,139,250,0); }
       }
+      @keyframes pulseGlow {
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 1; }
+      }
     `}</style>
+  );
+}
+
+// Circular colored badge behind the icon/emoji -- reads as a proper app
+// icon rather than a floating character, and gives each tile a stronger
+// per-theme color identity at a glance.
+function PlayCardBadge({ image, imageAlt, emoji, title, color, index }) {
+  return (
+    <div
+      style={{
+        width: "68px", height: "68px", borderRadius: "50%",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: `linear-gradient(145deg, ${color}33, ${color}11)`,
+        border: `2px solid ${color}55`,
+        boxShadow: `0 4px 14px ${color}22`,
+      }}
+    >
+      {image ? (
+        <img
+          src={image} alt={imageAlt || title} className="pc-visual"
+          style={{ width: "40px", height: "40px", objectFit: "contain", animation: `floatY 2.4s ease-in-out ${index * 0.15}s infinite` }}
+        />
+      ) : (
+        <span
+          className="pc-visual"
+          style={{ fontSize: "2rem", display: "inline-block", animation: `floatY 2.4s ease-in-out ${index * 0.15}s infinite` }}
+        >
+          {emoji}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -109,10 +144,10 @@ export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#A7
       onClick={onClick}
       style={{
         position: "relative",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: "8px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
         background: dashed ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.05)",
         border: dashed ? `2px dashed ${color}66` : `2px solid ${color}44`,
-        borderRadius: "18px", padding: "18px 10px", cursor: "pointer",
+        borderRadius: "20px", padding: "22px 12px",
         opacity: 0, animation: `popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) ${index * 0.06}s forwards`,
         transition: "border-color 0.2s, box-shadow 0.2s, transform 0.15s",
       }}
@@ -131,22 +166,44 @@ export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#A7
       onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
       onMouseUp={e => { e.currentTarget.style.transform = "scale(1.04)"; }}
     >
-      {image ? (
-        <img
-          src={image} alt={imageAlt || title} className="pc-visual"
-          style={{ width: "56px", height: "56px", objectFit: "contain", animation: `floatY 2.4s ease-in-out ${index * 0.15}s infinite` }}
-        />
-      ) : (
-        <span
-          className="pc-visual"
-          style={{ fontSize: "2.4rem", display: "inline-block", animation: `floatY 2.4s ease-in-out ${index * 0.15}s infinite` }}
-        >
-          {emoji}
-        </span>
-      )}
-      <span style={{ color: "#fff", fontSize: "0.82rem", fontWeight: 800, fontFamily: "Nunito, sans-serif" }}>{title}</span>
-      {subtitle && <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.62rem", textAlign: "center", lineHeight: 1.3 }}>{subtitle}</span>}
+      <PlayCardBadge image={image} imageAlt={imageAlt} emoji={emoji} title={title} color={color} index={index} />
+      <span style={{ color: "#fff", fontSize: "0.88rem", fontWeight: 800, fontFamily: "Nunito, sans-serif" }}>{title}</span>
+      {subtitle && <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", textAlign: "center", lineHeight: 1.3 }}>{subtitle}</span>}
     </button>
   );
 }
 
+// Pulsing placeholder tile shaped like a real PlayCard, so the grid
+// doesn't visually jump when real data arrives -- used in place of a
+// bare "Loading…" line.
+export function SkeletonCard({ index = 0 }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+      background: "rgba(255,255,255,0.03)", border: "2px solid rgba(255,255,255,0.06)",
+      borderRadius: "20px", padding: "22px 12px",
+      animation: `pulseGlow 1.6s ease-in-out ${index * 0.08}s infinite`,
+    }}>
+      <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+      <div style={{ width: "70%", height: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)" }} />
+      <div style={{ width: "45%", height: "8px", borderRadius: "6px", background: "rgba(255,255,255,0.04)" }} />
+    </div>
+  );
+}
+
+// Distinguishes "nothing here yet" from "couldn't load" -- an empty
+// theme list used to render identically for both cases.
+export function EmptyState({ emoji = "🔍", title, subtitle, action }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+      padding: "32px 20px", textAlign: "center",
+      animation: "popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards",
+    }}>
+      <span style={{ fontSize: "2.2rem", animation: "floatY 2.4s ease-in-out infinite" }}>{emoji}</span>
+      <p style={{ color: "#fff", fontWeight: 800, fontFamily: "Nunito, sans-serif", fontSize: "0.95rem", margin: 0 }}>{title}</p>
+      {subtitle && <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", margin: 0, maxWidth: "320px" }}>{subtitle}</p>}
+      {action}
+    </div>
+  );
+}
