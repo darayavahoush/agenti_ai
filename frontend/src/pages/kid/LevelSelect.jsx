@@ -28,6 +28,9 @@ export default function LevelSelect() {
   const navigate = useNavigate()
   const [scores, setScores] = useState({})
   const [hovering, setHovering] = useState(null)
+  // Tracks which level just got unlocked so we can play a one-time
+  // "pop in" moment on its card instead of it silently appearing.
+  const [justUnlocked, setJustUnlocked] = useState(null)
 
   useEffect(() => {
     // Show whatever this browser already has immediately (no loading
@@ -52,12 +55,18 @@ export default function LevelSelect() {
       }}>
       {/* Stars sub-bar — unique to this page, kept alongside the shared navbar */}
       <div className="flex items-center justify-center gap-2 px-6 py-2 border-b border-white/10">
-        <span className="text-brand-amber font-bold text-sm">⭐ {totalStars} / {maxStars}</span>
-        {totalStars === maxStars && <span className="text-xs bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full">Perfect!</span>}
+        <span className="text-brand-amber font-bold text-sm inline-flex items-center gap-1">
+          <span className="inline-block animate-[starPulse_2s_ease-in-out_infinite]">⭐</span>
+          {totalStars} / {maxStars}
+        </span>
+        {totalStars === maxStars && (
+          <span className="text-xs bg-brand-amber/20 text-brand-amber px-2 py-0.5 rounded-full
+                            animate-[popIn_0.4s_ease-out]">Perfect!</span>
+        )}
       </div>
 
       <div className="max-w-3xl mx-auto px-6 py-8">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 animate-[fadeIn_0.5s_ease-out]">
           <h1 className="font-display text-4xl font-black text-white">
             Choose a <span className="text-brand-green">Level!</span>
           </h1>
@@ -84,22 +93,25 @@ export default function LevelSelect() {
                 // after a hover event that touchscreens never fire.
                 onTouchStart={() => unlocked && setHovering(level.id)}
                 disabled={!unlocked}
-                className="relative text-left rounded-2xl overflow-hidden transition-all duration-200
+                className={`group relative text-left rounded-2xl overflow-hidden transition-all duration-200
                            active:scale-[0.97]
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
-                           focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d1a]"
+                           focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d1a]
+                           animate-[cardIn_0.4s_ease-out_backwards]
+                           ${unlocked ? 'hover:-translate-y-1' : ''}`}
                 style={{
                   background: 'linear-gradient(135deg, #1E1E3F, #12122A)',
                   border: `2px solid ${unlocked ? (isHover ? theme.border : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.08)'}`,
                   boxShadow: isHover && unlocked ? `0 0 30px ${theme.glow}` : 'none',
                   transform: isHover && unlocked ? 'scale(1.03)' : 'scale(1)',
                   opacity: unlocked ? 1 : 0.5,
+                  animationDelay: `${i * 70}ms`,
                 }}>
 
                 {/* Locked overlay */}
                 {!unlocked && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-10">
-                    <span className="text-4xl mb-2">🔒</span>
+                    <span className="text-4xl mb-2 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6">🔒</span>
                     <span className="text-white/50 text-sm">
                       Complete {LEVELS[i-1]?.name} first
                     </span>
@@ -109,7 +121,10 @@ export default function LevelSelect() {
                 <div className="p-5">
                   {/* Top row */}
                   <div className="flex items-start justify-between mb-3">
-                    <span className="text-5xl">{level.emoji}</span>
+                    <span className={`text-5xl inline-block transition-transform duration-300
+                                       ${unlocked ? 'group-hover:scale-110 group-hover:rotate-[-6deg]' : ''}`}>
+                      {level.emoji}
+                    </span>
                     <div className="flex flex-col items-end gap-1">
                       {/* Difficulty badge */}
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full"
@@ -133,8 +148,9 @@ export default function LevelSelect() {
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1">
                       {Array.from({length: 3}, (_, j) => (
-                        <span key={j} className="text-xl transition-all"
-                              style={{ color: j < stars ? '#FAC775' : 'rgba(255,255,255,0.12)' }}>
+                        <span key={j}
+                              className={`text-xl transition-all duration-300 ${j < stars ? 'animate-[starPop_0.4s_ease-out_backwards]' : ''}`}
+                              style={{ color: j < stars ? '#FAC775' : 'rgba(255,255,255,0.12)', animationDelay: `${j * 100}ms` }}>
                           ★
                         </span>
                       ))}
@@ -165,8 +181,9 @@ export default function LevelSelect() {
 
         {/* All complete! */}
         {totalStars === maxStars && (
-          <div className="mt-8 p-6 rounded-2xl text-center border border-brand-amber/30 bg-brand-amber/5">
-            <div className="text-4xl mb-2">🏆</div>
+          <div className="relative mt-8 p-6 rounded-2xl text-center border border-brand-amber/30 bg-brand-amber/5
+                           animate-[popIn_0.5s_ease-out]">
+            <div className="text-4xl mb-2 animate-[bounce_1.6s_ease-in-out_infinite]">🏆</div>
             <p className="font-display text-xl font-bold text-brand-amber">All levels complete!</p>
             <p className="text-white/50 text-sm mt-1">You're a BreathQuest champion!</p>
           </div>
@@ -177,6 +194,30 @@ export default function LevelSelect() {
         </p>
       </div>
       </div>
+
+      <style>{`
+        @keyframes cardIn {
+          0% { opacity: 0; transform: translateY(14px) scale(0.96); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translateY(-6px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes popIn {
+          0% { opacity: 0; transform: scale(0.92); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes starPop {
+          0% { opacity: 0; transform: scale(0.3) rotate(-15deg); }
+          70% { transform: scale(1.2) rotate(5deg); }
+          100% { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+        @keyframes starPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+        }
+      `}</style>
     </div>
   )
 }
