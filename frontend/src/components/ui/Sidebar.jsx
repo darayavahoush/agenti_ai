@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, LogOut, Wind, Lock, Users, X, Plus, Check } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { ROLE_HOME_PATH } from '../../api/knownAccounts'
+import { Avatar } from './Avatar'
 
 // Role-aware collapsible sidebar for authenticated pages (therapist +
 // parent). Background is the SAME vertical gradient as the landing page
@@ -55,11 +56,17 @@ function accountDisplayName(a) {
 
 function AccountAvatar({ account }) {
   const t = THEMES[account.userType === 'patient' ? 'kid' : account.userType] || THEMES.therapist
-  if (account.userData?.avatar) {
+  // Kid accounts get their real illustrated creature (or uploaded photo,
+  // which Avatar itself prioritizes) -- parent/therapist accounts have no
+  // creature species, so they keep the plain initials circle below.
+  if (account.userType === 'patient') {
     return (
-      <span className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 text-lg ${t.glow}`}>
-        {account.userData.avatar}
-      </span>
+      <Avatar
+        avatar={account.userData?.avatar}
+        photoUrl={account.userData?.avatar_photo_url}
+        size="sm"
+        name={accountDisplayName(account)}
+      />
     )
   }
   const initials = accountDisplayName(account).slice(0, 2).toUpperCase()

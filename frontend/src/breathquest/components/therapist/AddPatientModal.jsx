@@ -3,7 +3,7 @@ import { patientsAPI } from '../../api/client'
 import { getErrorMessage } from '../../../api/client'
 import { Button, Input, Avatar } from '../ui'
 
-const AVATARS = ['chick', 'dragon', 'cloud', 'star', 'rocket', 'fish']
+const AVATARS = ['chick', 'dragon', 'bunny', 'fox', 'rocket', 'fish']
 const AVATAR_EMOJIS = { chick:'🐥', dragon:'🐉', cloud:'☁️', star:'⭐', rocket:'🚀', fish:'🐠' }
 
 export default function AddPatientModal({ onClose, onAdded }) {
