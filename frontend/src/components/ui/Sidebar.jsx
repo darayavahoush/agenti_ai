@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, LogOut, Wind, Lock, Users, X, Plus, Check } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -93,6 +93,14 @@ export function ProfileSwitcherModal({ onClose }) {
   const [busyKey, setBusyKey] = useState(null)
   const [expiredMsg, setExpiredMsg] = useState(null)
 
+  // Escape closes the modal, matching the click-outside-to-dismiss backdrop
+  // -- without this, keyboard-only users have no way to back out.
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
   const handleSwitch = async (key) => {
     if (key === currentAccountKey) { onClose(); return }
     setBusyKey(key)
@@ -150,7 +158,11 @@ export function ProfileSwitcherModal({ onClose }) {
               <div
                 key={a.key}
                 onClick={() => handleSwitch(a.key)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSwitch(a.key) } }}
+                role="button"
+                tabIndex={0}
                 className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer transition-all
+                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green
                             ${isCurrent ? 'bg-white/10' : 'hover:bg-white/[0.07] hover:translate-x-0.5'}
                             ${busyKey === a.key ? 'opacity-50 pointer-events-none' : ''}`}
               >

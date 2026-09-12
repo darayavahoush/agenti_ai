@@ -366,26 +366,33 @@ export default function Flashcards() {
                 </div>
 
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center" }}>
-                  {(wordData?.phonemes || []).map((p, i) => (
-                    <div key={i} title={`Tap to hear more about /${p}/${phonemeExample(p) ? ` — ${phonemeExample(p)}` : ""}`}
-                      onClick={async () => {
-                        if (exploredPhoneme === p) { setExploredPhoneme(null); return; }
-                        setExploredPhoneme(p);
-                        setExploredCard(undefined);
-                        try {
-                          const card = await getPhonemeCard(p);
-                          setExploredCard(card);
-                        } catch {
-                          setExploredCard(null);
-                        }
-                      }}
-                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", background: exploredPhoneme === p ? `${th.accent}22` : th.card, border: `1px solid ${th.accent}${exploredPhoneme === p ? "" : "55"}`, borderRadius: "10px", padding: "6px 10px", cursor: "pointer" }}>
-                      <span style={{ color: th.accent, fontFamily: "Nunito, sans-serif", fontSize: "0.95rem", fontWeight: 900, lineHeight: 1 }}>
-                        {friendlyPhoneme(p)}
-                      </span>
-                      <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.55rem", opacity: 0.6 }}>{p}</span>
-                    </div>
-                  ))}
+                  {(wordData?.phonemes || []).map((p, i) => {
+                    const explorePhoneme = async () => {
+                      if (exploredPhoneme === p) { setExploredPhoneme(null); return; }
+                      setExploredPhoneme(p);
+                      setExploredCard(undefined);
+                      try {
+                        const card = await getPhonemeCard(p);
+                        setExploredCard(card);
+                      } catch {
+                        setExploredCard(null);
+                      }
+                    };
+                    return (
+                      <div key={i} title={`Tap to hear more about /${p}/${phonemeExample(p) ? ` — ${phonemeExample(p)}` : ""}`}
+                        onClick={explorePhoneme}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); explorePhoneme(); } }}
+                        role="button" tabIndex={0}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", background: exploredPhoneme === p ? `${th.accent}22` : th.card, border: `1px solid ${th.accent}${exploredPhoneme === p ? "" : "55"}`, borderRadius: "10px", padding: "6px 10px", cursor: "pointer", outline: "none" }}
+                        onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${th.accent}` }}
+                        onBlur={e => { e.currentTarget.style.boxShadow = "none" }}>
+                        <span style={{ color: th.accent, fontFamily: "Nunito, sans-serif", fontSize: "0.95rem", fontWeight: 900, lineHeight: 1 }}>
+                          {friendlyPhoneme(p)}
+                        </span>
+                        <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.55rem", opacity: 0.6 }}>{p}</span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <p style={{ color: th.sub, fontSize: "0.65rem", textAlign: "center", margin: "-8px 0 0 0", opacity: 0.7 }}>Tap a sound to learn how to make it</p>
               </div>
