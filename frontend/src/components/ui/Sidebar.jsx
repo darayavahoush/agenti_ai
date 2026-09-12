@@ -126,7 +126,8 @@ export function ProfileSwitcherModal({ onClose }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#1B1730] shadow-2xl p-5"
+        className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#1B1730] shadow-2xl shadow-black/40 p-5
+                   animate-[modalPop_0.18s_ease-out]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -149,8 +150,8 @@ export function ProfileSwitcherModal({ onClose }) {
               <div
                 key={a.key}
                 onClick={() => handleSwitch(a.key)}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer transition-colors
-                            ${isCurrent ? 'bg-white/10' : 'hover:bg-white/[0.06]'}
+                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer transition-all
+                            ${isCurrent ? 'bg-white/10' : 'hover:bg-white/[0.07] hover:translate-x-0.5'}
                             ${busyKey === a.key ? 'opacity-50 pointer-events-none' : ''}`}
               >
                 <AccountAvatar account={a} />

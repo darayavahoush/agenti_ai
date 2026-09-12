@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, LogIn, X } from 'lucide-react'
 import { Avatar } from './Avatar'
+import AmbientGlow from './AmbientGlow'
 import { useAuth } from '../../context/AuthContext'
 import { ROLE_HOME_PATH } from '../../api/knownAccounts'
 
@@ -25,10 +26,12 @@ function ProfileTile({ account, busy, onSelect, onForget }) {
       type="button"
       onClick={() => onSelect(account.key)}
       disabled={busy}
-      className="group relative flex flex-col items-center gap-3 w-28 disabled:opacity-50"
+      className="group relative flex flex-col items-center gap-3 w-28 disabled:opacity-50
+                 transition-transform duration-300 hover:-translate-y-1.5"
     >
       {account.userType === 'patient' ? (
-        <div className="rounded-2xl border border-white/15 group-hover:border-white/40 transition-all p-1">
+        <div className="rounded-2xl border border-white/15 bg-white/[0.03] group-hover:border-white/40
+                         group-hover:shadow-[0_8px_30px_rgba(255,255,255,0.08)] transition-all p-1.5">
           <Avatar avatar={account.userData?.avatar} photoUrl={account.userData?.avatar_photo_url} size="xl" name={name} />
         </div>
       ) : (
@@ -111,15 +114,16 @@ export default function SavedProfilesGate({ role, children }) {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-4 py-16 gap-10"
+      className="relative min-h-screen flex flex-col items-center justify-center px-4 py-16 gap-10 overflow-hidden"
       style={{ background: LANDING_GRADIENT }}
     >
-      <div className="text-center">
+      <AmbientGlow />
+      <div className="relative text-center">
         <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-2">Who's continuing?</h1>
         {error && <p className="text-sm text-amber-300">{error}</p>}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-6 max-w-lg">
+      <div className="relative flex flex-wrap justify-center gap-6 max-w-lg">
         {matching.map((a) => (
           <ProfileTile
             key={a.key}
@@ -134,12 +138,13 @@ export default function SavedProfilesGate({ role, children }) {
       <button
         type="button"
         onClick={() => setShowForm(true)}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/20 text-white/70
-                   hover:text-white hover:border-white/40 transition-colors text-sm font-medium"
+        className="group relative flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/15
+                   bg-white/[0.04] text-white/70 hover:text-white hover:border-white/30 hover:bg-white/[0.08]
+                   transition-all text-sm font-medium"
       >
         <LogIn size={16} />
         Log in as someone else
-        <ArrowRight size={14} />
+        <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
       </button>
     </div>
   )
