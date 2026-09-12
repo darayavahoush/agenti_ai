@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, Volume2, Sparkles, Mic, ArrowRight, Star } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar, Sidebar } from '../../components/ui'
+import { Avatar, Sidebar, ProfileSwitcherModal } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { KID_GAMES } from '../../lib/kidGames'
 import { speak } from '../../lib/speech'
@@ -148,18 +148,14 @@ export default function GamePicker() {
   const navigate = useNavigate()
   const [mounted, setMounted] = useState(false)
   const [summary, setSummary] = useState({})
-  // "Switch player" logs the kid straight out with no undo -- it used to sit
-  // with the exact same visual weight as harmless buttons like "My Results"
-  // right next to it, so a stray tap ended the whole session. A two-tap
-  // confirm (auto-resets after 3s) is enough friction to prevent that
-  // without a full modal component for one button.
-  const [confirmLogout, setConfirmLogout] = useState(false)
-
-  useEffect(() => {
-    if (!confirmLogout) return
-    const t = setTimeout(() => setConfirmLogout(false), 3000)
-    return () => clearTimeout(t)
-  }, [confirmLogout])
+  // This used to be a two-tap "confirm, then log out" button labeled
+  // "Switch player" -- which promised something it didn't do. A kid
+  // tapping it expecting to see other profiles on this device (siblings,
+  // a parent/therapist login) instead just got logged all the way out
+  // with no list at all. Now it opens the SAME picker Sidebar's own
+  // "Switch profile" item uses, so the label finally matches the
+  // behavior -- real logout is still one click away in the sidebar.
+  const [switcherOpen, setSwitcherOpen] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 30)
@@ -208,20 +204,19 @@ export default function GamePicker() {
               <Sparkles size={16} /> My Results
             </button>
             {/* Divider so "Switch player" doesn't visually blend into the row
-                above -- it's the one button here that ends the session. */}
+                above -- it's the one button here that hands the device to
+                someone else. */}
             <div className="w-px h-5 bg-white/10 mx-1" />
             <button
-              onClick={() => (confirmLogout ? logout() : setConfirmLogout(true))}
-              className={`text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95 ${
-                confirmLogout
-                  ? 'bg-orange-500/20 text-orange-200 hover:bg-orange-500/30'
-                  : 'text-white/45 hover:text-white/80 hover:bg-white/5'
-              }`}
+              onClick={() => setSwitcherOpen(true)}
+              className="text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95 text-white/45 hover:text-white/80 hover:bg-white/5"
             >
-              {confirmLogout ? 'Tap again to confirm' : 'Switch player'}
+              Switch player
             </button>
           </div>
         </div>
+
+        {switcherOpen && <ProfileSwitcherModal onClose={() => setSwitcherOpen(false)} />}
 
         <div className="relative max-w-5xl mx-auto px-6 py-14">
           <div className="text-center mb-12">

@@ -77,7 +77,11 @@ function AccountAvatar({ account }) {
 // the first time it was added). "Log out" (the separate NavItem below)
 // stays the way to actually sign a profile out of the device for good;
 // this is for handing the device to someone else who's already used it.
-function ProfileSwitcherModal({ onClose }) {
+// Exported so GamePicker's top-bar "Switch player" shortcut can reuse the
+// exact same picker instead of duplicating this list-and-tile UI a second
+// time -- see GamePicker.jsx for why that mattered (its old "Switch player"
+// button was actually just a relabeled logout, not a real switcher).
+export function ProfileSwitcherModal({ onClose }) {
   const { knownAccounts, switchAccount, forgetAccount, currentAccountKey } = useAuth()
   const [busyKey, setBusyKey] = useState(null)
   const [expiredMsg, setExpiredMsg] = useState(null)

@@ -196,7 +196,7 @@ export function StatCard({ icon: Icon, value, label, accent = '#2FB8A6' }) {
     </Card>
   )
 }
-export { default as Sidebar } from './Sidebar'
+export { default as Sidebar, ProfileSwitcherModal } from './Sidebar'
 export { default as AmbientGlow } from './AmbientGlow'
 export { default as SupervisedBanner } from './SupervisedBanner'
 export { default as OfflineBanner } from './OfflineBanner'
