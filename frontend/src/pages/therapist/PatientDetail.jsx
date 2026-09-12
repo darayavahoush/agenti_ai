@@ -1160,7 +1160,10 @@ export default function PatientDetail() {
             ))}
 
             {notes.length === 0 && (
-              <Card className="text-center py-12 text-white/40">No notes yet</Card>
+              <Card className="text-center py-12">
+                <FileText size={28} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40">No notes yet</p>
+              </Card>
             )}
           </div>
         )}
