@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, LogOut, Wind, Lock, Users, X, Plus, Check } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { ROLE_HOME_PATH } from '../../api/knownAccounts'
 
 // Role-aware collapsible sidebar for authenticated pages (therapist +
 // parent). Background is the SAME vertical gradient as the landing page
@@ -91,7 +92,13 @@ function ProfileSwitcherModal({ onClose }) {
       // list, game state, dashboard queries) was fetched for the PREVIOUS
       // profile; a reload is the simplest way to guarantee nothing from
       // that session lingers in memory under the new one.
-      window.location.href = '/'
+      //
+      // Redirects to the switched-to account's own home page (not '/') --
+      // '/' is the public marketing landing page and never auto-redirects
+      // a logged-in user anywhere, so sending a freshly-switched profile
+      // there made a successful switch look like it had silently failed or
+      // logged you out.
+      window.location.href = ROLE_HOME_PATH[result.userType] || '/'
     } else {
       setExpiredMsg('That session has expired — log in again to use it.')
     }

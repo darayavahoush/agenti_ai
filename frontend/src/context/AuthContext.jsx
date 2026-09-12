@@ -330,7 +330,7 @@ export function AuthProvider({ children }) {
       setParent(entry.userType === 'parent' ? merged : null)
       setSupervisorBackup(null) // switching profiles ends any supervised-session overlay
       localStorage.removeItem('bq_supervisor_backup')
-      return { ok: true }
+      return { ok: true, userType: entry.userType }
     } catch {
       // Refresh token itself is dead -- idle past its 14-30 day window, or
       // revoked (e.g. that profile was deleted elsewhere). Can't be

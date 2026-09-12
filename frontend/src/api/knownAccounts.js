@@ -91,3 +91,10 @@ export function currentAccountKey() {
     return null
   }
 }
+
+// Where each account type lands after a successful login OR a quick
+// profile-switch -- shared by Sidebar.jsx's ProfileSwitcherModal and
+// SavedProfilesGate.jsx so the two switchers can't drift out of sync
+// with each other (or with each login form's own post-login navigate()
+// target).
+export const ROLE_HOME_PATH = { patient: '/play/levels', therapist: '/therapist/dashboard', parent: '/parent/dashboard' }

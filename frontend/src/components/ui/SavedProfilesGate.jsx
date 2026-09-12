@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, LogIn, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { ROLE_HOME_PATH } from '../../api/knownAccounts'
 
 // Same vertical gradient as the landing page / Sidebar.jsx, so this reads
 // as part of the app's chrome rather than a bolted-on interstitial.
@@ -10,10 +11,6 @@ const LANDING_GRADIENT = 'linear-gradient(180deg, #12142E 0%, #241F49 38%, #6B4A
 // matching the backend's own naming) -- this maps the role prop each page
 // passes in to the userType knownAccounts actually stores.
 const ROLE_USER_TYPE = { kid: 'patient', therapist: 'therapist', parent: 'parent' }
-
-// Where each role lands after a successful quick-switch -- same targets
-// each login form's own post-login navigate() already uses.
-const POST_SWITCH_PATH = { patient: '/play/levels', therapist: '/therapist/dashboard', parent: '/parent/dashboard' }
 
 function displayName(a) {
   return a.userData?.first_name || a.userData?.full_name || a.userData?.email || 'Account'
@@ -90,7 +87,7 @@ export default function SavedProfilesGate({ role, children }) {
       // and cached data for a different session in memory, and a reload
       // is the simplest way to guarantee none of it lingers under the
       // newly active one.
-      window.location.href = POST_SWITCH_PATH[userType] || '/'
+      window.location.href = ROLE_HOME_PATH[userType] || '/'
     } else {
       // switchAccount already drops the dead entry from knownAccounts
       // itself on an expired/revoked refresh token -- nothing further to
