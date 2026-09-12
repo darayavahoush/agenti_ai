@@ -162,7 +162,7 @@ function ProfileSwitcherModal({ onClose }) {
         </div>
 
         <Link
-          to="/"
+          to="/auth"
           className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium
                      text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors"
         >
