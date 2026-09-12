@@ -80,43 +80,52 @@ export function Spinner({ size = 'md' }) {
   )
 }
 
-// Same 4-bar soundwave mark as favicon.svg (amber/coral bars, alternating
-// heights), animated into a bouncing equalizer -- reuses the app's own
-// icon as its loading mark instead of a generic spinner ring, for the
-// full-page loader everyone sees on every route.
-export function SoundBarLoader({ size = 'lg' }) {
-  const dims = { sm: { h: 24, w: 5 }, md: { h: 36, w: 6 }, lg: { h: 48, w: 8 } }
-  const { h, w } = dims[size] || dims.lg
-  const bars = [
-    { color: '#F4B942', peak: 0.55, delay: '0ms' },
-    { color: '#F0604A', peak: 1,    delay: '120ms' },
-    { color: '#F0604A', peak: 0.7,  delay: '240ms' },
-    { color: '#F4B942', peak: 0.9,  delay: '360ms' },
-  ]
+// Meteor sparkle mark -- a breathing sparkle core with soft pulse halos
+// and a handful of meteors streaking past at staggered angles/speeds/
+// delays, echoing the twinkling starfield used elsewhere in the app
+// (PlayfulBackdrop) rather than a generic spinner or EQ-style bars.
+export function SparkLoader({ size = 'lg' }) {
+  const px = { sm: 28, md: 46, lg: 72 }[size] || 72
+  const scale = px / 90
   return (
-    <div className="flex items-end gap-1.5" style={{ height: h }}>
-      {bars.map((bar, i) => (
+    <div style={{ width: px, height: px, position: 'relative' }}>
+      <div
+        className="spark-loader-inner"
+        style={{
+          position: 'absolute', top: '50%', left: '50%', width: 90, height: 90,
+          transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center',
+        }}
+      >
+        <div className="sl-meteor sl-m1" style={{ position: 'absolute', top: 8, left: -6, width: 16, height: 2, background: 'linear-gradient(to right, transparent, #A78BFA)', transform: 'rotate(28deg)' }} />
+        <div className="sl-meteor sl-m2" style={{ position: 'absolute', top: 38, left: 82, width: 14, height: 2, background: 'linear-gradient(to left, transparent, #5FD0F3)', transform: 'rotate(200deg)' }} />
+        <div className="sl-meteor sl-m3" style={{ position: 'absolute', top: 76, left: 6, width: 12, height: 2, background: 'linear-gradient(to right, transparent, #FF8FE0)', transform: 'rotate(-18deg)' }} />
+        <div className="sl-meteor sl-m4" style={{ position: 'absolute', top: 0, left: 60, width: 13, height: 2, background: 'linear-gradient(to right, transparent, #A78BFA)', transform: 'rotate(60deg)' }} />
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 56, height: 56, marginTop: -28, marginLeft: -28, borderRadius: '50%', background: 'rgba(167,139,250,0.10)', animation: 'sl-ringpulse 2.2s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 34, height: 34, marginTop: -17, marginLeft: -17, borderRadius: '50%', background: 'rgba(167,139,250,0.18)', animation: 'sl-ringpulse 2.2s ease-in-out 0.15s infinite' }} />
         <div
-          key={i}
-          className="rounded-full animate-soundbar"
+          className="sl-spark"
           style={{
-            width: w,
-            height: '100%',
-            backgroundColor: bar.color,
-            animationDelay: bar.delay,
-            transformOrigin: 'bottom',
-            '--soundbar-peak': bar.peak,
+            position: 'absolute', top: '50%', left: '50%', width: 26, height: 26, marginTop: -13, marginLeft: -13,
+            background: '#A78BFA', clipPath: 'polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%)',
           }}
         />
-      ))}
+      </div>
       <style>{`
-        @keyframes soundbar {
-          0%, 100% { transform: scaleY(0.28); opacity: 0.75; }
-          50% { transform: scaleY(var(--soundbar-peak)); opacity: 1; }
-        }
-        .animate-soundbar { animation: soundbar 1.1s ease-in-out infinite; }
+        @keyframes sl-ringpulse { 0%, 100% { transform: scale(0.9); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 1; } }
+        .sl-spark { animation: sl-sparkle 2.2s ease-in-out infinite; }
+        @keyframes sl-sparkle { 0%, 100% { transform: scale(0.85) rotate(0deg); opacity: 0.85; } 50% { transform: scale(1.15) rotate(25deg); opacity: 1; } }
+        .sl-meteor { opacity: 0; border-radius: 2px; }
+        .sl-m1 { animation: sl-fly1 2.6s ease-in 0.2s infinite; }
+        .sl-m2 { animation: sl-fly2 3.1s ease-in 1.1s infinite; }
+        .sl-m3 { animation: sl-fly3 2.3s ease-in 1.9s infinite; }
+        .sl-m4 { animation: sl-fly4 3.4s ease-in 0.7s infinite; }
+        @keyframes sl-fly1 { 0% { opacity: 0; transform: rotate(28deg) translateX(0); } 8% { opacity: 1; } 25% { opacity: 0; transform: rotate(28deg) translateX(75px); } 100% { opacity: 0; transform: rotate(28deg) translateX(75px); } }
+        @keyframes sl-fly2 { 0% { opacity: 0; transform: rotate(200deg) translateX(0); } 8% { opacity: 1; } 22% { opacity: 0; transform: rotate(200deg) translateX(70px); } 100% { opacity: 0; transform: rotate(200deg) translateX(70px); } }
+        @keyframes sl-fly3 { 0% { opacity: 0; transform: rotate(-18deg) translateX(0); } 8% { opacity: 1; } 28% { opacity: 0; transform: rotate(-18deg) translateX(65px); } 100% { opacity: 0; transform: rotate(-18deg) translateX(65px); } }
+        @keyframes sl-fly4 { 0% { opacity: 0; transform: rotate(60deg) translateX(0); } 8% { opacity: 1; } 24% { opacity: 0; transform: rotate(60deg) translateX(60px); } 100% { opacity: 0; transform: rotate(60deg) translateX(60px); } }
         @media (prefers-reduced-motion: reduce) {
-          .animate-soundbar { animation: none; transform: scaleY(0.7); }
+          .sl-meteor { display: none; }
+          .sl-spark, [style*="sl-ringpulse"] { animation: none; }
         }
       `}</style>
     </div>
@@ -140,7 +149,7 @@ export function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <SoundBarLoader size="lg" />
+        <SparkLoader size="lg" />
         <p className="text-white/50 text-sm">Just a moment…</p>
       </div>
     </div>
