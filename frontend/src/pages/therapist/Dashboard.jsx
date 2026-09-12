@@ -290,6 +290,48 @@ export default function TherapistDashboard() {
   )
 }
 
+const STAR_MILESTONES = [10, 25, 50, 100]
+
+// Odometer-style, not a 0-100% bar -- total_stars has no fixed ceiling
+// (it's a running sum across however many sessions a patient has played),
+// so a true percent-to-max bar isn't meaningful here. Instead this fills
+// from the last milestone passed toward the next one, then keeps
+// extending in fixed 50-star laps once past 100 -- always shows real
+// progress instead of shrinking to an invisible sliver over time.
+function StarMilestoneBar({ totalStars }) {
+  const stars = totalStars || 0
+  const last = STAR_MILESTONES[STAR_MILESTONES.length - 1]
+  const lastGap = last - STAR_MILESTONES[STAR_MILESTONES.length - 2]
+
+  let base = 0
+  let next = STAR_MILESTONES[0]
+  for (const m of STAR_MILESTONES) {
+    if (stars >= m) base = m
+    else { next = m; break }
+  }
+  if (stars >= last) {
+    const laps = Math.floor((stars - last) / lastGap)
+    base = last + laps * lastGap
+    next = base + lastGap
+  }
+  const pct = Math.min(100, Math.round(((stars - base) / (next - base)) * 100))
+
+  return (
+    <div className="mt-3 pt-3 border-t border-white/5">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-white/30 text-[0.65rem]">{stars} stars</span>
+        <span className="text-white/30 text-[0.65rem]">{next} next</span>
+      </div>
+      <div className="relative h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-yellow-400 to-brand-amber rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, boxShadow: pct > 0 ? '0 0 6px rgba(250,199,117,0.55)' : 'none' }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function PatientCard({ patient, alert, onClick }) {
   const starsColor = patient.total_stars >= 12 ? 'text-brand-green'
                    : patient.total_stars >= 6  ? 'text-yellow-400'
@@ -335,6 +377,8 @@ function PatientCard({ patient, alert, onClick }) {
           <p className="text-white/30 text-xs">last session</p>
         </div>
       </div>
+
+      <StarMilestoneBar totalStars={patient.total_stars} />
 
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
         <span className="text-white/30 text-xs">View progress</span>

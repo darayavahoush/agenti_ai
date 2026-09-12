@@ -7,6 +7,7 @@ export function Button({ children, variant = 'primary', size = 'md', className =
     ghost:   'border border-white/20 text-white hover:bg-white/10',
     danger:  'bg-brand-coral text-white hover:bg-opacity-90',
     teal:    'bg-brand-teal text-white hover:bg-opacity-90',
+    agent:   'bg-brand-purple text-white hover:bg-opacity-90',
   }
   const sizes = {
     sm: 'px-4 py-2 text-sm',
@@ -175,6 +176,45 @@ export function StatCard({ icon: Icon, value, label, accent = '#2FB8A6' }) {
     </Card>
   )
 }
+function ProgressRing({ value, size = 56, stroke = 5, color = '#A8FF6F', label, agent = false }) {
+  const pct = Math.max(0, Math.min(100, value ?? 0))
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const offset = c * (1 - pct / 100)
+
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} fill="none" />
+          <circle
+            cx={size / 2} cy={size / 2} r={r}
+            stroke={color} strokeWidth={stroke} fill="none"
+            strokeDasharray={c} strokeDashoffset={offset}
+            strokeLinecap="round"
+            style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.34,1.56,0.64,1)' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-white font-display font-bold" style={{ fontSize: size * 0.26 }}>
+            {Math.round(pct)}%
+          </span>
+        </div>
+        {agent && (
+          <div
+            className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0d0d1a] border border-white/10 flex items-center justify-center"
+            title="Set by the adaptive difficulty agent"
+          >
+            <span style={{ fontSize: 8 }}>🤖</span>
+          </div>
+        )}
+      </div>
+      {label && <p className="text-white/40 text-xs text-center leading-tight">{label}</p>}
+    </div>
+  )
+}
+
+export { ProgressRing }
 export { default as Sidebar, ProfileSwitcherModal } from './Sidebar'
 export { default as AmbientGlow } from './AmbientGlow'
 export { default as SupervisedBanner } from './SupervisedBanner'
