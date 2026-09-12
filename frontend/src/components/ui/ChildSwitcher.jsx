@@ -103,7 +103,7 @@ export default function ChildSwitcher() {
                 {view === 'add' && 'Add a child'}
                 {view === 'link' && 'Link a child'}
               </h2>
-              <button onClick={close} className="text-paper/40 hover:text-paper transition-colors">
+              <button onClick={close} className="text-paper/65 hover:text-paper transition-colors">
                 <X size={18} />
               </button>
             </div>

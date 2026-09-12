@@ -204,7 +204,7 @@ export default function AddPatientModal({ onClose, onAdded }) {
       <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">Add New Patient</h2>
-          <button onClick={handleClose} className="text-white/40 hover:text-white text-2xl leading-none">×</button>
+          <button onClick={handleClose} className="text-white/65 hover:text-white text-2xl leading-none">×</button>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
