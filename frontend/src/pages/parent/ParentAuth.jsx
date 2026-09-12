@@ -38,6 +38,16 @@ function ParentAuthForm() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
+  // Set when a kid tapped "Ask a grown-up to start a free trial" on their
+  // post-assessment report -- see AssessmentReport.jsx. Without this
+  // context, landing here looked exactly like getting logged out with no
+  // explanation: one session is active at a time, so a parent signing in
+  // here does replace the kid's active session, but their PIN/profile is
+  // already saved (see AuthContext.jsx's _persistSession/knownAccounts) --
+  // this banner is just making that switch, and the easy way back, visible
+  // instead of silent.
+  const [fromKidTrial] = useState(() => searchParams.get('from') === 'kid_trial')
+  const kidTrialName = searchParams.get('kid') || ''
   const { loginParent, registerParent, loginParentGoogle, registerParentGoogle } = useAuth()
   const [mode, setMode] = useState('login')
   const [codeType, setCodeType] = useState('player_code')
@@ -307,6 +317,13 @@ function ParentAuthForm() {
             {!resumedAfterVerify && sessionExpired && mode === 'login' && (
               <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-sm text-coral-light mb-5">
                 You were signed out after a while — sign in again to continue.
+              </div>
+            )}
+
+            {!resumedAfterVerify && fromKidTrial && (
+              <div className="bg-mint/10 border border-mint/30 rounded-xl px-4 py-3 text-sm text-mint-light mb-5">
+                {kidTrialName ? `${kidTrialName}'s session is` : "Your child's session is"} saved — sign in here to
+                start a free trial, then switch straight back with no PIN needed (look for "Switch profile" in the sidebar).
               </div>
             )}
 
