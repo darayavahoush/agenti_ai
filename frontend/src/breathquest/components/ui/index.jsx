@@ -65,6 +65,29 @@ export function Spinner({ size = 'md' }) {
   )
 }
 
+// Pulsing ember glow, matching the dusk/ember visual identity used
+// elsewhere in this app -- swapped in for the plain Spinner on the
+// full-page loader so it doesn't feel borrowed from a generic kit.
+export function EmberOrbLoader({ size = 'lg' }) {
+  const dims = { sm: 28, md: 40, lg: 56 }
+  const d = dims[size] || dims.lg
+  return (
+    <div style={{ position: 'relative', width: d, height: d }}>
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        background: 'radial-gradient(circle, #F4B942 0%, #F0604A 60%, transparent 80%)',
+        animation: 'emberPulse 1.4s ease-in-out infinite',
+      }} />
+      <style>{`
+        @keyframes emberPulse {
+          0%, 100% { transform: scale(0.85); opacity: 0.7; }
+          50% { transform: scale(1.05); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
 export function StarRating({ stars = 0, max = 3, size = 'md' }) {
   const sizes = { sm: 'text-lg', md: 'text-2xl', lg: 'text-3xl' }
   return (
@@ -105,8 +128,8 @@ export function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
-        <p className="text-white/50 text-sm">Loading…</p>
+        <EmberOrbLoader size="lg" />
+        <p className="text-white/50 text-sm">Stoking the fire…</p>
       </div>
     </div>
   )

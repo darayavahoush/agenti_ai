@@ -1,3 +1,4 @@
+import { SoundBarLoader } from '../../components/ui'
 import { useEffect, useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
@@ -884,7 +885,7 @@ function KidPlayForm() {
             Find Your Name <SpeakButton onClick={replayAssessment} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" />
           </h1>
 
-          {candidatesLoading && <p className="text-white/40 text-center text-sm mb-4">Loading…</p>}
+          {candidatesLoading && (<div className="flex justify-center mb-4"><SoundBarLoader size="sm" /></div>)}
           {!candidatesLoading && candidatesError && (
             <div className="text-center mb-4">
               <p className="text-brand-coral text-sm mb-2">{candidatesError}</p>

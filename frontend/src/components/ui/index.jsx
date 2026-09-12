@@ -141,7 +141,7 @@ export function PageLoader() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <SoundBarLoader size="lg" />
-        <p className="text-white/50 text-sm">Loading…</p>
+        <p className="text-white/50 text-sm">Just a moment…</p>
       </div>
     </div>
   )
