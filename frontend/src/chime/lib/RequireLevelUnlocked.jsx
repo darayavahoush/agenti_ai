@@ -1,4 +1,4 @@
-import { SoundBarLoader } from '../../components/ui'
+import { SparkLoader } from '../../components/ui'
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { getPassedLevels, getUnlockedLevels } from './levelProgress'
@@ -24,7 +24,7 @@ export default function RequireLevelUnlocked({ levelId, children }) {
   if (state === 'loading') {
     return (
       <div className="min-h-screen bg-ink flex flex-col items-center justify-center gap-4 text-paper/40 text-sm">
-        <SoundBarLoader size="md" />
+        <SparkLoader size="md" />
         <span>Loading…</span>
       </div>
     )

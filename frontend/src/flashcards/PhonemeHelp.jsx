@@ -1,4 +1,4 @@
-import { SoundBarLoader } from '../components/ui'
+import { SparkLoader } from '../components/ui'
 import { useState, useEffect } from "react";
 import { getPhonemeCard } from "./lib/api";
 import { friendlyPhoneme } from "./utils/phonemeMap";
@@ -41,7 +41,7 @@ export default function PhonemeHelp({ matches, th, darkMode = false }) {
               <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", opacity: 0.7 }}>/{ph}/</span>
               {card && <span style={{ color: th.text, fontSize: "0.85rem", fontFamily: "Nunito, sans-serif", fontWeight: 700 }}>{card.name}</span>}
             </div>
-            {card === undefined && (<span style={{ display: "inline-flex", alignItems: "center" }}><SoundBarLoader size="sm" /></span>)}
+            {card === undefined && (<span style={{ display: "inline-flex", alignItems: "center" }}><SparkLoader size="sm" /></span>)}
             {card === null && <p style={{ color: th.sub, fontSize: "0.8rem", margin: 0 }}>No tip available for this sound yet.</p>}
             {card && (() => {
               // Same real illustrated mouth-shape photos the explore panel
