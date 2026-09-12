@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, LogIn, X } from 'lucide-react'
+import { Avatar } from './Avatar'
 import { useAuth } from '../../context/AuthContext'
 import { ROLE_HOME_PATH } from '../../api/knownAccounts'
 
@@ -26,11 +27,17 @@ function ProfileTile({ account, busy, onSelect, onForget }) {
       disabled={busy}
       className="group relative flex flex-col items-center gap-3 w-28 disabled:opacity-50"
     >
-      <span className="w-20 h-20 rounded-2xl border border-white/15 bg-white/10 flex items-center justify-center
-                        text-2xl font-semibold text-white/90 group-hover:border-white/40 group-hover:bg-white/15
-                        transition-all">
-        {account.userData?.avatar || initials}
-      </span>
+      {account.userType === 'patient' ? (
+        <div className="rounded-2xl border border-white/15 group-hover:border-white/40 transition-all p-1">
+          <Avatar avatar={account.userData?.avatar} photoUrl={account.userData?.avatar_photo_url} size="xl" name={name} />
+        </div>
+      ) : (
+        <span className="w-20 h-20 rounded-2xl border border-white/15 bg-white/10 flex items-center justify-center
+                          text-2xl font-semibold text-white/90 group-hover:border-white/40 group-hover:bg-white/15
+                          transition-all">
+          {initials}
+        </span>
+      )}
       <span className="text-sm text-white/80 font-medium truncate w-full text-center">{name}</span>
       <button
         type="button"
