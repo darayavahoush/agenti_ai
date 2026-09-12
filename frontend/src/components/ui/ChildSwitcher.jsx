@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Check, Plus, Link2, ArrowLeftRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -24,6 +24,15 @@ export default function ChildSwitcher() {
 
   const activeChild = childrenList.find((c) => c.is_active)
   const close = () => { setOpen(false); setView('list') }
+
+  // Escape closes the modal, matching the click-outside-to-dismiss backdrop
+  // -- without this, keyboard-only users have no way to back out.
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [open])
 
   const handleSwitch = async (child) => {
     if (child.is_active) { close(); return }
