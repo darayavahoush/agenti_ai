@@ -137,7 +137,7 @@ export default function AssessmentReport() {
             variant="primary"
             size="lg"
             className="w-full mb-3 animate-[cardIn_0.5s_ease-out_0.2s_backwards]"
-            onClick={() => navigate('/parent/login')}
+            onClick={() => navigate(`/parent/login?from=kid_trial&kid=${encodeURIComponent(patient?.first_name || '')}`)}
           >
             Ask a grown-up to start a free trial
           </Button>
