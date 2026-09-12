@@ -28,9 +28,6 @@ export default function LevelSelect() {
   const navigate = useNavigate()
   const [scores, setScores] = useState({})
   const [hovering, setHovering] = useState(null)
-  // Tracks which level just got unlocked so we can play a one-time
-  // "pop in" moment on its card instead of it silently appearing.
-  const [justUnlocked, setJustUnlocked] = useState(null)
 
   useEffect(() => {
     // Show whatever this browser already has immediately (no loading
