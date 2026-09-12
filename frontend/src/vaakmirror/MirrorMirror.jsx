@@ -363,6 +363,29 @@ export default function MirrorMirror() {
     setShowCue(false)
   }
 
+  // Surfaces the non-blocking feedback toast once a logAttempt call
+  // resolves with an rl_event_id -- called via .then() so it never
+  // delays or blocks advance(), which already fires immediately
+  // regardless of whether logging succeeds.
+  function showFeedbackToast(result) {
+    if (result?.rl_event_id == null) return
+    setFeedbackEventId(result.rl_event_id)
+    setFeedbackSubmitted(false)
+    clearTimeout(feedbackTimeoutRef.current)
+    feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 4000)
+  }
+
+  async function handleFeedback(value) {
+    if (feedbackEventId == null) return
+    setFeedbackSubmitted(true)
+    clearTimeout(feedbackTimeoutRef.current)
+    try {
+      await submitEventFeedback(feedbackEventId, value)
+    } catch (err) {
+      console.warn('Feedback submission failed:', err)
+    }
+  }
+
   const activeFilter = FILTERS.find((f) => f.id === filter)
   const tierStyle = TIER_STYLES[tier]
 
@@ -553,6 +576,14 @@ export default function MirrorMirror() {
           </div>
         </div>
       </div>
+
+      {feedbackEventId != null && !feedbackSubmitted && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-ink/90 border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold text-paper">
+          <span>Did we score that right?</span>
+          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
+          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" className="hover:scale-110 transition-transform">👎</button>
+        </div>
+      )}
     </div>
   )
 }
