@@ -251,7 +251,7 @@ export default function MyAccount() {
                     <button onClick={confirmNameEdit} disabled={saving} className="text-brand-green hover:text-brand-green/70" aria-label="Save name">
                       <Check size={20} />
                     </button>
-                    <button onClick={() => setEditingName(false)} className="text-white/30 hover:text-white/60" aria-label="Cancel editing name">
+                    <button onClick={() => setEditingName(false)} className="text-white/55 hover:text-white/85" aria-label="Cancel editing name">
                       <X size={20} />
                     </button>
                   </>
