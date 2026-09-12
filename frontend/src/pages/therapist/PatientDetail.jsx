@@ -6,7 +6,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity } from 'lucide-react'
 
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
@@ -910,7 +910,12 @@ export default function PatientDetail() {
                 <Card>
                   <h3 className="font-semibold text-white mb-3">Goals</h3>
                   <div className="flex flex-col gap-2 mb-4">
-                    {goals.length === 0 && <p className="text-white/30 text-sm">No goals set yet</p>}
+                    {goals.length === 0 && (
+                      <div className="flex items-center gap-2 text-white/30 text-sm py-1.5">
+                        <Target size={14} className="text-white/20 shrink-0" />
+                        No goals set yet
+                      </div>
+                    )}
                     {goals.map(g => (
                       <div key={g.id} className="flex items-center gap-3 border-b border-white/5 pb-2 last:border-0">
                         <div className="flex-1">
@@ -987,7 +992,12 @@ export default function PatientDetail() {
                 <Card>
                   <h3 className="font-semibold text-white mb-3">Assignments</h3>
                   <div className="flex flex-col gap-2 mb-4">
-                    {assignments.length === 0 && <p className="text-white/30 text-sm">No assignments yet</p>}
+                    {assignments.length === 0 && (
+                      <div className="flex items-center gap-2 text-white/30 text-sm py-1.5">
+                        <ListChecks size={14} className="text-white/20 shrink-0" />
+                        No assignments yet
+                      </div>
+                    )}
                     {assignments.map(a => (
                       <div key={a.id} className="flex items-center gap-3 border-b border-white/5 pb-2 last:border-0">
                         <div className="flex-1">
@@ -1039,7 +1049,12 @@ export default function PatientDetail() {
                 <Card>
                   <h3 className="font-semibold text-white mb-3">Messages</h3>
                   <div className="flex flex-col gap-2 mb-3 max-h-64 overflow-y-auto">
-                    {messages.length === 0 && <p className="text-white/30 text-sm">No messages yet</p>}
+                    {messages.length === 0 && (
+                      <div className="flex items-center gap-2 text-white/30 text-sm py-1.5">
+                        <MessageSquare size={14} className="text-white/20 shrink-0" />
+                        No messages yet
+                      </div>
+                    )}
                     {messages.map(m => (
                       <div key={m.id} className={`text-sm rounded-lg px-3 py-2 max-w-[85%] ${
                         m.sender_role === 'therapist' ? 'bg-brand-green/20 text-white self-end ml-auto' : 'bg-white/10 text-white'
@@ -1064,7 +1079,12 @@ export default function PatientDetail() {
                 <Card>
                   <h3 className="font-semibold text-white mb-3">Home Practice Log</h3>
                   <div className="flex flex-col gap-2 mb-4 max-h-64 overflow-y-auto">
-                    {homePractice.length === 0 && <p className="text-white/30 text-sm">No home practice logged yet</p>}
+                    {homePractice.length === 0 && (
+                      <div className="flex items-center gap-2 text-white/30 text-sm py-1.5">
+                        <Activity size={14} className="text-white/20 shrink-0" />
+                        No home practice logged yet
+                      </div>
+                    )}
                     {homePractice.map(h => (
                       <div key={h.id} className="border-b border-white/5 pb-2 last:border-0">
                         <p className="text-white text-sm">

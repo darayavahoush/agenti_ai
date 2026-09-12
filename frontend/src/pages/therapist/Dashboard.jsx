@@ -272,8 +272,9 @@ export default function TherapistDashboard() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {patients.map(p => (
+            {patients.map((p, i) => (
               <PatientCard key={p.id} patient={p} alert={alertsByPatient[p.id]}
+                           style={{ animationDelay: `${Math.min(i, 12) * 0.05}s` }}
                            onClick={() => navigate(`/therapist/patients/${p.id}`)} />
             ))}
           </div>
@@ -332,13 +333,14 @@ function StarMilestoneBar({ totalStars }) {
   )
 }
 
-function PatientCard({ patient, alert, onClick }) {
+function PatientCard({ patient, alert, onClick, style }) {
   const starsColor = patient.total_stars >= 12 ? 'text-brand-green'
                    : patient.total_stars >= 6  ? 'text-yellow-400'
                    : 'text-white/50'
   return (
-    <Card as="button" onClick={onClick}
-      className={`text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group w-full
+    <Card as="button" onClick={onClick} style={{ opacity: 0, ...style }}
+      className={`text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group w-full animate-card-pop
+                 motion-reduce:!opacity-100 motion-reduce:animate-none
                  ${alert ? 'hover:border-brand-amber/40 hover:bg-brand-amber/5'
                          : 'hover:border-brand-green/30 hover:bg-brand-green/5'}`}>
       <div className="flex items-center gap-3 mb-4">

@@ -68,10 +68,16 @@ export default {
         "spin-slow": "spin 8s linear infinite",
         "flicker": "flicker 2.6s ease-in-out infinite",
         "drift-ember": "driftEmber 12s linear infinite",
+        "card-pop": "cardPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards",
       },
       keyframes: {
         modalPop: {
           '0%':   { opacity: '0', transform: 'scale(0.96) translateY(4px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        cardPop: {
+          '0%':   { opacity: '0', transform: 'scale(0.94) translateY(10px)' },
+          '60%':  { opacity: '1', transform: 'scale(1.015) translateY(-1px)' },
           '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
         },
         float: {
