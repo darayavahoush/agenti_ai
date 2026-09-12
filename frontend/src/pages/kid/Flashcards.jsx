@@ -5,7 +5,7 @@ import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
 import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
-import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji } from "../../flashcards/SelectionUI";
+import { PlayCard, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, SELECTION_BG } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
 import { evaluateAttempt, speakWord, getRandomWord, getThemes, getPhonemeCard } from "../../flashcards/lib/api";
 import { getErrorMessage } from "../../api/client";
@@ -18,17 +18,12 @@ import PhonemeHelp from "../../flashcards/PhonemeHelp";
 
 function CharacterSelect({ onPick }) {
   return (
-    <div className="flex-1 flex items-center justify-center" style={{ background: '#0d0d1a', position: "relative", overflow: "hidden" }}>
+    <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
       <PlayfulBackdrop tint="#A78BFA" />
       <GlobalSelectionStyles />
       <div style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={3} total={3} />
-        <h2 style={{ color: "#fff", fontFamily: "Nunito, sans-serif", fontSize: "1.5rem", fontWeight: 900, textAlign: "center", marginBottom: "6px" }}>
-          Who's helping you today? 🚀
-        </h2>
-        <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", fontSize: "0.85rem", marginBottom: "24px" }}>
-          Pick a friend to practice words with
-        </p>
+        <SectionHeader eyebrow="Step 3 of 3" title="Who's helping you today? 🚀" subtitle="Pick a friend to practice words with" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
           {Object.values(CHARACTERS).map((c, i) => (
             <PlayCard
