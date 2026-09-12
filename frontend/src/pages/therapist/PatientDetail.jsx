@@ -6,7 +6,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff } from 'lucide-react'
 
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
@@ -550,10 +550,13 @@ export default function PatientDetail() {
                 {soundProgressLoading ? (
                   <div className="h-40 flex items-center justify-center"><Spinner /></div>
                 ) : !soundProgress || Object.keys(soundProgress.sounds).length === 0 ? (
-                  <p className="text-white/30 text-sm py-8 text-center">
-                    Not enough sound-level practice data yet — this fills in as {data.first_name} plays
-                    VaakMirror or Chime.
-                  </p>
+                  <div className="flex flex-col items-center gap-2 py-8">
+                    <Waves size={28} className="text-white/20" />
+                    <p className="text-white/30 text-sm text-center max-w-xs">
+                      Not enough sound-level practice data yet — this fills in as {data.first_name} plays
+                      VaakMirror or Chime.
+                    </p>
+                  </div>
                 ) : (() => {
                   const COLORS = ['#A8FF6F', '#FAC775', '#6EC6E8', '#E24B4A', '#B08CE0']
                   const topSounds = Object.entries(soundProgress.sounds)
@@ -624,7 +627,10 @@ export default function PatientDetail() {
             {vhrLoading ? (
               <Card className="text-center py-12"><Spinner /></Card>
             ) : vhrSessions.length === 0 ? (
-              <Card className="text-center py-12 text-white/40">No Voice Hurdle Race sessions yet</Card>
+              <Card className="text-center py-12">
+                <Dog size={28} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40">No Voice Hurdle Race sessions yet</p>
+              </Card>
             ) : (
               <>
                 <div className="grid grid-cols-3 gap-4">
@@ -673,11 +679,15 @@ export default function PatientDetail() {
             {chimeLoading ? (
               <Card className="text-center py-12"><Spinner /></Card>
             ) : chimeError ? (
-              <Card className="text-center py-12 text-white/40">
-                Couldn't load Chime data — the Chime service may be unavailable right now.
+              <Card className="text-center py-12">
+                <CloudOff size={28} className="text-brand-coral/70 mx-auto mb-2" />
+                <p className="text-white/40">Couldn't load Chime data — the Chime service may be unavailable right now.</p>
               </Card>
             ) : chimeEvents.length === 0 ? (
-              <Card className="text-center py-12 text-white/40">No Chime sessions yet</Card>
+              <Card className="text-center py-12">
+                <Bell size={28} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40">No Chime sessions yet</p>
+              </Card>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-4">
@@ -756,11 +766,15 @@ export default function PatientDetail() {
             {vmLoading ? (
               <Card className="text-center py-12"><Spinner /></Card>
             ) : vmError ? (
-              <Card className="text-center py-12 text-white/40">
-                Couldn't load Orpheus data — the Orpheus service may be unavailable right now.
+              <Card className="text-center py-12">
+                <CloudOff size={28} className="text-brand-coral/70 mx-auto mb-2" />
+                <p className="text-white/40">Couldn't load Orpheus data — the Orpheus service may be unavailable right now.</p>
               </Card>
             ) : !vmDashboard || vmDashboard.sessions_count === 0 ? (
-              <Card className="text-center py-12 text-white/40">No Orpheus sessions yet</Card>
+              <Card className="text-center py-12">
+                <Waves size={28} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40">No Orpheus sessions yet</p>
+              </Card>
             ) : (
               <>
                 <Card className="text-center">
