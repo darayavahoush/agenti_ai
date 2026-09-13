@@ -969,9 +969,11 @@ export default function PatientDetail() {
                     ))}
                   </div>
                   <div className="flex flex-col gap-2">
-                    <input className="input text-sm" placeholder="Target metric (e.g. breath_consistency)"
-                           value={newGoal.target_metric}
-                           onChange={e => setNewGoal(n => ({ ...n, target_metric: e.target.value }))} />
+                    <select className="input text-sm" value={newGoal.target_metric}
+                            onChange={e => setNewGoal(n => ({ ...n, target_metric: e.target.value }))}>
+                      <option value="breath_consistency">Breath Consistency</option>
+                      <option value="avg_breath_strength">Average Breath Strength</option>
+                    </select>
                     <div className="flex gap-2">
                       <input className="input text-sm" type="number" step="0.01" placeholder="Target value"
                              value={newGoal.target_value}
