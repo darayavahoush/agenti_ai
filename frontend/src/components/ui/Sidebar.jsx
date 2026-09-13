@@ -125,6 +125,7 @@ export function ProfileSwitcherModal({ onClose }) {
 
   const handleForget = async (e, key) => {
     e.stopPropagation()
+    if (!window.confirm("Remove this account from this device? You'll need to log in again to use it here.")) return
     await forgetAccount(key)
   }
 
