@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
+import toast from 'react-hot-toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { dashboardAPI, chimeAPI, vaakmirrorAPI } from '../../api/client'
+import { dashboardAPI, chimeAPI, vaakmirrorAPI, getErrorMessage } from '../../api/client'
 import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
@@ -258,6 +259,8 @@ export default function PatientDetail() {
       const { data: created } = await dashboardAPI.createAssignment(id, payload)
       setAssignments(a => [created, ...a])
       setNewAssignment({ game: 'chime', level_id: '', title: '', instructions: '', due_at: '' })
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't save assignment — try again"))
     } finally {
       setSavingAssignment(false)
     }
@@ -265,14 +268,22 @@ export default function PatientDetail() {
 
   const toggleAssignmentDone = async (a) => {
     const status = a.status === 'completed' ? 'assigned' : 'completed'
-    const { data: updated } = await dashboardAPI.updateAssignment(a.id, { status })
-    setAssignments(list => list.map(x => x.id === a.id ? updated : x))
+    try {
+      const { data: updated } = await dashboardAPI.updateAssignment(a.id, { status })
+      setAssignments(list => list.map(x => x.id === a.id ? updated : x))
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't update assignment — try again"))
+    }
   }
 
   const removeAssignment = async (assignmentId) => {
     if (!window.confirm("Remove this assignment? This can't be undone.")) return
-    await dashboardAPI.deleteAssignment(assignmentId)
-    setAssignments(list => list.filter(a => a.id !== assignmentId))
+    try {
+      await dashboardAPI.deleteAssignment(assignmentId)
+      setAssignments(list => list.filter(a => a.id !== assignmentId))
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't remove assignment — try again"))
+    }
   }
 
   const saveGoal = async () => {
@@ -287,6 +298,8 @@ export default function PatientDetail() {
       const { data: created } = await dashboardAPI.createGoal(id, payload)
       setGoals(g => [created, ...g])
       setNewGoal({ target_metric: 'breath_consistency', target_value: '', target_date: '' })
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't save goal — try again"))
     } finally {
       setSavingGoal(false)
     }
@@ -294,8 +307,12 @@ export default function PatientDetail() {
 
   const removeGoal = async (goalId) => {
     if (!window.confirm("Remove this goal? This can't be undone.")) return
-    await dashboardAPI.deleteGoal(goalId)
-    setGoals(list => list.filter(g => g.id !== goalId))
+    try {
+      await dashboardAPI.deleteGoal(goalId)
+      setGoals(list => list.filter(g => g.id !== goalId))
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't remove goal — try again"))
+    }
   }
 
   const sendMessage = async () => {
@@ -305,6 +322,8 @@ export default function PatientDetail() {
       const { data: sent } = await dashboardAPI.createMessage(id, { body: newMessage, sender_role: 'therapist' })
       setMessages(m => [...m, sent])
       setNewMessage('')
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't send message — try again"))
     } finally {
       setSendingMessage(false)
     }
@@ -321,6 +340,8 @@ export default function PatientDetail() {
       const { data: created } = await dashboardAPI.createHomePractice(id, payload)
       setHomePractice(h => [created, ...h])
       setNewPractice({ practiced_on: new Date().toISOString().slice(0, 10), duration_minutes: '', notes: '' })
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't save practice log — try again"))
     } finally {
       setSavingPractice(false)
     }
@@ -333,6 +354,8 @@ export default function PatientDetail() {
       const { data: note } = await dashboardAPI.createNote(id, { content: noteText })
       setNotes(n => [note, ...n])
       setNoteText('')
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't save note — try again"))
     } finally {
       setSavingNote(false)
     }
