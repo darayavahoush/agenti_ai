@@ -5,7 +5,7 @@ import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
 import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
-import { PlayCard, StepDots, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji } from "../../flashcards/SelectionUI";
+import { PlayCard, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, SELECTION_BG } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
 import { evaluateAttempt, speakWord, getRandomWord, getThemes, getPhonemeCard } from "../../flashcards/lib/api";
 import { getErrorMessage } from "../../api/client";
@@ -18,17 +18,12 @@ import PhonemeHelp from "../../flashcards/PhonemeHelp";
 
 function CharacterSelect({ onPick }) {
   return (
-    <div className="flex-1 flex items-center justify-center" style={{ background: '#0d0d1a', position: "relative", overflow: "hidden" }}>
+    <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
       <PlayfulBackdrop tint="#A78BFA" />
       <GlobalSelectionStyles />
       <div style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={3} total={3} />
-        <h2 style={{ color: "#fff", fontFamily: "Nunito, sans-serif", fontSize: "1.5rem", fontWeight: 900, textAlign: "center", marginBottom: "6px" }}>
-          Who's helping you today? 🚀
-        </h2>
-        <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", fontSize: "0.85rem", marginBottom: "24px" }}>
-          Pick a friend to practice words with
-        </p>
+        <SectionHeader eyebrow="Step 3 of 3" title="Who's helping you today? 🚀" subtitle="Pick a friend to practice words with" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
           {Object.values(CHARACTERS).map((c, i) => (
             <PlayCard
@@ -371,26 +366,33 @@ export default function Flashcards() {
                 </div>
 
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center" }}>
-                  {(wordData?.phonemes || []).map((p, i) => (
-                    <div key={i} title={`Tap to hear more about /${p}/${phonemeExample(p) ? ` — ${phonemeExample(p)}` : ""}`}
-                      onClick={async () => {
-                        if (exploredPhoneme === p) { setExploredPhoneme(null); return; }
-                        setExploredPhoneme(p);
-                        setExploredCard(undefined);
-                        try {
-                          const card = await getPhonemeCard(p);
-                          setExploredCard(card);
-                        } catch {
-                          setExploredCard(null);
-                        }
-                      }}
-                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", background: exploredPhoneme === p ? `${th.accent}22` : th.card, border: `1px solid ${th.accent}${exploredPhoneme === p ? "" : "55"}`, borderRadius: "10px", padding: "6px 10px", cursor: "pointer" }}>
-                      <span style={{ color: th.accent, fontFamily: "Nunito, sans-serif", fontSize: "0.95rem", fontWeight: 900, lineHeight: 1 }}>
-                        {friendlyPhoneme(p)}
-                      </span>
-                      <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.55rem", opacity: 0.6 }}>{p}</span>
-                    </div>
-                  ))}
+                  {(wordData?.phonemes || []).map((p, i) => {
+                    const explorePhoneme = async () => {
+                      if (exploredPhoneme === p) { setExploredPhoneme(null); return; }
+                      setExploredPhoneme(p);
+                      setExploredCard(undefined);
+                      try {
+                        const card = await getPhonemeCard(p);
+                        setExploredCard(card);
+                      } catch {
+                        setExploredCard(null);
+                      }
+                    };
+                    return (
+                      <div key={i} title={`Tap to hear more about /${p}/${phonemeExample(p) ? ` — ${phonemeExample(p)}` : ""}`}
+                        onClick={explorePhoneme}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); explorePhoneme(); } }}
+                        role="button" tabIndex={0}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", background: exploredPhoneme === p ? `${th.accent}22` : th.card, border: `1px solid ${th.accent}${exploredPhoneme === p ? "" : "55"}`, borderRadius: "10px", padding: "6px 10px", cursor: "pointer", outline: "none" }}
+                        onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${th.accent}` }}
+                        onBlur={e => { e.currentTarget.style.boxShadow = "none" }}>
+                        <span style={{ color: th.accent, fontFamily: "Nunito, sans-serif", fontSize: "0.95rem", fontWeight: 900, lineHeight: 1 }}>
+                          {friendlyPhoneme(p)}
+                        </span>
+                        <span style={{ color: th.sub, fontFamily: "JetBrains Mono, monospace", fontSize: "0.55rem", opacity: 0.6 }}>{p}</span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <p style={{ color: th.sub, fontSize: "0.65rem", textAlign: "center", margin: "-8px 0 0 0", opacity: 0.7 }}>Tap a sound to learn how to make it</p>
               </div>
