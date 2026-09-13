@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 import MouthShapeGuide from "../vaakmirror/components/MouthShapeGuide";
 import { ALPHABET_SOUNDS, PHONIC_SOUNDS, SVGKEY_TO_MOUTH_SHAPE, KEYBOARD_ROWS } from "./alphabetData";
 import "./Assessment.css";
@@ -1389,27 +1390,33 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                   
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                     <label style={{ fontSize: "14px", fontWeight: 700, color: "#6d28d9", whiteSpace: "nowrap" }}>🌐</label>
-                    <select
-                      value={selectedLanguage}
-                      onChange={(e) => setSelectedLanguage(e.target.value)}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: "8px",
-                        border: "2px solid #a855f7",
-                        background: "#faf5ff",
-                        color: "#6d28d9",
-                        fontWeight: 600,
-                        fontSize: "14px",
-                        cursor: "pointer",
-                        minWidth: "160px"
-                      }}
-                    >
-                      {INDIAN_LANGUAGES.map((lang) => (
-                        <option key={lang.code} value={lang.code}>
-                          {lang.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ position: "relative", display: "inline-block", minWidth: "160px" }}>
+                      <select
+                        value={selectedLanguage}
+                        onChange={(e) => setSelectedLanguage(e.target.value)}
+                        style={{
+                          padding: "8px 32px 8px 12px",
+                          borderRadius: "8px",
+                          border: "2px solid #a855f7",
+                          background: "#faf5ff",
+                          color: "#6d28d9",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          cursor: "pointer",
+                          width: "100%",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          MozAppearance: "none",
+                        }}
+                      >
+                        {INDIAN_LANGUAGES.map((lang) => (
+                          <option key={lang.code} value={lang.code}>
+                            {lang.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={16} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#6d28d9", pointerEvents: "none" }} />
+                    </div>
 
                     {/* This mic records/replaces the reference pronunciation clip
                         played back by "Listen"/"Play Slow" above -- separate from
@@ -1847,27 +1854,32 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
             </p>
             <div style={{ padding: "0 20px 20px 20px" }}>
               <label style={{ fontSize: "13px", fontWeight: 700, color: "#6d28d9" }}>🌐 Select Language:</label>
-              <select 
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  border: "2px solid #a855f7",
-                  background: "#faf5ff",
-                  color: "#6d28d9",
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  marginTop: "8px"
-                }}
-              >
-                {INDIAN_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
+              <div style={{ position: "relative", display: "inline-block", marginTop: "8px" }}>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  style={{
+                    padding: "8px 32px 8px 12px",
+                    borderRadius: "8px",
+                    border: "2px solid #a855f7",
+                    background: "#faf5ff",
+                    color: "#6d28d9",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                  }}
+                >
+                  {INDIAN_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#6d28d9", pointerEvents: "none" }} />
+              </div>
               <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>
                 Changes the accent used for 🔊 — the written guide below stays in English.
               </p>
