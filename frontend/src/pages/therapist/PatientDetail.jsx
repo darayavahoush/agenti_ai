@@ -979,6 +979,7 @@ export default function PatientDetail() {
                              value={newGoal.target_value}
                              onChange={e => setNewGoal(n => ({ ...n, target_value: e.target.value }))} />
                       <input className="input text-sm" type="date"
+                             min={new Date().toISOString().slice(0, 10)}
                              value={newGoal.target_date}
                              onChange={e => setNewGoal(n => ({ ...n, target_date: e.target.value }))} />
                     </div>
@@ -1078,6 +1079,7 @@ export default function PatientDetail() {
                              onChange={e => setNewAssignment(n => ({ ...n, level_id: e.target.value }))} />
                     </div>
                     <input className="input text-sm" type="date"
+                           min={new Date().toISOString().slice(0, 10)}
                            value={newAssignment.due_at}
                            onChange={e => setNewAssignment(n => ({ ...n, due_at: e.target.value }))} />
                     <Button onClick={saveAssignment} disabled={savingAssignment || !newAssignment.title.trim()} size="sm">
@@ -1139,6 +1141,7 @@ export default function PatientDetail() {
                   <div className="flex flex-col gap-2">
                     <div className="flex gap-2">
                       <input className="input text-sm" type="date"
+                             max={new Date().toISOString().slice(0, 10)}
                              value={newPractice.practiced_on}
                              onChange={e => setNewPractice(n => ({ ...n, practiced_on: e.target.value }))} />
                       <input className="input text-sm" type="number" placeholder="Minutes"
