@@ -435,7 +435,7 @@ function ParentAuthForm() {
               {mode === 'login' && (
                 <button
                   type="button"
-                  onClick={() => { setShowRecovery((s) => !s); setRecoveryStatus(''); setShowForgotPassword(false) }}
+                  onClick={() => { setShowRecovery((s) => !s); setRecoveryStatus(''); setShowForgotPassword(false); setError('') }}
                   className="text-paper/40 hover:text-paper/60 text-xs font-medium text-left -mt-2 transition-colors"
                 >
                   Forgot your child's player code?
@@ -445,7 +445,7 @@ function ParentAuthForm() {
               {mode === 'login' && (
                 <button
                   type="button"
-                  onClick={() => { setShowForgotPassword((s) => !s); resetForgotPasswordFlow(); setShowRecovery(false) }}
+                  onClick={() => { setShowForgotPassword((s) => !s); resetForgotPasswordFlow(); setShowRecovery(false); setError('') }}
                   className="text-paper/40 hover:text-paper/60 text-xs font-medium text-left"
                 >
                   Forgot your password?
