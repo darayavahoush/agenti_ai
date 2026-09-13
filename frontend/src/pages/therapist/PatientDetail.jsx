@@ -1144,7 +1144,7 @@ export default function PatientDetail() {
                              max={new Date().toISOString().slice(0, 10)}
                              value={newPractice.practiced_on}
                              onChange={e => setNewPractice(n => ({ ...n, practiced_on: e.target.value }))} />
-                      <input className="input text-sm" type="number" placeholder="Minutes"
+                      <input className="input text-sm" type="number" min="1" max="300" placeholder="Minutes"
                              value={newPractice.duration_minutes}
                              onChange={e => setNewPractice(n => ({ ...n, duration_minutes: e.target.value }))} />
                     </div>
