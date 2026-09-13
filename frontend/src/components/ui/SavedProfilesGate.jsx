@@ -18,7 +18,7 @@ function displayName(a) {
   return a.userData?.first_name || a.userData?.full_name || a.userData?.email || 'Account'
 }
 
-function ProfileTile({ account, busy, onSelect, onForget }) {
+function ProfileTile({ account, busy, onSelect, onForget, index = 0 }) {
   const name = displayName(account)
   const initials = name.slice(0, 2).toUpperCase()
   return (
@@ -28,6 +28,7 @@ function ProfileTile({ account, busy, onSelect, onForget }) {
       disabled={busy}
       className="group relative flex flex-col items-center gap-3 w-28 disabled:opacity-50
                  transition-transform duration-300 hover:-translate-y-1.5"
+      style={{ animation: `profileTilePop 0.45s cubic-bezier(0.34,1.56,0.64,1) both`, animationDelay: `${index * 80}ms` }}
     >
       {account.userType === 'patient' ? (
         <div className="rounded-2xl border border-white/15 bg-white/[0.03] group-hover:border-white/40
@@ -125,16 +126,24 @@ export default function SavedProfilesGate({ role, children }) {
       </div>
 
       <div className="relative flex flex-wrap justify-center gap-6 max-w-lg">
-        {matching.map((a) => (
+        {matching.map((a, i) => (
           <ProfileTile
             key={a.key}
             account={a}
             busy={busyKey === a.key}
             onSelect={handleSelect}
             onForget={handleForget}
+            index={i}
           />
         ))}
       </div>
+
+      <style>{`
+        @keyframes profileTilePop {
+          0% { opacity: 0; transform: translateY(14px) scale(0.9); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
 
       <button
         type="button"

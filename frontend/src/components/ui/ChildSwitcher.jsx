@@ -23,7 +23,12 @@ export default function ChildSwitcher() {
   if (!parent) return null
 
   const activeChild = childrenList.find((c) => c.is_active)
-  const close = () => { setOpen(false); setView('list') }
+  const close = () => {
+    setOpen(false)
+    setView('list')
+    setAddForm({ firstName: '', avatar: 'chick', pin: '' })
+    setLinkCode('')
+  }
 
   // Escape closes the modal, matching the click-outside-to-dismiss backdrop
   // -- without this, keyboard-only users have no way to back out.
@@ -120,11 +125,12 @@ export default function ChildSwitcher() {
             {view === 'list' && (
               <>
                 <div className="flex flex-col gap-2 mb-4 max-h-72 overflow-y-auto">
-                  {childrenList.map((child) => (
+                  {childrenList.map((child, i) => (
                     <button
                       key={child.patient_id}
                       disabled={busy}
                       onClick={() => handleSwitch(child)}
+                      style={{ animation: 'childRowPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both', animationDelay: `${i * 60}ms` }}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border transition-colors text-left
                                   disabled:opacity-50
                                   ${child.is_active
@@ -174,7 +180,8 @@ export default function ChildSwitcher() {
                       type="button"
                       key={a}
                       onClick={() => setAddForm((f) => ({ ...f, avatar: a }))}
-                      className={`rounded-full transition-all ${addForm.avatar === a ? 'ring-2 ring-coral' : 'opacity-60 hover:opacity-100'}`}
+                      className={`rounded-full transition-all duration-200 hover:-translate-y-1 hover:scale-110
+                                  ${addForm.avatar === a ? 'ring-2 ring-coral scale-110 -translate-y-0.5' : 'opacity-60 hover:opacity-100'}`}
                     >
                       <Avatar avatar={a} size="sm" />
                     </button>
@@ -203,7 +210,7 @@ export default function ChildSwitcher() {
               <form onSubmit={handleLink} className="flex flex-col gap-4">
                 <input
                   value={linkCode}
-                  onChange={(e) => setLinkCode(e.target.value)}
+                  onChange={(e) => setLinkCode(e.target.value.toUpperCase())}
                   placeholder="Player code (e.g. FOX4821)"
                   className="w-full px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-paper
                              placeholder:text-paper/30 focus:outline-none focus:border-coral/50 uppercase"
@@ -219,6 +226,13 @@ export default function ChildSwitcher() {
               </form>
             )}
           </div>
+
+          <style>{`
+            @keyframes childRowPop {
+              0% { opacity: 0; transform: translateX(-10px) scale(0.97); }
+              100% { opacity: 1; transform: translateX(0) scale(1); }
+            }
+          `}</style>
         </div>
       )}
     </>
