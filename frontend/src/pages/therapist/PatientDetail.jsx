@@ -270,6 +270,7 @@ export default function PatientDetail() {
   }
 
   const removeAssignment = async (assignmentId) => {
+    if (!window.confirm("Remove this assignment? This can't be undone.")) return
     await dashboardAPI.deleteAssignment(assignmentId)
     setAssignments(list => list.filter(a => a.id !== assignmentId))
   }
@@ -292,6 +293,7 @@ export default function PatientDetail() {
   }
 
   const removeGoal = async (goalId) => {
+    if (!window.confirm("Remove this goal? This can't be undone.")) return
     await dashboardAPI.deleteGoal(goalId)
     setGoals(list => list.filter(g => g.id !== goalId))
   }

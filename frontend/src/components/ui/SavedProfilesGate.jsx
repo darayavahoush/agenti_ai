@@ -109,6 +109,7 @@ export default function SavedProfilesGate({ role, children }) {
   }
 
   const handleForget = async (key) => {
+    if (!window.confirm("Remove this account from this device? You'll need to log in again to use it here.")) return
     await forgetAccount(key)
   }
 
