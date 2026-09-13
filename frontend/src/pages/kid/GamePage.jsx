@@ -294,7 +294,9 @@ export default function GamePage() {
         quit_flag: false,
       })
       setRlEventId(logged?.id ?? null)
-    } catch {}
+    } catch (err) {
+      console.error('logBreathEvent failed:', err)
+    }
   }, [levelId])
 
   const flushEvents = async () => {
@@ -339,7 +341,7 @@ export default function GamePage() {
       is_valid_attempt: false,
       threshold_at_time: difficultyRef.current,
       quit_flag: true,
-    }).catch(() => {})
+    }).catch(err => console.error('logBreathEvent (quit) failed:', err))
   }
 
   // The above only covers backing out *within* the SPA. If the kid just
