@@ -117,3 +117,10 @@ greenlet==3.5.5
 azure-communication-sms==1.1.0
 azure-storage-blob>=12.19.0
 gtts
+
+# Kid-facing daily greeting (festival wishes on GamePicker/MyAccount) --
+# bundles India's festival calendar (Diwali, Holi, Eid, Christmas, Pongal,
+# Onam, Navratri, etc.) with correct yearly dates, including the lunar/
+# regional ones that shift every year -- no hand-maintained date list to
+# go stale. See app/services/greetings.py.
+holidays==0.104

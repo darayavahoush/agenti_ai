@@ -21,6 +21,8 @@ from app.models.flashcards_models import FlashcardAttempt
 from app.models.session import Session as AssessmentSession
 from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary
 from app.breathquest_core.deps import get_current_patient
+from app.services.greetings import get_smart_greeting
+from app.services.recommendations import get_recommended_practice
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
 
@@ -106,6 +108,32 @@ async def get_my_progress(
         games_played_this_week=games_played_this_week,
         current_streak_days=streak,
     )
+
+
+@router.get("/greeting")
+async def get_my_greeting(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Daily greeting for GamePicker.jsx's header -- festival wish, real
+    streak, real improvement trend, or a rotating encouraging line, in
+    that priority order. See services/greetings.py:get_smart_greeting."""
+    return await get_smart_greeting(patient.id, db)
+
+
+@router.get("/recommended-practice")
+async def get_my_recommended_practice(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """What GamePicker.jsx's recommendation card points a kid toward today
+    -- whichever game/level shows the clearest "needs practice" signal
+    across BreathQuest (via the RL agent's own per-level assessment),
+    VoiceHurdleRace, and VaakMirror. Returns null when nothing clearly
+    stands out, in which case the frontend shows no card at all rather
+    than a forced, low-confidence suggestion. See
+    services/recommendations.py:get_recommended_practice."""
+    return await get_recommended_practice(patient.id, db)
 
 
 @router.get("/breathquest/level-scores", response_model=dict[str, BreathQuestLevelScore])
