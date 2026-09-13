@@ -292,7 +292,7 @@ export default function PatientDetail() {
     try {
       const payload = {
         target_metric: newGoal.target_metric,
-        target_value: parseFloat(newGoal.target_value),
+        target_value: parseFloat(newGoal.target_value) / 100,
         target_date: newGoal.target_date ? new Date(newGoal.target_date).toISOString() : null,
       }
       const { data: created } = await dashboardAPI.createGoal(id, payload)
@@ -960,7 +960,7 @@ export default function PatientDetail() {
                         <div className="flex-1">
                           <p className="text-white text-sm capitalize">{g.target_metric.replace(/_/g, ' ')}</p>
                           <p className="text-white/30 text-xs">
-                            target {g.target_value}{g.current_value != null ? ` · current ${g.current_value}` : ''}
+                            target {Math.round(g.target_value * 100)}%{g.current_value != null ? ` · current ${Math.round(g.current_value * 100)}%` : ''}
                           </p>
                         </div>
                         <Badge color={g.achieved ? 'green' : 'gray'}>{g.achieved ? 'Achieved' : 'In progress'}</Badge>
@@ -975,7 +975,7 @@ export default function PatientDetail() {
                       <option value="avg_breath_strength">Average Breath Strength</option>
                     </select>
                     <div className="flex gap-2">
-                      <input className="input text-sm" type="number" step="0.01" placeholder="Target value"
+                      <input className="input text-sm" type="number" min="0" max="100" step="1" placeholder="Target %"
                              value={newGoal.target_value}
                              onChange={e => setNewGoal(n => ({ ...n, target_value: e.target.value }))} />
                       <input className="input text-sm" type="date"
