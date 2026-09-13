@@ -72,8 +72,18 @@ export default function AssessmentGate() {
   }
 
   const handleFinish = async (summary) => {
+    // Never block the kid from seeing their results over this -- if it
+    // fails twice, log it for follow-up (a therapist/parent may see the
+    // assessment as still-incomplete later) rather than stranding the
+    // kid on a blank screen or showing them an error they can't act on.
     try {
       await markAssessmentComplete(summary)
+    } catch {
+      try {
+        await markAssessmentComplete(summary)
+      } catch (err) {
+        console.error('Failed to mark assessment complete after retry:', err)
+      }
     } finally {
       navigate('/assessment/report', { state: { summary }, replace: true })
     }

@@ -1,15 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
   <defs>
-    <linearGradient id="sparkGrad" x1="10" y1="6" x2="38" y2="42" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF9FE3"/>
-      <stop offset="50%" stop-color="#A78BFA"/>
-      <stop offset="100%" stop-color="#6B46C1"/>
+    <linearGradient id="windGrad" x1="6" y1="10" x2="42" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A8FF6F"/>
+      <stop offset="100%" stop-color="#1D9E75"/>
     </linearGradient>
   </defs>
-  <rect width="48" height="48" rx="12" fill="#0E2A2E"/>
-  <circle cx="12" cy="14" r="1.4" fill="#fff" opacity="0.8"/>
-  <circle cx="38" cy="12" r="1" fill="#fff" opacity="0.6"/>
-  <circle cx="40" cy="34" r="1.6" fill="#fff" opacity="0.7"/>
-  <circle cx="9" cy="35" r="1" fill="#fff" opacity="0.5"/>
-  <path d="M24 6 L27.5 20.5 L42 24 L27.5 27.5 L24 42 L20.5 27.5 L6 24 L20.5 20.5 Z" fill="url(#sparkGrad)"/>
+  <rect width="48" height="48" rx="12" fill="#12122A"/>
+  <g transform="translate(3,5) scale(1.85)" fill="none" stroke="url(#windGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12.8 19.6A2 2 0 1 0 14 16H2"/>
+    <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/>
+    <path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>
+  </g>
 </svg>
