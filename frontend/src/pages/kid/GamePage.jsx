@@ -36,6 +36,12 @@ export default function GamePage() {
   const metricsRef  = useRef({ timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 })
   const startTime   = useRef(null)
   const difficultyRef = useRef(DEFAULT_DIFFICULTY)
+  // Synchronous re-entry guard for startGame -- phase stays 'ready' through
+  // the first await (sessionsAPI.start), so the Start button has no state-based
+  // way to disable itself in time to block a fast double-click, which would
+  // otherwise create two sessions via sessionsAPI.start. A ref check/set
+  // happens on the same tick as the click, before any await, so it can't race.
+  const startingRef = useRef(false)
 
   const [phase,       setPhase]       = useState('ready')
   const [errorReason, setErrorReason] = useState(null) // 'session' | 'mic' | null
@@ -48,6 +54,13 @@ export default function GamePage() {
   // whether it has anything to attach to yet.
   const [rlEventId,     setRlEventId]     = useState(null)
   const [feedbackGiven, setFeedbackGiven] = useState(null)
+  // Plain-language line from the adaptive-difficulty agent's own decision
+  // (agent/service.py's get_status/decide messages -- already kid-safe
+  // copy, no raw stats). Only shown when the round actually changed
+  // something (action !== 'hold'), so it reads as a real callout instead
+  // of routine noise every single round.
+  const [buddyMessage, setBuddyMessage] = useState(null)
+  const [buddyAction, setBuddyAction] = useState(null) // 'raise' | 'lower' | null -- drives the pill's color, so it's never guessed from message text
   const [debug,       setDebug]       = useState({ raw: 0, floor: 0, above: 0, breath: 0 })
 
   // Check unlock. Seeded from whatever this browser's localStorage cache
@@ -109,6 +122,8 @@ export default function GamePage() {
 
   const startGame = async () => {
     if (!unlocked) return
+    if (startingRef.current) return
+    startingRef.current = true
     try {
       const { data } = await sessionsAPI.start({ level_id: levelId })
       sessionRef.current = data.id
@@ -120,6 +135,7 @@ export default function GamePage() {
       // GamePage's error UI (whatever that already renders) picks it up.
       setErrorReason('session')
       setPhase('error')
+      startingRef.current = false
       return
     }
 
@@ -133,6 +149,8 @@ export default function GamePage() {
     try {
       const decision = await getBreathAgentDecision(levelId)
       nextDifficulty = applyAction(priorDifficulty, decision.action)
+      setBuddyMessage(decision.action !== 'hold' ? decision.message : null)
+      setBuddyAction(decision.action !== 'hold' ? decision.action : null)
     } catch {}
     difficultyRef.current = nextDifficulty
     saveStoredDifficulty(levelId, nextDifficulty)
@@ -356,7 +374,7 @@ export default function GamePage() {
     cleanup()
     breathLog.current = []; eventBatch.current = []
     metricsRef.current = { timeSeconds:0, mistakes:0, targetHits:0, puffs:0, progress:0 }
-    setPhase('ready'); setResult(null); setStarAnim(0)
+    setPhase('ready'); setResult(null); setStarAnim(0); setBuddyMessage(null); setBuddyAction(null); startingRef.current = false
   }
 
   useEffect(() => () => cleanup(), [])
@@ -377,7 +395,7 @@ export default function GamePage() {
     cleanup()
     breathLog.current = []; eventBatch.current = []
     metricsRef.current = { timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 }
-    setPhase('ready'); setResult(null); setStarAnim(0)
+    setPhase('ready'); setResult(null); setStarAnim(0); setBuddyMessage(null); setBuddyAction(null); startingRef.current = false
     setEarnedStars(0); setErrorReason(null); setCalProgress(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelId])
@@ -521,6 +539,35 @@ export default function GamePage() {
               </h2>
               <p className="text-white/50 mb-6">{result.message}</p>
 
+              {buddyMessage && (
+                <div
+                  className="flex items-center gap-2.5 mb-6 px-4 py-2.5 rounded-full border"
+                  style={{
+                    background: buddyAction === 'raise' ? 'rgba(168,255,111,0.10)' : 'rgba(96,165,250,0.10)',
+                    borderColor: buddyAction === 'raise' ? 'rgba(168,255,111,0.35)' : 'rgba(96,165,250,0.35)',
+                    boxShadow: buddyAction === 'raise'
+                      ? '0 0 20px -4px rgba(168,255,111,0.35)'
+                      : '0 0 20px -4px rgba(96,165,250,0.35)',
+                    animation: 'buddyPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both',
+                  }}
+                >
+                  <span
+                    className="text-base shrink-0"
+                    role="img"
+                    aria-label="buddy"
+                    style={{ animation: buddyAction === 'raise' ? 'buddyBounce 1.2s ease-in-out infinite' : 'none' }}
+                  >
+                    🤖
+                  </span>
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: buddyAction === 'raise' ? '#A8FF6F' : '#93C5FD' }}
+                  >
+                    {buddyMessage}
+                  </span>
+                </div>
+              )}
+
               {/* Stars */}
               <div className="flex gap-3 mb-2">
                 {Array.from({length:3},(_,i)=>(
@@ -619,6 +666,8 @@ export default function GamePage() {
       <style>{`
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
         @keyframes breatheIn { 0%{transform:scale(0.85)} 70%{transform:scale(1.25)} 100%{transform:scale(1.15)} }
+        @keyframes buddyPop { 0%{opacity:0; transform:scale(0.7) translateY(6px)} 100%{opacity:1; transform:scale(1) translateY(0)} }
+        @keyframes buddyBounce { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-2px) rotate(-6deg)} }
       `}</style>
     </div>
   )
