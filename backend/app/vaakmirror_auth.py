@@ -12,9 +12,6 @@ bearer = HTTPBearer()
 
 def _decode(token: str) -> dict:
     try:
-        # Pydantic settings attributes are uppercase or lowercase depending on settings definition.
-        # We will support both Settings.SECRET_KEY / settings.SECRET_KEY.
-        # Let's read from the main settings class: settings.SECRET_KEY and settings.ALGORITHM.
         secret_key = getattr(settings, "SECRET_KEY", "supersecretkey")
         algorithm = getattr(settings, "ALGORITHM", "HS256")
         return jwt.decode(token, secret_key, algorithms=[algorithm])
@@ -26,19 +23,6 @@ async def _check_active(db: AsyncSession, table: str, row_id: str) -> bool:
     result = await db.execute(text(f"SELECT is_active FROM {table} WHERE id = :id"), {"id": row_id})
     row = result.first()
     return bool(row and row.is_active)
-
-
-async def get_current_therapist_id(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
-    db: AsyncSession = Depends(get_db),
-) -> str:
-    payload = _decode(credentials.credentials)
-    if payload.get("type") != "therapist":
-        raise HTTPException(status_code=401, detail="A therapist token is required here")
-    therapist_id = payload.get("sub")
-    if not therapist_id or not await _check_active(db, "breathquest_therapists", therapist_id):
-        raise HTTPException(status_code=401, detail="Therapist not found or inactive")
-    return therapist_id
 
 
 async def get_current_patient_id(
@@ -63,7 +47,9 @@ async def get_current_identity(
     sub = payload.get("sub")
     if kind not in ("therapist", "patient") or not sub:
         raise HTTPException(status_code=401, detail="Invalid token")
-    table = "breathquest_therapists" if kind == "therapist" else "breathquest_patients"
+    # Therapists live in `therapists` now (deps/therapist_auth_deps.py);
+    # breathquest_therapists is retired. Patients are unaffected.
+    table = "therapists" if kind == "therapist" else "breathquest_patients"
     if not await _check_active(db, table, sub):
         raise HTTPException(status_code=401, detail=f"{kind.title()} not found or inactive")
     return kind, sub

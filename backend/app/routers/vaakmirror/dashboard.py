@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.vaakmirror_auth import assert_therapist_owns_patient, get_current_therapist_id, get_patient_summary
+from app.vaakmirror_auth import assert_therapist_owns_patient, get_patient_summary
+from app.deps.therapist_auth_deps import get_current_therapist
+from app.models.therapist import Therapist
 from app.database import get_db
 from app.models.vaakmirror_models import Attempt, AttemptOutcome, ExerciseAssignment, ExerciseTemplate, VaakMirrorSession, AssignmentStatus
 from app.schemas.vaakmirror_schemas import CategoryAccuracy, DashboardOut, FlaggedGap, PatientSummary, WeeklyPoint
@@ -56,9 +58,10 @@ async def _ensure_assigned(db: AsyncSession, patient_id: str, exercise_id: int) 
 @router.get("/patients/{patient_id}/dashboard", response_model=DashboardOut)
 async def get_dashboard(
     patient_id: str,
-    therapist_id: str = Depends(get_current_therapist_id),
+    therapist: Therapist = Depends(get_current_therapist),
     db: AsyncSession = Depends(get_db),
 ):
+    therapist_id = str(therapist.id)
     await assert_therapist_owns_patient(db, therapist_id, patient_id)
     patient = await get_patient_summary(db, patient_id)
     if not patient:
