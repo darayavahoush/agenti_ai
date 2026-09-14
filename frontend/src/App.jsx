@@ -29,6 +29,7 @@ const GamePage           = lazy(() => import('./pages/kid/GamePage'))
 const GamePicker         = lazy(() => import('./pages/kid/GamePicker'))
 const MyAccount          = lazy(() => import('./pages/kid/MyAccount'))
 const AccountHistory     = lazy(() => import('./pages/kid/AccountHistory'))
+const MyProgress         = lazy(() => import('./pages/kid/MyProgress'))
 const VaakMirrorHome     = lazy(() => import('./vaakmirror/VaakMirrorHome'))
 const MirrorMirror       = lazy(() => import('./vaakmirror/MirrorMirror'))
 const TongueTamer        = lazy(() => import('./vaakmirror/TongueTamer'))
@@ -204,6 +205,9 @@ function AppRoutes() {
         } />
         <Route path="/play/account" element={
           <ProtectedKid requireEntitlement={false}><MyAccount /></ProtectedKid>
+        } />
+        <Route path="/play/progress" element={
+          <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
         } />
         <Route path="/play/account/history" element={
           <ProtectedKid requireEntitlement={false}><AccountHistory /></ProtectedKid>
