@@ -59,7 +59,8 @@ def _severity_band(rate):
 
 
 def build_patient_report_pdf(
-    *, patient, progress, weekly_summary, goals, assignments, therapist, output_path: str,
+    *, patient, progress, weekly_summary, goals, assignments, therapist,
+    output_path: str, goal_histories: dict | None = None,
 ) -> str:
     """
     patient:         Patient ORM object
@@ -80,6 +81,7 @@ def build_patient_report_pdf(
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak,
     )
+    from reportlab.lib.styles import ParagraphStyle
 
     doc = SimpleDocTemplate(
         output_path, pagesize=letter,
@@ -243,6 +245,37 @@ def build_patient_report_pdf(
     if weekly_summary.highlights:
         for h in weekly_summary.highlights:
             story.append(Paragraph(f"• {h}", _body))
+
+    # --- Appendix: per-goal session history (raw values behind the goal's
+    # current_value rolling average, same series the Care tab expands to show) ---
+    if goal_histories and any(goal_histories.values()):
+        story.append(PageBreak())
+        story.append(Paragraph("Appendix — Goal History", _h2))
+        story.append(Paragraph(
+            "Session-by-session values behind each goal's current progress figure.",
+            _small,
+        ))
+        story.append(Spacer(1, 6))
+        for g in goals:
+            entries = goal_histories.get(g.id) or []
+            if not entries:
+                continue
+            story.append(Paragraph(g.target_metric, ParagraphStyle(
+                "goalHistHeading", parent=_body, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4,
+            )))
+            hist_header = ["Date", "Value"]
+            hist_rows = [hist_header] + [
+                [_fmt_date(e.date), e.label] for e in entries
+            ]
+            t = Table(hist_rows, colWidths=[2.0 * inch, 1.5 * inch])
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EEF2FF")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 4))
 
     doc.build(story)
     return output_path

@@ -39,7 +39,7 @@ from app.models.breathquest_models import (
     Assignment, AssignmentStatus, Goal, Message, SenderRole, HomePracticeLog,
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
-from app.models.vaakmirror_models import VaakMirrorSession, Attempt
+from app.models.vaakmirror_models import VaakMirrorSession, Attempt, AttemptOutcome
 from app.models.flashcards_models import FlashcardAttempt
 from app.schemas.breathquest_schemas import (
     PatientProgress, LevelProgress, DashboardSummary,
@@ -502,6 +502,114 @@ async def list_assignments(
         .order_by(Assignment.created_at.desc())
     )
     return result.scalars().all()
+
+
+@router.get("/assignments/{assignment_id}/matching-sessions", response_model=list[HistoryEntry])
+async def get_assignment_matching_sessions(
+    assignment_id: str,
+    therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sessions/attempts in the assigned game (and level_id, if set) that
+    fall within the assignment's active window -- created_at through
+    completed_at (or now, if still open). There's no stored link from an
+    Assignment to a specific session (completion is a manual status flip,
+    not auto-detected -- see update_assignment below), so this is a
+    best-match list for the therapist to eyeball, not a definitive
+    "this one fulfilled it" answer."""
+    result = await db.execute(
+        select(Assignment).join(BreathQuestPatient, Assignment.patient_id == BreathQuestPatient.id).where(
+            Assignment.id == assignment_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    window_start = assignment.created_at
+    window_end = assignment.completed_at or datetime.now(timezone.utc)
+    pid = assignment.patient_id
+    entries: list[HistoryEntry] = []
+
+    if assignment.game == "breathquest":
+        q = select(GameSession).where(
+            GameSession.patient_id == pid,
+            GameSession.started_at >= window_start, GameSession.started_at <= window_end,
+        )
+        if assignment.level_id:
+            q = q.where(GameSession.level_id == assignment.level_id)
+        rows = (await db.execute(q.order_by(GameSession.started_at.asc()))).scalars().all()
+        entries = [
+            HistoryEntry(
+                date=s.started_at,
+                label=f"{s.stars_earned or 0}★" + ("" if s.completed else " · not completed"),
+                value=float(s.stars_earned or 0),
+            ) for s in rows
+        ]
+
+    elif assignment.game == "voicehurdlerace":
+        q = select(VoiceHurdleRaceSession).where(
+            VoiceHurdleRaceSession.patient_id == pid,
+            VoiceHurdleRaceSession.created_at >= window_start, VoiceHurdleRaceSession.created_at <= window_end,
+        )
+        if assignment.level_id:
+            q = q.where(VoiceHurdleRaceSession.level_name == assignment.level_id)
+        rows = (await db.execute(q.order_by(VoiceHurdleRaceSession.created_at.asc()))).scalars().all()
+        entries = [
+            HistoryEntry(
+                date=s.created_at,
+                label=f"{s.stars}★ · pitch {round(s.pitch_accuracy)}% · loudness {round(s.loudness_accuracy)}%",
+                value=round((s.pitch_accuracy + s.loudness_accuracy) / 2, 1),
+            ) for s in rows
+        ]
+
+    elif assignment.game == "vaakmirror":
+        # VaakMirrorSession.patient_id is a loose String column, not a
+        # real FK -- compared as str(pid), same pattern used throughout
+        # parent.py/weekly_summary.py.
+        q = (
+            select(Attempt, VaakMirrorSession.game)
+            .join(VaakMirrorSession, Attempt.session_id == VaakMirrorSession.id)
+            .where(
+                VaakMirrorSession.patient_id == str(pid),
+                Attempt.created_at >= window_start, Attempt.created_at <= window_end,
+            )
+        )
+        if assignment.level_id:
+            q = q.where(VaakMirrorSession.game == assignment.level_id)
+        rows = (await db.execute(q.order_by(Attempt.created_at.asc()))).all()
+        entries = [
+            HistoryEntry(
+                date=r.created_at,
+                label=(r.outcome.value if hasattr(r.outcome, "value") else str(r.outcome)) + (f" · {r.sound_id}" if r.sound_id else ""),
+                value=100.0 if r.outcome in (AttemptOutcome.passed, AttemptOutcome.caught) else 0.0,
+            ) for r, game in rows
+        ]
+
+    elif assignment.game == "chime":
+        chime_events = await asyncio.to_thread(
+            chime_data_store.get_events, child_id=str(pid), db_path=CHIME_DB_PATH
+        )
+        for ev in chime_events:
+            if assignment.level_id and ev.get("level_id") != assignment.level_id:
+                continue
+            try:
+                ts = datetime.fromisoformat(ev["timestamp"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if not (window_start <= ts <= window_end):
+                continue
+            entries.append(HistoryEntry(
+                date=ts,
+                label="valid attempt" if ev.get("is_valid_attempt") else "attempt",
+                value=100.0 if ev.get("is_valid_attempt") else 0.0,
+            ))
+        entries.sort(key=lambda e: e.date)
+
+    return entries
 
 
 @router.patch("/assignments/{assignment_id}", response_model=AssignmentOut)
@@ -1023,6 +1131,9 @@ async def get_patient_report(
 
     goals = await list_goals(patient_id, therapist, db)
     assignments = await list_assignments(patient_id, therapist, db)
+    goal_histories = {
+        g.id: await get_goal_history(g.id, therapist, db) for g in goals
+    }
 
     if build_patient_report_pdf is None:
         raise HTTPException(
@@ -1036,7 +1147,7 @@ async def get_patient_report(
         build_patient_report_pdf(
             patient=patient, progress=progress, weekly_summary=weekly_summary,
             goals=goals, assignments=assignments, therapist=therapist,
-            output_path=tmp_path,
+            goal_histories=goal_histories, output_path=tmp_path,
         )
     except Exception as e:
         os.remove(tmp_path)
