@@ -360,6 +360,9 @@ class CategoryProgress(BaseModel):
     accuracy_pct: float
     last_played: datetime | None
     stars: Optional[int] = None
+    # "up" / "down" / "flat", or None with fewer than 2 dated data points
+    # (a brand-new category shouldn't render a flat arrow).
+    trend: Optional[str] = None
 
 
 class HistoryEntry(BaseModel):

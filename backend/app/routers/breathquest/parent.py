@@ -32,6 +32,29 @@ from sqlalchemy import func
 
 _VM_SUCCESS_OUTCOMES = (AttemptOutcome.passed, AttemptOutcome.caught)  # matches weekly_summary.py's definition
 
+
+def _trend_from_dated(rows, date_fn, value_fn):
+    """Compares the two most recent entries' values by date_fn. None with
+    fewer than 2 rows -- a brand-new category shouldn't show a flat arrow,
+    it should show nothing."""
+    if len(rows) < 2:
+        return None
+    ordered = sorted(rows, key=date_fn)
+    prev, latest = value_fn(ordered[-2]), value_fn(ordered[-1])
+    if latest > prev:
+        return "up"
+    if latest < prev:
+        return "down"
+    return "flat"
+
+
+def _chime_ts(ev):
+    ts = datetime.fromisoformat(ev["timestamp"])
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts
+
+
 router = APIRouter(prefix="/parent", tags=["parent"])
 
 
@@ -105,6 +128,7 @@ async def get_parent_progress(
             accuracy_pct=round(100 * len(level_sessions) / len(all_level_sessions), 1) if all_level_sessions else 0.0,
             last_played=last_played,
             stars=best_stars,
+            trend=_trend_from_dated(level_sessions, lambda s: s.started_at, lambda s: s.stars_earned or 0),
         ))
 
     # --- VoiceHurdleRace ---
@@ -121,6 +145,7 @@ async def get_parent_progress(
             accuracy_pct=round(sum((r.pitch_accuracy + r.loudness_accuracy) / 2 for r in rows) / len(rows), 1),
             last_played=max(r.created_at for r in rows),
             stars=max(r.stars for r in rows),
+            trend=_trend_from_dated(rows, lambda r: r.created_at, lambda r: (r.pitch_accuracy + r.loudness_accuracy) / 2),
         ) for name, rows in vhr_by_level.items()
     ]
     vhr_total_stars = sum(s.stars for s in vhr_sessions)
@@ -143,6 +168,7 @@ async def get_parent_progress(
             accuracy_pct=round(100 * len([r for r in rows if r.outcome in _VM_SUCCESS_OUTCOMES]) / len(rows), 1),
             last_played=max(r.created_at for r in rows),
             stars=None,
+            trend=_trend_from_dated(rows, lambda r: r.created_at, lambda r: 100.0 if r.outcome in _VM_SUCCESS_OUTCOMES else 0.0),
         ) for game, rows in vm_by_game.items()
     ]
 
@@ -157,6 +183,9 @@ async def get_parent_progress(
             accuracy_pct=round(m.accuracy, 1),
             last_played=m.last_practiced_at,
             stars=None,
+            # PhonemeMastery is a rolling aggregate, not a dated attempt
+            # list -- no "last two" to compare without an extra query.
+            trend=None,
         ) for m in fc_mastery
     ]
 
@@ -182,6 +211,7 @@ async def get_parent_progress(
             accuracy_pct=round(100 * len([e for e in evs if e.get("is_valid_attempt")]) / len(evs), 1),
             last_played=max(e["timestamp"] for e in evs),
             stars=None,
+            trend=_trend_from_dated(evs, _chime_ts, lambda e: 100.0 if e.get("is_valid_attempt") else 0.0),
         ) for sound_id, evs in chime_by_sound.items()
     ]
 
