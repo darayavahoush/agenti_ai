@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Check, Plus, Link2, ArrowLeftRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -102,7 +103,7 @@ export default function ChildSwitcher() {
         </span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
           onClick={close}
@@ -233,7 +234,8 @@ export default function ChildSwitcher() {
               100% { opacity: 1; transform: translateX(0) scale(1); }
             }
           `}</style>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
