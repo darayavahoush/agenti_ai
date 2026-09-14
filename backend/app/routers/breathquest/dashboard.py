@@ -50,7 +50,7 @@ from app.schemas.breathquest_schemas import (
     MessageCreate, MessageOut,
     HomePracticeLogCreate, HomePracticeLogOut,
     PatientAlert, WeeklySummaryOut, SoundProgressOut, SoundWeekPoint,
-    HomePracticeIdeaOut,
+    HomePracticeIdeaOut, HistoryEntry,
 )
 from app.breathquest_core.deps import get_current_therapist
 from app.routers.breathquest.assessment_lookup import get_latest_assessment
@@ -580,6 +580,42 @@ async def _compute_goal_current_value(goal: Goal, db: AsyncSession) -> float | N
     result = await db.execute(select(func.avg(recent_values.c[field.key])))
     avg = result.scalar()
     return round(avg, 3) if avg is not None else None
+
+
+@router.get("/goals/{goal_id}/history", response_model=list[HistoryEntry])
+async def get_goal_history(
+    goal_id: str,
+    therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recent BreathQuest session values behind a goal's current_value --
+    same _GOAL_METRIC_FIELDS mapping _compute_goal_current_value uses for
+    the rolling-5-session average, but returned as a raw per-session series
+    instead of collapsed into one number, for the Care tab's expand-to-chart."""
+    result = await db.execute(
+        select(Goal).join(BreathQuestPatient, Goal.patient_id == BreathQuestPatient.id).where(
+            Goal.id == goal_id, BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    field = _GOAL_METRIC_FIELDS.get(goal.target_metric)
+    if field is None:
+        return []
+
+    rows = (await db.execute(
+        select(GameSession.started_at, field)
+        .where(GameSession.patient_id == goal.patient_id, field.is_not(None))
+        .order_by(GameSession.started_at.asc())
+        .limit(30)
+    )).all()
+
+    return [
+        HistoryEntry(date=started_at, label=f"{round(value * 100)}%", value=round(value * 100, 1))
+        for started_at, value in rows
+    ]
 
 
 @router.post("/patients/{patient_id}/goals", response_model=GoalOut, status_code=status.HTTP_201_CREATED)
