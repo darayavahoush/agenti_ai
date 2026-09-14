@@ -58,7 +58,18 @@ async def record_attempt(
         )).scalar_one_or_none()
 
         if existing is None:
-            existing = PhonemeMastery(patient_id=patient_id, phoneme=phoneme)
+            # Explicit zeros here, not relying on the model's column
+            # default -- SQLAlchemy doesn't apply a Python-side `default=`
+            # until flush, so `existing.attempts_count` would otherwise be
+            # None in memory right up until the `+= 1` two lines down,
+            # which raised TypeError (None + int) and got silently
+            # swallowed by router.py's non-fatal except -- meaning the
+            # very first time a kid hit any new phoneme, its mastery row
+            # was never actually persisted.
+            existing = PhonemeMastery(
+                patient_id=patient_id, phoneme=phoneme,
+                attempts_count=0, correct_count=0, accuracy=0.0,
+            )
             db.add(existing)
 
         existing.attempts_count += 1
