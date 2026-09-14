@@ -471,7 +471,11 @@ export default function ParentDashboard() {
                         {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
                       </p>
                     </div>
-                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                    <p className="text-paper text-sm font-semibold shrink-0 flex items-center gap-1">
+                      {cat.trend === 'up' && <span style={{ color: '#7CDB8A' }}>▲</span>}
+                      {cat.trend === 'down' && <span style={{ color: '#FF8F8F' }}>▼</span>}
+                      {cat.accuracy_pct}%
+                    </p>
                   </ExpandableRow>
                 ))
               ) : (
@@ -494,7 +498,11 @@ export default function ParentDashboard() {
                         {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
                       </p>
                     </div>
-                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                    <p className="text-paper text-sm font-semibold shrink-0 flex items-center gap-1">
+                      {cat.trend === 'up' && <span style={{ color: '#7CDB8A' }}>▲</span>}
+                      {cat.trend === 'down' && <span style={{ color: '#FF8F8F' }}>▼</span>}
+                      {cat.accuracy_pct}%
+                    </p>
                   </ExpandableRow>
                 ))
               ) : (
@@ -519,7 +527,11 @@ export default function ParentDashboard() {
                         {cat.attempts} attempt{cat.attempts === 1 ? '' : 's'} · last played {formatDate(cat.last_played)}
                       </p>
                     </div>
-                    <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
+                    <p className="text-paper text-sm font-semibold shrink-0 flex items-center gap-1">
+                      {cat.trend === 'up' && <span style={{ color: '#7CDB8A' }}>▲</span>}
+                      {cat.trend === 'down' && <span style={{ color: '#FF8F8F' }}>▼</span>}
+                      {cat.accuracy_pct}%
+                    </p>
                   </ExpandableRow>
                 ))
               ) : (
