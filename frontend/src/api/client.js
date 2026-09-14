@@ -240,9 +240,10 @@ export const dashboardAPI = {
 
   // Goals
   createGoal: (patientId, data) => api.post(`/dashboard/patients/${patientId}/goals`, data),
-  listGoals:  (patientId)       => api.get(`/dashboard/patients/${patientId}/goals`),
-  updateGoal: (goalId, data)    => api.patch(`/dashboard/goals/${goalId}`, data),
-  deleteGoal: (goalId)          => api.delete(`/dashboard/goals/${goalId}`),
+  listGoals:   (patientId)      => api.get(`/dashboard/patients/${patientId}/goals`),
+  updateGoal:  (goalId, data)   => api.patch(`/dashboard/goals/${goalId}`, data),
+  deleteGoal:  (goalId)         => api.delete(`/dashboard/goals/${goalId}`),
+  goalHistory: (goalId)         => api.get(`/dashboard/goals/${goalId}/history`),
 
   // Messages (therapist <-> parent log)
   createMessage:    (patientId, data) => api.post(`/dashboard/patients/${patientId}/messages`, data),

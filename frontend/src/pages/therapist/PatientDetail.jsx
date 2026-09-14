@@ -63,6 +63,78 @@ function ExpandableLevelRow({ level, sessions, children }) {
   )
 }
 
+// Same visual pattern as ExpandableLevelRow above, but for a Goal: data
+// isn't in-memory sessions already loaded for the page, so this lazily
+// fetches GET /dashboard/goals/{id}/history (a raw per-session series
+// behind the goal's rolling-average current_value) on first expand rather
+// than eagerly loading history for every goal up front.
+function ExpandableGoalRow({ goal, children }) {
+  const [open, setOpen] = useState(false)
+  const [history, setHistory] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const toggle = () => {
+    setOpen(o => !o)
+    if (!history && !loading) {
+      setLoading(true)
+      dashboardAPI.goalHistory(goal.id)
+        .then(({ data }) => setHistory(data))
+        .catch(() => setHistory([]))
+        .finally(() => setLoading(false))
+    }
+  }
+
+  const chartData = (history || []).map(e => ({
+    date: new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    value: e.value,
+  }))
+
+  return (
+    <div className="rounded-xl border border-white/5">
+      <div
+        onClick={toggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggle() }}
+        className="w-full flex items-center gap-3 px-1 py-1 text-left hover:bg-white/[0.03] rounded-xl transition-colors cursor-pointer"
+      >
+        {children}
+        <ChevronDown size={14} className={`text-white/25 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+      {open && (
+        <div className="px-3 pb-3 pt-1">
+          {loading && <p className="text-white/30 text-xs py-2">Loading…</p>}
+          {!loading && history?.length === 0 && (
+            <p className="text-white/30 text-xs py-2">No BreathQuest sessions with this metric yet.</p>
+          )}
+          {!loading && history?.length > 0 && (
+            <>
+              <div className="h-24 mb-2 -ml-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} width={24} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11 }} labelStyle={{ color: 'rgba(255,255,255,0.5)' }} />
+                    <Line type="monotone" dataKey="value" stroke="#5BC8F5" strokeWidth={2} dot={{ r: 3, fill: '#5BC8F5' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+                {[...history].reverse().map((e, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-white/40">{new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                    <span className="text-white/70">{e.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
   balloon: '🎈', dandelion: '🌼', dragon: '🐉'
@@ -1011,15 +1083,17 @@ export default function PatientDetail() {
                       </div>
                     )}
                     {goals.map(g => (
-                      <div key={g.id} className="flex items-center gap-3 border-b border-white/5 pb-2 last:border-0">
-                        <div className="flex-1">
-                          <p className="text-white text-sm capitalize">{g.target_metric.replace(/_/g, ' ')}</p>
-                          <p className="text-white/30 text-xs">
-                            target {Math.round(g.target_value * 100)}%{g.current_value != null ? ` · current ${Math.round(g.current_value * 100)}%` : ''}
-                          </p>
-                        </div>
-                        <Badge color={g.achieved ? 'green' : 'gray'}>{g.achieved ? 'Achieved' : 'In progress'}</Badge>
-                        <button onClick={() => removeGoal(g.id)} className="text-white/45 hover:text-brand-coral"><X size={14} /></button>
+                      <div key={g.id} className="border-b border-white/5 pb-2 last:border-0">
+                        <ExpandableGoalRow goal={g}>
+                          <div className="flex-1">
+                            <p className="text-white text-sm capitalize">{g.target_metric.replace(/_/g, ' ')}</p>
+                            <p className="text-white/30 text-xs">
+                              target {Math.round(g.target_value * 100)}%{g.current_value != null ? ` · current ${Math.round(g.current_value * 100)}%` : ''}
+                            </p>
+                          </div>
+                          <Badge color={g.achieved ? 'green' : 'gray'}>{g.achieved ? 'Achieved' : 'In progress'}</Badge>
+                          <button onClick={(e) => { e.stopPropagation(); removeGoal(g.id) }} className="text-white/45 hover:text-brand-coral"><X size={14} /></button>
+                        </ExpandableGoalRow>
                       </div>
                     ))}
                   </div>
