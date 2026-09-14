@@ -341,7 +341,14 @@ async def list_messages(
     parent: Parent = Depends(get_current_parent),
     db: AsyncSession = Depends(get_db),
 ):
-    patient = await _get_linked_patient_with_therapist(parent, db)
+    # Unlike sending (below), listing is safe even with no therapist yet --
+    # an empty conversation is a perfectly normal state the frontend already
+    # renders gracefully ("your child isn't connected with a therapist
+    # yet"), so this uses the plain lookup instead of the therapist-required
+    # one and just returns [] rather than 403ing on a page load.
+    patient = await _get_linked_patient(parent, db)
+    if not patient.therapist_id:
+        return []
     result = await db.execute(
         select(Message).where(Message.patient_id == patient.id).order_by(Message.created_at.asc())
     )

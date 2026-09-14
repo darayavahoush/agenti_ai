@@ -148,6 +148,8 @@ export default function GamePicker() {
   const navigate = useNavigate()
   const [mounted, setMounted] = useState(false)
   const [summary, setSummary] = useState({})
+  const [dailyGreeting, setDailyGreeting] = useState(null)
+  const [recommended, setRecommended] = useState(null)
   // This used to be a two-tap "confirm, then log out" button labeled
   // "Switch player" -- which promised something it didn't do. A kid
   // tapping it expecting to see other profiles on this device (siblings,
@@ -170,10 +172,24 @@ export default function GamePicker() {
     meAPI.gamesSummary().then(({ data }) => setSummary(data)).catch(() => {})
   }, [])
 
+  // Real per-kid daily greeting (streak / improvement / festival / rotating
+  // encouragement) -- see routers/breathquest/kid_progress.py:get_my_greeting.
+  // Best-effort: a failed fetch just leaves the static fallback subtitle below.
+  useEffect(() => {
+    meAPI.dailyGreeting().then(({ data }) => setDailyGreeting(data)).catch(() => {})
+  }, [])
+
+  // "Recommended for you today" card -- whichever game most needs practice
+  // right now, per services/recommendations.py. null means nothing stood
+  // out clearly enough to suggest, in which case no card renders at all.
+  useEffect(() => {
+    meAPI.recommendedPractice().then(({ data }) => setRecommended(data)).catch(() => {})
+  }, [])
+
   // Manual tap-to-hear only, no auto-play — see Play.jsx for why nav/menu
   // screens don't auto-speak while the actual games still do.
   const spokenGreeting = patient
-    ? `${greeting()}, ${patient.first_name || 'friend'}! Pick a world to play in — each one starts the same way, take a breath.`
+    ? `${greeting()}, ${patient.first_name || 'friend'}! ${dailyGreeting?.message || 'Pick a world to play in — each one starts the same way, take a breath.'}`
     : null
   const replayGreeting = () => { if (spokenGreeting) speak(spokenGreeting) }
 
@@ -228,12 +244,34 @@ export default function GamePicker() {
               {greeting()}, {patient?.first_name || 'friend'}!
             </h1>
             <p className="text-white/40 mt-3 flex items-center justify-center gap-1.5">
-              Pick a world to play in — each one starts the same way, take a breath 🌬️
+              {dailyGreeting?.message || 'Pick a world to play in — each one starts the same way, take a breath 🌬️'}
               <button onClick={replayGreeting} className="text-white/60 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" aria-label="Hear this again">
                 <Volume2 className="w-4 h-4" />
               </button>
             </p>
           </div>
+
+          {recommended && (
+            <button
+              onClick={() => navigate(recommended.path)}
+              className="w-full flex items-center gap-4 mb-8 px-5 py-4 rounded-2xl border
+                         border-white/10 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/20
+                         transition-colors text-left active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0
+                              bg-gradient-to-br from-amber-400/25 to-orange-500/25">
+                <Sparkles size={18} className="text-amber-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/40 text-[11px] font-semibold uppercase tracking-wide">
+                  Recommended for you today
+                </p>
+                <p className="text-white font-vm-display font-bold text-sm">{recommended.label}</p>
+                <p className="text-white/45 text-xs mt-0.5">{recommended.message}</p>
+              </div>
+              <ArrowRight size={16} className="text-white/40 shrink-0" />
+            </button>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {KID_GAMES.map((app, i) => {
