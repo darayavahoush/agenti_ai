@@ -5,7 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.vaakmirror_auth import assert_therapist_owns_patient, get_current_identity, get_current_therapist_id
+from app.vaakmirror_auth import assert_therapist_owns_patient, get_current_identity
+from app.deps.therapist_auth_deps import get_current_therapist
+from app.models.therapist import Therapist
 from app.database import get_db
 from app.models.vaakmirror_models import AssignmentStatus, ExerciseAssignment, ExerciseTemplate
 from app.schemas.vaakmirror_schemas import AssignmentStatusUpdate, ExerciseAssignmentOut, ExerciseTemplateOut
@@ -45,9 +47,10 @@ async def list_patient_exercises(
 async def assign_exercise(
     patient_id: str,
     exercise_id: int,
-    therapist_id: str = Depends(get_current_therapist_id),
+    therapist: Therapist = Depends(get_current_therapist),
     db: AsyncSession = Depends(get_db),
 ):
+    therapist_id = str(therapist.id)
     await assert_therapist_owns_patient(db, therapist_id, patient_id)
     exercise = await db.get(ExerciseTemplate, exercise_id)
     if not exercise:

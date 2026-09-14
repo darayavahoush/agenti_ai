@@ -5,7 +5,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.vaakmirror_auth import assert_therapist_owns_patient, get_current_therapist_id
+from app.vaakmirror_auth import assert_therapist_owns_patient
+from app.deps.therapist_auth_deps import get_current_therapist
+from app.models.therapist import Therapist
 from app.database import get_db
 from app.models.vaakmirror_models import Attempt, AttemptLabel, VaakMirrorSession
 from app.schemas.vaakmirror_schemas import AttemptOut
@@ -18,9 +20,10 @@ async def list_patient_attempts(
     patient_id: str,
     unlabeled_only: bool = False,
     limit: int = 30,
-    therapist_id: str = Depends(get_current_therapist_id),
+    therapist: Therapist = Depends(get_current_therapist),
     db: AsyncSession = Depends(get_db),
 ):
+    therapist_id = str(therapist.id)
     await assert_therapist_owns_patient(db, therapist_id, patient_id)
 
     stmt = (
@@ -45,7 +48,7 @@ class LabelIn(BaseModel):
 async def label_attempt(
     attempt_id: int,
     body: LabelIn,
-    therapist_id: str = Depends(get_current_therapist_id),
+    therapist: Therapist = Depends(get_current_therapist),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -58,6 +61,7 @@ async def label_attempt(
         raise HTTPException(status_code=404, detail="Attempt not found")
     attempt, patient_id = row
 
+    therapist_id = str(therapist.id)
     await assert_therapist_owns_patient(db, therapist_id, patient_id)
 
     attempt.therapist_label = body.label
