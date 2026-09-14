@@ -94,10 +94,10 @@ export default function ChildSwitcher() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium
+        className="w-full flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-xl text-sm font-medium
                    text-paper/55 hover:text-paper hover:bg-white/[0.06] transition-colors"
       >
-        <ArrowLeftRight size={14} className="shrink-0" />
+        <ArrowLeftRight size={18} className="shrink-0" />
         <span className="truncate">
           {childrenList.length > 1 ? 'Switch child' : 'Manage children'}
         </span>
