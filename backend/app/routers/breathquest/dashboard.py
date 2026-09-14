@@ -233,7 +233,9 @@ async def get_dashboard_summary(
         combined_last = max(last_candidates) if last_candidates else None
 
         patient_details.append(PatientDetailOut(
-            id=str(p.id), first_name=p.first_name, avatar=p.avatar, age=p.age,
+            id=str(p.id), first_name=p.first_name, avatar=p.avatar,
+            avatar_photo_url=p.avatar_photo_url, player_code=p.player_code,
+            age=p.age,
             is_active=p.is_active, created_at=p.created_at,
             diagnosis_notes=p.diagnosis_notes,
             total_sessions=combined_total, total_stars=combined_stars,
