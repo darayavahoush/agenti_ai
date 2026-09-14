@@ -337,6 +337,7 @@ export const parentAPI = {
   listMessages: () => api.get('/parent/messages'),
   sendMessage: (body) => api.post('/parent/messages', { body, sender_role: 'parent' }),
   markMessageRead: (messageId) => api.post(`/parent/messages/${messageId}/read`),
+  history: (category, item) => api.get(`/parent/history/${category}/${encodeURIComponent(item)}`),
 }
 
 // FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.
