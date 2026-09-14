@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, LogOut, Wind, Lock, Users, X, Plus, Check } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -129,7 +130,7 @@ export function ProfileSwitcherModal({ onClose }) {
     await forgetAccount(key)
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
       onClick={onClose}
@@ -195,7 +196,8 @@ export function ProfileSwitcherModal({ onClose }) {
           Add another account
         </Link>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
