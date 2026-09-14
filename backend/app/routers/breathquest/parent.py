@@ -49,6 +49,14 @@ def _trend_from_dated(rows, date_fn, value_fn):
     return "flat"
 
 
+# raise = engine made it harder going into this attempt, lower = easier,
+# hold = unchanged. "level_complete" is a client-set sentinel on the
+# final event of a level and never appears in recommended_action (that's
+# a server-set field, this games's client sends `action` for that instead
+# -- two different columns), so it's deliberately absent here.
+_CHIME_DIFFICULTY_LABELS = {"raise": "harder", "lower": "easier", "hold": "same"}
+
+
 def _chime_ts(ev):
     ts = datetime.fromisoformat(ev["timestamp"])
     if ts.tzinfo is None:
@@ -355,9 +363,20 @@ async def get_category_history(
                 continue
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
+            label = "valid attempt" if ev.get("is_valid_attempt") else "attempt"
+            # recommended_action is written server-side from the shared
+            # adaptive engine's last decision at the moment this event was
+            # logged -- since the game client calls logEvent() BEFORE its
+            # next getAgentDecision() call (confirmed in SubmarineDive.jsx),
+            # that stored decision is the one made after the *previous*
+            # attempt, i.e. it's the difficulty adjustment actually in
+            # effect for THIS attempt, not a forward-looking suggestion.
+            difficulty_label = _CHIME_DIFFICULTY_LABELS.get(ev.get("recommended_action"))
+            if difficulty_label:
+                label += f" · {difficulty_label}"
             entries.append(HistoryEntry(
                 date=ts,
-                label="valid attempt" if ev.get("is_valid_attempt") else "attempt",
+                label=label,
                 value=100.0 if ev.get("is_valid_attempt") else 0.0,
             ))
         entries.sort(key=lambda e: e.date)
