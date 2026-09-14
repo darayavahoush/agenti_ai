@@ -153,7 +153,9 @@ async def list_patients(
         )
         row = stats.one()
         out.append(PatientDetailOut(
-            id=str(p.id), first_name=p.first_name, avatar=p.avatar, age=p.age,
+            id=str(p.id), first_name=p.first_name, avatar=p.avatar,
+            avatar_photo_url=p.avatar_photo_url, player_code=p.player_code,
+            age=p.age,
             is_active=p.is_active, created_at=p.created_at,
             diagnosis_notes=p.diagnosis_notes,
             total_sessions=row.total or 0, total_stars=int(row.stars or 0),
@@ -187,6 +189,7 @@ async def get_patient(
     row = stats.one()
     return PatientDetailOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
         age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
         diagnosis_notes=patient.diagnosis_notes,
         total_sessions=row.total or 0, total_stars=int(row.stars or 0),
