@@ -7,7 +7,61 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown } from 'lucide-react'
+
+// Level Details rows expand in place to show that level's own session
+// history -- filtered client-side from `sessions` (data.recent_sessions),
+// which the Sessions tab already has in full, so no extra fetch is needed
+// just to drill into one level.
+function ExpandableLevelRow({ level, sessions, children }) {
+  const [open, setOpen] = useState(false)
+  const levelSessions = sessions.filter(s => s.level_id === level.level_id)
+    .slice().sort((a, b) => new Date(a.started_at) - new Date(b.started_at))
+  const chartData = levelSessions.map(s => ({
+    date: new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    stars: s.stars_earned || 0,
+  }))
+
+  return (
+    <div className="rounded-xl border border-white/5">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-1 py-1 text-left hover:bg-white/[0.03] rounded-xl transition-colors"
+      >
+        {children}
+        <ChevronDown size={14} className={`text-white/25 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-1">
+          {levelSessions.length === 0 ? (
+            <p className="text-white/30 text-xs py-2">No sessions logged for this level yet.</p>
+          ) : (
+            <>
+              <div className="h-24 mb-2 -ml-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} width={20} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11 }} labelStyle={{ color: 'rgba(255,255,255,0.5)' }} />
+                    <Line type="monotone" dataKey="stars" stroke="#A8FF6F" strokeWidth={2} dot={{ r: 3, fill: '#A8FF6F' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+                {levelSessions.slice().reverse().map(s => (
+                  <div key={s.id} className="flex items-center justify-between text-xs">
+                    <span className="text-white/40">{new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                    <span className="text-white/70">{s.stars_earned || 0}★ {s.completed ? '' : '· not completed'}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
@@ -530,7 +584,7 @@ export default function PatientDetail() {
                 <h3 className="font-semibold text-white mb-4">Level Details</h3>
                 <div className="flex flex-col gap-3">
                   {data.level_progress.map(l => (
-                    <div key={l.level_id} className="flex items-center gap-3">
+                    <ExpandableLevelRow key={l.level_id} level={l} sessions={data.recent_sessions || []}>
                       <span className="text-xl w-7">{LEVEL_EMOJIS[l.level_id]}</span>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
@@ -543,7 +597,7 @@ export default function PatientDetail() {
                         </div>
                       </div>
                       <span className="text-white/30 text-xs w-14 text-right">{l.attempts} tries</span>
-                    </div>
+                    </ExpandableLevelRow>
                   ))}
                 </div>
               </Card>
