@@ -648,6 +648,18 @@ class WeeklySummaryOut(BaseModel):
     stats: dict                # raw numbers backing the narrative, for charts
 
 
+class ChimeSoundBreakdown(BaseModel):
+    sound_id: str
+    attempts: int
+    valid_attempts: int
+
+
+class ChimeWeeklyBreakdownOut(BaseModel):
+    """Per-sound split of this week's Chime attempts -- the number behind
+    the 'Chime attempts' stat in the weekly summary grid, broken open."""
+    items: List[ChimeSoundBreakdown]
+
+
 class SoundWeekPoint(BaseModel):
     week: str          # ISO week label, e.g. "2026-W28"
     week_start: datetime
