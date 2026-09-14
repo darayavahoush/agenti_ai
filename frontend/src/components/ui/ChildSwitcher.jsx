@@ -104,7 +104,7 @@ export default function ChildSwitcher() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
           onClick={close}
         >
           <div
