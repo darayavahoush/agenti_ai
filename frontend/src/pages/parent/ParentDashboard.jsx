@@ -78,6 +78,59 @@ function ExpandableRow({ category, item, children }) {
   )
 }
 
+// Small expandable stat cell for the weekly-summary grid -- same
+// lazy-fetch-on-first-click idea as ExpandableRow above, but sized for a
+// single number+label pair instead of a full category card, and reading
+// from GET /parent/weekly-breakdown/chime (a per-sound split for just this
+// week) rather than the all-time per-item history endpoint.
+function ChimeWeeklyStat({ value }) {
+  const [open, setOpen] = useState(false)
+  const [breakdown, setBreakdown] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const toggle = (e) => {
+    e.stopPropagation()
+    setOpen(o => !o)
+    if (!breakdown && !loading) {
+      setLoading(true)
+      parentAPI.chimeWeeklyBreakdown()
+        .then(({ data }) => setBreakdown(data))
+        .catch(() => setBreakdown({ items: [] }))
+        .finally(() => setLoading(false))
+    }
+  }
+
+  return (
+    <div className="col-span-3 -mx-1 px-1" onClick={toggle} role="button" tabIndex={0}>
+      <div className="flex items-center gap-1.5 cursor-pointer">
+        <div>
+          <p className="font-display text-xl font-bold text-paper leading-none tracking-tight">{value}</p>
+          <p className="text-paper/40 text-[11px] leading-tight mt-1.5">Chime attempts</p>
+        </div>
+        <ChevronDown size={13} className={`text-paper/25 mt-1 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+      {open && (
+        <div className="mt-3 pt-3 border-t border-white/[0.06]" onClick={e => e.stopPropagation()}>
+          {loading && <p className="text-paper/30 text-xs">Loading…</p>}
+          {!loading && breakdown?.items?.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {breakdown.items.map((it, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-paper/70">/{it.sound_id}/</span>
+                  <span className="text-paper/40">{it.attempts} attempt{it.attempts === 1 ? '' : 's'} · {it.valid_attempts} valid</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {!loading && breakdown?.items?.length === 0 && (
+            <p className="text-paper/30 text-xs">No Chime attempts this week.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Parent-facing dashboard, reading GET /parent/progress — a fully-built
 // backend endpoint (routers/parent.py) that already existed with zero
 // frontend consumer, same situation as kid_progress.py before MyProgress.jsx.
@@ -253,7 +306,6 @@ export default function ParentDashboard() {
                 {[
                   ['BreathQuest', data.weekly_summary.stats.bq_sessions],
                   ['— completed', data.weekly_summary.stats.bq_completed],
-                  ['Chime attempts', data.weekly_summary.stats.chime_attempts],
                   ['Assignments done', data.weekly_summary.stats.assignments_completed],
                   ['Assignments overdue', data.weekly_summary.stats.assignments_overdue],
                   ['Goals open', data.weekly_summary.stats.goals_open],
@@ -266,6 +318,7 @@ export default function ParentDashboard() {
                     <p className="text-paper/40 text-[11px] leading-tight mt-1.5">{label}</p>
                   </div>
                 ))}
+                <ChimeWeeklyStat value={data.weekly_summary.stats.chime_attempts} />
               </div>
               {data.weekly_summary.highlights?.length > 0 && (
                 <div className="flex flex-wrap gap-2">

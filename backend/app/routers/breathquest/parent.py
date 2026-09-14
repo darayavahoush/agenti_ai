@@ -27,7 +27,8 @@ from app.models.vaakmirror_models import (
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
-from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut
+from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown
+from app.services.weekly_summary import _week_chime_events
 from sqlalchemy import func
 
 _VM_SUCCESS_OUTCOMES = (AttemptOutcome.passed, AttemptOutcome.caught)  # matches weekly_summary.py's definition
@@ -365,6 +366,40 @@ async def get_category_history(
         raise HTTPException(status_code=404, detail=f"Unknown category '{category}'")
 
     return CategoryHistoryOut(category_name=item, entries=entries[-100:])
+
+
+@router.get("/weekly-breakdown/chime", response_model=ChimeWeeklyBreakdownOut)
+async def get_chime_weekly_breakdown(
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-sound split behind the 'Chime attempts' number in the weekly
+    summary grid -- this week only, same week boundary as get_parent_progress
+    (Monday 00:00 UTC), reusing weekly_summary.py's own week-filter helper
+    so the two numbers can never silently drift apart."""
+    patient = await _get_linked_patient(parent, db)
+    pid_str = str(patient.id)
+    now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_end = week_start + timedelta(days=7)
+
+    chime_events = await asyncio.to_thread(
+        _week_chime_events, pid_str, week_start, week_end, chime_data_store.DEFAULT_DB_PATH
+    )
+    by_sound = defaultdict(list)
+    for ev in chime_events:
+        level_id = ev.get("level_id")
+        if level_id:
+            by_sound[level_id].append(ev)
+
+    items = [
+        ChimeSoundBreakdown(
+            sound_id=sound_id,
+            attempts=len(evs),
+            valid_attempts=len([e for e in evs if e.get("is_valid_attempt")]),
+        ) for sound_id, evs in sorted(by_sound.items(), key=lambda kv: -len(kv[1]))
+    ]
+    return ChimeWeeklyBreakdownOut(items=items)
 
 
 # Sound ids used in VaakMirror/Chime don't always match a home-practice-idea
