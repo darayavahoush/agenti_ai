@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Sidebar, StarRating } from "../../components/ui";
+import { Sidebar, StarRating, AboutModal } from "../../components/ui";
 import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
@@ -264,7 +264,7 @@ export default function Flashcards() {
 
   return (
     <div className="flex min-h-screen" data-fc-root>
-      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} extraFooter={<AboutModal role="kid" />} />
       <div className="flex-1 flex flex-col" style={{ background: th?.bg || '#0d0d1a' }}>
         {/* Keyframes (floatY, wiggle, ...) also live inside CharacterSelect/
             ThemeSelect/WordSelect, but those unmount once practice starts --
