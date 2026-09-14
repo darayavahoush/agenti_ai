@@ -251,6 +251,9 @@ export default function PatientDetail() {
   const [launchingSession, setLaunchingSession] = useState(null) // null | 'assessment' | 'play'
   const [soundProgress, setSoundProgress] = useState(null)
   const [soundProgressLoading, setSoundProgressLoading] = useState(true)
+  // Isolate one sound's line in the "Sound Accuracy Over Time" chart --
+  // click a sound (in the stats strip or the chart legend) to dim the rest.
+  const [selectedSound, setSelectedSound] = useState(null)
   const [noteText, setNoteText] = useState('')
   const [notes, setNotes]       = useState([])
   const [savingNote, setSavingNote] = useState(false)
@@ -791,6 +794,8 @@ export default function PatientDetail() {
                     .sort((a, b) => b[1].reduce((s, p) => s + p.attempts, 0) - a[1].reduce((s, p) => s + p.attempts, 0))
                     .slice(0, 5)
                     .map(([sound]) => sound)
+                  const soundColor = {}
+                  topSounds.forEach((s, i) => { soundColor[s] = COLORS[i % COLORS.length] })
                   const weekSet = new Set()
                   topSounds.forEach(s => soundProgress.sounds[s].forEach(p => weekSet.add(p.week)))
                   const weeks = [...weekSet].sort()
@@ -802,20 +807,83 @@ export default function PatientDetail() {
                     })
                     return row
                   })
+
+                  // Per-sound trend (second half of the 8-week window vs first
+                  // half) and current value, so the strip can surface sounds
+                  // that are declining or lowest-performing first -- the ones
+                  // most worth a therapist's attention -- rather than listing
+                  // alphabetically or by raw attempt count.
+                  const avg = (arr) => arr.reduce((s, v) => s + v, 0) / arr.length
+                  const soundStats = topSounds.map(sound => {
+                    const points = chartData.map(r => r[sound]).filter(v => v != null)
+                    const current = points.length ? points[points.length - 1] : null
+                    let trend = null
+                    if (points.length >= 2) {
+                      const mid = Math.ceil(points.length / 2)
+                      trend = Math.round(avg(points.slice(mid)) - avg(points.slice(0, mid)))
+                    }
+                    return { sound, current, trend }
+                  }).sort((a, b) => {
+                    const at = a.trend ?? 0
+                    const bt = b.trend ?? 0
+                    if (at !== bt) return at - bt
+                    return (a.current ?? 100) - (b.current ?? 100)
+                  })
+
+                  const toggleSound = (sound) => setSelectedSound(s => s === sound ? null : sound)
+
                   return (
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={chartData}>
-                        <XAxis dataKey="week" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis domain={[0, 100]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
-                                 labelStyle={{ color: 'rgba(255,255,255,0.5)' }} formatter={(v) => v == null ? 'no data' : `${v}%`} />
-                        <Legend wrapperStyle={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }} />
-                        {topSounds.map((sound, i) => (
-                          <Line key={sound} type="monotone" dataKey={sound} stroke={COLORS[i % COLORS.length]}
-                                strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <>
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {soundStats.map(({ sound, current, trend }) => {
+                          const isSelected = selectedSound === sound
+                          const isDimmed = selectedSound && !isSelected
+                          return (
+                            <button
+                              key={sound}
+                              onClick={() => toggleSound(sound)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs transition-all
+                                ${isSelected ? 'border-white/30 bg-white/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}
+                                ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+                            >
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: soundColor[sound] }} />
+                              <span className="text-white/80 font-medium">{sound}</span>
+                              <span className="text-white/40">{current != null ? `${current}%` : '—'}</span>
+                              {trend != null && trend !== 0 && (
+                                <span className={trend > 0 ? 'text-brand-green' : 'text-brand-coral'}>
+                                  {trend > 0 ? '↑' : '↓'}{Math.abs(trend)}
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })}
+                        {selectedSound && (
+                          <button onClick={() => setSelectedSound(null)}
+                                  className="text-white/30 hover:text-white/60 text-xs px-2 py-1">
+                            Show all
+                          </button>
+                        )}
+                      </div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={chartData}>
+                          <XAxis dataKey="week" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                          <YAxis domain={[0, 100]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                          <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
+                                   labelStyle={{ color: 'rgba(255,255,255,0.5)' }} formatter={(v) => v == null ? 'no data' : `${v}%`} />
+                          <Legend
+                            wrapperStyle={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
+                            onClick={(e) => toggleSound(e.dataKey)}
+                          />
+                          {topSounds.map((sound) => (
+                            <Line key={sound} type="monotone" dataKey={sound} stroke={soundColor[sound]}
+                                  strokeWidth={selectedSound === sound ? 3 : 2}
+                                  strokeOpacity={selectedSound && selectedSound !== sound ? 0.15 : 1}
+                                  dot={selectedSound && selectedSound !== sound ? false : { r: 3 }}
+                                  connectNulls />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </>
                   )
                 })()}
               </Card>
