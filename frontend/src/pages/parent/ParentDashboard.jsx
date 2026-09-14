@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send, CloudOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar, Card, StatCard, Sidebar, ChildSwitcher } from '../../components/ui'
+import { Avatar, Card, StatCard, Sidebar, ChildSwitcher, AboutModal } from '../../components/ui'
 import { useNavigate } from 'react-router-dom'
 import { parentAPI, getErrorMessage } from '../../api/client'
 import toast from 'react-hot-toast'
@@ -101,7 +101,7 @@ export default function ParentDashboard() {
         ]}
         name={(data?.child_first_name || parent?.child_first_name) ? `${data?.child_first_name || parent?.child_first_name}'s Progress` : undefined}
         onLogout={logout}
-        extraFooter={<ChildSwitcher />}
+        extraFooter={<><ChildSwitcher /><AboutModal role="parent" /></>}
       />
 
       <div className="relative flex-1 min-w-0 max-w-3xl mx-auto px-6 py-10">

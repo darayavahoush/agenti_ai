@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, Volume2, Sparkles, Mic, ArrowRight, Star } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar, Sidebar, ProfileSwitcherModal } from '../../components/ui'
+import { Avatar, Sidebar, ProfileSwitcherModal, AboutModal } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { KID_GAMES } from '../../lib/kidGames'
 import { speak } from '../../lib/speech'
@@ -197,7 +197,7 @@ export default function GamePicker() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} extraFooter={<AboutModal role="kid" />} />
       <div className="relative flex-1 overflow-hidden" style={{ background: 'linear-gradient(180deg, #12142E 0%, #1E1E3F 100%)' }}>
         <Starfield />
 

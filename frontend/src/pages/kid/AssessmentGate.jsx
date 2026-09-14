@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { History, RotateCcw, Sparkles, Star, Gift, Lock } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { assessmentAPI, getErrorMessage } from '../../api/client'
-import { PageLoader, Button, Avatar, Sidebar } from '../../components/ui'
+import { PageLoader, Button, Avatar, Sidebar, AboutModal } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { KID_GAMES } from '../../lib/kidGames'
 import Assessment from '../../assessment/Assessment'
@@ -92,7 +92,7 @@ export default function AssessmentGate() {
   if (state.status === 'assessment') {
     return (
       <div className="flex min-h-screen">
-        <Sidebar role="kid" items={lockedSidebarItems(patient?.assessment_completed)} name={patient?.first_name} onLogout={logout} />
+        <Sidebar role="kid" items={lockedSidebarItems(patient?.assessment_completed)} name={patient?.first_name} onLogout={logout} extraFooter={<AboutModal role="kid" />} />
         <div className="flex-1">
           <Assessment
             authedPatientId={state.data.assessment_patient_id}

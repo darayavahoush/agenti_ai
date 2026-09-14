@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI } from '../../api/client'
-import { Button, Card, Badge, Avatar, StatCard, PageLoader, Sidebar, AmbientGlow } from '../../components/ui'
+import { Button, Card, Badge, Avatar, StatCard, PageLoader, Sidebar, AmbientGlow, AboutModal } from '../../components/ui'
 import AddPatientModal from '../../components/therapist/AddPatientModal'
 import {
   Users, UserCheck, Gamepad2, Star, AlertTriangle, Clock,
@@ -97,6 +97,7 @@ export default function TherapistDashboard() {
           name={therapist?.full_name}
           subtitle={therapist?.clinic_name}
           onLogout={logout}
+          extraFooter={<AboutModal role="therapist" />}
         />
         <div className="relative flex-1 min-w-0 max-w-6xl mx-auto px-6 py-8 flex items-center justify-center">
           <Card className="text-center py-16 max-w-sm">
@@ -131,6 +132,7 @@ export default function TherapistDashboard() {
         name={therapist?.full_name}
         subtitle={therapist?.clinic_name}
         onLogout={logout}
+        extraFooter={<AboutModal role="therapist" />}
       />
 
       <div className="relative flex-1 min-w-0 max-w-6xl mx-auto px-6 py-8">

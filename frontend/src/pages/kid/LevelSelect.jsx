@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sidebar } from '../../components/ui'
+import { Sidebar, AboutModal } from '../../components/ui'
 import { KID_SIDEBAR_ITEMS } from '../../lib/kidSidebarItems'
 import { useAuth } from '../../context/AuthContext'
 import { meAPI } from '../../api/client'
@@ -46,7 +46,7 @@ export default function LevelSelect() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} />
+      <Sidebar role="kid" items={KID_SIDEBAR_ITEMS} name={patient?.first_name} onLogout={logout} extraFooter={<AboutModal role="kid" />} />
       <div className="flex-1 overflow-y-auto" style={{
         background: 'radial-gradient(ellipse at 50% -10%, #1a2a4a 0%, #0d0d1a 60%)'
       }}>

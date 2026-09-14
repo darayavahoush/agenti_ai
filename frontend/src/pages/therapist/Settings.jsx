@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Trash2, LayoutDashboard, CreditCard, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Sidebar, AmbientGlow } from '../../components/ui'
+import { Sidebar, AmbientGlow, AboutModal } from '../../components/ui'
 import { getErrorMessage } from '../../api/client'
 
 export default function TherapistSettings() {
@@ -27,6 +27,7 @@ export default function TherapistSettings() {
         name={therapist?.full_name}
         subtitle={therapist?.clinic_name}
         onLogout={logout}
+        extraFooter={<AboutModal role="therapist" />}
       />
 
       <div className="relative flex-1 min-w-0 max-w-2xl mx-auto px-6 py-10">
