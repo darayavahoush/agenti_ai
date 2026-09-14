@@ -18,31 +18,31 @@ import { Info, X } from 'lucide-react'
 
 const CONTENT = {
   kid: {
-    title: 'What is this app?',
+    title: 'Welcome, sound explorer! 🚀',
     accent: 'text-[#FF9B54]',
     body: [
-      "This app has games that help you practice your sounds!",
-      "Every time you play, it's like a little workout for your speech -- the games get a bit harder or easier depending on how you're doing, so it should always feel like a fun challenge, not too easy and not too hard.",
-      "Your grown-up and your speech therapist can see how your practice is going, so they know what to celebrate with you and what to help you with next.",
+      "Did you know your breath is actually magic fuel? Every time you play Pinwheel Spin, you're training your lungs like a superhero trains their powers -- stronger breath means stronger, clearer words.",
+      "And here's the wildest part: this app is basically watching you play and thinking, in real time, just like a coach would. Get something tricky? It quietly makes the next round a little gentler. Crushing it? It turns up the fun. It's adjusting itself around YOU, every single time -- nobody else in the world gets that exact game.",
+      "Every sound you practice, every level you beat -- it all lights up on a screen your grown-up and your speech therapist can see. You're not just playing a game. You're building a trail of awesome for them to follow and cheer about.",
     ],
   },
   parent: {
-    title: 'About this app',
+    title: 'The story behind this app',
     accent: 'text-coral-light',
     body: [
-      "BreathQuest and the Chime games are speech-practice games your child plays. Each session logs things like which sounds were practiced, how they scored, and whether a level felt too easy or too hard.",
-      "That data feeds an adaptive difficulty system, so the games automatically stay at a good challenge level for your child instead of staying static.",
-      "Your child's speech therapist can see this same progress data, which helps them tailor real sessions around what's actually happening at home, not just what happens in the clinic.",
-      "We only use this data to support your child's practice and therapy -- it's not shared or sold anywhere else.",
+      "Here's the idea we started with: kids don't practice things because they're told to -- they practice things because they're fun. So instead of speech drills, we built games your child actually wants to come back to, and hid the practice inside the play.",
+      "But the more interesting part is what's happening underneath. Every round your child plays feeds a system that's genuinely learning them -- which sounds are clicking, which ones need more reps, whether today's level felt like a stretch or a struggle. It nudges the difficulty in real time, so your child is always in that sweet spot where growth actually happens: challenged, not overwhelmed.",
+      "That same living picture -- not a summary, the real thing -- is what your child's speech therapist sees too. So the ten minutes you play together on the couch after dinner aren't separate from therapy. They're quietly part of it.",
+      "One thing we want you to feel certain of: everything this app learns about your child exists to help your child. It's never sold, never shared elsewhere -- it stays exactly where it belongs.",
     ],
   },
   therapist: {
     title: 'About this platform',
     accent: 'text-brand-teal',
     body: [
-      "Every gameplay event from a patient's BreathQuest and Chime sessions is logged with the sound/level practiced, score, attempt outcome, and self-reported difficulty signals.",
-      "An adaptive policy engine uses that stream to raise, lower, or hold difficulty per level in real time, and periodically retrains per-patient as more data comes in -- you're seeing the same recommendations the game itself is acting on.",
-      "Use the patient dashboard to review trends, flag targeted sounds from a diagnostic assessment, and see the agent's own reasoning (raise/lower/hold + message) behind each adjustment, so you can decide whether to intervene manually.",
+      "Picture having a colleague embedded in every patient's living room, taking notes between sessions -- that's the closest analogy for what this platform does. Every BreathQuest and Chime round is captured in full: sound targeted, score, outcome, self-reported difficulty. Not a parent's recollection of the week -- the actual data.",
+      "What makes it genuinely interesting is the adaptive policy engine sitting underneath: it's not a fixed curriculum, it's a model that raises, lowers, or holds difficulty per level in real time, and retrains itself per patient as new sessions come in. The dashboard doesn't just show you the outcome -- it shows you the engine's own reasoning for each adjustment, so you're seeing its logic, not just its output, and can override it the moment your clinical judgment says otherwise.",
+      "Open the patient view before a session and you'll already know what's been trending, what's stuck, and what's ready to be pushed -- turning every appointment into a continuation of the story instead of a cold start.",
     ],
   },
 }
