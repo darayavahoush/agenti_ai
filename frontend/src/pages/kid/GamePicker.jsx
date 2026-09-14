@@ -219,6 +219,9 @@ export default function GamePicker() {
             <button onClick={() => navigate('/assessment/report')} className="flex items-center gap-1.5 text-white/65 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95">
               <Sparkles size={16} /> My Results
             </button>
+            <button onClick={() => navigate('/play/progress')} className="flex items-center gap-1.5 text-white/65 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95">
+              <Star size={16} /> My Progress
+            </button>
             {/* Divider so "Switch player" doesn't visually blend into the row
                 above -- it's the one button here that hands the device to
                 someone else. */}
