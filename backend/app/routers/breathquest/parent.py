@@ -26,7 +26,8 @@ from app.models.vaakmirror_models import (
     VaakMirrorSession, Attempt, AttemptOutcome,
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
-from app.models.flashcards_models import PhonemeMastery
+from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
+from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut
 from sqlalchemy import func
 
 _VM_SUCCESS_OUTCOMES = (AttemptOutcome.passed, AttemptOutcome.caught)  # matches weekly_summary.py's definition
@@ -229,6 +230,111 @@ async def get_parent_progress(
         avg_breath_consistency=avg_breath_consistency,
         has_therapist=bool(patient.therapist_id),
     )
+
+
+@router.get("/history/{category}/{item}", response_model=CategoryHistoryOut)
+async def get_category_history(
+    category: str,
+    item: str,
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-attempt history for a single category/item pair from the
+    /progress summary above -- e.g. category='flashcards', item='EH'.
+    Kept as its own endpoint rather than inflating /progress, since most
+    of the time a parent never expands a row and doesn't need this."""
+    patient = await _get_linked_patient(parent, db)
+    pid_str = str(patient.id)
+    entries: list[HistoryEntry] = []
+
+    if category == "breathquest":
+        level_id = {v: k for k, v in LEVEL_NAMES.items()}.get(item)
+        if level_id:
+            rows = (await db.execute(
+                select(GameSession)
+                .where(GameSession.patient_id == patient.id, GameSession.level_id == level_id)
+                .order_by(GameSession.started_at.asc())
+            )).scalars().all()
+            entries = [
+                HistoryEntry(
+                    date=s.started_at,
+                    label=f"{s.stars_earned or 0}★" + ("" if s.completed else " · not completed"),
+                    value=float(s.stars_earned or 0),
+                ) for s in rows
+            ]
+
+    elif category == "voicehurdlerace":
+        rows = (await db.execute(
+            select(VoiceHurdleRaceSession)
+            .where(VoiceHurdleRaceSession.patient_id == patient.id, VoiceHurdleRaceSession.level_name == item)
+            .order_by(VoiceHurdleRaceSession.created_at.asc())
+        )).scalars().all()
+        entries = [
+            HistoryEntry(
+                date=s.created_at,
+                label=f"{s.stars}★ · pitch {round(s.pitch_accuracy)}% · loudness {round(s.loudness_accuracy)}%",
+                value=round((s.pitch_accuracy + s.loudness_accuracy) / 2, 1),
+            ) for s in rows
+        ]
+
+    elif category == "vaakmirror":
+        rows = (await db.execute(
+            select(Attempt)
+            .join(VaakMirrorSession, Attempt.session_id == VaakMirrorSession.id)
+            .where(VaakMirrorSession.patient_id == pid_str, VaakMirrorSession.game == item)
+            .order_by(Attempt.created_at.asc())
+        )).scalars().all()
+        entries = [
+            HistoryEntry(
+                date=r.created_at,
+                label=(r.outcome.value if hasattr(r.outcome, "value") else str(r.outcome)) + (f" · {r.sound_id}" if r.sound_id else ""),
+                value=100.0 if r.outcome in _VM_SUCCESS_OUTCOMES else 0.0,
+            ) for r in rows
+        ]
+
+    elif category == "flashcards":
+        phoneme = item.upper()
+        rows = (await db.execute(
+            select(FlashcardAttempt)
+            .where(FlashcardAttempt.patient_id == patient.id)
+            .order_by(FlashcardAttempt.created_at.asc())
+        )).scalars().all()
+        for a in rows:
+            matches = [m for m in (a.phoneme_matches or []) if (m.get("expected") or "").upper() == phoneme]
+            if not matches:
+                continue
+            correct = any(m.get("correct") for m in matches)
+            entries.append(HistoryEntry(
+                date=a.created_at,
+                label=f"'{a.target_word}' · {'correct' if correct else 'needs work'}",
+                value=100.0 if correct else 0.0,
+                detail=a.transcript,
+            ))
+
+    elif category == "chime":
+        chime_events = await asyncio.to_thread(
+            chime_data_store.get_events, child_id=pid_str, db_path=chime_data_store.DEFAULT_DB_PATH
+        )
+        for ev in chime_events:
+            if ev.get("level_id") != item:
+                continue
+            try:
+                ts = datetime.fromisoformat(ev["timestamp"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            entries.append(HistoryEntry(
+                date=ts,
+                label="valid attempt" if ev.get("is_valid_attempt") else "attempt",
+                value=100.0 if ev.get("is_valid_attempt") else 0.0,
+            ))
+        entries.sort(key=lambda e: e.date)
+
+    else:
+        raise HTTPException(status_code=404, detail=f"Unknown category '{category}'")
+
+    return CategoryHistoryOut(category_name=item, entries=entries[-100:])
 
 
 # Sound ids used in VaakMirror/Chime don't always match a home-practice-idea

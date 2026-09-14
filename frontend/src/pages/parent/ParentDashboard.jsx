@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send, CloudOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings, MessageCircle, Send, CloudOff, ChevronDown } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar, ChildSwitcher, AboutModal } from '../../components/ui'
 import { useNavigate } from 'react-router-dom'
@@ -9,6 +10,72 @@ import toast from 'react-hot-toast'
 function formatDate(iso) {
   if (!iso) return 'Not yet played'
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// Wraps a single category-row Card so parents can click into full history --
+// per-attempt log + a trend chart -- lazily fetched from GET
+// /parent/history/{category}/{item} the first time a row is expanded, not
+// upfront, since most rows are never opened in a given visit.
+function ExpandableRow({ category, item, children }) {
+  const [open, setOpen] = useState(false)
+  const [history, setHistory] = useState(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  const toggle = () => {
+    setOpen(o => !o)
+    if (!history && !loadingHistory) {
+      setLoadingHistory(true)
+      parentAPI.history(category, item.category_name)
+        .then(({ data }) => setHistory(data))
+        .catch(() => setHistory({ entries: [] }))
+        .finally(() => setLoadingHistory(false))
+    }
+  }
+
+  return (
+    <Card
+      className="py-4 cursor-pointer hover:bg-white/[0.03] transition-colors"
+      onClick={toggle}
+    >
+      <div className="flex items-center justify-between gap-4">
+        {children}
+        <ChevronDown
+          size={16}
+          className={`text-paper/25 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </div>
+      {open && (
+        <div className="mt-4 pt-4 border-t border-white/[0.06]" onClick={e => e.stopPropagation()}>
+          {loadingHistory && <p className="text-paper/30 text-xs">Loading history…</p>}
+          {!loadingHistory && history?.entries?.length > 0 && (
+            <>
+              <div className="h-28 mb-3 -ml-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history.entries.map(e => ({ date: formatDate(e.date), value: e.value }))}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} width={28} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: '#12181f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: 'rgba(255,255,255,0.6)' }} />
+                    <Line type="monotone" dataKey="value" stroke="#2FB8A6" strokeWidth={2} dot={{ r: 3, fill: '#2FB8A6' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+                {[...history.entries].reverse().map((e, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-paper/40 shrink-0">{formatDate(e.date)}</span>
+                    <span className="text-paper/70 text-right">{e.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {!loadingHistory && history?.entries?.length === 0 && (
+            <p className="text-paper/30 text-xs">No detailed history yet.</p>
+          )}
+        </div>
+      )}
+    </Card>
+  )
 }
 
 // Parent-facing dashboard, reading GET /parent/progress — a fully-built
@@ -335,7 +402,7 @@ export default function ParentDashboard() {
             <h2 className="font-display text-lg font-bold text-paper mb-3">BreathQuest</h2>
             <div className="flex flex-col gap-2.5 mb-8">
               {(data.categories?.breathquest ?? []).map((cat, i) => (
-                <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                <ExpandableRow key={i} category="breathquest" item={cat}>
                   <div>
                     <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
                     <p className="text-paper/35 text-xs mt-0.5">
@@ -349,7 +416,7 @@ export default function ParentDashboard() {
                       </span>
                     ))}
                   </div>
-                </Card>
+                </ExpandableRow>
               ))}
             </div>
 
@@ -363,7 +430,7 @@ export default function ParentDashboard() {
             <div className="flex flex-col gap-2.5 mb-8">
               {data.categories?.voicehurdlerace?.length > 0 ? (
                 data.categories.voicehurdlerace.map((cat, i) => (
-                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                  <ExpandableRow key={i} category="voicehurdlerace" item={cat}>
                     <div>
                       <p className="text-paper text-sm font-semibold">{cat.category_name}</p>
                       <p className="text-paper/35 text-xs mt-0.5">
@@ -377,7 +444,7 @@ export default function ParentDashboard() {
                         </span>
                       ))}
                     </div>
-                  </Card>
+                  </ExpandableRow>
                 ))
               ) : (
                 <Card className="py-4">
@@ -395,7 +462,7 @@ export default function ParentDashboard() {
             <div className="flex flex-col gap-2.5 mb-8">
               {data.categories?.vaakmirror?.length > 0 ? (
                 data.categories.vaakmirror.map((cat, i) => (
-                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                  <ExpandableRow key={i} category="vaakmirror" item={cat}>
                     <div>
                       <p className="text-paper text-sm font-semibold">
                         {cat.category_name.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
@@ -405,7 +472,7 @@ export default function ParentDashboard() {
                       </p>
                     </div>
                     <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
-                  </Card>
+                  </ExpandableRow>
                 ))
               ) : (
                 <Card className="py-4">
@@ -420,7 +487,7 @@ export default function ParentDashboard() {
             <div className="flex flex-col gap-2.5 mb-8">
               {data.categories?.flashcards?.length > 0 ? (
                 data.categories.flashcards.map((cat, i) => (
-                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                  <ExpandableRow key={i} category="flashcards" item={cat}>
                     <div>
                       <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
                       <p className="text-paper/35 text-xs mt-0.5">
@@ -428,7 +495,7 @@ export default function ParentDashboard() {
                       </p>
                     </div>
                     <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
-                  </Card>
+                  </ExpandableRow>
                 ))
               ) : (
                 <Card className="py-4">
@@ -445,7 +512,7 @@ export default function ParentDashboard() {
             <div className="flex flex-col gap-2.5 mb-8">
               {data.categories?.chime?.length > 0 ? (
                 data.categories.chime.map((cat, i) => (
-                  <Card key={i} className="flex items-center justify-between gap-4 py-4">
+                  <ExpandableRow key={i} category="chime" item={cat}>
                     <div>
                       <p className="text-paper text-sm font-semibold">/{cat.category_name}/</p>
                       <p className="text-paper/35 text-xs mt-0.5">
@@ -453,7 +520,7 @@ export default function ParentDashboard() {
                       </p>
                     </div>
                     <p className="text-paper text-sm font-semibold shrink-0">{cat.accuracy_pct}%</p>
-                  </Card>
+                  </ExpandableRow>
                 ))
               ) : (
                 <Card className="py-4">

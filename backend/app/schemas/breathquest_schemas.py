@@ -362,6 +362,22 @@ class CategoryProgress(BaseModel):
     stars: Optional[int] = None
 
 
+class HistoryEntry(BaseModel):
+    """One row in a category's expanded history -- both the log line and
+    the chart point come from the same entry, value is always 0-100 (or
+    0-3 for BreathQuest stars) so the frontend can plot it without
+    per-category special-casing."""
+    date: datetime
+    label: str
+    value: float
+    detail: Optional[str] = None
+
+
+class CategoryHistoryOut(BaseModel):
+    category_name: str
+    entries: List[HistoryEntry]
+
+
 class PatientProgress(BaseModel):
     patient_id: str
     first_name: str
