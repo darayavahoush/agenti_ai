@@ -260,17 +260,20 @@ export default function MyAccount() {
                     <h1 className="font-vm-display text-3xl font-bold text-white">
                       {displayName}
                     </h1>
-                    <button onClick={startEditingName} className="text-white/25 hover:text-white/60 transition-colors" aria-label="Edit name">
+                    <button onClick={startEditingName} className="text-white/45 hover:text-white transition-colors" aria-label="Edit name">
                       <Pencil size={15} />
                     </button>
                   </>
                 )}
               </div>
               <p className="text-white/40 mt-2">Look how far you've come! 🎉</p>
+              <p className="text-white/25 text-xs mt-1">Tap the pencils to change your name or photo</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5">
+              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5
+                               transition-all duration-300 hover:-translate-y-1 hover:border-white/20
+                               animate-[acctPopIn_0.5s_ease-out_backwards]" style={{ animationDelay: '0ms' }}>
                 <div className="w-12 h-12 rounded-full bg-ember/15 flex items-center justify-center mx-auto mb-3">
                   <Flame className="w-6 h-6 text-ember" />
                 </div>
@@ -280,7 +283,9 @@ export default function MyAccount() {
                 </p>
               </div>
 
-              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5">
+              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5
+                               transition-all duration-300 hover:-translate-y-1 hover:border-white/20
+                               animate-[acctPopIn_0.5s_ease-out_backwards]" style={{ animationDelay: '100ms' }}>
                 <div className="w-12 h-12 rounded-full bg-mint/15 flex items-center justify-center mx-auto mb-3">
                   <Calendar className="w-6 h-6 text-mint" />
                 </div>
@@ -290,7 +295,9 @@ export default function MyAccount() {
                 </p>
               </div>
 
-              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5">
+              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5
+                               transition-all duration-300 hover:-translate-y-1 hover:border-white/20
+                               animate-[acctPopIn_0.5s_ease-out_backwards]" style={{ animationDelay: '200ms' }}>
                 <div className="w-12 h-12 rounded-full bg-brand-amber/15 flex items-center justify-center mx-auto mb-3">
                   <Star className="w-6 h-6 text-brand-amber" fill="currentColor" fillOpacity={0.3} />
                 </div>
@@ -347,7 +354,12 @@ export default function MyAccount() {
           pretend it was forgotten and go through the parent-email OTP
           recovery flow. This is for "I just want a new one", using the
           current PIN as re-auth instead. */}
-      <div className="mt-12 pt-6 border-t border-white/10">
+      <div className="max-w-2xl mx-auto px-6">
+        <p className="text-white/25 text-[11px] font-semibold uppercase tracking-[0.15em] text-center mt-10 mb-1">
+          Account settings
+        </p>
+      </div>
+      <div className="max-w-2xl mx-auto px-6 pt-6 border-t border-white/10">
         {!changingPin ? (
           <div className="text-center">
             <button onClick={() => { setChangingPin(true); setPinError('') }}
@@ -395,7 +407,7 @@ export default function MyAccount() {
 
       {/* Delete account -- two-tap confirm, since this is destructive and
           irreversible (deletes all game progress, not just the login). */}
-      <div className="mt-12 pt-6 border-t border-white/10">
+      <div className="max-w-2xl mx-auto px-6 mt-12 pt-6 border-t border-white/10">
         {!confirmingDelete ? (
           <button onClick={() => setConfirmingDelete(true)}
                   className="text-white/25 hover:text-brand-coral text-xs flex items-center gap-1.5 mx-auto transition-colors">
@@ -444,6 +456,13 @@ export default function MyAccount() {
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes acctPopIn {
+          0% { opacity: 0; transform: translateY(12px) scale(0.95); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
 
       {cropImageSrc && (
         <PhotoCropModal
