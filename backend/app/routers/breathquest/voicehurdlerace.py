@@ -197,7 +197,7 @@ async def get_patient_sessions(
     403) if the patient isn't theirs, so this doesn't leak which patient
     IDs exist to a therapist probing at random."""
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
     patient_row = patient_result.scalar_one_or_none()
     if not patient_row:
