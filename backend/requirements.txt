@@ -124,3 +124,4 @@ gtts
 # regional ones that shift every year -- no hand-maintained date list to
 # go stale. See app/services/greetings.py.
 holidays==0.104
+reportlab
