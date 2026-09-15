@@ -4,11 +4,39 @@ import { dashboardAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader } from '../../components/ui'
 import { ArrowLeft, CloudOff } from 'lucide-react'
 
-const LEVEL_OPTIONS = [
-  { id: 'balloon', label: 'Balloon' }, { id: 'candle', label: 'Candle' },
-  { id: 'dandelion', label: 'Dandelion' }, { id: 'dragon', label: 'Dragon' },
-  { id: 'float_rider', label: 'Float Rider' }, { id: 'pinwheel', label: 'Pinwheel' },
-]
+// Each game's own level id namespace (see each router's agent/status route
+// for how these map to AgentService's shared per-child event store).
+const GAMES = {
+  breathquest: {
+    label: 'BreathQuest',
+    levels: [
+      { id: 'balloon', label: 'Balloon' }, { id: 'candle', label: 'Candle' },
+      { id: 'dandelion', label: 'Dandelion' }, { id: 'dragon', label: 'Dragon' },
+      { id: 'float_rider', label: 'Float Rider' }, { id: 'pinwheel', label: 'Pinwheel' },
+    ],
+  },
+  chime: {
+    label: 'Chime',
+    levels: [
+      { id: 'aa', label: 'Rocket Launch' }, { id: 'oo', label: 'Submarine Dive' },
+      { id: 'ma', label: 'Firefly Jar' }, { id: 'fa', label: 'Bubble Garden' },
+      { id: 'ha', label: 'Bubble Wrap Pop' }, { id: 'ee', label: 'Xylophone Tower' },
+      { id: 'r', label: "Lion's Roar" }, { id: 'village-builder', label: 'Village Builder' },
+    ],
+  },
+  voicehurdlerace: {
+    label: 'Voice Hurdle Race',
+    // level_id here is an int, unlike the other two games -- the backend
+    // route prefixes it internally (_vhr_level_key) before querying.
+    levels: [
+      { id: 1, label: "Level 1: Blip's Green Plains" },
+      { id: 2, label: "Level 2: Zog's Circuit Desert" },
+      { id: 3, label: "Level 3: Glorb's Swamp Moon" },
+      { id: 4, label: "Level 4: Cosmo's Red Frontier" },
+      { id: 5, label: "Level 5: Comet's Starfield" },
+    ],
+  },
+}
 
 const POLICY_LABELS = {
   rule_based: 'Rule-based', bandit: 'Bandit', tabular_q: 'Tabular Q-learning',
@@ -18,19 +46,25 @@ const POLICY_LABELS = {
 export default function AgentInsight() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [levelId, setLevelId] = useState(LEVEL_OPTIONS[0].id)
+  const [game, setGame] = useState('breathquest')
+  const [levelId, setLevelId] = useState(GAMES.breathquest.levels[0].id)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const selectGame = (g) => {
+    setGame(g)
+    setLevelId(GAMES[g].levels[0].id)
+  }
+
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    dashboardAPI.agentStatus(id, levelId)
+    dashboardAPI.agentStatus(id, levelId, 'tabular_q', game)
       .then(r => setStatus(r.data))
       .catch(e => setError(getErrorMessage(e, 'Could not load agent status')))
       .finally(() => setLoading(false))
-  }, [id, levelId])
+  }, [id, levelId, game])
 
   useEffect(() => { load() }, [load])
 
@@ -45,8 +79,22 @@ export default function AgentInsight() {
         Read-only — this does not affect gameplay or training data.
       </p>
 
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {Object.entries(GAMES).map(([key, g]) => (
+          <button
+            key={key}
+            onClick={() => selectGame(key)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+              key === game ? 'bg-white text-black' : 'bg-white/5 text-white/50'
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex gap-2 mb-6 flex-wrap">
-        {LEVEL_OPTIONS.map(l => (
+        {GAMES[game].levels.map(l => (
           <button
             key={l.id}
             onClick={() => setLevelId(l.id)}

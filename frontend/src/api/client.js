@@ -225,8 +225,13 @@ export const sessionsAPI = {
 export const dashboardAPI = {
   summary:     ()           => api.get('/dashboard/summary'),
   progress:    (patientId)  => api.get(`/dashboard/patients/${patientId}/progress`),
-  agentStatus: (patientId, levelId, policy = 'tabular_q') =>
-    api.get(`/breath/agent/status/${patientId}`, { params: { level_id: levelId, policy } }),
+  // game: 'breathquest' | 'chime' | 'voicehurdlerace' -- each has its own
+  // AgentService-backed router (see backend/app/routers/breathquest/
+  // breath_agent.py, chime.py, voicehurdlerace.py agent/status routes).
+  agentStatus: (patientId, levelId, policy = 'tabular_q', game = 'breathquest') => {
+    const prefix = { breathquest: '/breath', chime: '/chime', voicehurdlerace: '/voicehurdlerace' }[game]
+    return api.get(`${prefix}/agent/status/${patientId}`, { params: { level_id: levelId, policy } })
+  },
   createNote:  (patientId, data) => api.post(`/dashboard/patients/${patientId}/notes`, data),
   listNotes:   (patientId)       => api.get(`/dashboard/patients/${patientId}/notes`),
   updateNote:  (noteId, data)    => api.patch(`/dashboard/notes/${noteId}`, data),
