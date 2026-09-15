@@ -200,16 +200,19 @@ async def get_patient_events(
     before this, chime.py only had kid-token-gated endpoints. Ownership
     check matches the pattern in routers/voicehurdlerace.py."""
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
-    if not patient_result.scalar_one_or_none():
+    patient_row = patient_result.scalar_one_or_none()
+    if not patient_row:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     # data_store.get_events is synchronous SQLite I/O — thread it off since
     # this route is `async def` (transcribe_audio/score_phoneme above
     # already establish this pattern in this same file; this one just
     # hadn't been brought in line with it).
-    events = await asyncio.to_thread(data_store.get_events, child_id=patient_id, db_path=DB_PATH)
+    # NOTE: child_id must be patient_row.id (breathquest_patients.id), not
+    # patient_id (patients.id) — see breath_agent.py for the same fix.
+    events = await asyncio.to_thread(data_store.get_events, child_id=patient_row.id, db_path=DB_PATH)
     if level_id:
         events = [e for e in events if e["level_id"] == level_id]
     return [_to_event_out(e) for e in events]
@@ -372,12 +375,13 @@ async def chime_agent_status(
     db: AsyncSession = Depends(get_db),
 ):
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
-    if not patient_result.scalar_one_or_none():
+    patient_row = patient_result.scalar_one_or_none()
+    if not patient_row:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    result = await asyncio.to_thread(_agent_service.get_status, patient_id, level_id, policy)
+    result = await asyncio.to_thread(_agent_service.get_status, patient_row.id, level_id, policy)
     return AgentStatusOut(**result)
 
 

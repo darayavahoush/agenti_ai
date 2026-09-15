@@ -75,12 +75,13 @@ async def voicehurdlerace_agent_status(
     db: AsyncSession = Depends(get_db),
 ):
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
-    if not patient_result.scalar_one_or_none():
+    patient_row = patient_result.scalar_one_or_none()
+    if not patient_row:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    result = await asyncio.to_thread(_agent_service.get_status, patient_id, _vhr_level_key(level_id), policy)
+    result = await asyncio.to_thread(_agent_service.get_status, patient_row.id, _vhr_level_key(level_id), policy)
     return AgentStatusOut(**result)
 
 
@@ -196,14 +197,15 @@ async def get_patient_sessions(
     403) if the patient isn't theirs, so this doesn't leak which patient
     IDs exist to a therapist probing at random."""
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
-    if not patient_result.scalar_one_or_none():
+    patient_row = patient_result.scalar_one_or_none()
+    if not patient_row:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     result = await db.execute(
         select(VoiceHurdleRaceSession)
-        .where(VoiceHurdleRaceSession.patient_id == patient_id)
+        .where(VoiceHurdleRaceSession.patient_id == patient_row.id)
         .order_by(desc(VoiceHurdleRaceSession.created_at))
     )
     return result.scalars().all()

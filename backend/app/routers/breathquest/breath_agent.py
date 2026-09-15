@@ -231,13 +231,17 @@ async def breath_agent_status(
     db: AsyncSession = Depends(get_db),
 ):
     patient_result = await db.execute(
-        select(Patient).where(Patient.id == patient_id, Patient.therapist_id == therapist.id)
+        select(Patient).where(Patient.assessment_patient_id == patient_id, Patient.therapist_id == therapist.id)
     )
-    if not patient_result.scalar_one_or_none():
+    patient_row = patient_result.scalar_one_or_none()
+    if not patient_row:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     # AgentService.get_status() does synchronous SQLite/file I/O internally
     # (build_obs/_downgrade_reason) — threaded off since this route is
     # `async def`, same class of fix applied across this pass.
-    result = await asyncio.to_thread(_agent_service.get_status, patient_id, level_id, policy)
+    # NOTE: must use patient_row.id (breathquest_patients.id), not the
+    # incoming patient_id (patients.id) — gameplay events are logged under
+    # the former via get_current_patient's kid-token path.
+    result = await asyncio.to_thread(_agent_service.get_status, patient_row.id, level_id, policy)
     return AgentStatusOut(**result)
