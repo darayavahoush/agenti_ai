@@ -211,6 +211,26 @@ function ExpandableAssignmentRow({ assignment, children }) {
   )
 }
 
+// Small pill for a phoneme in the Flashcards tab's strongest/weakest rows --
+// tone picks the accent color, trend shows the same up/down/flat arrow
+// convention as the Sound Accuracy strip elsewhere on this page.
+function PhonemePill({ p, tone }) {
+  const toneClasses = tone === 'green'
+    ? 'border-brand-green/30 bg-brand-green/5 text-brand-green'
+    : 'border-brand-coral/30 bg-brand-coral/5 text-brand-coral'
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${toneClasses}`}>
+      <span className="font-mono uppercase font-semibold">{p.phoneme}</span>
+      <span className="text-white/50">{p.accuracy}%</span>
+      {p.trend && (
+        <span className={p.trend === 'up' ? 'text-brand-green' : p.trend === 'down' ? 'text-brand-coral' : 'text-white/30'}>
+          {p.trend === 'up' ? '↑' : p.trend === 'down' ? '↓' : '→'}
+        </span>
+      )}
+    </div>
+  )
+}
+
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
   balloon: '🎈', dandelion: '🌼', dragon: '🐉'
@@ -265,6 +285,9 @@ export default function PatientDetail() {
   const [vmDashboard, setVmDashboard] = useState(null)
   const [vmLoading, setVmLoading] = useState(true)
   const [vmError, setVmError] = useState(false)
+  const [flashcardsData, setFlashcardsData] = useState(null)
+  const [flashcardsLoading, setFlashcardsLoading] = useState(true)
+  const [flashcardsError, setFlashcardsError] = useState(false)
   const [agentSuggestions, setAgentSuggestions] = useState({})
   const [agentLoading, setAgentLoading] = useState(true)
   const [dismissedSuggestions, setDismissedSuggestions] = useState({})
@@ -333,6 +356,11 @@ export default function PatientDetail() {
       .then(({ data }) => setVmDashboard(data))
       .catch(err => { console.error('Failed to load VaakMirror dashboard:', err); setVmError(true) })
       .finally(() => setVmLoading(false))
+
+    dashboardAPI.getFlashcardsProgress(id)
+      .then(({ data }) => setFlashcardsData(data))
+      .catch(err => { console.error('Failed to load Flashcards progress:', err); setFlashcardsError(true) })
+      .finally(() => setFlashcardsLoading(false))
 
     dashboardAPI.getSoundProgress(id)
       .then(({ data }) => setSoundProgress(data))
@@ -594,6 +622,7 @@ export default function PatientDetail() {
     ['voicehurdlerace', Dog, 'Voice Hurdle'],
     ['chime', Bell, 'Chime'],
     ['vaakmirror', Waves, 'Orpheus'],
+    ['flashcards', ListChecks, 'Flashcards'],
     ['care', HeartPulse, 'Care'],
     ['notes', FileText, 'Notes'],
   ]
@@ -1148,6 +1177,101 @@ export default function PatientDetail() {
                     </Card>
                   )
                 ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Flashcards tab — phoneme-level mastery, strongest/weakest highlights,
+            and a recent-words feed. No stars concept, same as Chime. */}
+        {tab === 'flashcards' && (
+          <div className="flex flex-col gap-6">
+            {flashcardsLoading ? (
+              <Card className="text-center py-12"><Spinner /></Card>
+            ) : flashcardsError ? (
+              <Card className="text-center py-12">
+                <CloudOff size={28} className="text-brand-coral/70 mx-auto mb-2" />
+                <p className="text-white/40">Couldn't load Flashcards data — the Flashcards service may be unavailable right now.</p>
+              </Card>
+            ) : !flashcardsData || flashcardsData.total_attempts === 0 ? (
+              <Card className="text-center py-12">
+                <ListChecks size={28} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40">No Flashcards sessions yet</p>
+              </Card>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <Card className="text-center">
+                    <p className="text-2xl font-bold font-display text-brand-green">{flashcardsData.total_attempts}</p>
+                    <p className="text-white/30 text-xs">attempts</p>
+                  </Card>
+                  <Card className="text-center">
+                    <p className="text-2xl font-bold font-display text-brand-teal">{flashcardsData.distinct_phonemes_practiced}</p>
+                    <p className="text-white/30 text-xs">phonemes practiced</p>
+                  </Card>
+                  <Card className="text-center">
+                    <p className="text-2xl font-bold font-display text-yellow-400">{flashcardsData.overall_accuracy}%</p>
+                    <p className="text-white/30 text-xs">overall accuracy</p>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <h3 className="font-semibold text-white mb-3">Strongest Sounds</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {flashcardsData.strongest.length === 0 ? (
+                        <p className="text-white/30 text-xs">Not enough data yet</p>
+                      ) : flashcardsData.strongest.map(p => (
+                        <PhonemePill key={p.phoneme} p={p} tone="green" />
+                      ))}
+                    </div>
+                  </Card>
+                  <Card>
+                    <h3 className="font-semibold text-white mb-3">Needs Practice</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {flashcardsData.weakest.length === 0 ? (
+                        <p className="text-white/30 text-xs">Not enough data yet</p>
+                      ) : flashcardsData.weakest.map(p => (
+                        <PhonemePill key={p.phoneme} p={p} tone="coral" />
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                <Card>
+                  <h3 className="font-semibold text-white mb-3">All Phonemes</h3>
+                  <div className="flex flex-col gap-3">
+                    {flashcardsData.mastery.map(p => (
+                      <div key={p.phoneme} className="flex items-center gap-3">
+                        <span className="text-white/80 font-mono text-sm w-10 uppercase">{p.phoneme}</span>
+                        <div className="flex-1">
+                          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-brand-green rounded-full transition-all"
+                                 style={{ width: `${p.accuracy}%` }} />
+                          </div>
+                        </div>
+                        <span className="text-white/50 text-xs w-12 text-right">{p.accuracy}%</span>
+                        <span className="text-white/30 text-xs w-16 text-right">{p.attempts} tries</span>
+                        {p.trend && (
+                          <span className={`text-xs w-4 ${p.trend === 'up' ? 'text-brand-green' : p.trend === 'down' ? 'text-brand-coral' : 'text-white/30'}`}>
+                            {p.trend === 'up' ? '↑' : p.trend === 'down' ? '↓' : '→'}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {flashcardsData.recent_words.length > 0 && (
+                  <Card>
+                    <h3 className="font-semibold text-white mb-3">Recently Practiced Words</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {flashcardsData.recent_words.map((w, i) => (
+                        <span key={i} className="badge bg-white/5 text-white/70 text-xs px-2.5 py-1 rounded-full">{w}</span>
+                      ))}
+                    </div>
+                  </Card>
+                )}
               </>
             )}
           </div>
