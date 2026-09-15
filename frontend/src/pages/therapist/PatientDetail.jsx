@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, chimeAPI, vaakmirrorAPI, getErrorMessage } from '../../api/client'
 import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
-import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal } from '../../components/ui'
+import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
 import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown } from 'lucide-react'
@@ -663,7 +663,15 @@ export default function PatientDetail() {
           <Play size={14} className="mr-1.5 inline" />
           {launchingSession === 'play' ? 'Launching…' : 'Launch Live Therapy'}
         </Button>
-        <Button variant="agent" size="sm" onClick={() => navigate(`/therapist/patients/${id}/agent`)}>
+        <Button
+          variant="agent"
+          size="sm"
+          onClick={() => {
+            const AGENT_GAMES = { chime: 'chime', voicehurdlerace: 'voicehurdlerace' }
+            const game = AGENT_GAMES[tab] || 'breathquest'
+            navigate(`/therapist/patients/${id}/agent?game=${game}`)
+          }}
+        >
           <Brain size={14} className="mr-1.5 inline" />
           What the agent sees
         </Button>
@@ -765,7 +773,7 @@ export default function PatientDetail() {
                 <div className="flex flex-col gap-3">
                   {data.level_progress.map(l => (
                     <ExpandableLevelRow key={l.level_id} level={l} sessions={data.recent_sessions || []}>
-                      <span className="text-xl w-7">{LEVEL_EMOJIS[l.level_id]}</span>
+                      <LevelIcon id={l.level_id} className="w-7 h-7" />
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-white/70">{l.level_name}</span>
@@ -927,7 +935,7 @@ export default function PatientDetail() {
               ? <Card className="text-center py-12 text-white/40">No sessions yet</Card>
               : data.recent_sessions.map(s => (
                 <Card key={s.id} className="flex items-center gap-4">
-                  <span className="text-2xl">{LEVEL_EMOJIS[s.level_id]}</span>
+                  <LevelIcon id={s.level_id} className="w-9 h-9" />
                   <div className="flex-1">
                     <p className="font-semibold text-white capitalize">{s.level_id.replace('_', ' ')}</p>
                     <p className="text-white/30 text-xs">

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, getErrorMessage } from '../../api/client'
-import { Card, Badge, Button, PageLoader } from '../../components/ui'
-import { ArrowLeft, CloudOff } from 'lucide-react'
+import { Card, Badge, Button, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
+import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves } from 'lucide-react'
 
-// Each game's own level id namespace (see each router's agent/status route
-// for how these map to AgentService's shared per-child event store).
 const GAMES = {
   breathquest: {
     label: 'BreathQuest',
+    icon: Gamepad2,
     levels: [
       { id: 'balloon', label: 'Balloon' }, { id: 'candle', label: 'Candle' },
       { id: 'dandelion', label: 'Dandelion' }, { id: 'dragon', label: 'Dragon' },
@@ -17,6 +17,7 @@ const GAMES = {
   },
   chime: {
     label: 'Chime',
+    icon: Bell,
     levels: [
       { id: 'aa', label: 'Rocket Launch' }, { id: 'oo', label: 'Submarine Dive' },
       { id: 'ma', label: 'Firefly Jar' }, { id: 'fa', label: 'Bubble Garden' },
@@ -26,8 +27,7 @@ const GAMES = {
   },
   voicehurdlerace: {
     label: 'Voice Hurdle Race',
-    // level_id here is an int, unlike the other two games -- the backend
-    // route prefixes it internally (_vhr_level_key) before querying.
+    icon: Waves,
     levels: [
       { id: 1, label: "Level 1: Blip's Green Plains" },
       { id: 2, label: "Level 2: Zog's Circuit Desert" },
@@ -38,19 +38,153 @@ const GAMES = {
   },
 }
 
-const POLICY_LABELS = {
-  rule_based: 'Rule-based', bandit: 'Bandit', tabular_q: 'Tabular Q-learning',
-  ppo: 'PPO', recurrent_ppo: 'Recurrent PPO',
+const LADDER_ORDER = ['rule_based', 'tabular_q', 'ppo', 'recurrent_ppo']
+const POLICY_INFO = {
+  rule_based: {
+    label: 'Rule-based', short: 'Using general guidelines',
+    detail: "Not enough of this child's own attempts logged yet, so the agent falls back to fixed rules based on typical patterns across children.",
+  },
+  bandit: {
+    label: 'Bandit', short: 'Legacy fallback (retired)',
+    detail: 'An older policy type kept only for backward compatibility with historical data — no longer assigned to new sessions.',
+  },
+  tabular_q: {
+    label: 'Tabular Q-learning', short: 'Learned from this child',
+    detail: "Has enough of this child's own logged attempts to make personalized calls instead of general guidelines.",
+  },
+  ppo: {
+    label: 'PPO', short: 'Fine-tuned in real time',
+    detail: 'A more advanced learner that keeps adapting as new attempts come in.',
+  },
+  recurrent_ppo: {
+    label: 'Recurrent PPO', short: 'Remembers recent patterns',
+    detail: 'Like PPO, but also factors in the sequence of recent attempts, not just the latest one.',
+  },
+}
+
+function RungGlyph({ policyKey, active }) {
+  const stroke = active ? '#1D9E75' : 'rgba(255,255,255,0.35)'
+  const common = { fill: 'none', stroke, strokeWidth: 2.5, strokeLinecap: 'round' }
+  switch (policyKey) {
+    case 'rule_based':
+      return <svg viewBox="0 0 24 24" className="w-5 h-5"><line x1="4" y1="12" x2="20" y2="12" {...common} /></svg>
+    case 'tabular_q':
+      return (
+        <svg viewBox="0 0 24 24" className="w-5 h-5">
+          <line x1="5" y1="18" x2="5" y2="13" {...common} />
+          <line x1="12" y1="18" x2="12" y2="9" {...common} />
+          <line x1="19" y1="18" x2="19" y2="5" {...common} />
+        </svg>
+      )
+    case 'ppo':
+      return (
+        <svg viewBox="0 0 24 24" className="w-5 h-5">
+          <circle cx="6" cy="6" r="2.3" {...common} />
+          <circle cx="18" cy="6" r="2.3" {...common} />
+          <circle cx="12" cy="18" r="2.3" {...common} />
+          <line x1="8" y1="7" x2="10.5" y2="16" {...common} strokeWidth="2" />
+          <line x1="16" y1="7" x2="13.5" y2="16" {...common} strokeWidth="2" />
+          <line x1="8" y1="6" x2="16" y2="6" {...common} strokeWidth="2" />
+        </svg>
+      )
+    case 'recurrent_ppo':
+      return (
+        <svg viewBox="0 0 24 24" className="w-5 h-5">
+          <path d="M5 12a7 7 0 1 1 2 5" {...common} />
+          <path d="M5 15v-3h3" {...common} />
+        </svg>
+      )
+    default:
+      return <svg viewBox="0 0 24 24" className="w-5 h-5"><circle cx="12" cy="12" r="3" {...common} /></svg>
+  }
+}
+
+function PolicyLadder({ current, downgradeReason }) {
+  const [openInfo, setOpenInfo] = useState(current)
+  const currentIdx = LADDER_ORDER.indexOf(current)
+  const isRetired = !LADDER_ORDER.includes(current)
+
+  return (
+    <Card>
+      <h3 className="font-semibold text-white mb-1">Where this child's agent is at</h3>
+      <p className="text-white/40 text-xs mb-4">
+        Tap a stage to see what it means. The highlighted stage is active right now.
+      </p>
+      <div className="flex flex-col-reverse gap-2">
+        {LADDER_ORDER.map((key, i) => {
+          const info = POLICY_INFO[key]
+          const isActive = key === current
+          const isPast = i < currentIdx
+          return (
+            <div key={key}>
+              <button
+                onClick={() => setOpenInfo(openInfo === key ? null : key)}
+                className={`w-full text-left rounded-xl px-4 py-3 border transition ${
+                  isActive ? 'bg-brand-green/15 border-brand-green/40'
+                  : isPast ? 'bg-white/5 border-white/10 opacity-70'
+                  : 'bg-white/[0.02] border-white/5 opacity-40'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <RungGlyph policyKey={key} active={isActive} />
+                  <span className={`font-medium flex-1 ${isActive ? 'text-white' : 'text-white/60'}`}>
+                    {info.label}
+                  </span>
+                  {isActive && <Badge color="green">Active</Badge>}
+                </div>
+                <p className="text-sm text-white/50 mt-1 ml-[30px]">{info.short}</p>
+              </button>
+              {openInfo === key && (
+                <p className="text-xs text-white/40 px-4 py-2">{info.detail}</p>
+              )}
+            </div>
+          )
+        })}
+        {isRetired && (
+          <div>
+            <button
+              onClick={() => setOpenInfo(openInfo === current ? null : current)}
+              className="w-full text-left rounded-xl px-4 py-3 border bg-brand-amber/10 border-brand-amber/30"
+            >
+              <div className="flex items-center gap-2.5">
+                <RungGlyph policyKey={current} active />
+                <span className="font-medium flex-1 text-white">
+                  {POLICY_INFO[current]?.label || current}
+                </span>
+                <Badge color="amber">Active</Badge>
+              </div>
+              <p className="text-sm text-white/50 mt-1 ml-[30px]">
+                {POLICY_INFO[current]?.short || 'Not on the usual ladder'}
+              </p>
+            </button>
+            {openInfo === current && (
+              <p className="text-xs text-white/40 px-4 py-2">
+                {POLICY_INFO[current]?.detail || "This policy isn't part of the normal progression."}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {downgradeReason && (
+        <p className="text-white/40 text-xs mt-4 border-t border-white/10 pt-3">{downgradeReason}</p>
+      )}
+    </Card>
+  )
 }
 
 export default function AgentInsight() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [game, setGame] = useState('breathquest')
-  const [levelId, setLevelId] = useState(GAMES.breathquest.levels[0].id)
+  const { therapist, logout } = useAuth()
+  const [searchParams] = useSearchParams()
+  const requestedGame = searchParams.get('game')
+  const initialGame = GAMES[requestedGame] ? requestedGame : 'breathquest'
+  const [game, setGame] = useState(initialGame)
+  const [levelId, setLevelId] = useState(GAMES[initialGame].levels[0].id)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showTechDetail, setShowTechDetail] = useState(false)
 
   const selectGame = (g) => {
     setGame(g)
@@ -69,97 +203,118 @@ export default function AgentInsight() {
   useEffect(() => { load() }, [load])
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <Button variant="ghost" onClick={() => navigate(`/therapist/patients/${id}`)} className="mb-4">
-        <ArrowLeft size={16} className="mr-1" /> Back to patient
-      </Button>
+    <div className="min-h-dvh relative flex"
+         style={{ background: 'radial-gradient(ellipse 1400px 800px at 15% -10%, #1D9E75 0%, #16332D 35%, #12122A 70%)' }}>
+      <AmbientGlow />
+      <Sidebar
+        role="therapist"
+        items={[
+          { label: 'Dashboard', icon: LayoutDashboard, to: '/therapist/dashboard' },
+          { label: 'Settings', icon: Settings, to: '/therapist/settings' },
+        ]}
+        name={therapist?.full_name}
+        subtitle={therapist?.clinic_name}
+        onLogout={logout}
+        extraFooter={<AboutModal role="therapist" />}
+      />
 
-      <h1 className="text-xl font-display font-bold text-white mb-1">What the agent sees</h1>
-      <p className="text-white/40 text-sm mb-6">
-        Read-only — this does not affect gameplay or training data.
-      </p>
+      <div className="relative flex-1 min-w-0 max-w-3xl mx-auto px-6 py-8">
+        <Button variant="ghost" onClick={() => navigate(`/therapist/patients/${id}`)} className="mb-4">
+          <ArrowLeft size={16} className="mr-1" /> Back to patient
+        </Button>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {Object.entries(GAMES).map(([key, g]) => (
-          <button
-            key={key}
-            onClick={() => selectGame(key)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-              key === game ? 'bg-white text-black' : 'bg-white/5 text-white/50'
-            }`}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
+        <h1 className="text-xl font-display font-bold text-white mb-1">What the agent sees</h1>
+        <p className="text-white/40 text-sm mb-6">
+          Read-only — this does not affect gameplay or training data.
+        </p>
 
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {GAMES[game].levels.map(l => (
-          <button
-            key={l.id}
-            onClick={() => setLevelId(l.id)}
-            className={`px-3 py-1.5 rounded-full text-sm ${
-              l.id === levelId ? 'bg-brand-green text-black' : 'bg-white/10 text-white/60'
-            }`}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? <PageLoader /> : error ? (
-        <Card className="text-center py-16">
-          <div className="w-14 h-14 rounded-2xl bg-brand-coral/10 flex items-center justify-center mx-auto mb-4">
-            <CloudOff size={24} className="text-brand-coral" />
-          </div>
-          <p className="text-white/70 font-medium mb-1">Couldn't load agent status</p>
-          <p className="text-white/40 text-sm mb-4">{error}</p>
-          <Button onClick={load}>Try again</Button>
-        </Card>
-      ) : !status ? null : (
-        <div className="flex flex-col gap-4">
-          <Card>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-white">Active policy</h3>
-              <Badge color={status.policy === status.requested_policy ? 'green' : 'amber'}>
-                {POLICY_LABELS[status.policy] || status.policy}
-              </Badge>
-            </div>
-            {status.downgrade_reason && (
-              <p className="text-white/50 text-sm">{status.downgrade_reason}</p>
-            )}
-            <p className="text-white/30 text-xs mt-2">
-              Based on {status.n_events_considered} recent attempts on this level.
-            </p>
-          </Card>
-
-          <Card>
-            <h3 className="font-semibold text-white mb-3">What the agent is looking at</h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-white/30 text-xs">Success rate</p>
-                <p className="text-white">{(status.obs.success_rate * 100).toFixed(0)}%</p>
-              </div>
-              <div>
-                <p className="text-white/30 text-xs">Difficulty</p>
-                <p className="text-white">{(status.obs.difficulty * 100).toFixed(0)}%</p>
-              </div>
-              <div>
-                <p className="text-white/30 text-xs">Frustration</p>
-                <p className="text-white">{(status.obs.frustration * 100).toFixed(0)}%</p>
-              </div>
-              <div>
-                <p className="text-white/30 text-xs">Severity</p>
-                <p className="text-white">{status.obs.severity_numeric.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-white/30 text-xs">Targeted sound</p>
-                <p className="text-white">{status.obs.is_targeted_sound ? 'Yes' : 'No'}</p>
-              </div>
-            </div>
-          </Card>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {Object.entries(GAMES).map(([key, g]) => {
+            const GameIcon = g.icon
+            return (
+              <button
+                key={key}
+                onClick={() => selectGame(key)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition ${
+                  key === game ? 'bg-white text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                }`}
+              >
+                <GameIcon size={14} />
+                {g.label}
+              </button>
+            )
+          })}
         </div>
-      )}
+
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {GAMES[game].levels.map(l => (
+            <button
+              key={l.id}
+              onClick={() => setLevelId(l.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition ${
+                l.id === levelId ? 'bg-brand-green text-black' : 'bg-white/10 text-white/60 hover:bg-white/15'
+              }`}
+            >
+              {game === 'breathquest' && <LevelIcon id={l.id} className="w-4 h-4" />}
+              {l.label}
+            </button>
+          ))}
+        </div>
+
+        {loading ? <PageLoader /> : error ? (
+          <Card className="text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-brand-coral/10 flex items-center justify-center mx-auto mb-4">
+              <CloudOff size={24} className="text-brand-coral" />
+            </div>
+            <p className="text-white/70 font-medium mb-1">Couldn't load agent status</p>
+            <p className="text-white/40 text-sm mb-4">{error}</p>
+            <Button onClick={load}>Try again</Button>
+          </Card>
+        ) : !status ? null : (
+          <div className="flex flex-col gap-4">
+            <PolicyLadder current={status.policy} downgradeReason={status.downgrade_reason} />
+
+            <Card>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold text-white">What the agent is looking at</h3>
+                <button
+                  onClick={() => setShowTechDetail(v => !v)}
+                  className="text-xs text-white/40 underline hover:text-white/60"
+                >
+                  {showTechDetail ? 'Hide technical details' : 'Show technical details'}
+                </button>
+              </div>
+              <p className="text-white/30 text-xs mb-3">
+                Based on {status.n_events_considered} recent attempts on this level.
+              </p>
+              {showTechDetail && (
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-white/30 text-xs">Success rate</p>
+                    <p className="text-white">{(status.obs.success_rate * 100).toFixed(0)}%</p>
+                  </div>
+                  <div>
+                    <p className="text-white/30 text-xs">Difficulty</p>
+                    <p className="text-white">{(status.obs.difficulty * 100).toFixed(0)}%</p>
+                  </div>
+                  <div>
+                    <p className="text-white/30 text-xs">Frustration</p>
+                    <p className="text-white">{(status.obs.frustration * 100).toFixed(0)}%</p>
+                  </div>
+                  <div>
+                    <p className="text-white/30 text-xs">Severity</p>
+                    <p className="text-white">{status.obs.severity_numeric.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/30 text-xs">Targeted sound</p>
+                    <p className="text-white">{status.obs.is_targeted_sound ? 'Yes' : 'No'}</p>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
