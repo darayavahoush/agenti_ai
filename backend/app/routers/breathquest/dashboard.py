@@ -40,7 +40,7 @@ from app.models.breathquest_models import (
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt, AttemptOutcome
-from app.models.flashcards_models import FlashcardAttempt
+from app.models.flashcards_models import FlashcardAttempt, PhonemeMastery
 from app.schemas.breathquest_schemas import (
     PatientProgress, LevelProgress, DashboardSummary,
     PatientDetailOut, SessionOut,
@@ -49,7 +49,7 @@ from app.schemas.breathquest_schemas import (
     GoalCreate, GoalUpdate, GoalOut,
     MessageCreate, MessageOut,
     HomePracticeLogCreate, HomePracticeLogOut,
-    PatientAlert, WeeklySummaryOut, SoundProgressOut, SoundWeekPoint,
+    PatientAlert, WeeklySummaryOut, SoundProgressOut, PhonemeMasteryOut, FlashcardsProgressOut, SoundWeekPoint,
     HomePracticeIdeaOut, HistoryEntry,
 )
 from app.breathquest_core.deps import get_current_therapist
@@ -1020,6 +1020,85 @@ def _iso_week_bucket(dt: datetime) -> tuple[str, datetime]:
     monday = dt - timedelta(days=dt.weekday())
     monday = monday.replace(hour=0, minute=0, second=0, microsecond=0)
     return (f"{iso_year}-W{iso_week:02d}", monday)
+
+
+@router.get("/patients/{patient_id}/flashcards", response_model=FlashcardsProgressOut)
+async def get_flashcards_progress(
+    patient_id: str,
+    therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """Therapist-facing Flashcards summary -- phoneme-level mastery plus
+    a small recent-words feed, from PhonemeMastery (denormalised per-
+    phoneme aggregate) and FlashcardAttempt (raw log, used only for the
+    recent-words feed and per-phoneme trend)."""
+    await _get_owned_patient(patient_id, therapist, db)
+
+    mastery_rows = (await db.execute(
+        select(PhonemeMastery).where(PhonemeMastery.patient_id == patient_id)
+    )).scalars().all()
+
+    attempts_result = await db.execute(
+        select(FlashcardAttempt)
+        .where(FlashcardAttempt.patient_id == patient_id)
+        .order_by(FlashcardAttempt.created_at.desc())
+    )
+    attempts = attempts_result.scalars().all()
+    attempts_by_phoneme: dict[str, list] = {}
+    for a in attempts:
+        for m in (a.phoneme_matches or []):
+            ph = m.get("expected")
+            if ph:
+                attempts_by_phoneme.setdefault(ph, []).append((a.created_at, m.get("correct")))
+
+    def _trend(ph: str) -> str | None:
+        rows = sorted(attempts_by_phoneme.get(ph, []), key=lambda r: r[0])
+        if len(rows) < 4:
+            return None
+        mid = len(rows) // 2
+        older = sum(1 for _, c in rows[:mid] if c) / mid
+        recent = sum(1 for _, c in rows[mid:] if c) / (len(rows) - mid)
+        diff = recent - older
+        return "up" if diff > 0.05 else "down" if diff < -0.05 else "flat"
+
+    mastery = [
+        PhonemeMasteryOut(
+            phoneme=m.phoneme,
+            attempts=m.attempts_count,
+            correct_count=m.correct_count,
+            accuracy=round(m.accuracy, 1),
+            last_word=m.last_word,
+            last_practiced_at=m.last_practiced_at,
+            trend=_trend(m.phoneme),
+        ) for m in mastery_rows
+    ]
+    mastery.sort(key=lambda p: p.accuracy)
+
+    eligible = [p for p in mastery if p.attempts >= 3]
+    strongest = sorted(eligible, key=lambda p: -p.accuracy)[:3]
+    weakest = sorted(eligible, key=lambda p: p.accuracy)[:3]
+
+    total_attempts = sum(m.attempts_count for m in mastery_rows)
+    total_correct = sum(m.correct_count for m in mastery_rows)
+
+    seen, recent_words = set(), []
+    for a in attempts:
+        if a.target_word not in seen:
+            seen.add(a.target_word)
+            recent_words.append(a.target_word)
+        if len(recent_words) >= 10:
+            break
+
+    return FlashcardsProgressOut(
+        patient_id=str(patient_id),
+        total_attempts=total_attempts,
+        distinct_phonemes_practiced=len(mastery_rows),
+        overall_accuracy=round(100 * total_correct / total_attempts, 1) if total_attempts else 0.0,
+        strongest=strongest,
+        weakest=weakest,
+        mastery=mastery,
+        recent_words=recent_words,
+    )
 
 
 @router.get("/patients/{patient_id}/sound-progress", response_model=SoundProgressOut)
