@@ -12,6 +12,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -43,6 +44,44 @@ def _vhr_level_key(level_id: int) -> str:
     game's string ids — prefix so e.g. level 1 here can't collide with
     Chime's or BreathQuest's own id scheme."""
     return f"vhr_{level_id}"
+
+
+# Same shape as breath_agent.py's / chime.py's AgentStatusOut. Read-only --
+# calls AgentService.get_status, never .decide() (side-effecting).
+class AgentStatusObs(BaseModel):
+    success_rate: float
+    difficulty: float
+    frustration: float
+    severity_numeric: float
+    is_targeted_sound: bool
+
+
+class AgentStatusOut(BaseModel):
+    policy: str
+    requested_policy: str
+    n_events_considered: int
+    downgrade_reason: Optional[str]
+    obs: AgentStatusObs
+
+
+# Therapist-facing, read-only agent status -- GET /voicehurdlerace/agent/status,
+# not GET /voicehurdlerace/agent/decide.
+@router.get("/agent/status/{patient_id}", response_model=AgentStatusOut)
+async def voicehurdlerace_agent_status(
+    patient_id: str,
+    level_id: int,
+    policy: str = "tabular_q",
+    therapist: Therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient_result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+    )
+    if not patient_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    result = await asyncio.to_thread(_agent_service.get_status, patient_id, _vhr_level_key(level_id), policy)
+    return AgentStatusOut(**result)
 
 
 @router.post("/sessions", response_model=VoiceHurdleRaceSessionOut, status_code=201)

@@ -111,6 +111,24 @@ class AgentDecisionOut(BaseModel):
     downgrade_reason: Optional[str] = None
 
 
+# Same shape as breath_agent.py's AgentStatusOut -- see that module for why
+# this is a read-only peek (calls AgentService.get_status, never .decide()).
+class AgentStatusObs(BaseModel):
+    success_rate: float
+    difficulty: float
+    frustration: float
+    severity_numeric: float
+    is_targeted_sound: bool
+
+
+class AgentStatusOut(BaseModel):
+    policy: str
+    requested_policy: str
+    n_events_considered: int
+    downgrade_reason: Optional[str]
+    obs: AgentStatusObs
+
+
 # ============================================================
 # Session events
 # ============================================================
@@ -340,6 +358,27 @@ _agent_service = AgentService(db_path=DB_PATH, recent_window=RECENT_WINDOW)
 
 def _maybe_update_tabular_q_from_new_event(child_id: str, level_id: str, quit_flag: bool):
     _agent_service.maybe_update_tabular_q_from_new_event(child_id, level_id, quit_flag)
+
+
+# Therapist-facing, read-only agent status -- GET /chime/agent/status,
+# not GET /chime/agent/decide. See breath_agent.py's identical route for
+# why this must never call .decide() (side-effecting tabular_q updates).
+@router.get("/agent/status/{patient_id}", response_model=AgentStatusOut)
+async def chime_agent_status(
+    patient_id: str,
+    level_id: str,
+    policy: Literal["rule_based", "bandit", "tabular_q", "ppo", "recurrent_ppo"] = "tabular_q",
+    therapist: Therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient_result = await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+    )
+    if not patient_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    result = await asyncio.to_thread(_agent_service.get_status, patient_id, level_id, policy)
+    return AgentStatusOut(**result)
 
 
 @router.get("/agent/decide/{level_id}", response_model=AgentDecisionOut)
