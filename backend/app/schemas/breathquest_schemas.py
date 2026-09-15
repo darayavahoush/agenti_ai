@@ -673,6 +673,27 @@ class SoundProgressOut(BaseModel):
     practiced_sound_count: int   # distinct sounds attempted at least once, all-time
 
 
+class PhonemeMasteryOut(BaseModel):
+    phoneme: str
+    attempts: int
+    correct_count: int
+    accuracy: float
+    last_word: Optional[str] = None
+    last_practiced_at: Optional[datetime] = None
+    trend: Optional[str] = None  # "up" / "down" / "flat" / None
+
+
+class FlashcardsProgressOut(BaseModel):
+    patient_id: str
+    total_attempts: int
+    distinct_phonemes_practiced: int
+    overall_accuracy: float
+    strongest: List[PhonemeMasteryOut]   # top 3 by accuracy (min attempts threshold)
+    weakest: List[PhonemeMasteryOut]     # bottom 3 by accuracy (min attempts threshold)
+    mastery: List[PhonemeMasteryOut]     # full list, sorted by accuracy asc (weakest-first)
+    recent_words: List[str]              # last ~10 distinct target_words attempted, most recent first
+
+
 class HomePracticeIdeaOut(BaseModel):
     id: int
     title: str
