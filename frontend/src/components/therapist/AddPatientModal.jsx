@@ -2,20 +2,25 @@ import { useState, useRef } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { patientsAPI, getErrorMessage } from '../../api/client'
 import { Button, Input } from '../ui'
+import { Creature, CREATURE_ACCENTS } from '../ui/Creatures'
 import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 // Name + accent per avatar — previously this picker was just six identical
 // grey squares with an emoji in them, no name, no color, nothing to make
 // picking one feel like an actual choice rather than a formality.
-const CHARACTERS = [
-  { id: 'chick',  name: 'Chip',     emoji: '🐥', color: '#FAC775' },
-  { id: 'dragon', name: 'Blaze',    emoji: '🐉', color: '#E24B4A' },
-  { id: 'bunny',  name: 'Puff',     emoji: '🐰', color: '#F5A3C7' },
-  { id: 'fox',    name: 'Ranger',   emoji: '🦊', color: '#E8791A' },
-  { id: 'rocket', name: 'Zoom',     emoji: '🚀', color: '#7850DC' },
-  { id: 'fish',   name: 'Bubbles',  emoji: '🐠', color: '#1D9E75' },
-]
+// Species ids and accent colors come from the shared CREATURE_ACCENTS
+// (Creatures.jsx) -- same source Avatar.jsx uses everywhere a patient's
+// avatar is actually displayed. Only the display name is local to this
+// picker, since CREATURE_ACCENTS has no name field.
+const CHARACTER_NAMES = {
+  chick: 'Chip', dragon: 'Blaze', bunny: 'Puff', fox: 'Ranger', rocket: 'Zoom', fish: 'Bubbles',
+}
+const CHARACTERS = Object.keys(CREATURE_ACCENTS).map(id => ({
+  id,
+  name: CHARACTER_NAMES[id] || id,
+  color: CREATURE_ACCENTS[id].ring,
+}))
 const CHAR_BY_ID = Object.fromEntries(CHARACTERS.map(c => [c.id, c]))
 
 function CharacterPicker({ value, onChange }) {
@@ -40,10 +45,10 @@ function CharacterPicker({ value, onChange }) {
               } : undefined}
             >
               <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-2xl"
+                className="w-11 h-11 rounded-full flex items-center justify-center p-1"
                 style={{ backgroundColor: `${c.color}33` }}
               >
-                {c.emoji}
+                <Creature species={c.id} className="w-full h-full" />
               </div>
               <span className="text-xs font-semibold" style={{ color: isSelected ? c.color : 'rgba(255,255,255,0.5)' }}>
                 {c.name}
@@ -168,12 +173,12 @@ export default function AddPatientModal({ onClose, onAdded }) {
     const char = CHAR_BY_ID[created.avatar]
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Patient added">
-        <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6 text-center">
+        <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6 text-center max-h-[85vh] overflow-y-auto">
           <div
-            className="w-20 h-20 rounded-full flex items-center justify-center text-5xl mx-auto mb-4 motion-safe:animate-float"
+            className="w-20 h-20 rounded-full flex items-center justify-center p-2 mx-auto mb-4 motion-safe:animate-float"
             style={{ backgroundColor: `${char?.color ?? '#A8FF6F'}22` }}
           >
-            {char?.emoji ?? '🎉'}
+            <Creature species={created.avatar} className="w-full h-full" />
           </div>
           <h2 className="text-xl font-bold text-white mb-1">{created.first_name} is all set!</h2>
           <p className="text-white/50 text-sm mb-5">
@@ -201,7 +206,7 @@ export default function AddPatientModal({ onClose, onAdded }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Add new patient">
-      <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6">
+      <div className="bg-brand-card border border-white/10 rounded-2xl w-full max-w-md p-6 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">Add New Patient</h2>
           <button onClick={handleClose} className="text-white/65 hover:text-white text-2xl leading-none">×</button>
