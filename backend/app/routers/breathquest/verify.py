@@ -19,12 +19,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import logging
+
 from app.database import get_db
 from app.models.breathquest_models import EmailVerification
 from app.schemas.breathquest_schemas import (
     VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut,
 )
 from app.services.email import send_otp_email
+
+logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/verify", tags=["verify"])
 
@@ -68,7 +72,22 @@ async def request_verification(data: VerifyRequestIn, db: AsyncSession = Depends
     db.add(record)
     await db.flush()
 
-    send_otp_email(data.email, code)
+    # send_otp_email does a blocking smtplib call with no timeout/retry of
+    # its own -- if Gmail rejects auth, drops the connection, or is just
+    # slow, this used to propagate as a raw unhandled 500 with no logged
+    # detail beyond the traceback. Catching it here does two things: logs
+    # the *actual* SMTP exception server-side (so "did it really send"
+    # stops being a guessing game), and returns a clean, expected error to
+    # the frontend, which already renders `error` via getErrorMessage --
+    # see handleSendParentContact/handleResendEmailCode in Play.jsx.
+    try:
+        send_otp_email(data.email, code)
+    except Exception:
+        logger.exception(f"Failed to send OTP email to {data.email}")
+        raise HTTPException(
+            status_code=502,
+            detail="Couldn't send the verification email right now — please try again in a moment",
+        )
 
     return {"message": f"Verification code sent to {data.email}"}
 
