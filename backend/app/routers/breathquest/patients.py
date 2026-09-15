@@ -21,7 +21,7 @@ from app.schemas.breathquest_schemas import (
     PatientCreate, PatientUpdate, PatientOut, PatientDetailOut, KidTokenResponse,
 )
 from app.breathquest_core.deps import get_current_therapist
-from app.breathquest_core.security import hash_pin, verify_pin, create_kid_token
+from app.breathquest_core.security import hash_pin, verify_pin, create_kid_token, create_refresh_token
 from app.blob_storage import upload_avatar
 
 router = APIRouter(prefix="/patients", tags=["patients"])
@@ -120,8 +120,11 @@ async def start_session(
         await db.flush()
 
     token = create_kid_token(patient.id)
+    refresh_token = await create_refresh_token(db, "patient", str(patient.id))
+    await db.commit()
     return KidTokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         patient_id=str(patient.id),
         first_name=patient.first_name,
         avatar=patient.avatar,
