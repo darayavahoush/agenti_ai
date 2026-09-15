@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -110,3 +111,16 @@ class ExerciseAssignment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     exercise = relationship("ExerciseTemplate", back_populates="assignments")
+
+
+class VaakMirrorRoundSizeSetting(Base):
+    __tablename__ = "vaakmirror_round_size_settings"
+    __table_args__ = (
+        UniqueConstraint("patient_id", "game", name="uq_round_size_patient_game"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(String, nullable=False, index=True)
+    game = Column(Enum(GameName), nullable=False)
+    round_size = Column(Integer, nullable=False, default=10)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
