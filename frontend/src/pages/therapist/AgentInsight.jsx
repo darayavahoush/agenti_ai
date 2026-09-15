@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { dashboardAPI, getErrorMessage } from '../../api/client'
+import { dashboardAPI, patientsAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
 import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves } from 'lucide-react'
 
@@ -110,29 +110,36 @@ function PolicyLadder({ current, downgradeReason }) {
       <p className="text-white/40 text-xs mb-4">
         Tap a stage to see what it means. The highlighted stage is active right now.
       </p>
-      <div className="flex flex-col-reverse gap-2">
+      <div className="relative flex flex-col-reverse gap-3 pl-2">
+        <div className="absolute left-[27px] top-6 bottom-6 w-px bg-white/10" />
         {LADDER_ORDER.map((key, i) => {
           const info = POLICY_INFO[key]
           const isActive = key === current
           const isPast = i < currentIdx
           return (
-            <div key={key}>
+            <div key={key} className="relative">
               <button
                 onClick={() => setOpenInfo(openInfo === key ? null : key)}
-                className={`w-full text-left rounded-xl px-4 py-3 border transition ${
-                  isActive ? 'bg-brand-green/15 border-brand-green/40'
-                  : isPast ? 'bg-white/5 border-white/10 opacity-70'
-                  : 'bg-white/[0.02] border-white/5 opacity-40'
+                className={`relative z-10 w-full text-left rounded-xl px-3.5 py-3 border transition ${
+                  isActive ? 'bg-brand-green/10 border-brand-green/50'
+                  : isPast ? 'bg-white/[0.06] border-white/15'
+                  : 'bg-white/[0.02] border-white/10'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <RungGlyph policyKey={key} active={isActive} />
-                  <span className={`font-medium flex-1 ${isActive ? 'text-white' : 'text-white/60'}`}>
-                    {info.label}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <div className={`flex items-center justify-center w-9 h-9 rounded-full shrink-0 ${
+                    isActive ? 'bg-brand-green text-black' : 'bg-white/10'
+                  }`}>
+                    <RungGlyph policyKey={key} active={isActive} />
+                  </div>
+                  <div className="flex-1">
+                    <span className={`font-medium block ${isActive ? 'text-white' : 'text-white/70'}`}>
+                      {info.label}
+                    </span>
+                    <p className={`text-sm mt-0.5 ${isActive ? 'text-white/70' : 'text-white/40'}`}>{info.short}</p>
+                  </div>
                   {isActive && <Badge color="green">Active</Badge>}
                 </div>
-                <p className="text-sm text-white/50 mt-1 ml-[30px]">{info.short}</p>
               </button>
               {openInfo === key && (
                 <p className="text-xs text-white/40 px-4 py-2">{info.detail}</p>
@@ -172,6 +179,53 @@ function PolicyLadder({ current, downgradeReason }) {
   )
 }
 
+function GameSelector({ game, onSelect }) {
+  return (
+    <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/10 mb-4">
+      {Object.entries(GAMES).map(([key, g]) => {
+        const GameIcon = g.icon
+        const isActive = key === game
+        return (
+          <button
+            key={key}
+            onClick={() => onSelect(key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-sm font-medium transition ${
+              isActive ? 'bg-white text-black' : 'text-white/50 hover:text-white/80'
+            }`}
+          >
+            <GameIcon size={15} />
+            <span className="truncate">{g.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function LevelStrip({ game, levelId, onSelect }) {
+  return (
+    <div className="mb-6 -mx-6 px-6">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        {GAMES[game].levels.map(l => {
+          const isActive = l.id === levelId
+          return (
+            <button
+              key={l.id}
+              onClick={() => onSelect(l.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm whitespace-nowrap shrink-0 transition ${
+                isActive ? 'bg-brand-green text-black font-medium' : 'bg-white/5 text-white/50 hover:bg-white/10'
+              }`}
+            >
+              {game === 'breathquest' && <LevelIcon id={l.id} className="w-4 h-4" />}
+              {l.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function AgentInsight() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -181,6 +235,7 @@ export default function AgentInsight() {
   const initialGame = GAMES[requestedGame] ? requestedGame : 'breathquest'
   const [game, setGame] = useState(initialGame)
   const [levelId, setLevelId] = useState(GAMES[initialGame].levels[0].id)
+  const [assessmentId, setAssessmentId] = useState(null)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -191,14 +246,38 @@ export default function AgentInsight() {
     setLevelId(GAMES[g].levels[0].id)
   }
 
+  // Agent-status routes (chime.py, breath_agent.py, voicehurdlerace.py) key
+  // off Patient.assessment_patient_id, not breathquest_patients.id — but
+  // the route param `id` here is the bq_id (that's what the patient list /
+  // PatientDetail link passes). Resolve the real assessment id once, from
+  // the patient record itself, rather than assuming the two ids match.
+  useEffect(() => {
+    setAssessmentId(null)
+    setError(null)
+    patientsAPI.get(id)
+      .then(r => {
+        if (!r.data.assessment_patient_id) {
+          setError('This child has no linked assessment record, so agent status isn\u2019t available yet.')
+          setLoading(false)
+          return
+        }
+        setAssessmentId(r.data.assessment_patient_id)
+      })
+      .catch(e => {
+        setError(getErrorMessage(e, 'Could not load this patient'))
+        setLoading(false)
+      })
+  }, [id])
+
   const load = useCallback(() => {
+    if (!assessmentId) return
     setLoading(true)
     setError(null)
-    dashboardAPI.agentStatus(id, levelId, 'tabular_q', game)
+    dashboardAPI.agentStatus(assessmentId, levelId, 'tabular_q', game)
       .then(r => setStatus(r.data))
       .catch(e => setError(getErrorMessage(e, 'Could not load agent status')))
       .finally(() => setLoading(false))
-  }, [id, levelId, game])
+  }, [assessmentId, levelId, game])
 
   useEffect(() => { load() }, [load])
 
@@ -228,46 +307,16 @@ export default function AgentInsight() {
           Read-only — this does not affect gameplay or training data.
         </p>
 
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {Object.entries(GAMES).map(([key, g]) => {
-            const GameIcon = g.icon
-            return (
-              <button
-                key={key}
-                onClick={() => selectGame(key)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition ${
-                  key === game ? 'bg-white text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'
-                }`}
-              >
-                <GameIcon size={14} />
-                {g.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {GAMES[game].levels.map(l => (
-            <button
-              key={l.id}
-              onClick={() => setLevelId(l.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition ${
-                l.id === levelId ? 'bg-brand-green text-black' : 'bg-white/10 text-white/60 hover:bg-white/15'
-              }`}
-            >
-              {game === 'breathquest' && <LevelIcon id={l.id} className="w-4 h-4" />}
-              {l.label}
-            </button>
-          ))}
-        </div>
+        <GameSelector game={game} onSelect={selectGame} />
+        <LevelStrip game={game} levelId={levelId} onSelect={setLevelId} />
 
         {loading ? <PageLoader /> : error ? (
-          <Card className="text-center py-16">
+          <Card className="text-center py-16 px-8">
             <div className="w-14 h-14 rounded-2xl bg-brand-coral/10 flex items-center justify-center mx-auto mb-4">
               <CloudOff size={24} className="text-brand-coral" />
             </div>
             <p className="text-white/70 font-medium mb-1">Couldn't load agent status</p>
-            <p className="text-white/40 text-sm mb-4">{error}</p>
+            <p className="text-white/40 text-sm mb-5 max-w-xs mx-auto">{error}</p>
             <Button onClick={load}>Try again</Button>
           </Card>
         ) : !status ? null : (

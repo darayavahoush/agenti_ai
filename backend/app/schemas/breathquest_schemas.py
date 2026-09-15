@@ -227,6 +227,7 @@ class PatientOut(BaseModel):
     age: Optional[int]
     is_active: bool
     created_at: datetime
+    assessment_patient_id: Optional[str] = None
     # Note: diagnosis_notes and pin_hash are NOT exposed here (therapist-only)
 
 
