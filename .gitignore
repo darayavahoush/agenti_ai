@@ -99,3 +99,6 @@ backend/assets/audio/
 # Editor/script backups
 *.bak
 *.bak_*
+
+!backend/scripts/
+!backend/scripts/*.py
