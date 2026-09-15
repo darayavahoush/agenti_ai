@@ -200,7 +200,7 @@ async def get_patient_events(
     before this, chime.py only had kid-token-gated endpoints. Ownership
     check matches the pattern in routers/voicehurdlerace.py."""
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
     )
     patient_row = patient_result.scalar_one_or_none()
     if not patient_row:
