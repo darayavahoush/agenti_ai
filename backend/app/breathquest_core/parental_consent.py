@@ -29,15 +29,14 @@ real OTP round-trip. Email-only consent is now the single, permanent gate
 for this route. The /verify/phone/* endpoints, PhoneVerification model,
 and phone_provider.py were removed alongside this.
 
-TEMPORARY 2026-08-12: AUTO_VERIFY_CONSENT below bypasses the real OTP
-check entirely. No live email provider is wired up yet (send_otp_email
-is a stub), so there's no way for a parent to actually receive and
-confirm a code right now. With the flag on, check_email_consent grants
-immediately once an email is *provided* -- not verified.
-Flip AUTO_VERIFY_CONSENT to False (or delete the branch below it) once
-a real email provider exists -- the recency-window logic and the
-/verify/* endpoints are all still here and unchanged, ready to go the
-moment that flag comes off.
+2026-09-15: AUTO_VERIFY_CONSENT is now False -- a real Gmail SMTP
+provider has been wired up (see services/email.py, config.py's
+SMTP_HOST/USER/PASSWORD) since this flag was introduced, so the bypass
+below is dormant, not active. The stub-era note that used to justify
+flipping it on has been removed since it no longer describes reality;
+this flag is kept only as a documented escape hatch if email delivery
+ever needs to be bypassed again (e.g. local dev with no SMTP creds set),
+not as the current behavior.
 """
 
 from dataclasses import dataclass
