@@ -40,9 +40,11 @@ def send_otp_email(to_email: str, code: str) -> None:
         return
 
     message = MIMEText(
-        f"Your verification code is: {code}\n\nThis code expires in 10 minutes."
+        f"Your VaakSuddhi verification code is: {code}\n\n"
+        f"This code expires in 10 minutes.\n\n"
+        f"If you didn't request this, you can safely ignore this email."
     )
-    message["Subject"] = "Your verification code"
+    message["Subject"] = "Your VaakSuddhi verification code"
     message["From"] = settings.SMTP_USER
     message["To"] = to_email
 
