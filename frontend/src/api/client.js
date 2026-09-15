@@ -274,6 +274,9 @@ export const dashboardAPI = {
   getSoundProgress: (patientId, weeks) =>
     api.get(`/dashboard/patients/${patientId}/sound-progress`, { params: weeks ? { weeks } : {} }),
 
+  // Flashcards phoneme-mastery summary (strongest/weakest, full list, recent words)
+  getFlashcardsProgress: (patientId) => api.get(`/dashboard/patients/${patientId}/flashcards`),
+
   // 50-item home practice ideas library, filterable by condition/goal
   listHomePracticeIdeas: (condition, goal) =>
     api.get('/dashboard/home-practice-ideas', { params: { ...(condition && { condition }), ...(goal && { goal }) } }),
