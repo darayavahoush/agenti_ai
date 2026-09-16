@@ -127,79 +127,80 @@ function RungGlyph({ policyKey, active }) {
   }
 }
 
+function CompactRung({ policyKey, reached, onToggle, isOpen }) {
+  const info = POLICY_INFO[policyKey]
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 py-2 text-left group"
+      >
+        <div className={`flex items-center justify-center w-6 h-6 rounded-full shrink-0 ${
+          reached ? 'text-brand-green' : 'text-white/20'
+        }`}>
+          <RungGlyph policyKey={policyKey} active={reached} />
+        </div>
+        <span className={`text-sm ${reached ? 'text-white/55' : 'text-white/30'} group-hover:text-white/70 transition`}>
+          {info.label}
+        </span>
+        <span className={`text-xs ml-auto ${reached ? 'text-white/30' : 'text-white/15'}`}>
+          {reached ? 'Reached' : 'Not yet'}
+        </span>
+      </button>
+      {isOpen && <p className="text-xs text-white/35 pl-9 pb-2 pr-1">{info.detail}</p>}
+    </div>
+  )
+}
+
 function PolicyLadder({ current, downgradeReason }) {
-  const [openInfo, setOpenInfo] = useState(current)
+  const [openInfo, setOpenInfo] = useState(null)
   const currentIdx = LADDER_ORDER.indexOf(current)
   const isRetired = !LADDER_ORDER.includes(current)
+  const activeInfo = POLICY_INFO[current]
 
   return (
     <Card>
       <h3 className="font-semibold text-white mb-1">Where this child's agent is at</h3>
       <p className="text-white/40 text-xs mb-4">
-        Tap a stage to see what it means. The highlighted stage is active right now.
+        The stage below is what's active now. Tap any other stage to see what it means.
       </p>
-      <div className="relative flex flex-col-reverse gap-3 pl-2">
-        <div className="absolute left-[27px] top-6 bottom-6 w-px bg-white/10" />
-        {LADDER_ORDER.map((key, i) => {
-          const info = POLICY_INFO[key]
-          const isActive = key === current
-          const isPast = i < currentIdx
-          return (
-            <div key={key} className="relative">
-              <button
-                onClick={() => setOpenInfo(openInfo === key ? null : key)}
-                className={`relative z-10 w-full text-left rounded-xl px-3.5 py-3 border transition ${
-                  isActive ? 'bg-brand-green/10 border-brand-green/50'
-                  : isPast ? 'bg-white/[0.06] border-white/15'
-                  : 'bg-white/[0.02] border-white/10'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`flex items-center justify-center w-9 h-9 rounded-full shrink-0 ${
-                    isActive ? 'bg-brand-green text-black' : 'bg-white/10'
-                  }`}>
-                    <RungGlyph policyKey={key} active={isActive} />
-                  </div>
-                  <div className="flex-1">
-                    <span className={`font-medium block ${isActive ? 'text-white' : 'text-white/70'}`}>
-                      {info.label}
-                    </span>
-                    <p className={`text-sm mt-0.5 ${isActive ? 'text-white/70' : 'text-white/40'}`}>{info.short}</p>
-                  </div>
-                  {isActive && <Badge color="green">Active</Badge>}
-                </div>
-              </button>
-              {openInfo === key && (
-                <p className="text-xs text-white/40 px-4 py-2">{info.detail}</p>
-              )}
-            </div>
-          )
-        })}
-        {isRetired && (
-          <div>
-            <button
-              onClick={() => setOpenInfo(openInfo === current ? null : current)}
-              className="w-full text-left rounded-xl px-4 py-3 border bg-brand-amber/10 border-brand-amber/30"
-            >
-              <div className="flex items-center gap-2.5">
-                <RungGlyph policyKey={current} active />
-                <span className="font-medium flex-1 text-white">
-                  {POLICY_INFO[current]?.label || current}
-                </span>
-                <Badge color="amber">Active</Badge>
-              </div>
-              <p className="text-sm text-white/50 mt-1 ml-[30px]">
-                {POLICY_INFO[current]?.short || 'Not on the usual ladder'}
-              </p>
-            </button>
-            {openInfo === current && (
-              <p className="text-xs text-white/40 px-4 py-2">
-                {POLICY_INFO[current]?.detail || "This policy isn't part of the normal progression."}
-              </p>
-            )}
+
+      {/* The active stage gets the only full card treatment on the ladder. */}
+      <div className={`rounded-2xl p-4 border ${
+        isRetired ? 'bg-brand-amber/[0.08] border-brand-amber/30' : 'bg-brand-green/[0.08] border-brand-green/40'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center justify-center w-10 h-10 rounded-full shrink-0 ${
+            isRetired ? 'bg-brand-amber text-black' : 'bg-brand-green text-black'
+          }`}>
+            <RungGlyph policyKey={current} active />
           </div>
-        )}
+          <div className="flex-1">
+            <span className="font-medium block text-white">{activeInfo?.label || current}</span>
+            <p className="text-sm mt-0.5 text-white/70">{activeInfo?.short || 'Not on the usual ladder'}</p>
+          </div>
+          <Badge color={isRetired ? 'amber' : 'green'}>Active</Badge>
+        </div>
+        <p className="text-xs text-white/40 mt-2 pl-[52px]">
+          {activeInfo?.detail || "This policy isn't part of the normal progression."}
+        </p>
       </div>
+
+      {/* Every other stage recedes to a single quiet row -- no card, no border. */}
+      {!isRetired && (
+        <div className="mt-2 divide-y divide-white/[0.06]">
+          {LADDER_ORDER.filter(key => key !== current).map(key => (
+            <CompactRung
+              key={key}
+              policyKey={key}
+              reached={LADDER_ORDER.indexOf(key) < currentIdx}
+              isOpen={openInfo === key}
+              onToggle={() => setOpenInfo(openInfo === key ? null : key)}
+            />
+          ))}
+        </div>
+      )}
+
       {downgradeReason && (
         <p className="text-white/40 text-xs mt-4 border-t border-white/10 pt-3">{downgradeReason}</p>
       )}
@@ -209,23 +210,27 @@ function PolicyLadder({ current, downgradeReason }) {
 
 function GameSelector({ game, onSelect }) {
   return (
-    <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/10 mb-4">
-      {Object.entries(GAMES).map(([key, g]) => {
-        const GameIcon = g.icon
-        const isActive = key === game
-        return (
-          <button
-            key={key}
-            onClick={() => onSelect(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-sm font-medium transition ${
-              isActive ? 'bg-white text-black' : 'text-white/50 hover:text-white/80'
-            }`}
-          >
-            <GameIcon size={15} />
-            <span className="truncate">{g.label}</span>
-          </button>
-        )
-      })}
+    <div className="mb-4 -mx-6 px-6 border-b border-white/10">
+      <div className="flex gap-5 overflow-x-auto no-scrollbar">
+        {Object.entries(GAMES).map(([key, g]) => {
+          const GameIcon = g.icon
+          const isActive = key === game
+          return (
+            <button
+              key={key}
+              onClick={() => onSelect(key)}
+              className={`flex items-center gap-1.5 pb-3 pt-1 border-b-2 text-sm whitespace-nowrap shrink-0 transition ${
+                isActive
+                  ? 'border-brand-green text-white font-medium'
+                  : 'border-transparent text-white/40 hover:text-white/65'
+              }`}
+            >
+              <GameIcon size={15} />
+              {g.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
