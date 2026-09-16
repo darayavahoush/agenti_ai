@@ -341,6 +341,8 @@ export const vaakmirrorAPI = {
 
 export const meAPI = {
   progress:        () => api.get('/me/progress'),
+  calendar:        () => api.get('/me/calendar'),
+  goal:            () => api.get('/me/goal'),
   history:         () => api.get('/me/history'),
   breathquestLevelScores: () => api.get('/me/breathquest/level-scores'),
   gamesSummary:    () => api.get('/me/games-summary'),

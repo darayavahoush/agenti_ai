@@ -2,7 +2,7 @@
 schemas/breathquest_schemas.py — Pydantic v1 request/response models for BreathQuest.
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any, Optional, List
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, validator
@@ -969,6 +969,40 @@ class HomePracticeLogOut(BaseModel):
     practiced_on: datetime
     duration_minutes: Optional[int]
     notes: Optional[str]
+
+
+# ------------------------------------------------------------------ #
+#  Kid-facing practice calendar + goal (services/weekly_target.py,     #
+#  services/kid_goal.py)                                               #
+# ------------------------------------------------------------------ #
+
+class CalendarDay(BaseModel):
+    date: date
+    label: str          # "Mon" .. "Sun"
+    practiced: bool
+    is_today: bool
+    is_future: bool
+
+
+class WeeklyCalendarOut(BaseModel):
+    week_start: date
+    days: List[CalendarDay]
+    days_practiced: int
+    target_days: int    # auto-computed from the kid's own recent habit
+    target_met: bool
+    days_left: int
+    message: str
+
+
+class KidGoalOut(BaseModel):
+    id: str
+    title: str          # friendly name, never the raw target_metric
+    blurb: str
+    progress_pct: int   # 0..100
+    achieved: bool
+    days_left: Optional[int] = None
+    encouragement: str
+    looking_forward: str
 
 
 # ------------------------------------------------------------------ #

@@ -1,5 +1,7 @@
 // Shared UI primitives
 
+import { ArrowLeft } from 'lucide-react'
+
 export function Button({ children, variant = 'primary', size = 'md', className = '', ...props }) {
   const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed'
   const variants = {
@@ -16,6 +18,27 @@ export function Button({ children, variant = 'primary', size = 'md', className =
   }
   return (
     <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+      {children}
+    </button>
+  )
+}
+
+// Lightweight back affordance. A full `<Button variant="ghost">` for "go
+// back" reads far heavier than the action deserves -- a bordered, bold,
+// px-6 py-3 pill competing with the page title for weight. This is the
+// pattern the kid-facing pages already use (MyProgress/MyAccount/Play):
+// quiet text + arrow at rest, arrow nudging left on hover.
+export function BackLink({ children, className = '', ...props }) {
+  return (
+    <button
+      className={`group inline-flex items-center gap-1.5 text-white/40 hover:text-white
+                  text-sm font-medium transition-colors ${className}`}
+      {...props}
+    >
+      <ArrowLeft
+        size={15}
+        className="transition-transform duration-200 group-hover:-translate-x-0.5"
+      />
       {children}
     </button>
   )

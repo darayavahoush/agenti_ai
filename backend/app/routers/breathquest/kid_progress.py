@@ -19,10 +19,15 @@ from app.retraining import data_store as chime_data_store
 from app.models.vaakmirror_models import VaakMirrorSession
 from app.models.flashcards_models import FlashcardAttempt
 from app.models.session import Session as AssessmentSession
-from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary
+from app.schemas.breathquest_schemas import (
+    KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary,
+    WeeklyCalendarOut, KidGoalOut,
+)
 from app.breathquest_core.deps import get_current_patient
 from app.services.greetings import get_smart_greeting
 from app.services.recommendations import get_recommended_practice
+from app.services.weekly_target import get_weekly_calendar
+from app.services.kid_goal import get_latest_goal_for_kid
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
 
@@ -108,6 +113,31 @@ async def get_my_progress(
         games_played_this_week=games_played_this_week,
         current_streak_days=streak,
     )
+
+
+@router.get("/calendar", response_model=WeeklyCalendarOut)
+async def get_my_calendar(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """This week's practice calendar (Mon--Sun) for MyProgress.jsx, plus a
+    weekly practice-days target auto-derived from the kid's own recent
+    habit -- no new DB field, nothing for a therapist to set. See
+    services/weekly_target.py."""
+    return await get_weekly_calendar(patient.id, db)
+
+
+@router.get("/goal", response_model=KidGoalOut | None)
+async def get_my_goal(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """The kid's newest therapist-set goal, re-framed for a child: friendly
+    name, 0--100 progress, and one concrete thing to look forward to --
+    never the raw metric value. Returns null when there's no goal or no
+    computable progress, in which case the frontend shows no card rather
+    than a bar that can never move. See services/kid_goal.py."""
+    return await get_latest_goal_for_kid(patient.id, db)
 
 
 @router.get("/greeting")
