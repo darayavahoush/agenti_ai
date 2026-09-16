@@ -1052,6 +1052,27 @@ def _get_own_patient(patient_id: str, therapist: Therapist, db: Session) -> Pati
     return patient
 
 
+def _get_rl_child_id(patient: Patient, db: Session) -> str:
+    """RL events for Assessment are logged with child_id = BreathQuestPatient.id,
+    not Patient.id (see the /analyze RL-logging fix -- breathquest_rl_training_events.child_id
+    has an FK on breathquest_patients.id, same as every other game). Reads
+    must resolve the same BreathQuestPatient link, or they'll query a
+    child_id that was never actually written -- which is what quietly broke
+    AgentInsight even after fixing the write side, since both this read
+    path and the old write path agreed on using Patient.id directly."""
+    bq_patient = (
+        db.query(BreathQuestPatient)
+        .filter(BreathQuestPatient.assessment_patient_id == patient.id)
+        .first()
+    )
+    if bq_patient is None:
+        raise HTTPException(
+            status_code=404,
+            detail="This child has no linked BreathQuest account, so no Assessment agent data exists yet.",
+        )
+    return str(bq_patient.id)
+
+
 @router.get("/agent/status/{patient_id}", response_model=AgentStatusOut)
 def assessment_agent_status(
     patient_id: str,
@@ -1061,7 +1082,8 @@ def assessment_agent_status(
     db: Session = Depends(get_db),
 ):
     patient = _get_own_patient(patient_id, therapist, db)
-    result = _agent_service.get_status(str(patient.id), level_id, policy)
+    child_id = _get_rl_child_id(patient, db)
+    result = _agent_service.get_status(child_id, level_id, policy)
     return AgentStatusOut(**result)
 
 
@@ -1077,7 +1099,8 @@ def assessment_agent_levels(
     child's own logged agent events rather than a static table, so
     AgentInsight.jsx can build its level picker dynamically per patient."""
     patient = _get_own_patient(patient_id, therapist, db)
-    events = data_store.get_events(child_id=str(patient.id))
+    child_id = _get_rl_child_id(patient, db)
+    events = data_store.get_events(child_id=child_id)
     phonemes = sorted({
         e["level_id"][len("assess_"):]
         for e in events
