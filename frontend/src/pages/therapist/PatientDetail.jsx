@@ -7,7 +7,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind } from 'lucide-react'
 
 // Level Details rows expand in place to show that level's own session
 // history -- filtered client-side from `sessions` (data.recent_sessions),
@@ -616,6 +616,56 @@ export default function PatientDetail() {
                    : '→ Stable'
   const trendColor = trend > 0 ? 'text-brand-green' : trend < 0 ? 'text-brand-coral' : 'text-white/50'
 
+  // One ring per module, all from data already loaded elsewhere on this
+  // page (no new endpoints) -- Orpheus doesn't expose a single accuracy
+  // number, so it's attempts-weighted across manner/place/voicing here,
+  // same shape as the per-category math in _accuracy_by on the backend.
+  const orpheusAccuracy = (() => {
+    if (!vmDashboard) return 0
+    const rows = [...vmDashboard.manner_accuracy, ...vmDashboard.place_accuracy, ...vmDashboard.voicing_accuracy]
+    const totalAttempts = rows.reduce((s, r) => s + r.attempts, 0)
+    return totalAttempts ? rows.reduce((s, r) => s + r.accuracy * r.attempts, 0) / totalAttempts : 0
+  })()
+
+  const MODULE_RINGS = [
+    {
+      key: 'assessment', label: 'Assessment', icon: ClipboardCheck, color: '#7850DC',
+      loading: loading,
+      value: data.latest_assessment ? 100 : 0,
+      caption: data.latest_assessment ? 'Complete' : 'Not started',
+    },
+    {
+      key: 'breathquest', label: 'BreathQuest', icon: Wind, color: '#A8FF6F',
+      loading: loading,
+      value: data.completion_rate * 100,
+      caption: `${data.total_stars}/${data.max_possible_stars} stars`,
+    },
+    {
+      key: 'vhr', label: 'Voice Hurdle', icon: Dog, color: '#1D9E75',
+      loading: vhrLoading,
+      value: vhrSessions.length ? vhrSessions.reduce((s, x) => s + x.pitch_accuracy, 0) / vhrSessions.length : 0,
+      caption: vhrSessions.length ? `${vhrSessions.length} races` : 'No races yet',
+    },
+    {
+      key: 'chime', label: 'Chime', icon: Bell, color: '#FAC775',
+      loading: chimeLoading,
+      value: chimeError || !chimeEvents.length ? 0 : (chimeEvents.reduce((s, e) => s + e.score, 0) / chimeEvents.length) * 100,
+      caption: chimeError ? 'Unavailable' : chimeEvents.length ? `${chimeEvents.length} attempts` : 'No attempts yet',
+    },
+    {
+      key: 'orpheus', label: 'Orpheus', icon: Waves, color: '#6EC6E8',
+      loading: vmLoading,
+      value: vmError ? 0 : orpheusAccuracy,
+      caption: vmError ? 'Unavailable' : vmDashboard?.sessions_count ? `${vmDashboard.sessions_count} sessions` : 'No sessions yet',
+    },
+    {
+      key: 'flashcards', label: 'Flashcards', icon: ListChecks, color: '#F4B942',
+      loading: flashcardsLoading,
+      value: flashcardsError ? 0 : (flashcardsData?.overall_accuracy ?? 0),
+      caption: flashcardsError ? 'Unavailable' : flashcardsData?.total_attempts ? `${flashcardsData.total_attempts} attempts` : 'No attempts yet',
+    },
+  ]
+
   const TABS = [
     ['progress', BarChart3, 'Progress'],
     ['sessions', Gamepad2, 'Sessions'],
@@ -703,9 +753,37 @@ export default function PatientDetail() {
               <span className={`text-sm font-semibold ${trendColor}`}>Trend: {trendLabel}</span>
             </div>
           </div>
-          <div className="hidden md:block">
-            <ProgressRing value={data.completion_rate * 100} size={72} color="#A8FF6F" label="Completion Rate" />
-          </div>
+        </div>
+
+        {/* Module snapshot — one ring per module so a therapist can see at a
+            glance what's been done and what hasn't, without clicking through
+            every tab. Each ring pops in with a staggered entrance; values
+            animate in via ProgressRing's own stroke-dashoffset transition. */}
+        <div className="flex gap-3 overflow-x-auto pb-2 mb-8 -mx-1 px-1">
+          {MODULE_RINGS.map((m, i) => (
+            <div
+              key={m.key}
+              style={{ animationDelay: `${i * 0.07}s` }}
+              className="animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none shrink-0"
+            >
+              <Card
+                className="flex flex-col items-center gap-2 px-4 py-4 w-32 transition-all duration-200
+                           hover:-translate-y-0.5 hover:shadow-lg"
+                style={{ borderTop: `2px solid ${m.color}` }}
+              >
+                <div className="flex items-center gap-1.5 text-white/50 text-xs font-semibold">
+                  <m.icon size={12} style={{ color: m.color }} />
+                  {m.label}
+                </div>
+                {m.loading ? (
+                  <div className="w-14 h-14 flex items-center justify-center"><Spinner /></div>
+                ) : (
+                  <ProgressRing value={m.value} size={56} stroke={5} color={m.color} />
+                )}
+                <p className="text-white/30 text-[11px] text-center leading-tight">{m.caption}</p>
+              </Card>
+            </div>
+          ))}
         </div>
 
         {/* Tabs */}
@@ -729,7 +807,8 @@ export default function PatientDetail() {
                 has no recent session for any level yet, or every level's
                 decision predates this being tracked. */}
             {data.recommended_action && (
-              <Card>
+              <Card className="animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
+                    style={{ opacity: 0, borderLeft: '3px solid #A8FF6F' }}>
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full bg-brand-green/15 flex items-center justify-center shrink-0">
                     <Lightbulb size={18} className="text-brand-green" />
@@ -756,32 +835,55 @@ export default function PatientDetail() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Radar */}
-              <Card>
-                <h3 className="font-semibold text-white mb-4">Level Mastery</h3>
+              <Card className="animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
+                    style={{ opacity: 0, animationDelay: '0.05s' }}>
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                  <BarChart3 size={16} className="text-brand-green" />
+                  Level Mastery
+                </h3>
                 <ResponsiveContainer width="100%" height={260}>
                   <RadarChart data={radarData}>
+                    <defs>
+                      <radialGradient id="radarFill" cx="50%" cy="50%" r="65%">
+                        <stop offset="0%" stopColor="#A8FF6F" stopOpacity={0.55} />
+                        <stop offset="100%" stopColor="#1D9E75" stopOpacity={0.12} />
+                      </radialGradient>
+                    </defs>
                     <PolarGrid stroke="rgba(255,255,255,0.1)" />
                     <PolarAngleAxis dataKey="level" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} />
-                    <Radar dataKey="stars" stroke="#A8FF6F" fill="#A8FF6F" fillOpacity={0.2} />
+                    <Radar dataKey="stars" stroke="#A8FF6F" strokeWidth={2} fill="url(#radarFill)"
+                           isAnimationActive animationDuration={700} animationEasing="ease-out" />
                   </RadarChart>
                 </ResponsiveContainer>
               </Card>
 
               {/* Level breakdown */}
-              <Card>
-                <h3 className="font-semibold text-white mb-4">Level Details</h3>
+              <Card className="animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
+                    style={{ opacity: 0, animationDelay: '0.1s' }}>
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                  <Target size={16} className="text-brand-teal" />
+                  Level Details
+                </h3>
                 <div className="flex flex-col gap-3">
                   {data.level_progress.map(l => (
                     <ExpandableLevelRow key={l.level_id} level={l} sessions={data.recent_sessions || []}>
-                      <LevelIcon id={l.level_id} className="w-7 h-7" />
+                      <div className="relative shrink-0">
+                        <LevelIcon id={l.level_id} className="w-7 h-7" />
+                        {l.best_stars === 3 && (
+                          <span className="absolute -top-1.5 -right-1.5 text-[10px]" title="Maxed out">✨</span>
+                        )}
+                      </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-white/70">{l.level_name}</span>
                           <StarRating stars={l.best_stars} size="sm" />
                         </div>
                         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full bg-brand-green rounded-full transition-all"
-                               style={{ width: `${(l.best_stars / 3) * 100}%` }} />
+                          <div className="h-full rounded-full transition-all duration-500"
+                               style={{
+                                 width: `${(l.best_stars / 3) * 100}%`,
+                                 background: 'linear-gradient(90deg, #1D9E75, #A8FF6F)',
+                               }} />
                         </div>
                       </div>
                       <span className="text-white/30 text-xs w-14 text-right">{l.attempts} tries</span>
@@ -792,15 +894,26 @@ export default function PatientDetail() {
 
               {/* Session trend bar chart */}
               {barData.length > 0 && (
-                <Card className="md:col-span-2">
-                  <h3 className="font-semibold text-white mb-4">Recent Session Stars</h3>
+                <Card className="md:col-span-2 animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
+                      style={{ opacity: 0, animationDelay: '0.15s' }}>
+                  <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                    <Activity size={16} className="text-brand-amber" />
+                    Recent Session Stars
+                  </h3>
                   <ResponsiveContainer width="100%" height={160}>
                     <BarChart data={barData}>
+                      <defs>
+                        <linearGradient id="barFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#A8FF6F" />
+                          <stop offset="100%" stopColor="#1D9E75" />
+                        </linearGradient>
+                      </defs>
                       <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                       <YAxis domain={[0, 3]} ticks={[0,1,2,3]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={{ background: '#1E1E3F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
                                labelStyle={{ color: 'rgba(255,255,255,0.5)' }} itemStyle={{ color: '#A8FF6F' }} />
-                      <Bar dataKey="stars" fill="#A8FF6F" radius={[4,4,0,0]} />
+                      <Bar dataKey="stars" fill="url(#barFill)" radius={[4,4,0,0]}
+                           isAnimationActive animationDuration={600} animationEasing="ease-out" />
                     </BarChart>
                   </ResponsiveContainer>
                 </Card>
@@ -810,8 +923,12 @@ export default function PatientDetail() {
                   Chime session_events. No vocabulary-size or fluency-rate chart
                   here since neither is tracked anywhere in this app; showing
                   only what's actually measured rather than approximating. */}
-              <Card className="md:col-span-2">
-                <h3 className="font-semibold text-white mb-1">Sound Accuracy Over Time</h3>
+              <Card className="md:col-span-2 animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
+                    style={{ opacity: 0, animationDelay: '0.2s' }}>
+                <h3 className="font-semibold text-white mb-1 flex items-center gap-2">
+                  <Waves size={16} className="text-[#6EC6E8]" />
+                  Sound Accuracy Over Time
+                </h3>
                 <p className="text-white/30 text-xs mb-4">
                   Weekly accuracy per sound, from VaakMirror + Chime attempts (last 8 weeks)
                 </p>
