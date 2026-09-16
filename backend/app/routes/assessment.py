@@ -10,6 +10,7 @@ from pathlib import Path
 from app.database import SessionLocal
 from app.models.assessment_word import AssessmentWord
 from app.models.patient import Patient
+from app.models.breathquest_models import BreathQuestPatient
 from app.models.therapist import Therapist
 from app.models.session import Session as SessionModel
 from app.services.image.matcher import get_image_for_phrase
@@ -801,39 +802,65 @@ async def analyze_assessment_pronunciation(
                     # per word) -- see _assess_level_id's docstring above
                     # for why per-phoneme is what makes the agent ladder
                     # viable for a diagnostic app with no repeated levels.
-                    for match in (result_state.get("phoneme_matches") or []):
-                        expected = match.get("expected")
-                        if not expected:
-                            continue
-                        level_id = _assess_level_id(str(expected))
-                        attempt_number = await asyncio.to_thread(
-                            _next_attempt_number, patient_id, level_id
+                    #
+                    # child_id here must be BreathQuestPatient.id, not
+                    # patient_id (the Assessment-side Patient.id): every
+                    # other game's RL events are keyed by the FK target of
+                    # breathquest_rl_training_events.child_id, which is
+                    # breathquest_patients.id (see breath_agent.py/chime.py/
+                    # voicehurdlerace.py, which all use patient.id off a
+                    # BreathQuestPatient row). Logging against patient_id
+                    # directly -- as this block did before -- passes an ID
+                    # that doesn't exist in breathquest_patients at all,
+                    # which raised a silent-at-call-time-but-fatal
+                    # ForeignKeyViolation on every single /analyze call
+                    # since this shipped (confirmed via log_test_assessment_event.py).
+                    bq_patient = (
+                        db.query(BreathQuestPatient)
+                        .filter(BreathQuestPatient.assessment_patient_id == patient_id)
+                        .first()
+                    )
+                    if bq_patient is None:
+                        logger.warning(
+                            f"⚠️ Patient {patient_id} has no linked BreathQuestPatient "
+                            "(assessment_patient_id link missing) -- skipping RL event "
+                            "logging for this attempt. Session was still saved."
                         )
-                        await asyncio.to_thread(
-                            data_store.add_event,
-                            child_id=patient_id,
-                            level_id=level_id,
-                            attempt_number=attempt_number,
-                            score=1.0 if match.get("correct") else 0.0,
-                            is_valid_attempt=True,
-                            threshold_at_time=None,
-                            action=None,
-                            quit_flag=False,
-                            raw_features={
-                                "target_word": target_word,
-                                "detected": match.get("detected"),
-                            },
-                            severity_numeric=0.0,
-                            is_targeted_sound=False,
-                            policy_used=None,
-                            downgrade_reason=None,
-                            recommended_action=None,
-                            recommendation_message=None,
-                            db_path=data_store.DEFAULT_DB_PATH,
-                        )
-                        _agent_service.maybe_update_tabular_q_from_new_event(
-                            str(patient_id), level_id, quit_flag=False
-                        )
+                    else:
+                        child_id = str(bq_patient.id)
+                        for match in (result_state.get("phoneme_matches") or []):
+                            expected = match.get("expected")
+                            if not expected:
+                                continue
+                            level_id = _assess_level_id(str(expected))
+                            attempt_number = await asyncio.to_thread(
+                                _next_attempt_number, child_id, level_id
+                            )
+                            await asyncio.to_thread(
+                                data_store.add_event,
+                                child_id=child_id,
+                                level_id=level_id,
+                                attempt_number=attempt_number,
+                                score=1.0 if match.get("correct") else 0.0,
+                                is_valid_attempt=True,
+                                threshold_at_time=None,
+                                action=None,
+                                quit_flag=False,
+                                raw_features={
+                                    "target_word": target_word,
+                                    "detected": match.get("detected"),
+                                },
+                                severity_numeric=0.0,
+                                is_targeted_sound=False,
+                                policy_used=None,
+                                downgrade_reason=None,
+                                recommended_action=None,
+                                recommendation_message=None,
+                                db_path=data_store.DEFAULT_DB_PATH,
+                            )
+                            _agent_service.maybe_update_tabular_q_from_new_event(
+                                child_id, level_id, quit_flag=False
+                            )
                 else:
                     logger.warning(f"⚠️ Patient {patient_id} not found, session not saved")
                 db.close()
