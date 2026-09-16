@@ -262,7 +262,7 @@ function LevelStrip({ game, levelId, levels, onSelect }) {
 export default function AgentInsight() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { therapist, logout } = useAuth()
+  const { therapist, logout, startSupervisedSession } = useAuth()
   const [searchParams] = useSearchParams()
   const requestedGame = searchParams.get('game')
   const initialGame = GAMES[requestedGame] ? requestedGame : 'breathquest'
@@ -274,7 +274,28 @@ export default function AgentInsight() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Distinct from `error` above: this isn't a failure, it's an empty state
+  // (the child just hasn't done anything yet), so it gets its own copy and
+  // its own CTA ("Take the assessment" rather than "Try again" -- retrying
+  // the same fetch would just come back empty again).
+  const [noAttempts, setNoAttempts] = useState(false)
+  const [launchingAssessment, setLaunchingAssessment] = useState(false)
   const [showTechDetail, setShowTechDetail] = useState(false)
+
+  // Mirrors PatientDetail.jsx's handleLaunchSession('assessment') -- same
+  // startSupervisedSession(bq_id) + navigate('/assessment') pair, so
+  // "Take the assessment" from here behaves exactly like the "Launch
+  // Assessment" button on the patient's own page.
+  const handleTakeAssessment = async () => {
+    setLaunchingAssessment(true)
+    try {
+      await startSupervisedSession(id)
+      navigate('/assessment')
+    } catch (err) {
+      console.error('Failed to launch assessment session:', err)
+      setLaunchingAssessment(false)
+    }
+  }
 
   // Assessment's levels aren't known until we've fetched which phonemes
   // this specific child has actually been assessed on -- every other game
@@ -294,6 +315,7 @@ export default function AgentInsight() {
     if (game !== 'assessment' || !assessmentId) return
     setAssessmentLevelsLoading(true)
     setError(null)
+    setNoAttempts(false)
     dashboardAPI.assessmentAgentLevels(assessmentId)
       .then(r => {
         const levels = (r.data.phonemes || []).map(p => ({ id: p, label: p.toUpperCase() }))
@@ -301,7 +323,7 @@ export default function AgentInsight() {
         setLevelId(levels[0]?.id ?? null)
         if (levels.length === 0) {
           setLoading(false)
-          setError('This child has no logged Assessment attempts yet, so there\u2019s nothing for the agent to show.')
+          setNoAttempts(true)
         }
       })
       .catch(e => {
@@ -319,6 +341,7 @@ export default function AgentInsight() {
   useEffect(() => {
     setAssessmentId(null)
     setError(null)
+    setNoAttempts(false)
     patientsAPI.get(id)
       .then(r => {
         if (!r.data.assessment_patient_id) {
@@ -338,6 +361,7 @@ export default function AgentInsight() {
     if (!assessmentId || !levelId) return
     setLoading(true)
     setError(null)
+    setNoAttempts(false)
     dashboardAPI.agentStatus(assessmentId, levelId, 'tabular_q', game)
       .then(r => setStatus(r.data))
       .catch(e => setError(getErrorMessage(e, 'Could not load agent status')))
@@ -377,7 +401,20 @@ export default function AgentInsight() {
           <LevelStrip game={game} levelId={levelId} levels={currentLevels} onSelect={setLevelId} />
         )}
 
-        {(loading || assessmentLevelsLoading) ? <PageLoader /> : error ? (
+        {(loading || assessmentLevelsLoading) ? <PageLoader /> : noAttempts ? (
+          <Card className="text-center py-16 px-8">
+            <div className="w-14 h-14 rounded-2xl bg-brand-green/10 flex items-center justify-center mx-auto mb-4">
+              <Stethoscope size={24} className="text-brand-green" />
+            </div>
+            <p className="text-white/70 font-medium mb-1">No assessment logged yet</p>
+            <p className="text-white/40 text-sm mb-5 max-w-xs mx-auto">
+              The agent learns from this child's own Assessment attempts. Take the assessment first, then come back to see what it's picked up.
+            </p>
+            <Button onClick={handleTakeAssessment} disabled={launchingAssessment}>
+              {launchingAssessment ? 'Launching…' : 'Take the assessment'}
+            </Button>
+          </Card>
+        ) : error ? (
           <Card className="text-center py-16 px-8">
             <div className="w-14 h-14 rounded-2xl bg-brand-coral/10 flex items-center justify-center mx-auto mb-4">
               <CloudOff size={24} className="text-brand-coral" />
