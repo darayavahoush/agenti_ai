@@ -163,6 +163,7 @@ async def list_patients(
             diagnosis_notes=p.diagnosis_notes,
             total_sessions=row.total or 0, total_stars=int(row.stars or 0),
             last_session_at=row.last,
+            assessment_patient_id=str(p.assessment_patient_id) if p.assessment_patient_id else None,
         ))
     return out
 
@@ -197,6 +198,7 @@ async def get_patient(
         diagnosis_notes=patient.diagnosis_notes,
         total_sessions=row.total or 0, total_stars=int(row.stars or 0),
         last_session_at=row.last,
+        assessment_patient_id=str(patient.assessment_patient_id) if patient.assessment_patient_id else None,
     )
 
 @router.patch("/{patient_id}", response_model=PatientOut)
