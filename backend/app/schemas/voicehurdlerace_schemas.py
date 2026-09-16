@@ -6,6 +6,7 @@ references, unlike breathquest_schemas.py's model-linked classes.
 """
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,10 +22,19 @@ class VoiceHurdleRaceSessionCreate(BaseModel):
 
 
 class VoiceHurdleRaceSessionOut(BaseModel):
+    # id/patient_id are UUID (not str) to match how this codebase's Postgres
+    # UUID columns actually deserialize -- see breathquest_schemas.SessionOut
+    # for the same pattern. This schema was ported verbatim from
+    # quest-games' standalone SQLite-backed service (see module docstring),
+    # where ids were plain strings; against Postgres UUID columns, `id: str`
+    # made every /sessions and /leaderboard response fail Pydantic's
+    # response_model validation with "Input should be a valid string" for
+    # every row, 500ing both the therapist-facing patient history and the
+    # leaderboard endpoint entirely.
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
-    patient_id: str
+    id: UUID
+    patient_id: UUID
     level_id: int
     level_name: str
     score: int
@@ -37,7 +47,7 @@ class VoiceHurdleRaceSessionOut(BaseModel):
 
 
 class LeaderboardEntryOut(BaseModel):
-    session_id: str
+    session_id: UUID
     patient_name: str
     level_name: str
     stars: int
