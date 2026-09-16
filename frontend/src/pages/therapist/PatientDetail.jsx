@@ -7,7 +7,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind } from 'lucide-react'
 
 // Level Details rows expand in place to show that level's own session
 // history -- filtered client-side from `sessions` (data.recent_sessions),
@@ -285,6 +285,9 @@ export default function PatientDetail() {
   const [vmDashboard, setVmDashboard] = useState(null)
   const [vmLoading, setVmLoading] = useState(true)
   const [vmError, setVmError] = useState(false)
+  const [attempts, setAttempts] = useState([])
+  const [attemptsLoading, setAttemptsLoading] = useState(true)
+  const [labelingId, setLabelingId] = useState(null)
   const [flashcardsData, setFlashcardsData] = useState(null)
   const [flashcardsLoading, setFlashcardsLoading] = useState(true)
   const [flashcardsError, setFlashcardsError] = useState(false)
@@ -357,6 +360,11 @@ export default function PatientDetail() {
       .catch(err => { console.error('Failed to load VaakMirror dashboard:', err); setVmError(true) })
       .finally(() => setVmLoading(false))
 
+    vaakmirrorAPI.getPatientAttempts(id, { unlabeled_only: true, limit: 30 })
+      .then(({ data }) => setAttempts(data))
+      .catch(err => console.error('Failed to load VaakMirror attempts:', err))
+      .finally(() => setAttemptsLoading(false))
+
     dashboardAPI.getFlashcardsProgress(id)
       .then(({ data }) => setFlashcardsData(data))
       .catch(err => { console.error('Failed to load Flashcards progress:', err); setFlashcardsError(true) })
@@ -404,6 +412,14 @@ export default function PatientDetail() {
   // Accepting a suggestion goes through the normal update endpoint — same
   // as if the therapist had typed the number in themselves — so it's always
   // a human decision on record, never the agent silently changing things.
+  const labelAttempt = (attemptId, label) => {
+    setLabelingId(attemptId)
+    vaakmirrorAPI.labelAttempt(attemptId, label)
+      .then(() => setAttempts(prev => prev.filter(a => a.id !== attemptId)))
+      .catch(err => console.error('Failed to label attempt:', err))
+      .finally(() => setLabelingId(null))
+  }
+
   const acceptAgentSuggestion = (game) => {
     const suggestion = agentSuggestions[game]
     if (!suggestion) return
