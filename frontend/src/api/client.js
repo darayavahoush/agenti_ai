@@ -229,7 +229,7 @@ export const dashboardAPI = {
   // AgentService-backed router (see backend/app/routers/breathquest/
   // breath_agent.py, chime.py, voicehurdlerace.py agent/status routes).
   agentStatus: (patientId, levelId, policy = 'tabular_q', game = 'breathquest') => {
-    const prefix = { breathquest: '/breath', chime: '/chime', voicehurdlerace: '/voicehurdlerace', vaakmirror: '/vaakmirror' }[game]
+    const prefix = { breathquest: '/breath', chime: '/chime', voicehurdlerace: '/voicehurdlerace', vaakmirror: '/vaakmirror', flashcards: '/flashcards' }[game]
     return api.get(`${prefix}/agent/status/${patientId}`, { params: { level_id: levelId, policy } })
   },
   createNote:  (patientId, data) => api.post(`/dashboard/patients/${patientId}/notes`, data),

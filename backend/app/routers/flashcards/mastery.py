@@ -12,13 +12,22 @@ kid_progress.py's chime_data_store usage for the existing precedent of
 one router reading another feature's data directly).
 """
 
+import asyncio
 import uuid
 from typing import List, Dict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.flashcards_models import FlashcardAttempt, PhonemeMastery
+from app.retraining import data_store
+from agent.service import AgentService
 from .schema import AttemptResult
+
+_agent_service = AgentService(db_path=data_store.DEFAULT_DB_PATH, recent_window=10)
+
+
+def _fc_level_id(phoneme: str) -> str:
+    return f"fc_{phoneme}"
 
 
 async def record_attempt(
@@ -77,6 +86,28 @@ async def record_attempt(
             existing.correct_count += 1
         existing.accuracy = round(existing.correct_count / existing.attempts_count * 100, 2)
         existing.last_word = result.target_word
+
+        level_id = _fc_level_id(phoneme)
+        await asyncio.to_thread(
+            data_store.add_event,
+            child_id=patient_id,
+            level_id=level_id,
+            attempt_number=existing.attempts_count,
+            score=1.0 if match.correct else 0.0,
+            is_valid_attempt=True,
+            threshold_at_time=None,
+            action=None,
+            quit_flag=False,
+            raw_features={},
+            severity_numeric=0.0,
+            is_targeted_sound=False,
+            policy_used=None,
+            downgrade_reason=None,
+            recommended_action=None,
+            recommendation_message=None,
+            db_path=data_store.DEFAULT_DB_PATH,
+        )
+        _agent_service.maybe_update_tabular_q_from_new_event(str(patient_id), level_id, quit_flag=False)
 
     await db.commit()
 

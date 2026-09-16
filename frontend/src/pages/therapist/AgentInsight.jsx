@@ -3,8 +3,16 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, patientsAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
-import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic } from 'lucide-react'
+import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic, Layers } from 'lucide-react'
 import { SOUNDS } from '../../vaakmirror/data/soundTaxonomy'
+
+const FLASHCARD_PHONEMES = [
+  ['B','b'], ['P','p'], ['M','m'], ['D','d'], ['T','t'], ['N','n'], ['G','g'], ['K','k'],
+  ['F','f'], ['V','v'], ['S','s'], ['Z','z'], ['SH','sh'], ['CH','ch'], ['JH','j'],
+  ['L','l'], ['R','r'], ['W','w'], ['Y','y'], ['H','h'], ['TH','th'],
+  ['AE','a (cat)'], ['AO','aw (ball)'], ['EH','e (bed)'], ['IH','i (sit)'],
+  ['IY','ee (see)'], ['UW','oo (moon)'], ['RT','retroflex t'], ['RD','retroflex d'],
+]
 
 const GAMES = {
   breathquest: {
@@ -41,6 +49,11 @@ const GAMES = {
     label: 'VaakMirror',
     icon: Mic,
     levels: SOUNDS.map(s => ({ id: s.id, label: s.label })),
+  },
+  flashcards: {
+    label: 'Flashcards',
+    icon: Layers,
+    levels: FLASHCARD_PHONEMES.map(([id, label]) => ({ id, label })),
   },
 }
 
