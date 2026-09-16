@@ -56,17 +56,26 @@ async def get_current_identity(
 
 
 async def assert_therapist_owns_patient(db: AsyncSession, therapist_id: str, patient_id: str) -> None:
-    result = await db.execute(text("SELECT registered_therapist_id FROM patients WHERE id = :id"), {"id": patient_id})
+    # Every VaakMirror route receives a breathquest_patients.id (the bq_id
+    # PatientDetail.jsx passes for every tab), not an assessment-side
+    # patients.id -- this was querying the wrong table entirely, so the
+    # WHERE id = :id never matched anything and this 404'd unconditionally.
+    # therapist_id here is a direct column on breathquest_patients (unlike
+    # patients.registered_therapist_id), so no None-check branch is needed.
+    result = await db.execute(
+        text("SELECT therapist_id FROM breathquest_patients WHERE id = :id"), {"id": patient_id}
+    )
     row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if row.registered_therapist_id is not None and str(row.registered_therapist_id) != therapist_id:
+    if str(row.therapist_id) != therapist_id:
         raise HTTPException(status_code=403, detail="This patient belongs to a different therapist")
 
 
 async def get_patient_summary(db: AsyncSession, patient_id: str) -> dict | None:
+    # Same table fix as above -- also: the column is first_name, not name.
     result = await db.execute(
-        text("SELECT id, name, age FROM patients WHERE id = :id"), {"id": patient_id}
+        text("SELECT id, first_name, age FROM breathquest_patients WHERE id = :id"), {"id": patient_id}
     )
     row = result.first()
-    return {"id": str(row.id), "first_name": row.name, "age": row.age} if row else None
+    return {"id": str(row.id), "first_name": row.first_name, "age": row.age} if row else None
