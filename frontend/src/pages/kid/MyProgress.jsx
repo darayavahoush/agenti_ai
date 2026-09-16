@@ -20,6 +20,7 @@ export default function MyProgress() {
   const [calendar, setCalendar] = useState(null)
   const [goal, setGoal] = useState(null)
   const [quests, setQuests] = useState([])
+  const [companion, setCompanion] = useState(null)
   const [extrasStatus, setExtrasStatus] = useState('loading') // loading | ready | error
 
   const fetchProgress = () => {
@@ -30,14 +31,15 @@ export default function MyProgress() {
       .then(({ data }) => { if (!cancelled) { setProgress(data); setStatus('ready') } })
       .catch(() => { if (!cancelled) setStatus('error') })
 
-    Promise.allSettled([meAPI.calendar(), meAPI.goal(), meAPI.quests()])
-      .then(([cal, gl, qs]) => {
+    Promise.allSettled([meAPI.calendar(), meAPI.goal(), meAPI.quests(), meAPI.companion()])
+      .then(([cal, gl, qs, cp]) => {
         if (cancelled) return
         setCalendar(cal.status === 'fulfilled' ? cal.value.data : null)
         // /me/goal legitimately returns null when there's no goal yet or no
         // computable progress -- that's a "show nothing", not an error.
         setGoal(gl.status === 'fulfilled' ? gl.value.data : null)
         setQuests(qs.status === 'fulfilled' ? qs.value.data : [])
+        setCompanion(cp.status === 'fulfilled' ? cp.value.data : null)
         setExtrasStatus(cal.status === 'fulfilled' ? 'ready' : 'error')
       })
     return () => { cancelled = true }
@@ -110,12 +112,18 @@ export default function MyProgress() {
           <>
             <div className="text-center mb-10 animate-[fadeIn_0.5s_ease-out]">
               <div className="inline-block animate-[bounce_2.5s_ease-in-out_infinite]">
-                <Avatar avatar={progress.avatar} size="xl" />
+                <Avatar avatar={progress.avatar} size="xl" accessory={companion?.equipped} />
               </div>
               <h1 className="font-vm-display text-3xl font-bold text-white mt-5">
                 {progress.first_name}'s Progress
               </h1>
               <p className="text-white/40 mt-2">Look how far you've come! 🎉</p>
+              {companion?.next && (
+                <p className="text-white/35 text-xs mt-2">
+                  Next: <span className="text-white/55 font-medium">{companion.next.label}</span> at a {companion.next.streak_days}-day streak
+                  {progress.current_streak_days > 0 && ` (${Math.min(progress.current_streak_days, companion.next.streak_days)}/${companion.next.streak_days})`}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">

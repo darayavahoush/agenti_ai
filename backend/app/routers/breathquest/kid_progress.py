@@ -7,6 +7,7 @@ themself. Full session/level detail stays therapist/parent-only.
 
 from datetime import datetime, timezone, timedelta
 import asyncio
+import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -18,6 +19,8 @@ from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.retraining import data_store as chime_data_store
 from app.models.vaakmirror_models import VaakMirrorSession
 from app.models.flashcards_models import FlashcardAttempt
+
+logger = logging.getLogger(__name__)
 from app.models.session import Session as AssessmentSession
 from app.schemas.breathquest_schemas import (
     KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary,
@@ -28,6 +31,7 @@ from app.services.greetings import get_smart_greeting
 from app.services.recommendations import get_recommended_practice
 from app.services.weekly_target import get_weekly_calendar
 from app.services.weekly_quest import get_weekly_quests
+from app.services.companion import grant_earned_unlocks, get_companion_state
 from app.services.kid_goal import get_latest_goal_for_kid
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
@@ -106,6 +110,14 @@ async def get_my_progress(
         streak += 1
         cursor = cursor - timedelta(days=1)
 
+    # Non-fatal: granting a companion accessory must never cost a kid their
+    # actual progress numbers if e.g. this environment hasn't run the
+    # breathquest_companion_unlocks migration yet.
+    try:
+        await grant_earned_unlocks(patient.id, streak, db)
+    except Exception:
+        logger.exception("Failed to grant companion unlocks (non-fatal)")
+
     return KidProgressOut(
         first_name=patient.first_name,
         avatar=patient.avatar,
@@ -136,6 +148,18 @@ async def get_my_quests(
     """This week's variety + goal-streak quests for MyProgress.jsx, layered
     on top of /me/calendar's day-count target. See services/weekly_quest.py."""
     return await get_weekly_quests(patient.id, db)
+
+
+@router.get("/companion")
+async def get_my_companion(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Which cosmetic companion accessories this kid has earned via
+    practice streaks, and which one is currently equipped. Unlocks
+    themselves are granted as a side effect of /me/progress (see
+    services/companion.py); this route only reads current state."""
+    return await get_companion_state(patient.id, db)
 
 
 @router.get("/goal", response_model=KidGoalOut | None)

@@ -343,6 +343,7 @@ export const meAPI = {
   progress:        () => api.get('/me/progress'),
   calendar:        () => api.get('/me/calendar'),
   quests:          () => api.get('/me/quests'),
+  companion:       () => api.get('/me/companion'),
   goal:            () => api.get('/me/goal'),
   history:         () => api.get('/me/history'),
   breathquestLevelScores: () => api.get('/me/breathquest/level-scores'),
