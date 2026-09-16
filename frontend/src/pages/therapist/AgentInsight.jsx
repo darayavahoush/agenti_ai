@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, patientsAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
-import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves } from 'lucide-react'
+import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic } from 'lucide-react'
+import { SOUNDS } from '../../vaakmirror/data/soundTaxonomy'
 
 const GAMES = {
   breathquest: {
@@ -35,6 +36,11 @@ const GAMES = {
       { id: 4, label: "Level 4: Cosmo's Red Frontier" },
       { id: 5, label: "Level 5: Comet's Starfield" },
     ],
+  },
+  vaakmirror: {
+    label: 'VaakMirror',
+    icon: Mic,
+    levels: SOUNDS.map(s => ({ id: s.id, label: s.label })),
   },
 }
 
