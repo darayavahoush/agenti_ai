@@ -201,7 +201,7 @@ def send_weekly_nudge_email(to_email: str, first_name: str) -> None:
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
 
 
-def send_kid_registered_welcome_email(to_email: str, first_name: str, player_code: str) -> None:
+def send_kid_registered_welcome_email(to_email: str, first_name: str, player_code: str, pin: str) -> None:
     """Sent right after a kid finishes self-serve signup (POST /kid-register).
     Purely informational -- explains that a first assessment is required
     next and that no payment is needed yet (no billing provider is wired
@@ -219,13 +219,21 @@ def send_kid_registered_welcome_email(to_email: str, first_name: str, player_cod
     "No parent account is linked to this Google email yet" on the portal
     with no idea a second, separate registration step (with the player
     code) was needed -- this line is the fix for that confusion, at the
-    moment it can actually still help instead of after a support message."""
+    moment it can actually still help instead of after a support message.
+
+    2026-09-16: now also includes the PIN chosen during signup. Only the
+    raw request payload ever has it -- the patient row only stores
+    pin_hash -- so the caller must pass data.pin from the kid-register
+    request, not anything read back off the saved patient. Without the PIN
+    in this email, a parent who forgot it had no way to recover it (the
+    forgot-PIN flow is built but blocked on this same SMTP outage), and no
+    record of it existed anywhere the parent could reach."""
     if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
         logger.warning(
             "\n"
             "==================== DEV MODE: SMTP NOT CONFIGURED ====================\n"
             f"  Welcome/next-steps email for {to_email} ({first_name}'s account, "
-            f"player code {player_code})\n"
+            f"player code {player_code}, PIN {pin})\n"
             "  (Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env to send real emails)\n"
             "========================================================================"
         )
@@ -233,7 +241,9 @@ def send_kid_registered_welcome_email(to_email: str, first_name: str, player_cod
 
     message = MIMEText(
         f"Hi,\n\n"
-        f"{first_name}'s BreathQuest account is set up! Player code: {player_code}\n\n"
+        f"{first_name}'s BreathQuest account is set up! Player code: {player_code}   PIN: {pin}\n\n"
+        f"Keep this email -- {first_name} will need the player code and PIN to log in "
+        f"next time, and this is the only place the PIN is written down.\n\n"
         f"What happens next:\n"
         f"- {first_name} will take a short first assessment the next time they log in.\n"
         f"- That's required before the other games unlock -- it's how BreathQuest "
