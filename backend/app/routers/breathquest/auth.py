@@ -181,7 +181,7 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     await db.refresh(patient)
 
     try:
-        send_kid_registered_welcome_email(patient.parent_email, patient.first_name, patient.player_code)
+        send_kid_registered_welcome_email(patient.parent_email, patient.first_name, patient.player_code, data.pin)
     except Exception as exc:
         import logging
         logging.getLogger("uvicorn.error").warning(
