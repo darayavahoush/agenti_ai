@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Flame, Star, Calendar, CloudOff, Sparkles, Check, Target, Trophy } from 'lucide-react'
+import { ArrowLeft, Flame, Star, Calendar, CloudOff, Sparkles, Check, Target, Trophy, Compass } from 'lucide-react'
 import { Avatar, Button } from '../../components/ui'
 import { meAPI } from '../../api/client'
 
@@ -19,6 +19,7 @@ export default function MyProgress() {
   // its own card rather than taking the whole page down with it.
   const [calendar, setCalendar] = useState(null)
   const [goal, setGoal] = useState(null)
+  const [quests, setQuests] = useState([])
   const [extrasStatus, setExtrasStatus] = useState('loading') // loading | ready | error
 
   const fetchProgress = () => {
@@ -29,13 +30,14 @@ export default function MyProgress() {
       .then(({ data }) => { if (!cancelled) { setProgress(data); setStatus('ready') } })
       .catch(() => { if (!cancelled) setStatus('error') })
 
-    Promise.allSettled([meAPI.calendar(), meAPI.goal()])
-      .then(([cal, gl]) => {
+    Promise.allSettled([meAPI.calendar(), meAPI.goal(), meAPI.quests()])
+      .then(([cal, gl, qs]) => {
         if (cancelled) return
         setCalendar(cal.status === 'fulfilled' ? cal.value.data : null)
         // /me/goal legitimately returns null when there's no goal yet or no
         // computable progress -- that's a "show nothing", not an error.
         setGoal(gl.status === 'fulfilled' ? gl.value.data : null)
+        setQuests(qs.status === 'fulfilled' ? qs.value.data : [])
         setExtrasStatus(cal.status === 'fulfilled' ? 'ready' : 'error')
       })
     return () => { cancelled = true }
@@ -273,6 +275,45 @@ export default function MyProgress() {
                 <div className="relative mt-3 flex items-start gap-2 rounded-2xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5">
                   <Sparkles className="w-3.5 h-3.5 text-brand-amber shrink-0 mt-0.5" />
                   <p className="text-white/50 text-xs leading-relaxed">{goal.looking_forward}</p>
+                </div>
+              </div>
+            )}
+
+            {/* ---- This week's quests ----------------------------------- */}
+            {quests.length > 0 && (
+              <div
+                className="relative rounded-3xl p-6 border border-white/10 bg-white/5 mb-6 overflow-hidden
+                           animate-[popIn_0.5s_ease-out_backwards]"
+                style={{ animationDelay: '480ms' }}
+              >
+                <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider mb-4">
+                  This week's quests
+                </p>
+                <div className="flex flex-col gap-4">
+                  {quests.map((quest) => (
+                    <div key={quest.id} className="flex items-center gap-4">
+                      <div className={`shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center
+                                       ${quest.complete ? 'bg-mint/20' : 'bg-white/10'}`}>
+                        {quest.complete
+                          ? <Check className="w-5 h-5 text-mint" />
+                          : <Compass className="w-5 h-5 text-white/50" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white text-sm font-semibold truncate">{quest.title}</p>
+                        <p className="text-white/45 text-xs mt-0.5">{quest.description}</p>
+                        <div className="h-2 rounded-full bg-white/10 overflow-hidden mt-2">
+                          <div
+                            className={`h-full rounded-full transition-[width] duration-700
+                                       ${quest.complete ? 'bg-mint' : 'bg-brand-amber'}`}
+                            style={{ width: `${Math.max(6, Math.round((quest.progress / Math.max(1, quest.target)) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-white/50 text-xs font-semibold tabular-nums">
+                        {quest.progress}/{quest.target}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -1022,6 +1022,15 @@ class KidGoalOut(BaseModel):
     looking_forward: str
 
 
+class WeeklyQuestOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    progress: int
+    target: int
+    complete: bool
+
+
 # ------------------------------------------------------------------ #
 #  Multi-child alert view                                              #
 # ------------------------------------------------------------------ #
