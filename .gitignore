@@ -102,3 +102,4 @@ backend/assets/audio/
 
 !backend/scripts/
 !backend/scripts/*.py
+FETCH_HEAD
