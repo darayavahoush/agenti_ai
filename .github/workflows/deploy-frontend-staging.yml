@@ -19,6 +19,13 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Same duplicate-repo issue as deploy-staging.yml: both
+    # darayavahoush/agenti_ai and lavanya2kowmar/agenti_ai carry this file
+    # and push to staging, so every push builds and deploys twice against
+    # the same Azure Static Web App. Not secret-drift-prone the way the
+    # backend's SMTP env vars were, but still two redundant builds racing
+    # to deploy the same commit -- restrict to one canonical repo.
+    if: github.repository == 'darayavahoush/agenti_ai'
 
     steps:
       - name: Checkout staging branch

@@ -19,6 +19,18 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Both darayavahoush/agenti_ai and lavanya2kowmar/agenti_ai carry this
+    # same workflow file and push to the same `staging` branch, so every
+    # push triggers a run in BOTH repos, each deploying to the SAME Azure
+    # Container App using that repo's OWN secrets independently. Whichever
+    # repo's run finishes last wins -- this is exactly what caused SMTP_HOST/
+    # USER/PASSWORD to silently revert to stale/blank values after being
+    # set correctly on darayavahoush/agenti_ai: lavanya2kowmar/agenti_ai's
+    # copy of these secrets (empty) deployed after and overwrote them.
+    # Restricting the actual deploy to one canonical repo -- the run still
+    # fires on the other, it just no-ops -- means secrets only ever need to
+    # be set in one place, and removes this race for every future deploy.
+    if: github.repository == 'darayavahoush/agenti_ai'
 
     steps:
       - name: Checkout staging
