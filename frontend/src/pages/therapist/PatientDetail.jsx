@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, chimeAPI, vaakmirrorAPI, getErrorMessage } from '../../api/client'
 import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
-import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon } from '../../components/ui'
+import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon, PlayerCodeChip } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
 import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind } from 'lucide-react'
@@ -767,6 +767,7 @@ export default function PatientDetail() {
               <Badge color="green">{data.total_sessions} sessions</Badge>
               <Badge color="amber">{data.total_stars} / {data.max_possible_stars} stars</Badge>
               <span className={`text-sm font-semibold ${trendColor}`}>Trend: {trendLabel}</span>
+              <PlayerCodeChip code={data.player_code} />
             </div>
           </div>
         </div>

@@ -11,13 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient, Message, SenderRole
-from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress, MessageCreate, MessageOut
+from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient, Message, SenderRole, Goal, Assignment
+from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress, MessageCreate, MessageOut, GoalOut, AssignmentOut
 from app.breathquest_core.deps import get_current_parent
 from app.services.weekly_summary import generate_weekly_summary
 from app.services.home_practice_ideas import IDEAS, filter_ideas
 from app.retraining import data_store as chime_data_store
-from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH
+from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH, _compute_goal_current_value
 # vaakmirror lives outside this backend's Python path in some deploy
 # configs -- degrade to None rather than crashing app startup, same
 # pattern as kid_progress.py's own VaakMirrorSession handling.
@@ -247,6 +247,24 @@ async def get_parent_progress(
         if breath_consistency_vals else None
     )
 
+    # Actual goal/assignment content -- weekly_summary above only ever
+    # carried counts (goals_open, assignments_completed). Reuses the same
+    # rolling-5-session _compute_goal_current_value the therapist Care tab
+    # uses so a goal never shows a different number to the two of them.
+    goals_result = await db.execute(
+        select(Goal).where(Goal.patient_id == patient.id).order_by(Goal.created_at.desc())
+    )
+    goals_out = []
+    for g in goals_result.scalars().all():
+        item = GoalOut.model_validate(g)
+        item.current_value = await _compute_goal_current_value(g, db)
+        goals_out.append(item)
+
+    assignments_result = await db.execute(
+        select(Assignment).where(Assignment.patient_id == patient.id).order_by(Assignment.created_at.desc())
+    )
+    assignments_out = [AssignmentOut.model_validate(a) for a in assignments_result.scalars().all()]
+
     return ParentProgressOut(
         child_first_name=patient.first_name,
         avatar=patient.avatar,
@@ -268,6 +286,9 @@ async def get_parent_progress(
         recommendation_message=recommendation_message,
         avg_breath_consistency=avg_breath_consistency,
         has_therapist=bool(patient.therapist_id),
+        goals=goals_out,
+        assignments=assignments_out,
+        player_code=patient.player_code,
     )
 
 

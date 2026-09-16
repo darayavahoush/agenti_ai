@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings,
   MessageCircle, Send, CloudOff, ChevronDown, Gamepad2, Waves, Mic, Layers, Bell, Wind,
+  Target, ListChecks,
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
-import { Avatar, Card, StatCard, Sidebar, ChildSwitcher, AboutModal } from '../../components/ui'
-import { useNavigate } from 'react-router-dom'
+import { Avatar, Card, StatCard, Sidebar, ChildSwitcher, AboutModal, Badge, PlayerCodeChip } from '../../components/ui'
+import { useNavigate, Link } from 'react-router-dom'
 import { parentAPI, getErrorMessage } from '../../api/client'
 import toast from 'react-hot-toast'
 
@@ -168,6 +169,19 @@ const GAME_SECTIONS = [
 
 function titleiseSnake(name) {
   return String(name).split('_').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ')
+}
+
+// Goal/assignment target_metric values are internal keys (breath_consistency,
+// avg_breath_strength) meant for the therapist's Care tab dropdowns -- a
+// parent seeing "breath_consistency: 68%" reads as a lab result, not
+// something to be proud of. A small friendly-name map, falling back to the
+// same titleiseSnake treatment for anything not covered here.
+const FRIENDLY_METRIC_NAMES = {
+  breath_consistency: 'Steady Breathing',
+  avg_breath_strength: 'Breath Strength',
+}
+function friendlyMetricName(metric) {
+  return FRIENDLY_METRIC_NAMES[metric] || titleiseSnake(metric)
 }
 
 function Stars({ count = 0 }) {
@@ -382,7 +396,7 @@ export default function ParentDashboard() {
                 naming the child was the sidebar, which collapses. */}
             <header className="flex items-center gap-4 mb-8">
               <Avatar avatar={data.avatar} size="lg" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="font-display text-2xl font-bold text-paper tracking-tight truncate">
                   {data.child_first_name}'s progress
                 </h1>
@@ -391,6 +405,17 @@ export default function ParentDashboard() {
                     ? `${data.total_sessions} session${data.total_sessions === 1 ? '' : 's'} so far · ${data.weekly_summary.stats.home_practice_days}/7 practice days this week`
                     : 'No sessions yet — their first one will show up here.'}
                 </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <PlayerCodeChip code={data.player_code} />
+                <Link
+                  to="/parent/settings"
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-paper/40
+                             hover:text-paper hover:bg-white/[0.06] transition-colors"
+                  title="Settings"
+                >
+                  <Settings size={16} />
+                </Link>
               </div>
             </header>
 
@@ -563,6 +588,70 @@ export default function ParentDashboard() {
                 </div>
               )}
             </Card>
+
+            {/* Goals + Assignments -- the weekly summary above only ever
+                showed counts ("2 goals open"), never what those goals or
+                assignments actually are. Only rendered once there's
+                something to show; an empty state here would just be
+                another card saying "nothing yet" next to a therapist
+                connection prompt that already covers that case below. */}
+            {data.goals?.length > 0 && (
+              <Card className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Target size={16} className="text-mint" />
+                  <span className="text-paper/60 text-sm font-medium">Goals</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {data.goals.map(g => {
+                    const pct = g.current_value != null
+                      ? Math.min(100, Math.round((g.current_value / g.target_value) * 100))
+                      : null
+                    return (
+                      <div key={g.id}>
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <span className="text-paper text-sm font-semibold">{friendlyMetricName(g.target_metric)}</span>
+                          <Badge color={g.achieved ? 'green' : 'gray'}>{g.achieved ? 'Achieved' : 'In progress'}</Badge>
+                        </div>
+                        {pct != null ? (
+                          <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-mint to-brand-green rounded-full transition-[width] duration-700"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-paper/30 text-xs">Not enough recent sessions yet to show progress.</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {data.assignments?.length > 0 && (
+              <Card className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <ListChecks size={16} className="text-coral-light" />
+                  <span className="text-paper/60 text-sm font-medium">Assignments</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {data.assignments.map(a => (
+                    <div key={a.id} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-paper text-sm font-semibold truncate">{a.title}</p>
+                        {a.due_at && (
+                          <p className="text-paper/35 text-xs mt-0.5">Due {formatDate(a.due_at)}</p>
+                        )}
+                      </div>
+                      <Badge color={a.status === 'completed' ? 'green' : a.status === 'overdue' ? 'coral' : 'gray'}>
+                        {titleiseSnake(a.status)}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Messages -- parent's side of the same therapist<->parent
                 log the therapist writes to from PatientDetail.jsx's Care

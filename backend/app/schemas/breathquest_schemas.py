@@ -402,6 +402,10 @@ class PatientProgress(BaseModel):
     recommended_action: Optional[str] = None
     recommendation_message: Optional[str] = None
     recommendation_policy: Optional[str] = None
+    # Surfaces the account-recovery code so a therapist can read it back to
+    # a parent/kid on request instead of pointing them at the pre-login
+    # forgot-player-code email flow for something they could just be told.
+    player_code: Optional[str] = None
 
 
 class DashboardSummary(BaseModel):
@@ -708,33 +712,6 @@ class GuidedActivityOut(BaseModel):
     reason: str   # plain-language "why this one" for the parent
 
 
-class ParentProgressOut(BaseModel):
-    """Parent view: more than the kid sees, but no clinical notes and no
-    raw per-attempt data — trend-level, not session-by-session."""
-    child_first_name: str
-    avatar: str
-    total_sessions: int
-    total_stars: int
-    max_possible_stars: int
-    completion_rate: float
-    improvement_trend: Optional[float]
-    level_progress: List[LevelProgress]   # kept for backward compat (report_pdf.py etc. — BreathQuest only)
-    categories: dict[str, List[CategoryProgress]]  # {"breathquest": [...], "voicehurdlerace": [...], "vaakmirror": [...], "flashcards": [...]}
-    weekly_summary: WeeklySummaryOut
-    # Added to surface two things parents couldn't see before: the same
-    # adaptive-difficulty "today's recommendation" therapists already get
-    # (PatientProgress.recommended_action, same chime_data_store source),
-    # and a breath-consistency trend (session-level only until now, never
-    # aggregated for the parent view).
-    recommended_action: Optional[str] = None
-    recommendation_message: Optional[str] = None
-    avg_breath_consistency: Optional[float] = None
-    # Lets the frontend show/hide therapist-dependent UI (messaging) honestly
-    # instead of a message box that silently 403s or accepts messages nobody
-    # reads. Boolean only -- parents don't need the therapist's actual id.
-    has_therapist: bool = False
-
-
 class KidProgressOut(BaseModel):
     """What the child sees about themself — no scores, no clinical
     language, just concrete, encouraging counts."""
@@ -925,6 +902,46 @@ class GoalOut(BaseModel):
     achieved_at: Optional[datetime]
     created_at: datetime
     current_value: Optional[float] = None   # populated at read time, not stored
+
+
+class ParentProgressOut(BaseModel):
+    """Parent view: more than the kid sees, but no clinical notes and no
+    raw per-attempt data — trend-level, not session-by-session.
+
+    Relocated below GoalOut/AssignmentOut (this file has no forward-ref
+    support) since goals/assignments now carry the actual goal/assignment
+    content, not just counts -- see weekly_summary's goals_open/
+    assignments_completed for the counts-only view this supplements."""
+    child_first_name: str
+    avatar: str
+    total_sessions: int
+    total_stars: int
+    max_possible_stars: int
+    completion_rate: float
+    improvement_trend: Optional[float]
+    level_progress: List[LevelProgress]   # kept for backward compat (report_pdf.py etc. — BreathQuest only)
+    categories: dict[str, List[CategoryProgress]]  # {"breathquest": [...], "voicehurdlerace": [...], "vaakmirror": [...], "flashcards": [...]}
+    weekly_summary: WeeklySummaryOut
+    # Added to surface two things parents couldn't see before: the same
+    # adaptive-difficulty "today's recommendation" therapists already get
+    # (PatientProgress.recommended_action, same chime_data_store source),
+    # and a breath-consistency trend (session-level only until now, never
+    # aggregated for the parent view).
+    recommended_action: Optional[str] = None
+    recommendation_message: Optional[str] = None
+    avg_breath_consistency: Optional[float] = None
+    # Lets the frontend show/hide therapist-dependent UI (messaging) honestly
+    # instead of a message box that silently 403s or accepts messages nobody
+    # reads. Boolean only -- parents don't need the therapist's actual id.
+    has_therapist: bool = False
+    # The actual goal/assignment content -- weekly_summary only ever had
+    # counts (goals_open, assignments_completed), never what those goals
+    # or assignments *are*. Reuses the therapist-facing GoalOut/AssignmentOut
+    # shapes as-is rather than a parent-specific subset, since nothing in
+    # them is clinician-only (that's clinical *notes*, which live elsewhere).
+    goals: List[GoalOut] = []
+    assignments: List[AssignmentOut] = []
+    player_code: Optional[str] = None
 
 
 # ------------------------------------------------------------------ #
