@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, patientsAPI, getErrorMessage } from '../../api/client'
 import { Card, Badge, Button, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
-import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic, Layers } from 'lucide-react'
+import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic, Layers, Stethoscope } from 'lucide-react'
 import { SOUNDS } from '../../vaakmirror/data/soundTaxonomy'
 
 const FLASHCARD_PHONEMES = [
@@ -54,6 +54,15 @@ const GAMES = {
     label: 'Flashcards',
     icon: Layers,
     levels: FLASHCARD_PHONEMES.map(([id, label]) => ({ id, label })),
+  },
+  // No fixed level list -- unlike the other four games, which phonemes
+  // exist for Assessment depends on which words (in which language) this
+  // specific child has actually been assessed on. `levels` stays empty
+  // here and is populated per-patient below (see assessmentLevels state).
+  assessment: {
+    label: 'Assessment',
+    icon: Stethoscope,
+    levels: [],
   },
 }
 
@@ -221,11 +230,11 @@ function GameSelector({ game, onSelect }) {
   )
 }
 
-function LevelStrip({ game, levelId, onSelect }) {
+function LevelStrip({ game, levelId, levels, onSelect }) {
   return (
     <div className="mb-6 -mx-6 px-6">
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {GAMES[game].levels.map(l => {
+        {levels.map(l => {
           const isActive = l.id === levelId
           return (
             <button
@@ -253,17 +262,49 @@ export default function AgentInsight() {
   const requestedGame = searchParams.get('game')
   const initialGame = GAMES[requestedGame] ? requestedGame : 'breathquest'
   const [game, setGame] = useState(initialGame)
-  const [levelId, setLevelId] = useState(GAMES[initialGame].levels[0].id)
+  const [levelId, setLevelId] = useState(GAMES[initialGame].levels[0]?.id ?? null)
   const [assessmentId, setAssessmentId] = useState(null)
+  const [assessmentLevels, setAssessmentLevels] = useState([])
+  const [assessmentLevelsLoading, setAssessmentLevelsLoading] = useState(false)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showTechDetail, setShowTechDetail] = useState(false)
 
+  // Assessment's levels aren't known until we've fetched which phonemes
+  // this specific child has actually been assessed on -- every other game
+  // has a fixed list to pick a first id from synchronously.
+  const currentLevels = game === 'assessment' ? assessmentLevels : GAMES[game].levels
+
   const selectGame = (g) => {
     setGame(g)
-    setLevelId(GAMES[g].levels[0].id)
+    setLevelId(g === 'assessment' ? null : GAMES[g].levels[0].id)
   }
+
+  // Fetch Assessment's per-patient phoneme list once assessmentId resolves
+  // and whenever the child switches into the Assessment tab. GAMES.assessment
+  // .levels intentionally stays [] (see its comment above) -- this is the
+  // real source.
+  useEffect(() => {
+    if (game !== 'assessment' || !assessmentId) return
+    setAssessmentLevelsLoading(true)
+    setError(null)
+    dashboardAPI.assessmentAgentLevels(assessmentId)
+      .then(r => {
+        const levels = (r.data.phonemes || []).map(p => ({ id: p, label: p.toUpperCase() }))
+        setAssessmentLevels(levels)
+        setLevelId(levels[0]?.id ?? null)
+        if (levels.length === 0) {
+          setLoading(false)
+          setError('This child has no logged Assessment attempts yet, so there\u2019s nothing for the agent to show.')
+        }
+      })
+      .catch(e => {
+        setError(getErrorMessage(e, 'Could not load Assessment phoneme levels'))
+        setLoading(false)
+      })
+      .finally(() => setAssessmentLevelsLoading(false))
+  }, [game, assessmentId])
 
   // Agent-status routes (chime.py, breath_agent.py, voicehurdlerace.py) key
   // off Patient.assessment_patient_id, not breathquest_patients.id — but
@@ -289,7 +330,7 @@ export default function AgentInsight() {
   }, [id])
 
   const load = useCallback(() => {
-    if (!assessmentId) return
+    if (!assessmentId || !levelId) return
     setLoading(true)
     setError(null)
     dashboardAPI.agentStatus(assessmentId, levelId, 'tabular_q', game)
@@ -327,9 +368,11 @@ export default function AgentInsight() {
         </p>
 
         <GameSelector game={game} onSelect={selectGame} />
-        <LevelStrip game={game} levelId={levelId} onSelect={setLevelId} />
+        {currentLevels.length > 0 && (
+          <LevelStrip game={game} levelId={levelId} levels={currentLevels} onSelect={setLevelId} />
+        )}
 
-        {loading ? <PageLoader /> : error ? (
+        {(loading || assessmentLevelsLoading) ? <PageLoader /> : error ? (
           <Card className="text-center py-16 px-8">
             <div className="w-14 h-14 rounded-2xl bg-brand-coral/10 flex items-center justify-center mx-auto mb-4">
               <CloudOff size={24} className="text-brand-coral" />

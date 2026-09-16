@@ -2,6 +2,12 @@ import axios from 'axios'
 import { updateActiveAccountToken, currentAccountKey, forgetKnownAccount } from './knownAccounts'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+// routes/assessment.py is the one router mounted at plain "/assessment" in
+// main.py instead of under /api/v1 (see Assessment.jsx's own API_URL, which
+// already targets this same root for /assessment/analyze). Strip a trailing
+// /api/v1 off BASE_URL when present so both stay derived from one env var
+// instead of drifting independently.
+const ROOT_URL = BASE_URL.replace(/\/api\/v1\/?$/, '')
 
 // Deduped silent-refresh: if several requests 401 around the same moment
 // (e.g. a burst of parallel calls right as the access token expires), they
@@ -229,8 +235,31 @@ export const dashboardAPI = {
   // AgentService-backed router (see backend/app/routers/breathquest/
   // breath_agent.py, chime.py, voicehurdlerace.py agent/status routes).
   agentStatus: (patientId, levelId, policy = 'tabular_q', game = 'breathquest') => {
+    if (game === 'assessment') {
+      // routes/assessment.py's router is mounted at plain prefix="/assessment"
+      // in main.py -- not under /api/v1 like every other game's router --
+      // same root Assessment.jsx's own API_URL already targets for
+      // /assessment/analyze. `api`'s baseURL bakes in /api/v1, so this one
+      // goes through axios directly against the un-prefixed root instead,
+      // manually attaching the same bearer token `api`'s interceptor would.
+      const token = localStorage.getItem('bq_token')
+      return axios.get(`${ROOT_URL}/assessment/agent/status/${patientId}`, {
+        params: { level_id: levelId, policy },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    }
     const prefix = { breathquest: '/breath', chime: '/chime', voicehurdlerace: '/voicehurdlerace', vaakmirror: '/vaakmirror', flashcards: '/flashcards' }[game]
     return api.get(`${prefix}/agent/status/${patientId}`, { params: { level_id: levelId, policy } })
+  },
+  // Same un-prefixed-root rationale as agentStatus above. Assessment has no
+  // fixed level list (phonemes depend on which words/languages this child
+  // has actually been given), so AgentInsight.jsx fetches it per-patient
+  // instead of reading a static GAMES[...].levels array.
+  assessmentAgentLevels: (patientId) => {
+    const token = localStorage.getItem('bq_token')
+    return axios.get(`${ROOT_URL}/assessment/agent/levels/${patientId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
   },
   createNote:  (patientId, data) => api.post(`/dashboard/patients/${patientId}/notes`, data),
   listNotes:   (patientId)       => api.get(`/dashboard/patients/${patientId}/notes`),

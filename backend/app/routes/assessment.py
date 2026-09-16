@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form, Header
+import asyncio
 import os
+from typing import Literal
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -15,9 +17,39 @@ from app.tools.audio_tool import save_audio, delete_audio
 from app.state.assessment_state import AssessmentState
 from app.graph.assessment_graph import assessment_graph
 from app.services.audio_service import AudioService, CoquiTTSEngine
+from app.deps.therapist_auth_deps import get_current_therapist
+from app.retraining import data_store
+from agent.service import AgentService
 
 
 router = APIRouter(tags=["Assessment"])
+
+# Assessment has no level_id/game loop like BreathQuest/Chime/VaakMirror/
+# Flashcards -- each /analyze call is a one-off diagnostic on a possibly
+# different target_word, so there's no repeated "same level" to accumulate
+# RL events against at the word level. But phonemes DO repeat across
+# different words (and even different languages' target-word translations),
+# so -- same trick as Flashcards' fc_{phoneme} -- key the RL level_id per
+# phoneme instead of per word. That's what gives tabular_q/etc. enough
+# repeated observations of the same "level" to ever progress past
+# rule_based here.
+_agent_service = AgentService(db_path=data_store.DEFAULT_DB_PATH, recent_window=10)
+
+
+def _assess_level_id(phoneme: str) -> str:
+    return f"assess_{phoneme.strip().lower()}"
+
+
+def _next_attempt_number(patient_id: str, level_id: str) -> int:
+    """Assessment has no PhonemeMastery-style aggregate table (Flashcards'
+    own running per-phoneme counter) to read from, so derive the next
+    attempt_number from the shared RL event log itself -- the same store
+    every game's events already live in and that get_status()/decide() read
+    from. Fine at Assessment's call volume (diagnostic sessions, not a fast
+    game loop); an aggregate table would be the right move if this needs to
+    scale further."""
+    events = data_store.get_events(child_id=patient_id)
+    return 1 + sum(1 for e in events if e["level_id"] == level_id)
 
 ASSESSMENT_SERVICE_API_KEY = os.getenv("ASSESSMENT_SERVICE_API_KEY")
 
@@ -764,6 +796,44 @@ async def analyze_assessment_pronunciation(
                     db.refresh(session)
                     session_id = session.id
                     logger.info(f"✅ Session saved for patient {patient_id} (session_id={session_id})")
+
+                    # Log one RL event per phoneme in this attempt (not one
+                    # per word) -- see _assess_level_id's docstring above
+                    # for why per-phoneme is what makes the agent ladder
+                    # viable for a diagnostic app with no repeated levels.
+                    for match in (result_state.get("phoneme_matches") or []):
+                        expected = match.get("expected")
+                        if not expected:
+                            continue
+                        level_id = _assess_level_id(str(expected))
+                        attempt_number = await asyncio.to_thread(
+                            _next_attempt_number, patient_id, level_id
+                        )
+                        await asyncio.to_thread(
+                            data_store.add_event,
+                            child_id=patient_id,
+                            level_id=level_id,
+                            attempt_number=attempt_number,
+                            score=1.0 if match.get("correct") else 0.0,
+                            is_valid_attempt=True,
+                            threshold_at_time=None,
+                            action=None,
+                            quit_flag=False,
+                            raw_features={
+                                "target_word": target_word,
+                                "detected": match.get("detected"),
+                            },
+                            severity_numeric=0.0,
+                            is_targeted_sound=False,
+                            policy_used=None,
+                            downgrade_reason=None,
+                            recommended_action=None,
+                            recommendation_message=None,
+                            db_path=data_store.DEFAULT_DB_PATH,
+                        )
+                        _agent_service.maybe_update_tabular_q_from_new_event(
+                            str(patient_id), level_id, quit_flag=False
+                        )
                 else:
                     logger.warning(f"⚠️ Patient {patient_id} not found, session not saved")
                 db.close()
@@ -922,3 +992,68 @@ def get_assessment_result(ref: str, db: Session = Depends(get_db)):
         "diagnostic_report": session.diagnostic_report,
         "created_at": session.created_at.isoformat() if session.created_at else None,
     }
+
+
+class AgentStatusObs(BaseModel):
+    success_rate: float
+    difficulty: float
+    frustration: float
+    severity_numeric: float
+    is_targeted_sound: bool
+
+
+class AgentStatusOut(BaseModel):
+    policy: str
+    requested_policy: str
+    n_events_considered: int
+    downgrade_reason: str | None
+    obs: AgentStatusObs
+
+
+def _get_own_patient(patient_id: str, therapist: Therapist, db: Session) -> Patient:
+    """Assessment's own Patient IS the assessment-origin record (unlike
+    BreathQuest/Chime/etc., which look it up indirectly via
+    BreathQuestPatient.assessment_patient_id) -- so patient_id here is just
+    Patient.id, ownership-checked directly against the calling therapist."""
+    patient = (
+        db.query(Patient)
+        .filter(Patient.id == patient_id, Patient.registered_therapist_id == therapist.id)
+        .first()
+    )
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return patient
+
+
+@router.get("/agent/status/{patient_id}", response_model=AgentStatusOut)
+def assessment_agent_status(
+    patient_id: str,
+    level_id: str,
+    policy: Literal["rule_based", "bandit", "tabular_q", "ppo", "recurrent_ppo"] = "tabular_q",
+    therapist: Therapist = Depends(get_current_therapist),
+    db: Session = Depends(get_db),
+):
+    patient = _get_own_patient(patient_id, therapist, db)
+    result = _agent_service.get_status(str(patient.id), level_id, policy)
+    return AgentStatusOut(**result)
+
+
+@router.get("/agent/levels/{patient_id}")
+def assessment_agent_levels(
+    patient_id: str,
+    therapist: Therapist = Depends(get_current_therapist),
+    db: Session = Depends(get_db),
+):
+    """Unlike the other four games, Assessment has no fixed level list --
+    which phonemes exist for this child depends on which words (in which
+    language) they've actually been assessed on. Derive the list from this
+    child's own logged agent events rather than a static table, so
+    AgentInsight.jsx can build its level picker dynamically per patient."""
+    patient = _get_own_patient(patient_id, therapist, db)
+    events = data_store.get_events(child_id=str(patient.id))
+    phonemes = sorted({
+        e["level_id"][len("assess_"):]
+        for e in events
+        if e["level_id"].startswith("assess_")
+    })
+    return {"phonemes": phonemes}
