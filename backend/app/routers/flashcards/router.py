@@ -14,13 +14,20 @@ import base64
 import logging
 from pathlib import Path
 
+import asyncio
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 from app.vaakmirror_auth import get_current_patient_id
 from app.database import get_db
+from app.models.breathquest_models import BreathQuestPatient, Therapist
+from app.deps.therapist_auth_deps import get_current_therapist
 
 from .tts import speak as tts_speak, get_characters
 from app.services.image.matcher import get_image_for_phrase
@@ -257,3 +264,67 @@ async def evaluate(
         return result_dict
     finally:
         os.unlink(tmp_path)
+
+
+class AgentStatusObs(BaseModel):
+    success_rate: float
+    difficulty: float
+    frustration: float
+    severity_numeric: float
+    is_targeted_sound: bool
+
+
+class AgentStatusOut(BaseModel):
+    policy: str
+    requested_policy: str
+    n_events_considered: int
+    downgrade_reason: str | None
+    obs: AgentStatusObs
+
+
+class AgentDecisionOut(BaseModel):
+    policy: str
+    requested_policy: str | None = None
+    action: Literal["raise", "lower", "hold"]
+    n_events_considered: int
+    message: str
+    downgrade_reason: str | None = None
+
+
+@router.get("/agent/status/{patient_id}", response_model=AgentStatusOut)
+async def flashcards_agent_status(
+    patient_id: str,
+    level_id: str,
+    policy: Literal["rule_based", "bandit", "tabular_q", "ppo", "recurrent_ppo"] = "tabular_q",
+    therapist: Therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient_result = await db.execute(
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.assessment_patient_id == patient_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
+    )
+    patient_row = patient_result.scalar_one_or_none()
+    if not patient_row:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    result = await asyncio.to_thread(
+        mastery._agent_service.get_status, patient_row.id, mastery._fc_level_id(level_id), policy
+    )
+    return AgentStatusOut(**result)
+
+
+@router.get("/agent/decide/{phoneme}", response_model=AgentDecisionOut)
+def flashcards_agent_decide(
+    phoneme: str,
+    policy: Literal["rule_based", "bandit", "tabular_q", "ppo", "recurrent_ppo"] = "tabular_q",
+    patient_id: str = Depends(get_current_patient_id),
+):
+    try:
+        result = mastery._agent_service.decide(patient_id, mastery._fc_level_id(phoneme), policy)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=f"Model not found: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return AgentDecisionOut(**result)
