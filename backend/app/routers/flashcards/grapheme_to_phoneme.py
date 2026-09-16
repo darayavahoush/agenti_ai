@@ -7,7 +7,6 @@ does this actual word->phoneme conversion, so this isn't a duplicate of
 anything already in the app.
 """
 from g2p_en import G2p
-import epitran
 import pandas as pd
 
 _g2p = G2p()
@@ -15,6 +14,7 @@ _g2p = G2p()
 
 def _create_epitran(code: str):
     """Work around Panphon reading its UTF-8 data with the Windows locale."""
+    import epitran
     original_read_csv = pd.read_csv
 
     def read_csv_with_utf8(*args, **kwargs):

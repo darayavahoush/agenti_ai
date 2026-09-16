@@ -75,7 +75,10 @@ async def voicehurdlerace_agent_status(
     db: AsyncSession = Depends(get_db),
 ):
     patient_result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id, BreathQuestPatient.therapist_id == therapist.id)
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.assessment_patient_id == patient_id,
+            BreathQuestPatient.therapist_id == therapist.id,
+        )
     )
     patient_row = patient_result.scalar_one_or_none()
     if not patient_row:

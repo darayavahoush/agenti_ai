@@ -38,6 +38,7 @@ from app.routers.vaakmirror.dashboard import router as vaakmirror_dashboard_rout
 from app.routers.vaakmirror.exercises import router as vaakmirror_exercises_router
 from app.routers.vaakmirror.labeling import router as vaakmirror_labeling_router
 from app.routers.vaakmirror.round_size import router as vaakmirror_round_size_router
+from app.routers.vaakmirror.agent import router as vaakmirror_agent_router
 from app.routers.flashcards.router import router as flashcards_router
 
 class PatientCreate(BaseModel):
@@ -200,6 +201,7 @@ app.include_router(vaakmirror_dashboard_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_exercises_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_labeling_router, prefix="/api/v1/vaakmirror")
 app.include_router(vaakmirror_round_size_router, prefix="/api/v1/vaakmirror")
+app.include_router(vaakmirror_agent_router, prefix="/api/v1/vaakmirror")
 from app.routers.event_feedback import router as event_feedback_router
 app.include_router(event_feedback_router, prefix="/api/v1")
 

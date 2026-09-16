@@ -60,11 +60,24 @@ from app.schemas.vaakmirror_schemas import AttemptCreate, AttemptOut, SessionCre
 from app.retraining import data_store
 from app.retraining.scheduler import run_retrain_if_due
 from agent.diagnostic_client import get_diagnostic_context
+from agent.service import AgentService
 
 router = APIRouter(tags=["vaakmirror-sessions"])
 
 DB_PATH = data_store.DEFAULT_DB_PATH
+RECENT_WINDOW = 10
 _VM_SUCCESS_OUTCOMES = (AttemptOutcome.passed, AttemptOutcome.caught)
+
+# Same shared AgentService/DB every other game's router points at -- see
+# agent/service.py's module docstring. Needed here (not just for the future
+# agent.py router) so that a decide() call elsewhere in this same process
+# actually gets consumed: decide() writes a pending_transition keyed by
+# (child_id, level_id) for tabular_q, and nothing clears it until
+# maybe_update_tabular_q_from_new_event runs on the *next* logged event for
+# that same key. Without this call, VaakMirror's per-child tabular-Q table
+# would never update online from real gameplay, and the pending_transitions
+# dict would accumulate stale entries indefinitely.
+_agent_service = AgentService(db_path=DB_PATH, recent_window=RECENT_WINDOW)
 
 
 def _vm_level_id(sound_id: str | None, game) -> str:
@@ -154,6 +167,7 @@ async def log_attempt(
         db_path=DB_PATH,
     )
 
+    _agent_service.maybe_update_tabular_q_from_new_event(patient_id, level_id, quit_flag=False)
     background_tasks.add_task(run_retrain_if_due, DB_PATH)
 
     result = AttemptOut.model_validate(attempt)
