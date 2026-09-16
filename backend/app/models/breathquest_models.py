@@ -360,6 +360,24 @@ class Goal(Base):
     patient: Mapped["BreathQuestPatient"] = relationship(back_populates="goals")
 
 
+class CompanionUnlock(Base):
+    """Permanent record of a cosmetic companion accessory a kid has earned
+    (see services/companion.py for the unlock thresholds). Persisted rather
+    than derived from current_streak_days -- an accessory earned at a past
+    streak peak must stay unlocked even after the streak later resets, the
+    same way a trophy doesn't get taken back."""
+    __tablename__ = "breathquest_companion_unlocks"
+
+    id:          Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
+    patient_id:  Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_patients.id"), nullable=False, index=True)
+    item_id:     Mapped[str]       = mapped_column(String(50), nullable=False)
+    unlocked_at: Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("patient_id", "item_id", name="uq_companion_unlock_patient_item"),
+    )
+
+
 class SenderRole(str, enum.Enum):
     therapist = "therapist"
     parent    = "parent"

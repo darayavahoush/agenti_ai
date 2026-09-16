@@ -186,12 +186,53 @@ export const CREATURE_ACCENTS = {
   fish:   { from: '#B3EFFF', to: '#2FA9E0', ring: '#2FA9E0' },
 }
 
-export function Creature({ species = 'chick', className = '' }) {
+// Cosmetic overlays earned via practice-streak milestones (see backend
+// services/companion.py's UNLOCK_TIERS -- item ids here must match those
+// exactly). Rendered as a second small SVG absolutely positioned over the
+// species art rather than threaded into each of the 6 species functions,
+// so unlocking a new accessory never requires touching the character art
+// itself. Coordinates are tuned for a generic top-of-head/side placement
+// that reads fine across all six species rather than pixel-perfect per one.
+function Accessory({ id }) {
+  if (id === 'sparkle_trail') {
+    return (
+      <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
+        <g fill="#FFD54A">
+          <path d="M78 22 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 Z" />
+          <path d="M86 34 l1.5 3.5 3.5 1.5 -3.5 1.5 -1.5 3.5 -1.5 -3.5 -3.5 -1.5 3.5 -1.5 Z" opacity="0.85" />
+          <path d="M70 14 l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2 -3 -3 -1.2 3 -1.2 Z" opacity="0.7" />
+        </g>
+      </svg>
+    )
+  }
+  if (id === 'party_hat') {
+    return (
+      <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
+        <path d="M50 4 L38 26 L62 26 Z" fill="#F0604A" stroke="#B23D2C" strokeWidth="1.5" strokeLinejoin="round" />
+        <circle cx="50" cy="4" r="3.2" fill="#FFD54A" />
+        <path d="M41 21 L59 21" stroke="#FFF" strokeWidth="1.5" opacity="0.5" />
+      </svg>
+    )
+  }
+  if (id === 'golden_crown') {
+    return (
+      <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
+        <path d="M36 24 L40 8 L47 18 L50 6 L53 18 L60 8 L64 24 Z"
+              fill="#FFD54A" stroke="#C9971F" strokeWidth="1.2" strokeLinejoin="round" />
+        <rect x="36" y="22" width="28" height="5" rx="1.5" fill="#FFD54A" stroke="#C9971F" strokeWidth="1" />
+      </svg>
+    )
+  }
+  return null
+}
+
+export function Creature({ species = 'chick', className = '', accessory = null }) {
   const uid = useId()
   const C = CREATURES[species] || CREATURES.chick
   return (
-    <div className={className}>
+    <div className={`relative ${className}`}>
       <C uid={uid} />
+      {accessory && <Accessory id={accessory} />}
     </div>
   )
 }
