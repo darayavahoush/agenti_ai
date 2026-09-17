@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, TrendingUp, CreditCard, Eye, EyeOff } from 'lucide-react'
+import { Trash2, TrendingUp, CreditCard, Eye, EyeOff, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Sidebar, ChildSwitcher, AboutModal } from '../../components/ui'
-import { getErrorMessage } from '../../api/client'
+import { parentAPI, getErrorMessage } from '../../api/client'
+import toast from 'react-hot-toast'
 
 export default function ParentSettings() {
   const { parent, logout, deleteParentAccount } = useAuth()
@@ -13,6 +14,30 @@ export default function ParentSettings() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [weeklyEmails, setWeeklyEmails] = useState(true)
+  const [emailPrefLoading, setEmailPrefLoading] = useState(true)
+  const [emailPrefSaving, setEmailPrefSaving] = useState(false)
+
+  useEffect(() => {
+    parentAPI.getEmailPreferences()
+      .then(({ data }) => setWeeklyEmails(!data.weekly_email_opt_out))
+      .catch(() => {}) // non-critical -- toggle just stays at its default if this fails
+      .finally(() => setEmailPrefLoading(false))
+  }, [])
+
+  const handleToggleWeeklyEmails = async () => {
+    const next = !weeklyEmails
+    setWeeklyEmails(next) // optimistic -- this is a simple boolean flip, worth not blocking on
+    setEmailPrefSaving(true)
+    try {
+      await parentAPI.updateEmailPreferences(!next)
+    } catch (err) {
+      setWeeklyEmails(!next) // revert on failure
+      toast.error(getErrorMessage(err, "Couldn't save that — try again"))
+    } finally {
+      setEmailPrefSaving(false)
+    }
+  }
 
   return (
     <div className="min-h-dvh bg-ink relative flex">
@@ -46,6 +71,28 @@ export default function ParentSettings() {
               <span className="text-paper/80">{parent?.phone || '—'}</span>
             </div>
           </div>
+        </div>
+
+        <div className="rounded-2xl p-6 border border-white/10 bg-white/5 mb-6">
+          <h2 className="text-paper/80 text-sm font-semibold mb-1 flex items-center gap-2">
+            <Mail size={14} className="text-paper/40" /> Weekly emails
+          </h2>
+          <p className="text-paper/40 text-xs mb-4">
+            A short progress update (or a gentle nudge if there's been no practice) once a week.
+          </p>
+          <button
+            onClick={handleToggleWeeklyEmails}
+            disabled={emailPrefLoading || emailPrefSaving}
+            className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50
+                       ${weeklyEmails ? 'bg-mint' : 'bg-white/15'}`}
+            role="switch"
+            aria-checked={weeklyEmails}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform
+                         ${weeklyEmails ? 'translate-x-5' : 'translate-x-0'}`}
+            />
+          </button>
         </div>
 
         <div className="rounded-2xl p-6 border border-white/10 bg-white/5">

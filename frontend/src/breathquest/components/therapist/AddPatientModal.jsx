@@ -4,7 +4,10 @@ import { getErrorMessage } from '../../../api/client'
 import { Button, Input, Avatar } from '../ui'
 
 const AVATARS = ['chick', 'dragon', 'bunny', 'fox', 'rocket', 'fish']
-const AVATAR_EMOJIS = { chick:'🐥', dragon:'🐉', cloud:'☁️', star:'⭐', rocket:'🚀', fish:'🐠' }
+// Was stale: had cloud/star, but AVATARS (and the actual species set in
+// Creatures.jsx's CREATURE_ACCENTS) has bunny/fox instead -- so those two
+// buttons rendered blank. Fixed to match the real species list.
+const AVATAR_EMOJIS = { chick:'🐥', dragon:'🐉', bunny:'🐰', fox:'🦊', rocket:'🚀', fish:'🐠' }
 
 export default function AddPatientModal({ onClose, onAdded }) {
   const [form, setForm]   = useState({ first_name: '', pin: '', age: '', avatar: 'chick', diagnosis_notes: '' })

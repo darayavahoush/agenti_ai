@@ -383,6 +383,8 @@ export const parentAPI = {
   markMessageRead: (messageId) => api.post(`/parent/messages/${messageId}/read`),
   history: (category, item) => api.get(`/parent/history/${category}/${encodeURIComponent(item)}`),
   chimeWeeklyBreakdown: () => api.get('/parent/weekly-breakdown/chime'),
+  getEmailPreferences: () => api.get('/parent/email-preferences'),
+  updateEmailPreferences: (weekly_email_opt_out) => api.put('/parent/email-preferences', { weekly_email_opt_out }),
 }
 
 // FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.

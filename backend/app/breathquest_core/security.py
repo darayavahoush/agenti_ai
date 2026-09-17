@@ -239,3 +239,34 @@ async def generate_unique_player_code(db, avatar: str) -> str:
         exists = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == code))
         if not exists.scalar_one_or_none():
             return code
+
+
+# ------------------------------------------------------------------ #
+#  Email unsubscribe/resubscribe tokens                                #
+# ------------------------------------------------------------------ #
+# Signed, no-login-required links for the weekly-email footer (see
+# app/services/email.py) -- clicked from a mail client, so there's no
+# parent session to authenticate against. A long expiry (400 days, just
+# past a year) rather than none at all: bounds how long a leaked/forwarded
+# link stays live, while comfortably outlasting the weekly cadence that
+# re-issues a fresh one in every single email anyway.
+UNSUBSCRIBE_TOKEN_EXPIRE = timedelta(days=400)
+
+
+def create_unsubscribe_token(patient_id: str) -> str:
+    expire = datetime.now(timezone.utc) + UNSUBSCRIBE_TOKEN_EXPIRE
+    payload = {"sub": str(patient_id), "exp": expire, "type": "email_unsubscribe"}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_unsubscribe_token(token: str) -> str | None:
+    """Returns the patient_id, or None if the token is invalid/expired/
+    not actually an unsubscribe token (e.g. someone pasted an access
+    token here instead)."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("type") != "email_unsubscribe":
+        return None
+    return payload.get("sub")
