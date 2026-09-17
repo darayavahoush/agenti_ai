@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Flame, Star, Calendar, Pencil, Check, X, History, Camera } from 'lucide-react'
+import { ArrowLeft, Flame, Pencil, Check, X, History, Camera } from 'lucide-react'
 import { Avatar } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { meAPI, getErrorMessage } from '../../api/client'
@@ -142,8 +142,6 @@ export default function MyAccount() {
     }
   }
 
-  const starPct = progress ? Math.min(100, Math.round((progress.total_stars / Math.max(1, progress.max_possible_stars)) * 100)) : 0
-
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #12142E 0%, #1E1E3F 100%)' }}>
       <div className="max-w-2xl mx-auto px-6 py-10">
@@ -270,61 +268,33 @@ export default function MyAccount() {
               <p className="text-white/25 text-xs mt-1">Tap the pencils to change your name or photo</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5
-                               transition-all duration-300 hover:-translate-y-1 hover:border-white/20
-                               animate-[acctPopIn_0.5s_ease-out_backwards]" style={{ animationDelay: '0ms' }}>
-                <div className="w-12 h-12 rounded-full bg-ember/15 flex items-center justify-center mx-auto mb-3">
-                  <Flame className="w-6 h-6 text-ember" />
-                </div>
-                <p className="font-vm-display text-3xl font-bold text-white">{progress.current_streak_days}</p>
-                <p className="text-white/40 text-xs mt-1">
-                  day{progress.current_streak_days === 1 ? '' : 's'} in a row
-                </p>
-              </div>
-
-              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5
-                               transition-all duration-300 hover:-translate-y-1 hover:border-white/20
-                               animate-[acctPopIn_0.5s_ease-out_backwards]" style={{ animationDelay: '100ms' }}>
-                <div className="w-12 h-12 rounded-full bg-mint/15 flex items-center justify-center mx-auto mb-3">
-                  <Calendar className="w-6 h-6 text-mint" />
-                </div>
-                <p className="font-vm-display text-3xl font-bold text-white">{progress.games_played_this_week}</p>
-                <p className="text-white/40 text-xs mt-1">
-                  game{progress.games_played_this_week === 1 ? '' : 's'} this week
-                </p>
-              </div>
-
-              <div className="rounded-2xl p-6 text-center border border-white/10 bg-white/5
-                               transition-all duration-300 hover:-translate-y-1 hover:border-white/20
-                               animate-[acctPopIn_0.5s_ease-out_backwards]" style={{ animationDelay: '200ms' }}>
-                <div className="w-12 h-12 rounded-full bg-brand-amber/15 flex items-center justify-center mx-auto mb-3">
-                  <Star className="w-6 h-6 text-brand-amber" fill="currentColor" fillOpacity={0.3} />
-                </div>
-                <p className="font-vm-display text-3xl font-bold text-white">{progress.total_stars}</p>
-                <p className="text-white/40 text-xs mt-1">total stars</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl p-6 border border-white/10 bg-white/5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-white/60 text-sm font-medium">Stars earned</span>
-                <span className="text-white/40 text-xs">
-                  {progress.total_stars} / {progress.max_possible_stars}
+            {/* Progress lives on its own page (My Progress, in the sidebar) --
+                this used to re-render the same streak/week/stars grid and
+                stars-earned bar right here too, so the two pages looked
+                like duplicates of each other. One quick-glance streak
+                number plus a link across, instead of a second copy. */}
+            <button
+              onClick={() => navigate('/play/progress')}
+              className="w-full mb-4 rounded-2xl p-4 border border-white/10 bg-white/5 hover:bg-white/10
+                         flex items-center justify-between transition-colors group"
+            >
+              <span className="flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-ember/15 flex items-center justify-center">
+                  <Flame className="w-4 h-4 text-ember" />
                 </span>
-              </div>
-              <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-brand-amber to-ember rounded-full transition-[width] duration-700"
-                  style={{ width: `${starPct}%` }}
-                />
-              </div>
-              {starPct === 100 && (
-                <p className="text-brand-amber text-xs font-semibold mt-3 text-center">
-                  🏆 You've earned every star — amazing!
-                </p>
-              )}
-            </div>
+                <span className="text-left">
+                  <span className="block text-white text-sm font-medium">
+                    {progress.current_streak_days} day{progress.current_streak_days === 1 ? '' : 's'} in a row
+                  </span>
+                  <span className="block text-white/30 text-xs">
+                    {progress.total_stars} / {progress.max_possible_stars} stars earned
+                  </span>
+                </span>
+              </span>
+              <span className="text-white/30 text-xs group-hover:text-white/50 transition-colors">
+                View my progress →
+              </span>
+            </button>
 
             <button
               onClick={() => navigate('/play/account/history')}

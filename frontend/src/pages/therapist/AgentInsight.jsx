@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI, patientsAPI, getErrorMessage } from '../../api/client'
-import { Card, Badge, Button, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
-import { ArrowLeft, CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic, Layers, Stethoscope } from 'lucide-react'
+import { Card, Badge, Button, BackLink, PageLoader, Sidebar, AmbientGlow, AboutModal, LevelIcon } from '../../components/ui'
+import { CloudOff, LayoutDashboard, Settings, Gamepad2, Bell, Waves, Mic, Layers, Stethoscope } from 'lucide-react'
 import { SOUNDS } from '../../vaakmirror/data/soundTaxonomy'
 
 const FLASHCARD_PHONEMES = [
@@ -387,9 +387,9 @@ export default function AgentInsight() {
       />
 
       <div className="relative flex-1 min-w-0 max-w-3xl mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => navigate(`/therapist/patients/${id}`)} className="mb-4">
-          <ArrowLeft size={16} className="mr-1" /> Back to patient
-        </Button>
+        <BackLink onClick={() => navigate(`/therapist/patients/${id}`)} className="mb-5">
+          Back to patient
+        </BackLink>
 
         <h1 className="text-xl font-display font-bold text-white mb-1">What the agent sees</h1>
         <p className="text-white/40 text-sm mb-6">

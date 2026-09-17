@@ -33,21 +33,21 @@ class RoundSizeSetIn(BaseModel):
     apply_suggestion: bool = False
 
 
-@router.get("/{patient_id}/{game}/round-size", response_model=RoundSizeOut)
+@router.get("/patients/{patient_id}/game-settings/{game}", response_model=RoundSizeOut)
 async def get_round_size(patient_id: str, game: GameName, db: AsyncSession = Depends(get_db)):
     setting = await get_current_round_size(db, patient_id, game)
     await db.commit()
     return RoundSizeOut(patient_id=patient_id, game=game, round_size=setting.round_size)
 
 
-@router.get("/{patient_id}/{game}/round-size/suggestion", response_model=RoundSizeSuggestionOut)
+@router.get("/patients/{patient_id}/game-settings/{game}/suggestion", response_model=RoundSizeSuggestionOut)
 async def get_round_size_suggestion(patient_id: str, game: GameName, db: AsyncSession = Depends(get_db)):
     suggestion = await suggest_round_size(db, patient_id, game)
     await db.rollback()
     return RoundSizeSuggestionOut(**suggestion.__dict__)
 
 
-@router.post("/{patient_id}/{game}/round-size", response_model=RoundSizeOut)
+@router.patch("/patients/{patient_id}/game-settings/{game}", response_model=RoundSizeOut)
 async def set_round_size(
     patient_id: str, game: GameName, body: RoundSizeSetIn, db: AsyncSession = Depends(get_db)
 ):

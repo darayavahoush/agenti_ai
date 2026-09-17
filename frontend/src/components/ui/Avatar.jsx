@@ -3,7 +3,7 @@
 // creating a circular import back through the barrel file.
 import { Creature, CREATURE_ACCENTS } from './Creatures'
 
-export function Avatar({ avatar = 'chick', photoUrl = null, size = 'md', name = '' }) {
+export function Avatar({ avatar = 'chick', photoUrl = null, size = 'md', name = '', accessory = null }) {
   const sizes = {
     sm:  'w-8 h-8',
     md:  'w-12 h-12',
@@ -29,7 +29,7 @@ export function Avatar({ avatar = 'chick', photoUrl = null, size = 'md', name = 
       style={{ background: `linear-gradient(160deg, ${accent.from}33, ${accent.to}22)` }}
       title={name}
     >
-      <Creature species={avatar} className="w-full h-full" />
+      <Creature species={avatar} className="w-full h-full" accessory={accessory} />
     </div>
   )
 }

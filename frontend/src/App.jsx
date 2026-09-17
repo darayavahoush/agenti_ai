@@ -21,6 +21,7 @@ const TherapistDashboard = lazy(() => import('./pages/therapist/Dashboard'))
 const PatientDetail      = lazy(() => import('./pages/therapist/PatientDetail'))
 const AgentInsight        = lazy(() => import('./pages/therapist/AgentInsight'))
 const TherapistSettings  = lazy(() => import('./pages/therapist/Settings'))
+const TherapistAboutPage = lazy(() => import('./pages/therapist/AboutPage'))
 const KidPlay            = lazy(() => import('./pages/kid/Play'))
 const AssessmentGate      = lazy(() => import('./pages/kid/AssessmentGate'))
 const AssessmentReport    = lazy(() => import('./pages/kid/AssessmentReport'))
@@ -28,6 +29,7 @@ const LevelSelect        = lazy(() => import('./pages/kid/LevelSelect'))
 const GamePage           = lazy(() => import('./pages/kid/GamePage'))
 const GamePicker         = lazy(() => import('./pages/kid/GamePicker'))
 const MyAccount          = lazy(() => import('./pages/kid/MyAccount'))
+const KidAboutPage       = lazy(() => import('./pages/kid/AboutPage'))
 const AccountHistory     = lazy(() => import('./pages/kid/AccountHistory'))
 const MyProgress         = lazy(() => import('./pages/kid/MyProgress'))
 const VaakMirrorHome     = lazy(() => import('./vaakmirror/VaakMirrorHome'))
@@ -49,6 +51,7 @@ const VoiceHurdleRace    = lazy(() => import('./voiceHurdleRace/VoiceHurdleRace'
 const ParentAuth         = lazy(() => import('./pages/parent/ParentAuth'))
 const ParentDashboard    = lazy(() => import('./pages/parent/ParentDashboard'))
 const ParentSettings     = lazy(() => import('./pages/parent/Settings'))
+const ParentAboutPage    = lazy(() => import('./pages/parent/AboutPage'))
 const Verify             = lazy(() => import('./pages/Verify'))
 const Pricing            = lazy(() => import('./pages/Pricing'))
 const Privacy            = lazy(() => import('./pages/Privacy'))
@@ -189,6 +192,9 @@ function AppRoutes() {
         <Route path="/therapist/settings" element={
           <ProtectedTherapist><TherapistSettings /></ProtectedTherapist>
         } />
+        <Route path="/therapist/about" element={
+          <ProtectedTherapist><TherapistAboutPage /></ProtectedTherapist>
+        } />
 
         {/* Kid */}
         <Route path="/play" element={
@@ -205,6 +211,9 @@ function AppRoutes() {
         } />
         <Route path="/play/account" element={
           <ProtectedKid requireEntitlement={false}><MyAccount /></ProtectedKid>
+        } />
+        <Route path="/play/about" element={
+          <ProtectedKid requireEntitlement={false}><KidAboutPage /></ProtectedKid>
         } />
         <Route path="/play/progress" element={
           <ProtectedKid requireEntitlement={false}><MyProgress /></ProtectedKid>
@@ -275,6 +284,9 @@ function AppRoutes() {
         } /> */}
         <Route path="/parent/settings" element={
           <ProtectedParent><ParentSettings /></ProtectedParent>
+        } />
+        <Route path="/parent/about" element={
+          <ProtectedParent><ParentAboutPage /></ProtectedParent>
         } />
 
         <Route path="*" element={

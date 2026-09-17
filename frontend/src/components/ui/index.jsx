@@ -1,5 +1,8 @@
 // Shared UI primitives
 
+import { useState } from 'react'
+import { ArrowLeft, KeyRound, Copy, Check as CheckIcon } from 'lucide-react'
+
 export function Button({ children, variant = 'primary', size = 'md', className = '', ...props }) {
   const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed'
   const variants = {
@@ -16,6 +19,27 @@ export function Button({ children, variant = 'primary', size = 'md', className =
   }
   return (
     <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+      {children}
+    </button>
+  )
+}
+
+// Lightweight back affordance. A full `<Button variant="ghost">` for "go
+// back" reads far heavier than the action deserves -- a bordered, bold,
+// px-6 py-3 pill competing with the page title for weight. This is the
+// pattern the kid-facing pages already use (MyProgress/MyAccount/Play):
+// quiet text + arrow at rest, arrow nudging left on hover.
+export function BackLink({ children, className = '', ...props }) {
+  return (
+    <button
+      className={`group inline-flex items-center gap-1.5 text-white/40 hover:text-white
+                  text-sm font-medium transition-colors ${className}`}
+      {...props}
+    >
+      <ArrowLeft
+        size={15}
+        className="transition-transform duration-200 group-hover:-translate-x-0.5"
+      />
       {children}
     </button>
   )
@@ -71,6 +95,43 @@ export function Badge({ children, color = 'green' }) {
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${colors[color]}`}>
       {children}
     </span>
+  )
+}
+
+// The child's account-recovery code, shown once logged in so a parent or
+// therapist can just read it off instead of being sent through the
+// pre-login forgot-player-code email flow for something they could be
+// told directly. Click-to-copy since it's meant to be handed to someone
+// else (a kid re-logging in on a shared device, a parent typing it into
+// their own signup), not just looked at.
+export function PlayerCodeChip({ code, className = '' }) {
+  const [copied, setCopied] = useState(false)
+  if (!code) return null
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard API can be unavailable (older WebViews, non-HTTPS
+      // contexts) -- the code is still visible in the chip either way,
+      // so failing quietly here doesn't lose the user anything.
+    }
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Click to copy"
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+        bg-white/[0.06] border border-white/10 text-white/70 hover:bg-white/10 hover:text-white
+        transition-colors ${className}`}
+    >
+      <KeyRound size={12} className="text-white/40" />
+      <span className="tracking-wide">{code}</span>
+      {copied ? <CheckIcon size={12} className="text-brand-green" /> : <Copy size={12} className="text-white/30" />}
+    </button>
   )
 }
 
@@ -220,6 +281,6 @@ export { default as AmbientGlow } from './AmbientGlow'
 export { default as SupervisedBanner } from './SupervisedBanner'
 export { default as OfflineBanner } from './OfflineBanner'
 export { default as ChildSwitcher } from './ChildSwitcher'
-export { default as AboutModal } from './AboutModal'
+export { default as AboutModal, ABOUT_CONTENT, ABOUT_PATH } from './AboutModal'
 export { LevelIcon } from './LevelIcons'
 export { default as SavedProfilesGate } from './SavedProfilesGate'

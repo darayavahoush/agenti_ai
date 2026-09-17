@@ -341,6 +341,11 @@ export const vaakmirrorAPI = {
 
 export const meAPI = {
   progress:        () => api.get('/me/progress'),
+  calendar:        () => api.get('/me/calendar'),
+  quests:          () => api.get('/me/quests'),
+  companion:       () => api.get('/me/companion'),
+  equipCompanion:  (itemId) => api.post('/me/companion/equip', { item_id: itemId }),
+  goal:            () => api.get('/me/goal'),
   history:         () => api.get('/me/history'),
   breathquestLevelScores: () => api.get('/me/breathquest/level-scores'),
   gamesSummary:    () => api.get('/me/games-summary'),
@@ -378,6 +383,8 @@ export const parentAPI = {
   markMessageRead: (messageId) => api.post(`/parent/messages/${messageId}/read`),
   history: (category, item) => api.get(`/parent/history/${category}/${encodeURIComponent(item)}`),
   chimeWeeklyBreakdown: () => api.get('/parent/weekly-breakdown/chime'),
+  getEmailPreferences: () => api.get('/parent/email-preferences'),
+  updateEmailPreferences: (weekly_email_opt_out) => api.put('/parent/email-preferences', { weekly_email_opt_out }),
 }
 
 // FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.

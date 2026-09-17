@@ -321,6 +321,38 @@ export default function GamePage() {
   const phaseRef = useRef(phase)
   useEffect(() => { phaseRef.current = phase }, [phase])
 
+  // Route reuses this same GamePage instance across levels (React Router
+  // doesn't remount on a param change alone), so without this, navigating
+  // Dandelion -> Dragon leaves Dandelion's phase/result/stars/metrics still
+  // set while only levelId itself has actually updated -- e.g. the
+  // 'complete' screen and its earned-star count showing under the new
+  // level's header, or a stale breathLog feeding the next level's average.
+  // cleanup() alone isn't enough here: it only tears down timers/RAF/engine,
+  // never this component state.
+  useEffect(() => {
+    cleanup()
+    setPhase('ready')
+    setErrorReason(null)
+    setCalProgress(0)
+    setResult(null)
+    setEarnedStars(0)
+    setStarAnim(0)
+    setBuddyMessage(null)
+    setBuddyAction(null)
+    setDebug({ raw: 0, floor: 0, above: 0, breath: 0 })
+    setRlEventId(null)
+    setFeedbackGiven(null)
+    breathLog.current = []
+    eventBatch.current = []
+    metricsRef.current = { timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 }
+    breatheSpeechDone.current = false
+    breatheMinElapsed.current = false
+    breatheStarted.current = false
+    sessionRef.current = null
+    levelRef.current = null
+    startingRef.current = false
+  }, [levelId])
+
   // Backing out mid-level (or the tab just closing — see the pagehide
   // handler below) is a real signal for the difficulty agent, same idea as
   // the quit_flag Chime logs. This used to only log the agent event and

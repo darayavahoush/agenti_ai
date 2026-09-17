@@ -11,13 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient, Message, SenderRole
-from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress, MessageCreate, MessageOut
+from app.models.breathquest_models import Parent, GameSession, BreathQuestPatient, Message, SenderRole, Goal, Assignment
+from app.schemas.breathquest_schemas import ParentProgressOut, WeeklySummaryOut, GuidedActivityOut, HomePracticeIdeaOut, CategoryProgress, LevelProgress, MessageCreate, MessageOut, GoalOut, AssignmentOut
 from app.breathquest_core.deps import get_current_parent
 from app.services.weekly_summary import generate_weekly_summary
 from app.services.home_practice_ideas import IDEAS, filter_ideas
 from app.retraining import data_store as chime_data_store
-from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH
+from app.routers.breathquest.dashboard import LEVEL_NAMES, CHIME_DB_PATH, _compute_goal_current_value
 # vaakmirror lives outside this backend's Python path in some deploy
 # configs -- degrade to None rather than crashing app startup, same
 # pattern as kid_progress.py's own VaakMirrorSession handling.
@@ -27,7 +27,7 @@ from app.models.vaakmirror_models import (
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
-from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown
+from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown, EmailPreferencesOut
 from app.services.weekly_summary import _week_chime_events
 from sqlalchemy import func
 
@@ -247,6 +247,24 @@ async def get_parent_progress(
         if breath_consistency_vals else None
     )
 
+    # Actual goal/assignment content -- weekly_summary above only ever
+    # carried counts (goals_open, assignments_completed). Reuses the same
+    # rolling-5-session _compute_goal_current_value the therapist Care tab
+    # uses so a goal never shows a different number to the two of them.
+    goals_result = await db.execute(
+        select(Goal).where(Goal.patient_id == patient.id).order_by(Goal.created_at.desc())
+    )
+    goals_out = []
+    for g in goals_result.scalars().all():
+        item = GoalOut.model_validate(g)
+        item.current_value = await _compute_goal_current_value(g, db)
+        goals_out.append(item)
+
+    assignments_result = await db.execute(
+        select(Assignment).where(Assignment.patient_id == patient.id).order_by(Assignment.created_at.desc())
+    )
+    assignments_out = [AssignmentOut.model_validate(a) for a in assignments_result.scalars().all()]
+
     return ParentProgressOut(
         child_first_name=patient.first_name,
         avatar=patient.avatar,
@@ -268,6 +286,9 @@ async def get_parent_progress(
         recommendation_message=recommendation_message,
         avg_breath_consistency=avg_breath_consistency,
         has_therapist=bool(patient.therapist_id),
+        goals=goals_out,
+        assignments=assignments_out,
+        player_code=patient.player_code,
     )
 
 
@@ -579,3 +600,27 @@ async def mark_message_read(
     if message.read_at is None:
         message.read_at = datetime.now(timezone.utc)
     return message
+
+
+@router.get("/email-preferences", response_model=EmailPreferencesOut)
+async def get_email_preferences(
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_linked_patient(parent, db)
+    return EmailPreferencesOut(weekly_email_opt_out=patient.weekly_email_opt_out)
+
+
+@router.put("/email-preferences", response_model=EmailPreferencesOut)
+async def update_email_preferences(
+    data: EmailPreferencesOut,
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Settings-page mirror of the unsubscribe/resubscribe email links
+    (see routers/breathquest/email_prefs.py) -- same underlying flag,
+    just reachable from inside the app instead of an old email."""
+    patient = await _get_linked_patient(parent, db)
+    patient.weekly_email_opt_out = data.weekly_email_opt_out
+    await db.commit()
+    return EmailPreferencesOut(weekly_email_opt_out=patient.weekly_email_opt_out)
