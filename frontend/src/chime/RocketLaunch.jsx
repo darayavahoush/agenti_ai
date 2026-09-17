@@ -323,6 +323,14 @@ export default function RocketLaunch() {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       const s = stateRef.current
       s.mediaStream = stream
+      // A track can die mid-game (permission revoked, tablet sleeps, BT mic
+      // drops, OS reclaims the mic) without getUserMedia ever being called
+      // again. Without this, s.mediaStream stays a truthy reference to a
+      // dead stream and the "!s.mediaStream" guards in startVerificationWindow
+      // never fire.
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => { if (stateRef.current.mediaStream === stream) stateRef.current.mediaStream = null }
+      })
       s.audioCtx = new AudioContextClass()
       const source = s.audioCtx.createMediaStreamSource(stream)
       s.analyser = s.audioCtx.createAnalyser()
@@ -417,7 +425,16 @@ export default function RocketLaunch() {
   // regardless of which network response comes back first.
   function startVerificationWindow() {
     const s = stateRef.current
-    if (s.hasLaunched || !s.mediaStream) return
+    if (s.hasLaunched) return
+
+    // No stream, MediaRecorder unsupported, or start() throwing all used to
+    // do a bare return -- permanently stopping altitude verification (though
+    // the optimistic climb in gameLoop kept running unconfirmed) with
+    // nothing left to ever call this again. Now all three reschedule.
+    if (!s.mediaStream) {
+      s.verifyTimer = setTimeout(() => { if (!s.hasLaunched) startVerificationWindow() }, VERIFY_WINDOW_MS)
+      return
+    }
 
     const windowStartAltitude = s.altitude
 
@@ -426,7 +443,8 @@ export default function RocketLaunch() {
     try {
       recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
     } catch (err) {
-      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      console.warn('MediaRecorder unavailable, falling back for this window:', err)
+      s.verifyTimer = setTimeout(() => { if (!s.hasLaunched) startVerificationWindow() }, VERIFY_WINDOW_MS)
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
@@ -436,7 +454,13 @@ export default function RocketLaunch() {
       finishVerificationWindow(chunks, gained)
     }
     s.mediaRecorderRef = recorder
-    recorder.start()
+    try {
+      recorder.start()
+    } catch (err) {
+      console.warn('MediaRecorder.start() failed, falling back for this window:', err)
+      s.verifyTimer = setTimeout(() => { if (!s.hasLaunched) startVerificationWindow() }, VERIFY_WINDOW_MS)
+      return
+    }
     s.verifyTimer = setTimeout(() => {
       if (recorder.state !== 'inactive') recorder.stop()
     }, VERIFY_WINDOW_MS)

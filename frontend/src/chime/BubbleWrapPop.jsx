@@ -249,6 +249,14 @@ export default function BubbleWrapPop() {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       const s = stateRef.current
       s.mediaStream = stream
+      // A track can die mid-game (permission revoked, tablet sleeps, BT mic
+      // drops, OS reclaims the mic) without getUserMedia ever being called
+      // again. Without this, s.mediaStream stays a truthy reference to a
+      // dead stream and the "!s.mediaStream" guards in startVerificationWindow
+      // never fire.
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => { if (stateRef.current.mediaStream === stream) stateRef.current.mediaStream = null }
+      })
       s.audioCtx = new AudioContextClass()
       const source = s.audioCtx.createMediaStreamSource(stream)
       s.analyser = s.audioCtx.createAnalyser()
