@@ -228,7 +228,31 @@ class PatientOut(BaseModel):
     is_active: bool
     created_at: datetime
     assessment_patient_id: Optional[str] = None
+    archived_at: Optional[datetime] = None
     # Note: diagnosis_notes and pin_hash are NOT exposed here (therapist-only)
+
+
+class TransferPatientRequest(BaseModel):
+    """Therapist-to-therapist reassignment -- a single FK update, no
+    cascade concerns (unlike parent-to-parent, which goes through
+    ParentChild and is a separate, already-solved multi-child flow)."""
+    new_therapist_id: UUID
+
+
+class PatientExportOut(BaseModel):
+    """One-shot compliance/records snapshot -- everything that hangs off
+    patient_id, assembled and returned as a single JSON document rather
+    than a file, so the caller (therapist-facing UI) decides whether to
+    display it, download it, or hand it to a parent."""
+    patient: PatientDetailOut
+    sessions: list["SessionOut"]
+    notes: list["NoteOut"]
+    assignments: list["AssignmentOut"]
+    goals: list["GoalOut"]
+    messages: list["MessageOut"]
+    home_practice_logs: list["HomePracticeLogOut"]
+    companion_unlocks: list[dict]
+    exported_at: datetime
 
 
 class PatientDetailOut(PatientOut):
