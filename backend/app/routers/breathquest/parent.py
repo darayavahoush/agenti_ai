@@ -27,7 +27,7 @@ from app.models.vaakmirror_models import (
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
-from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown
+from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown, EmailPreferencesOut
 from app.services.weekly_summary import _week_chime_events
 from sqlalchemy import func
 
@@ -600,3 +600,27 @@ async def mark_message_read(
     if message.read_at is None:
         message.read_at = datetime.now(timezone.utc)
     return message
+
+
+@router.get("/email-preferences", response_model=EmailPreferencesOut)
+async def get_email_preferences(
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_linked_patient(parent, db)
+    return EmailPreferencesOut(weekly_email_opt_out=patient.weekly_email_opt_out)
+
+
+@router.put("/email-preferences", response_model=EmailPreferencesOut)
+async def update_email_preferences(
+    data: EmailPreferencesOut,
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Settings-page mirror of the unsubscribe/resubscribe email links
+    (see routers/breathquest/email_prefs.py) -- same underlying flag,
+    just reachable from inside the app instead of an old email."""
+    patient = await _get_linked_patient(parent, db)
+    patient.weekly_email_opt_out = data.weekly_email_opt_out
+    await db.commit()
+    return EmailPreferencesOut(weekly_email_opt_out=patient.weekly_email_opt_out)

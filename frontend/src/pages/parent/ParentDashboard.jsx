@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings,
   MessageCircle, Send, CloudOff, ChevronDown, Gamepad2, Waves, Mic, Layers, Bell, Wind,
-  Target, ListChecks,
+  Target, ListChecks, Share2, Loader2,
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar, ChildSwitcher, AboutModal, Badge, PlayerCodeChip } from '../../components/ui'
 import { useNavigate, Link } from 'react-router-dom'
 import { parentAPI, getErrorMessage } from '../../api/client'
+import { generateWeeklyRecapCard, shareOrDownloadRecapCard } from '../../lib/weeklyRecapCard'
 import toast from 'react-hot-toast'
 
 function formatDate(iso) {
@@ -273,6 +274,7 @@ export default function ParentDashboard() {
   const [deleting, setDeleting] = useState(false)
   const [data, setData] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
+  const [sharingRecap, setSharingRecap] = useState(false)
   const [activity, setActivity] = useState(null)
   const [messages, setMessages] = useState([])
   const [messagesLoaded, setMessagesLoaded] = useState(false)
@@ -329,6 +331,21 @@ export default function ParentDashboard() {
 
   const starPct = data ? Math.min(100, Math.round((data.total_stars / Math.max(1, data.max_possible_stars)) * 100)) : 0
   const trend = data?.improvement_trend
+
+  const handleShareRecap = async () => {
+    if (!data || sharingRecap) return
+    setSharingRecap(true)
+    try {
+      const blob = await generateWeeklyRecapCard(data)
+      const filename = `${(data.child_first_name || 'weekly').toLowerCase()}-week-recap.png`
+      const result = await shareOrDownloadRecapCard(blob, filename)
+      if (result === 'downloaded') toast.success('Saved — ready to share!')
+    } catch {
+      toast.error("Couldn't create the recap image — try again")
+    } finally {
+      setSharingRecap(false)
+    }
+  }
 
   return (
     <div className="min-h-dvh bg-ink relative flex">
@@ -445,17 +462,28 @@ export default function ParentDashboard() {
             <Card className="border-mint/20 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <p className="font-mono text-xs uppercase tracking-widest text-mint">This week</p>
-                {/* Transparency note -- this summary is deterministic, built
-                    from actual session data, not an LLM guessing. Worth
-                    saying explicitly for an audience wary of AI summaries. */}
-                <span className="group relative">
-                  <span className="text-paper/25 text-xs cursor-help">ⓘ How we write this</span>
-                  <span className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-ink border border-white/10
-                                    p-3 text-paper/60 text-xs leading-relaxed opacity-0 group-hover:opacity-100
-                                    pointer-events-none transition-opacity z-20">
-                    Generated from your child's actual session data — not AI guessing. Same numbers every time, for the same week.
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleShareRecap}
+                    disabled={sharingRecap}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-mint hover:text-mint-light
+                               disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {sharingRecap ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
+                    Share
+                  </button>
+                  {/* Transparency note -- this summary is deterministic, built
+                      from actual session data, not an LLM guessing. Worth
+                      saying explicitly for an audience wary of AI summaries. */}
+                  <span className="group relative">
+                    <span className="text-paper/25 text-xs cursor-help">ⓘ How we write this</span>
+                    <span className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-ink border border-white/10
+                                      p-3 text-paper/60 text-xs leading-relaxed opacity-0 group-hover:opacity-100
+                                      pointer-events-none transition-opacity z-20">
+                      Generated from your child's actual session data — not AI guessing. Same numbers every time, for the same week.
+                    </span>
                   </span>
-                </span>
+                </div>
               </div>
               {/* Grouped, not a nine-cell wall of bare numbers. The old grid
                   ran every stat together at equal weight with cryptic labels

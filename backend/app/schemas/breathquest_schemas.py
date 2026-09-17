@@ -966,6 +966,13 @@ class MessageOut(BaseModel):
     read_at: Optional[datetime]
 
 
+class EmailPreferencesOut(BaseModel):
+    """Logged-in-parent-facing mirror of the same weekly_email_opt_out
+    flag the unsubscribe email link sets -- lets a parent change their
+    mind from Settings without having to dig up an old email."""
+    weekly_email_opt_out: bool
+
+
 # ------------------------------------------------------------------ #
 #  Home practice log                                                   #
 # ------------------------------------------------------------------ #

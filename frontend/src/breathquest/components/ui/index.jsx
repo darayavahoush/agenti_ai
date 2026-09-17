@@ -100,11 +100,15 @@ export function StarRating({ stars = 0, max = 3, size = 'md' }) {
 }
 
 export function Avatar({ avatar = 'chick', size = 'md', name = '' }) {
+  // Was stale: had cloud/star from an earlier species set, but the app's
+  // real species are chick/dragon/bunny/fox/rocket/fish (see
+  // components/ui/Creatures.jsx's CREATURE_ACCENTS) -- a patient with
+  // avatar 'bunny' or 'fox' silently fell back to the chick art here.
   const AVATARS = {
     chick:  { emoji: '🐥', bg: 'from-yellow-400 to-orange-400' },
     dragon: { emoji: '🐉', bg: 'from-green-500 to-teal-500' },
-    cloud:  { emoji: '☁️',  bg: 'from-blue-400 to-indigo-400' },
-    star:   { emoji: '⭐', bg: 'from-yellow-300 to-amber-400' },
+    bunny:  { emoji: '🐰', bg: 'from-pink-300 to-pink-500' },
+    fox:    { emoji: '🦊', bg: 'from-orange-400 to-orange-600' },
     rocket: { emoji: '🚀', bg: 'from-purple-500 to-pink-500' },
     fish:   { emoji: '🐠', bg: 'from-cyan-400 to-blue-500' },
   }

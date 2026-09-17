@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # that's needed for auth -- unlike Twilio's separate SID/token pair).
     AZURE_COMMUNICATION_CONNECTION_STRING: str = Field(default="", description="ACS resource connection string, from Keys blade in Azure portal")
     AZURE_COMMUNICATION_FROM_NUMBER: str = Field(default="", description="ACS phone number to send OTP SMS from, E.164 format e.g. +15551234567")
+
+    # Public base URL for links embedded in emails (unsubscribe, etc.) --
+    # these are backend endpoints hit directly by a browser from a mail
+    # client, not frontend SPA routes, so this points at the API host,
+    # same production domain the CORS_ORIGINS default already uses.
+    API_BASE_URL: str = Field(default="https://vaaksudhi.manaslearning.com", description="Public base URL for links embedded in emails")
     
     class Config:
         env_file = ".env"
