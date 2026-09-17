@@ -127,6 +127,12 @@ class BreathQuestPatient(Base):
     # implicitly stay opted in (current behavior, unchanged) until they
     # explicitly turn it off.
     weekly_email_opt_out: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    # Archive (soft delete): is_active=False + archived_at set. Restore
+    # reverses both. Reuses the existing is_active login gate (deps.py)
+    # rather than adding a second status field -- is_active was already
+    # dormant (set at creation, never toggled, never filtered on list) so
+    # this activates it for its first real use.
+    archived_at:      Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
@@ -144,6 +150,15 @@ class BreathQuestPatient(Base):
     messages:    Mapped[list["Message"]]    = relationship(back_populates="patient", cascade="all, delete-orphan")
     home_practice_logs: Mapped[list["HomePracticeLog"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
     parent: Mapped["Parent | None"] = relationship(back_populates="patient", uselist=False, cascade="all, delete-orphan")
+    # Added alongside the archive/hard-delete fix: ParentChild and
+    # CompanionUnlock both had a patient_id FK with no ORM cascade and no
+    # DB-level ondelete, so db.delete(patient) would IntegrityError on any
+    # patient with a sibling (multi-child) or even one earned companion
+    # accessory -- confirmed live bug, not theoretical. Fixed here (on the
+    # model) rather than as a one-off cleanup in the delete endpoint, so the
+    # same crash can't recur from any future call site that deletes a patient.
+    parent_children: Mapped[list["ParentChild"]] = relationship(cascade="all, delete-orphan")
+    companion_unlocks: Mapped[list["CompanionUnlock"]] = relationship(cascade="all, delete-orphan")
 
 
 class GameSession(Base):
