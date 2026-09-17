@@ -244,6 +244,14 @@ export default function FireflyJar() {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       const s = stateRef.current
       s.mediaStream = stream
+      // A track can die mid-game (permission revoked, tablet sleeps, BT mic
+      // drops, OS reclaims the mic) without getUserMedia ever being called
+      // again. Without this, s.mediaStream stays a truthy reference to a
+      // dead stream and the "!s.mediaStream" guards in startVerificationWindow
+      // never fire.
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => { if (stateRef.current.mediaStream === stream) stateRef.current.mediaStream = null }
+      })
       s.audioCtx = new AudioContextClass()
       const source = s.audioCtx.createMediaStreamSource(stream)
       s.analyser = s.audioCtx.createAnalyser()
@@ -372,7 +380,18 @@ export default function FireflyJar() {
   // an actual "ma" in the transcript get to stay.
   function startVerificationWindow() {
     const s = stateRef.current
-    if (s.hasFinished || !s.mediaStream) return
+    if (s.hasFinished) return
+
+    // No stream, MediaRecorder unsupported, or start() throwing all used to
+    // do a bare return here -- permanently killing verification for the
+    // rest of the level with nothing left to ever call this again. Now all
+    // three reschedule and trust the optimistic/provisional state, same
+    // philosophy finishVerificationWindow already uses when backend
+    // transcription itself fails.
+    if (!s.mediaStream) {
+      s.verifyTimer = setTimeout(() => { if (!s.hasFinished) startVerificationWindow() }, VERIFY_WINDOW_MS)
+      return
+    }
 
     s.windowStartFireflyCount = s.jarFireflies.length
     s.windowStartFirefliesCaught = s.firefliesCaught
@@ -382,13 +401,20 @@ export default function FireflyJar() {
     try {
       recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
     } catch (err) {
-      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      console.warn('MediaRecorder unavailable, falling back for this window:', err)
+      s.verifyTimer = setTimeout(() => { if (!s.hasFinished) startVerificationWindow() }, VERIFY_WINDOW_MS)
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
     recorder.onstop = () => finishVerificationWindow(chunks)
     s.mediaRecorderRef = recorder
-    recorder.start()
+    try {
+      recorder.start()
+    } catch (err) {
+      console.warn('MediaRecorder.start() failed, falling back for this window:', err)
+      s.verifyTimer = setTimeout(() => { if (!s.hasFinished) startVerificationWindow() }, VERIFY_WINDOW_MS)
+      return
+    }
     s.verifyTimer = setTimeout(() => {
       if (recorder.state !== 'inactive') recorder.stop()
     }, VERIFY_WINDOW_MS)
