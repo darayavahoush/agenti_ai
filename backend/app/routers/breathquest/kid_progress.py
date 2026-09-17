@@ -8,7 +8,8 @@ themself. Full session/level detail stays therapist/parent-only.
 from datetime import datetime, timezone, timedelta
 import asyncio
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -31,7 +32,7 @@ from app.services.greetings import get_smart_greeting
 from app.services.recommendations import get_recommended_practice
 from app.services.weekly_target import get_weekly_calendar
 from app.services.weekly_quest import get_weekly_quests
-from app.services.companion import grant_earned_unlocks, get_companion_state
+from app.services.companion import grant_earned_unlocks, get_companion_state, equip_item
 from app.services.kid_goal import get_latest_goal_for_kid
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
@@ -160,6 +161,24 @@ async def get_my_companion(
     themselves are granted as a side effect of /me/progress (see
     services/companion.py); this route only reads current state."""
     return await get_companion_state(patient.id, db)
+
+
+class EquipCompanionRequest(BaseModel):
+    item_id: str
+
+
+@router.post("/companion/equip")
+async def equip_my_companion(
+    data: EquipCompanionRequest,
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kid picks any accessory or avatar they've already unlocked to equip.
+    Rejects anything not owned. See services/companion.py:equip_item."""
+    try:
+        return await equip_item(patient.id, data.item_id, db)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Item not unlocked")
 
 
 @router.get("/goal", response_model=KidGoalOut | None)

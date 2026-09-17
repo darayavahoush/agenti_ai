@@ -7,7 +7,7 @@ import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon, PlayerCodeChip } from '../../components/ui'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind, Clock } from 'lucide-react'
 
 // Level Details rows expand in place to show that level's own session
 // history -- filtered client-side from `sessions` (data.recent_sessions),
@@ -257,6 +257,31 @@ const POLICY_LABEL = {
   bandit:        'Bandit (retired)',
   ppo:           'PPO',
   recurrent_ppo: 'Recurrent PPO',
+}
+
+// Quick-fill presets for the most common goals a therapist sets, since
+// picking a metric + typing a target % + picking a date by hand is the
+// most repetitive part of the Care tab. These just prefill newGoal --
+// still fully editable before saving, not a locked-in shortcut.
+const GOAL_PRESETS = [
+  { label: 'Steady Breathing · 75% in 4 wks', target_metric: 'breath_consistency', target_value: '75', weeks: 4 },
+  { label: 'Steady Breathing · 90% in 8 wks', target_metric: 'breath_consistency', target_value: '90', weeks: 8 },
+  { label: 'Breath Strength · 70% in 4 wks',  target_metric: 'avg_breath_strength', target_value: '70', weeks: 4 },
+]
+
+function presetTargetDate(weeks) {
+  const d = new Date()
+  d.setDate(d.getDate() + weeks * 7)
+  return d.toISOString().slice(0, 10)
+}
+
+function relativeDate(iso) {
+  if (!iso) return 'Never played'
+  const days = Math.floor((Date.now() - new Date(iso)) / 86400000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  return new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 }
 
 export default function PatientDetail() {
@@ -632,6 +657,15 @@ export default function PatientDetail() {
                    : '→ Stable'
   const trendColor = trend > 0 ? 'text-brand-green' : trend < 0 ? 'text-brand-coral' : 'text-white/50'
 
+  // Session-prep digest -- everything a therapist would otherwise dig for
+  // across the Progress/Care tabs before a session, assembled from data
+  // this page already loads (no new endpoint). goals/homePractice/
+  // assignments are already sorted newest-first server-side.
+  const prepGoal = goals.find(g => !g.achieved) || goals[0] || null
+  const prepLastPractice = homePractice[0] || null
+  const prepOverdueCount = assignments.filter(a => a.status === 'overdue').length
+  const prepLastSession = data.recent_sessions[0]?.started_at || null
+
   // One ring per module, all from data already loaded elsewhere on this
   // page (no new endpoints) -- Orpheus doesn't expose a single accuracy
   // number, so it's attempts-weighted across manner/place/voicing here,
@@ -771,6 +805,64 @@ export default function PatientDetail() {
             </div>
           </div>
         </div>
+
+        {/* Session prep -- a quick digest of everything a therapist would
+            otherwise dig for across the Progress/Care tabs before a
+            session: recent trend, active goal, last home-practice note,
+            overdue assignments. Everything here is already loaded
+            elsewhere on this page, just surfaced in one place up front. */}
+        <Card className="mb-8 border-brand-teal/20">
+          <div className="flex items-center gap-2 mb-4">
+            <ClipboardCheck size={16} className="text-brand-teal" />
+            <p className="font-mono text-xs uppercase tracking-widest text-brand-teal">Session prep</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div className="flex items-start gap-2.5">
+              <Clock size={14} className="text-white/30 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-white/40 text-xs">Last session</p>
+                <p className="text-white">{relativeDate(prepLastSession)} · trend <span className={trendColor}>{trendLabel}</span></p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Target size={14} className="text-white/30 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-white/40 text-xs">Active goal</p>
+                {prepGoal ? (
+                  <p className="text-white capitalize">
+                    {prepGoal.target_metric.replace(/_/g, ' ')} — target {Math.round(prepGoal.target_value * 100)}%
+                    {prepGoal.current_value != null ? `, currently ${Math.round(prepGoal.current_value * 100)}%` : ''}
+                  </p>
+                ) : (
+                  <p className="text-white/30">No goal set yet</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <MessageSquare size={14} className="text-white/30 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-white/40 text-xs">Last home practice note</p>
+                {prepLastPractice ? (
+                  <p className="text-white">
+                    {new Date(prepLastPractice.practiced_on).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                    {prepLastPractice.notes ? ` — "${prepLastPractice.notes}"` : ' — no note left'}
+                  </p>
+                ) : (
+                  <p className="text-white/30">Nothing logged yet</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <ListChecks size={14} className="text-white/30 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-white/40 text-xs">Assignments</p>
+                <p className={prepOverdueCount > 0 ? 'text-brand-coral' : 'text-white'}>
+                  {prepOverdueCount > 0 ? `${prepOverdueCount} overdue` : 'None overdue'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
 
         {/* Module snapshot — one ring per module so a therapist can see at a
             glance what's been done and what hasn't, without clicking through
@@ -1508,6 +1600,23 @@ export default function PatientDetail() {
                     ))}
                   </div>
                   <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {GOAL_PRESETS.map(preset => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setNewGoal({
+                            target_metric: preset.target_metric,
+                            target_value: preset.target_value,
+                            target_date: presetTargetDate(preset.weeks),
+                          })}
+                          className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/5 border border-white/10
+                                     text-white/50 hover:text-white hover:bg-white/10 hover:border-white/20 transition-colors"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
                     <select className="input text-sm" value={newGoal.target_metric}
                             onChange={e => setNewGoal(n => ({ ...n, target_metric: e.target.value }))}>
                       <option value="breath_consistency">Breath Consistency</option>
