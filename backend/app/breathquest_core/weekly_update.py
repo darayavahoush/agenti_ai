@@ -22,6 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.breathquest_models import BreathQuestPatient, GameSession
 from app.services.email import send_weekly_progress_email, send_weekly_nudge_email
+from app.config import settings
+from app.breathquest_core.security import create_unsubscribe_token
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -34,6 +36,8 @@ async def maybe_send_weekly_update(patient: BreathQuestPatient, db: AsyncSession
     but this function also swallows its own email-send errors so a bad
     checkpoint stamp never happens on a failed send (next login retries)."""
     if not patient.parent_email:
+        return
+    if patient.weekly_email_opt_out:
         return
 
     now = datetime.now(timezone.utc)
@@ -51,6 +55,8 @@ async def maybe_send_weekly_update(patient: BreathQuestPatient, db: AsyncSession
         )
     )
     sessions = result.scalars().all()
+
+    unsubscribe_url = f"{settings.API_BASE_URL}/api/v1/email/unsubscribe?token={create_unsubscribe_token(str(patient.id))}"
 
     try:
         if sessions:
@@ -71,9 +77,10 @@ async def maybe_send_weekly_update(patient: BreathQuestPatient, db: AsyncSession
                 session_count=session_count,
                 levels_practiced=levels_practiced,
                 avg_consistency=avg_consistency,
+                unsubscribe_url=unsubscribe_url,
             )
         else:
-            send_weekly_nudge_email(patient.parent_email, patient.first_name)
+            send_weekly_nudge_email(patient.parent_email, patient.first_name, unsubscribe_url=unsubscribe_url)
     except Exception as exc:
         logger.warning(
             "Weekly update email failed for %s (patient %s): %s",

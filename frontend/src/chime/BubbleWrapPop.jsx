@@ -397,7 +397,32 @@ export default function BubbleWrapPop() {
   // stay. Same pattern as Firefly Jar's startVerificationWindow.
   function startVerificationWindow() {
     const s = stateRef.current
-    if (s.hasFinished || !s.mediaStream) return
+    if (s.hasFinished) return
+
+    // Pops queued by gameLoop since the last window resolved (or since this
+    // sheet/retry started, if the last attempt never got a recorder up at
+    // all). Captured before any reset below so a failed attempt never
+    // silently drops them.
+    const carriedOverIndices = s.windowPoppedIndices
+
+    // No mic stream to verify against (e.g. it was revoked/ended mid-sheet).
+    // Previously this just returned here, which permanently stopped the
+    // verification chain for the rest of the sheet -- nothing else
+    // re-triggers it, so every bubble popped after this point sat in
+    // poppedFlags forever without a matching verifiedFlags entry, and the
+    // sheet could never reach targetPops. Trust the local burst detector
+    // instead, the same fallback already used when transcription itself
+    // comes back empty/unavailable below, and keep the chain alive by
+    // retrying on the same cadence.
+    if (!s.mediaStream) {
+      for (const idx of carriedOverIndices) s.verifiedFlags[idx] = true
+      setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+      s.windowPoppedIndices = []
+      s.verifyTimer = setTimeout(() => {
+        if (!s.hasFinished) startVerificationWindow()
+      }, VERIFY_WINDOW_MS)
+      return
+    }
 
     s.windowStartPopCount = s.poppedFlags.filter(Boolean).length
     s.windowPoppedIndices = []
@@ -408,7 +433,23 @@ export default function BubbleWrapPop() {
     try {
       recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
     } catch (err) {
-      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      // MediaRecorder (or this mimeType) isn't supported on this device --
+      // notably Safari/iOS has no audio/webm support at all, which is a very
+      // plausible reason a kid's tablet reproduces "can't clear the sheet"
+      // when a desktop dev machine doesn't. Same fix as the no-mediaStream
+      // case above: this used to return and permanently kill verification
+      // for the rest of the sheet. Auto-verify whatever was queued (both
+      // carried over from before this call, and the fresh windowStartPopCount
+      // snapshot above never got consumed since no recorder ever started)
+      // via the local burst detector, then keep the chain alive on the same
+      // retry cadence instead of trying (and failing) to construct a
+      // MediaRecorder again every window.
+      console.warn('MediaRecorder unavailable, falling back to local-detector verification for this sheet:', err)
+      for (const idx of carriedOverIndices) s.verifiedFlags[idx] = true
+      setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+      s.verifyTimer = setTimeout(() => {
+        if (!s.hasFinished) startVerificationWindow()
+      }, VERIFY_WINDOW_MS)
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }

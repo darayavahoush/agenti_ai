@@ -7,7 +7,9 @@ themself. Full session/level detail stays therapist/parent-only.
 
 from datetime import datetime, timezone, timedelta
 import asyncio
-from fastapi import APIRouter, Depends
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -18,11 +20,20 @@ from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.retraining import data_store as chime_data_store
 from app.models.vaakmirror_models import VaakMirrorSession
 from app.models.flashcards_models import FlashcardAttempt
+
+logger = logging.getLogger(__name__)
 from app.models.session import Session as AssessmentSession
-from app.schemas.breathquest_schemas import KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary
+from app.schemas.breathquest_schemas import (
+    KidProgressOut, KidHistoryEntry, BreathQuestLevelScore, GameSummary,
+    WeeklyCalendarOut, KidGoalOut, WeeklyQuestOut,
+)
 from app.breathquest_core.deps import get_current_patient
 from app.services.greetings import get_smart_greeting
 from app.services.recommendations import get_recommended_practice
+from app.services.weekly_target import get_weekly_calendar
+from app.services.weekly_quest import get_weekly_quests
+from app.services.companion import grant_earned_unlocks, get_companion_state, equip_item
+from app.services.kid_goal import get_latest_goal_for_kid
 from app.routers.breathquest.dashboard import LEVEL_NAMES as BQ_LEVEL_NAMES
 from app.models.vaakmirror_models import GameName as VMGameName
 
@@ -100,6 +111,14 @@ async def get_my_progress(
         streak += 1
         cursor = cursor - timedelta(days=1)
 
+    # Non-fatal: granting a companion accessory must never cost a kid their
+    # actual progress numbers if e.g. this environment hasn't run the
+    # breathquest_companion_unlocks migration yet.
+    try:
+        await grant_earned_unlocks(patient.id, streak, db)
+    except Exception:
+        logger.exception("Failed to grant companion unlocks (non-fatal)")
+
     return KidProgressOut(
         first_name=patient.first_name,
         avatar=patient.avatar,
@@ -108,6 +127,71 @@ async def get_my_progress(
         games_played_this_week=games_played_this_week,
         current_streak_days=streak,
     )
+
+
+@router.get("/calendar", response_model=WeeklyCalendarOut)
+async def get_my_calendar(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """This week's practice calendar (Mon--Sun) for MyProgress.jsx, plus a
+    weekly practice-days target auto-derived from the kid's own recent
+    habit -- no new DB field, nothing for a therapist to set. See
+    services/weekly_target.py."""
+    return await get_weekly_calendar(patient.id, db)
+
+
+@router.get("/quests", response_model=list[WeeklyQuestOut])
+async def get_my_quests(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """This week's variety + goal-streak quests for MyProgress.jsx, layered
+    on top of /me/calendar's day-count target. See services/weekly_quest.py."""
+    return await get_weekly_quests(patient.id, db)
+
+
+@router.get("/companion")
+async def get_my_companion(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Which cosmetic companion accessories this kid has earned via
+    practice streaks, and which one is currently equipped. Unlocks
+    themselves are granted as a side effect of /me/progress (see
+    services/companion.py); this route only reads current state."""
+    return await get_companion_state(patient.id, db)
+
+
+class EquipCompanionRequest(BaseModel):
+    item_id: str
+
+
+@router.post("/companion/equip")
+async def equip_my_companion(
+    data: EquipCompanionRequest,
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kid picks any accessory or avatar they've already unlocked to equip.
+    Rejects anything not owned. See services/companion.py:equip_item."""
+    try:
+        return await equip_item(patient.id, data.item_id, db)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Item not unlocked")
+
+
+@router.get("/goal", response_model=KidGoalOut | None)
+async def get_my_goal(
+    patient: Patient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """The kid's newest therapist-set goal, re-framed for a child: friendly
+    name, 0--100 progress, and one concrete thing to look forward to --
+    never the raw metric value. Returns null when there's no goal or no
+    computable progress, in which case the frontend shows no card rather
+    than a bar that can never move. See services/kid_goal.py."""
+    return await get_latest_goal_for_kid(patient.id, db)
 
 
 @router.get("/greeting")

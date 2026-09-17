@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Integer, Float, Boolean, Text, DateTime,
-    ForeignKey, JSON, Enum as SAEnum, UniqueConstraint
+    ForeignKey, JSON, Enum as SAEnum, UniqueConstraint, text
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -75,6 +75,7 @@ class BreathQuestPatient(Base):
     therapist_id:     Mapped[uuid.UUID | None] = mapped_column(ForeignKey("therapists.id"), nullable=True, index=True)
     first_name:       Mapped[str]           = mapped_column(String(100), nullable=False)
     avatar:           Mapped[str]           = mapped_column(String(50), default="chick")
+    equipped_companion_item: Mapped[str | None] = mapped_column(String(50), nullable=True)
     avatar_photo_url: Mapped[str | None]     = mapped_column(String(255), nullable=True)  # custom uploaded pfp; overrides `avatar` species art when set
     pin_hash:         Mapped[str]           = mapped_column(String(64), nullable=False)
     player_code:      Mapped[str]           = mapped_column(String(10), unique=True, nullable=False, index=True)
@@ -120,6 +121,12 @@ class BreathQuestPatient(Base):
     # app/breathquest_core/weekly_update.py). Nullable -- see that
     # module's docstring for how a missing value is treated on first check.
     last_weekly_email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added for the weekly-email unsubscribe/preference feature -- the
+    # weekly progress/nudge emails (see weekly_update.py) previously had
+    # no opt-out at all. Non-nullable with a default so existing patients
+    # implicitly stay opted in (current behavior, unchanged) until they
+    # explicitly turn it off.
+    weekly_email_opt_out: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # `therapist` relationship removed 2026-08-12 alongside the FK repoint
@@ -358,6 +365,24 @@ class Goal(Base):
     created_at:     Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
 
     patient: Mapped["BreathQuestPatient"] = relationship(back_populates="goals")
+
+
+class CompanionUnlock(Base):
+    """Permanent record of a cosmetic companion accessory a kid has earned
+    (see services/companion.py for the unlock thresholds). Persisted rather
+    than derived from current_streak_days -- an accessory earned at a past
+    streak peak must stay unlocked even after the streak later resets, the
+    same way a trophy doesn't get taken back."""
+    __tablename__ = "breathquest_companion_unlocks"
+
+    id:          Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=new_uuid)
+    patient_id:  Mapped[uuid.UUID] = mapped_column(ForeignKey("breathquest_patients.id"), nullable=False, index=True)
+    item_id:     Mapped[str]       = mapped_column(String(50), nullable=False)
+    unlocked_at: Mapped[datetime]  = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("patient_id", "item_id", name="uq_companion_unlock_patient_item"),
+    )
 
 
 class SenderRole(str, enum.Enum):

@@ -123,6 +123,7 @@ def send_weekly_progress_email(
     session_count: int,
     levels_practiced: list[str],
     avg_consistency: int | None,
+    unsubscribe_url: str | None = None,
 ) -> None:
     """Weekly digest sent when a kid had at least one completed
     GameSession in the past week. Best-effort: caller
@@ -148,6 +149,10 @@ def send_weekly_progress_email(
         if avg_consistency is not None
         else ""
     )
+    unsubscribe_line = (
+        f"\n--\nDon't want these weekly emails? Unsubscribe here: {unsubscribe_url}\n"
+        if unsubscribe_url else ""
+    )
     message = MIMEText(
         f"Hi,\n\n"
         f"Here's {first_name}'s BreathQuest progress this week:\n\n"
@@ -156,6 +161,7 @@ def send_weekly_progress_email(
         f"{consistency_line}"
         f"Keep it up -- a few minutes a day adds up. If you have any questions, "
         f"just reply to this email.\n"
+        f"{unsubscribe_line}"
     )
     message["Subject"] = f"{first_name}'s BreathQuest week in review"
     message["From"] = settings.SMTP_USER
@@ -168,7 +174,7 @@ def send_weekly_progress_email(
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
 
 
-def send_weekly_nudge_email(to_email: str, first_name: str) -> None:
+def send_weekly_nudge_email(to_email: str, first_name: str, unsubscribe_url: str | None = None) -> None:
     """Sent instead of the progress digest when a kid had zero completed
     GameSessions in the past week -- a gentle reminder rather than
     silence. Same best-effort/dev-fallback pattern as the functions above."""
@@ -182,6 +188,10 @@ def send_weekly_nudge_email(to_email: str, first_name: str) -> None:
         )
         return
 
+    unsubscribe_line = (
+        f"\n--\nDon't want these weekly emails? Unsubscribe here: {unsubscribe_url}\n"
+        if unsubscribe_url else ""
+    )
     message = MIMEText(
         f"Hi,\n\n"
         f"{first_name} hasn't played any BreathQuest sessions this week. "
@@ -189,6 +199,7 @@ def send_weekly_nudge_email(to_email: str, first_name: str) -> None:
         f"can make a real difference over time.\n\n"
         f"If you have any questions or something's gotten in the way, "
         f"just reply to this email.\n"
+        f"{unsubscribe_line}"
     )
     message["Subject"] = f"A gentle nudge for {first_name}'s BreathQuest practice"
     message["From"] = settings.SMTP_USER
