@@ -344,6 +344,7 @@ export const meAPI = {
   calendar:        () => api.get('/me/calendar'),
   quests:          () => api.get('/me/quests'),
   companion:       () => api.get('/me/companion'),
+  equipCompanion:  (itemId) => api.post('/me/companion/equip', { item_id: itemId }),
   goal:            () => api.get('/me/goal'),
   history:         () => api.get('/me/history'),
   breathquestLevelScores: () => api.get('/me/breathquest/level-scores'),

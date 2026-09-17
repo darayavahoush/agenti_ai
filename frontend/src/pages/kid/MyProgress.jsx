@@ -112,7 +112,11 @@ export default function MyProgress() {
           <>
             <div className="text-center mb-10 animate-[fadeIn_0.5s_ease-out]">
               <div className="inline-block animate-[bounce_2.5s_ease-in-out_infinite]">
-                <Avatar avatar={progress.avatar} size="xl" accessory={companion?.equipped} />
+                <Avatar
+                  avatar={companion?.equipped?.kind === 'avatar' ? companion.equipped.item_id : progress.avatar}
+                  size="xl"
+                  accessory={companion?.equipped?.kind === 'accessory' ? companion.equipped.item_id : null}
+                />
               </div>
               <h1 className="font-vm-display text-3xl font-bold text-white mt-5">
                 {progress.first_name}'s Progress
