@@ -248,22 +248,6 @@ class TransferPatientRequest(BaseModel):
     new_therapist_id: UUID
 
 
-class PatientExportOut(BaseModel):
-    """One-shot compliance/records snapshot -- everything that hangs off
-    patient_id, assembled and returned as a single JSON document rather
-    than a file, so the caller (therapist-facing UI) decides whether to
-    display it, download it, or hand it to a parent."""
-    patient: PatientDetailOut
-    sessions: list["SessionOut"]
-    notes: list["NoteOut"]
-    assignments: list["AssignmentOut"]
-    goals: list["GoalOut"]
-    messages: list["MessageOut"]
-    home_practice_logs: list["HomePracticeLogOut"]
-    companion_unlocks: list[dict]
-    exported_at: datetime
-
-
 class PatientDetailOut(PatientOut):
     """Extended view for therapist dashboard."""
     diagnosis_notes: Optional[str]
@@ -279,6 +263,26 @@ class PatientDetailOut(PatientOut):
     # patient who was assessed and is ready to start but just hasn't yet --
     # an opportunity to follow up on, not a red flag.
     needs_first_session: bool = False
+
+
+class PatientExportOut(BaseModel):
+    """One-shot compliance/records snapshot -- everything that hangs off
+    patient_id, assembled and returned as a single JSON document rather
+    than a file, so the caller (therapist-facing UI) decides whether to
+    display it, download it, or hand it to a parent."""
+    # Moved below PatientDetailOut (was defined above it, unquoted -- a
+    # genuine pre-existing NameError on import, not something introduced
+    # by this change; confirmed by reproducing it against the pinned
+    # pydantic==2.13.4 + email-validator environment before touching it.
+    patient: PatientDetailOut
+    sessions: list["SessionOut"]
+    notes: list["NoteOut"]
+    assignments: list["AssignmentOut"]
+    goals: list["GoalOut"]
+    messages: list["MessageOut"]
+    home_practice_logs: list["HomePracticeLogOut"]
+    companion_unlocks: list[dict]
+    exported_at: datetime
 
 
 # ------------------------------------------------------------------ #
@@ -730,6 +734,41 @@ class FlashcardsProgressOut(BaseModel):
     weakest: List[PhonemeMasteryOut]     # bottom 3 by accuracy (min attempts threshold)
     mastery: List[PhonemeMasteryOut]     # full list, sorted by accuracy asc (weakest-first)
     recent_words: List[str]              # last ~10 distinct target_words attempted, most recent first
+
+
+class PhonemeGameBreakdownOut(BaseModel):
+    game: str            # "flashcards" | "vaakmirror" | "chime"
+    attempts: int
+    correct: int
+    accuracy: float      # 0-1
+
+
+class CrossGamePhonemeOut(BaseModel):
+    phoneme: str
+    ipa: Optional[str] = None
+    example_word: Optional[str] = None
+    category: Optional[str] = None       # PHONEME_DATA's "category" (stop/fricative/vowel/...)
+    attempts: int
+    correct: int
+    accuracy: float                      # 0-1, across all games combined
+    by_game: List[PhonemeGameBreakdownOut]
+    last_practiced_at: Optional[datetime] = None
+
+
+class CategoryRollupOut(BaseModel):
+    category: str
+    attempts: int
+    correct: int
+    accuracy: float       # 0-1
+
+
+class CrossGamePhonemeSummaryOut(BaseModel):
+    patient_id: str
+    phonemes: List[CrossGamePhonemeOut]              # every phoneme practiced in any game
+    by_category: List[CategoryRollupOut]              # rolled up by articulatory category
+    weakest: List[CrossGamePhonemeOut]                # min 3 attempts, worst accuracy first
+    total_attempts: int
+    overall_accuracy: float                           # 0-1
 
 
 class HomePracticeIdeaOut(BaseModel):
