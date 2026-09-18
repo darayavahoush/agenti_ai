@@ -9,6 +9,11 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
 import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind, Clock } from 'lucide-react'
 
+// Labeling Queue badge colors, keyed by the only three tiers MirrorMirror.jsx's
+// scoreAgainstTarget ever assigns to an attempt (see mouthMetrics.js) --
+// green/yellow/red mapped onto Badge's own green/amber/coral palette.
+const TIER_COLORS = { green: 'green', yellow: 'amber', red: 'coral' }
+
 // Level Details rows expand in place to show that level's own session
 // history -- filtered client-side from `sessions` (data.recent_sessions),
 // which the Sessions tab already has in full, so no extra fetch is needed
@@ -231,6 +236,157 @@ function PhonemePill({ p, tone }) {
   )
 }
 
+// Cross-game phoneme summary (GET /dashboard/patients/{id}/phoneme-summary)
+// -- the one place accuracy is pooled across Flashcards + VaakMirror + Chime
+// per phoneme, instead of three separate per-game views. See backend
+// services/phoneme_crosswalk.py + phoneme_summary.py for how each game's
+// own sound/level ids get reconciled onto one vocabulary.
+const CATEGORY_LABELS = {
+  stop: 'Stops', fricative: 'Fricatives', affricate: 'Affricates',
+  nasal: 'Nasals', liquid: 'Liquids', glide: 'Glides', vowel: 'Vowels',
+  other: 'Other',
+}
+const GAME_LABELS = { flashcards: 'Flashcards', vaakmirror: 'VaakMirror', chime: 'Chime' }
+const GAME_DOT_COLOR = { flashcards: '#A8FF6F', vaakmirror: '#5FD4E0', chime: '#FFB86B' }
+
+function accuracyTone(accuracy) {
+  if (accuracy >= 0.8) return 'green'
+  if (accuracy >= 0.5) return 'amber'
+  return 'coral'
+}
+const TONE_TEXT = { green: 'text-brand-green', amber: 'text-brand-amber', coral: 'text-brand-coral' }
+const TONE_BORDER = { green: 'border-brand-green/30 bg-brand-green/5', amber: 'border-brand-amber/30 bg-brand-amber/5', coral: 'border-brand-coral/30 bg-brand-coral/5' }
+const TONE_BAR = { green: '#A8FF6F', amber: '#FFC857', coral: '#FF6B6B' }
+
+// One phoneme chip in the full grid -- expands in place to show the
+// per-game breakdown behind its pooled accuracy number, same click-to-expand
+// pattern as ExpandableLevelRow/ExpandableGoalRow above.
+function PhonemeChip({ p }) {
+  const [open, setOpen] = useState(false)
+  const tone = accuracyTone(p.accuracy)
+  return (
+    <div className={`rounded-xl border text-sm transition-colors ${TONE_BORDER[tone]}`}>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 px-3 py-2 text-left">
+        <span className="font-mono uppercase font-semibold text-white">{p.phoneme}</span>
+        {p.example_word && <span className="text-white/30 text-xs italic hidden sm:inline">"{p.example_word}"</span>}
+        <span className="flex-1" />
+        <span className={`font-semibold ${TONE_TEXT[tone]}`}>{Math.round(p.accuracy * 100)}%</span>
+        <span className="text-white/30 text-xs">{p.attempts}×</span>
+        <ChevronDown size={12} className={`text-white/25 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 flex flex-col gap-1">
+          {p.by_game.map(g => (
+            <div key={g.game} className="flex items-center gap-2 text-xs">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: GAME_DOT_COLOR[g.game] || '#888' }} />
+              <span className="text-white/50 w-20 shrink-0">{GAME_LABELS[g.game] || g.game}</span>
+              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${Math.round(g.accuracy * 100)}%`, background: TONE_BAR[accuracyTone(g.accuracy)] }} />
+              </div>
+              <span className="text-white/40 w-16 text-right">{g.correct}/{g.attempts}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PhonemeSummaryCard({ summary, loading, error }) {
+  if (loading) {
+    return (
+      <Card className="md:col-span-2 flex items-center justify-center py-12">
+        <Spinner />
+      </Card>
+    )
+  }
+  if (error || !summary) {
+    return (
+      <Card className="md:col-span-2">
+        <div className="flex items-center gap-2 text-white/40 text-sm py-6 justify-center">
+          <CloudOff size={16} />
+          Couldn't load the cross-game phoneme summary.
+        </div>
+      </Card>
+    )
+  }
+  if (summary.total_attempts === 0) {
+    return (
+      <Card className="md:col-span-2">
+        <h3 className="font-semibold text-white mb-1 flex items-center gap-2">
+          <Brain size={16} className="text-brand-teal" />
+          Phoneme Command Center
+        </h3>
+        <p className="text-white/30 text-xs py-6 text-center">
+          No phoneme-level attempts yet across Flashcards, VaakMirror, or Chime.
+        </p>
+      </Card>
+    )
+  }
+
+  const overallTone = accuracyTone(summary.overall_accuracy)
+  const maxCategoryAttempts = Math.max(...summary.by_category.map(c => c.attempts), 1)
+
+  return (
+    <Card className="md:col-span-2 animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
+          style={{ opacity: 0, animationDelay: '0.08s' }}>
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h3 className="font-semibold text-white flex items-center gap-2">
+          <Brain size={16} className="text-brand-teal" />
+          Phoneme Command Center
+        </h3>
+        <div className="flex items-center gap-3">
+          <span className="text-white/30 text-xs">{summary.total_attempts} attempts · every game combined</span>
+          <span className={`text-lg font-bold ${TONE_TEXT[overallTone]}`}>{Math.round(summary.overall_accuracy * 100)}%</span>
+        </div>
+      </div>
+      <p className="text-white/30 text-xs mb-5">
+        One accuracy number per phoneme, pooled across Flashcards, VaakMirror, and Chime.
+      </p>
+
+      {/* Articulatory category rollup */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mb-6">
+        {summary.by_category.map(c => {
+          const tone = accuracyTone(c.accuracy)
+          return (
+            <div key={c.category} className="flex items-center gap-2 text-xs">
+              <span className="text-white/50 w-20 shrink-0">{CATEGORY_LABELS[c.category] || c.category}</span>
+              <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                     style={{ width: `${(c.attempts / maxCategoryAttempts) * 100}%`, background: TONE_BAR[tone], opacity: 0.85 }} />
+              </div>
+              <span className={`w-10 text-right font-semibold ${TONE_TEXT[tone]}`}>{Math.round(c.accuracy * 100)}%</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Priority focus -- weakest phonemes with enough data to trust */}
+      {summary.weakest.length > 0 && (
+        <div className="mb-5">
+          <h4 className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-1.5">
+            <Target size={12} />
+            Priority Focus
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {summary.weakest.map(p => (
+              <PhonemePill key={p.phoneme} p={{ phoneme: p.phoneme, accuracy: Math.round(p.accuracy * 100) }} tone="coral" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Full phoneme grid, worst-accuracy-first */}
+      <div>
+        <h4 className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2">All Phonemes Practiced</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-1">
+          {summary.phonemes.map(p => <PhonemeChip key={p.phoneme} p={p} />)}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 const LEVEL_EMOJIS = {
   pinwheel: '🌀', float_rider: '🐥', candle: '🕯️',
   balloon: '🎈', dandelion: '🌼', dragon: '🐉'
@@ -316,6 +472,9 @@ export default function PatientDetail() {
   const [flashcardsData, setFlashcardsData] = useState(null)
   const [flashcardsLoading, setFlashcardsLoading] = useState(true)
   const [flashcardsError, setFlashcardsError] = useState(false)
+  const [phonemeSummary, setPhonemeSummary] = useState(null)
+  const [phonemeSummaryLoading, setPhonemeSummaryLoading] = useState(true)
+  const [phonemeSummaryError, setPhonemeSummaryError] = useState(false)
   const [agentSuggestions, setAgentSuggestions] = useState({})
   const [agentLoading, setAgentLoading] = useState(true)
   const [dismissedSuggestions, setDismissedSuggestions] = useState({})
@@ -399,6 +558,11 @@ export default function PatientDetail() {
       .then(({ data }) => setSoundProgress(data))
       .catch(err => console.error('Failed to load sound progress:', err))
       .finally(() => setSoundProgressLoading(false))
+
+    dashboardAPI.getPhonemeSummary(id)
+      .then(({ data }) => setPhonemeSummary(data))
+      .catch(err => { console.error('Failed to load phoneme summary:', err); setPhonemeSummaryError(true) })
+      .finally(() => setPhonemeSummaryLoading(false))
 
     // The same adaptive-difficulty agent Chime and BreathQuest use, applied
     // to VaakMirror's round_size knob (see backend vaakmirror/agent_bridge.py).
@@ -943,6 +1107,8 @@ export default function PatientDetail() {
             )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <PhonemeSummaryCard summary={phonemeSummary} loading={phonemeSummaryLoading} error={phonemeSummaryError} />
+
               {/* Radar */}
               <Card className="animate-card-pop motion-reduce:!opacity-100 motion-reduce:animate-none"
                     style={{ opacity: 0, animationDelay: '0.05s' }}>

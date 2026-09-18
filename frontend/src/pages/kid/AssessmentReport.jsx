@@ -45,6 +45,27 @@ export default function AssessmentReport() {
   const wordsAttempted = routedSummary?.wordsAttempted ?? null
   const severity = routedSummary?.severityClassification ?? latest?.severity_classification
 
+  // Per-word breakdown for the unlocked "detailed results" view below --
+  // present on the just-finished path via router state, and on a later
+  // revisit via /assessment/me/latest's word_results (assessment_summary,
+  // stamped by POST /assessment/complete). Empty on a patient with no
+  // assessment_summary yet (e.g. one taken before this field existed).
+  const wordResults = routedSummary?.wordResults ?? latest?.word_results ?? []
+  const avgAccuracy = wordResults.length
+    ? Math.round(wordResults.reduce((sum, w) => sum + (w.accuracy || 0), 0) / wordResults.length)
+    : null
+  // Tally how often each error pattern string shows up across every word
+  // this run, so the card can surface the handful that came up most
+  // instead of dumping every raw pattern from every word.
+  const topErrorPatterns = Object.entries(
+    wordResults
+      .flatMap((w) => w.errorPatterns || [])
+      .reduce((counts, p) => ({ ...counts, [p]: (counts[p] || 0) + 1 }), {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([pattern]) => pattern)
+
   // retake_available_at is only ever set (non-null) while still on
   // cooldown -- see assessment.py's _retake_available_at. null here means
   // either "never taken" (shouldn't reach this page) or "cooldown's
@@ -113,13 +134,57 @@ export default function AssessmentReport() {
           </div>
 
           {access?.has_access ? (
-            <div className="mt-4 pt-4 border-t border-white/10 flex items-start gap-2 text-brand-green text-xs">
-              <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-              <span>
-                {access.reason === 'trialing' && trialDaysLeft !== null
-                  ? `${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left on your free trial -- full report and games unlocked.`
-                  : 'A plan is active on your account -- full report and games unlocked.'}
-              </span>
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="flex items-start gap-2 text-brand-green text-xs mb-3">
+                <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>
+                  {access.reason === 'trialing' && trialDaysLeft !== null
+                    ? `${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left on your free trial.`
+                    : 'A plan is active on your account.'}
+                </span>
+              </div>
+
+              {wordResults.length > 0 ? (
+                <>
+                  {avgAccuracy !== null && (
+                    <div className="flex justify-between text-sm mb-3">
+                      <span className="text-white/70">Average accuracy</span>
+                      <span className="text-white font-medium">{avgAccuracy}%</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 mb-3">
+                    {wordResults.map((w, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-white/70 capitalize">{w.targetWord}</span>
+                        <div className="flex items-center gap-2 flex-1 mx-3">
+                          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.max(0, Math.min(100, w.accuracy || 0))}%`,
+                                background: (w.accuracy || 0) >= 75 ? '#A8FF6F' : (w.accuracy || 0) >= 45 ? '#FF9B54' : '#FF6F6F',
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-white/50 w-9 text-right">{w.accuracy ?? '--'}%</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {topErrorPatterns.length > 0 && (
+                    <div className="text-xs text-white/50">
+                      <span className="text-white/70 font-medium">Watch for: </span>
+                      {topErrorPatterns.join(', ')}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-white/50 text-xs">
+                  No per-word breakdown on file for this check-in yet -- it'll show up next time.
+                </p>
+              )}
             </div>
           ) : (
             <div className="mt-4 pt-4 border-t border-white/10 flex items-start gap-2 text-white/40 text-xs">

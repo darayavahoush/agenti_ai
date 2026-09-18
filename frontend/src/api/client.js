@@ -306,6 +306,11 @@ export const dashboardAPI = {
   // Flashcards phoneme-mastery summary (strongest/weakest, full list, recent words)
   getFlashcardsProgress: (patientId) => api.get(`/dashboard/patients/${patientId}/flashcards`),
 
+  // Cross-game phoneme summary — one merged accuracy number per phoneme,
+  // pooled across Flashcards + VaakMirror + Chime, plus a category rollup
+  // and a weakest-phonemes priority list.
+  getPhonemeSummary: (patientId) => api.get(`/dashboard/patients/${patientId}/phoneme-summary`),
+
   // 50-item home practice ideas library, filterable by condition/goal
   listHomePracticeIdeas: (condition, goal) =>
     api.get('/dashboard/home-practice-ideas', { params: { ...(condition && { condition }), ...(goal && { goal }) } }),
