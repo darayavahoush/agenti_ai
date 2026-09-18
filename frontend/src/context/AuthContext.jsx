@@ -145,6 +145,7 @@ export function AuthProvider({ children }) {
     await assessmentAPI.complete({
       words_attempted: summary?.wordsAttempted ?? 0,
       severity_classification: summary?.severityClassification ?? null,
+      word_results: summary?.wordResults ?? [],
     })
     setPatient((prev) => {
       if (!prev) return prev

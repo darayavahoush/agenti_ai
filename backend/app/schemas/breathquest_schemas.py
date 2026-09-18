@@ -164,6 +164,15 @@ class AssessmentStartOut(BaseModel):
 class AssessmentCompleteRequest(BaseModel):
     words_attempted: int = 0
     severity_classification: Optional[str] = None
+    # Per-word breakdown from this run (Assessment.jsx's accumulated
+    # wordResults) -- stored so AssessmentReport.jsx's unlocked "detailed
+    # results" view has real content on revisit too, not just right after
+    # finishing (when it's available via router state instead). Untyped
+    # passthrough on purpose: this mirrors /assessment/analyze's response
+    # shape (target_word/spoken_word/accuracy/phoneme_matches/etc.), which
+    # already lives on the Assessment side and isn't worth re-declaring
+    # field-for-field here.
+    word_results: list[dict] = []
 
 
 # ------------------------------------------------------------------ #
@@ -228,7 +237,15 @@ class PatientOut(BaseModel):
     is_active: bool
     created_at: datetime
     assessment_patient_id: Optional[str] = None
+    archived_at: Optional[datetime] = None
     # Note: diagnosis_notes and pin_hash are NOT exposed here (therapist-only)
+
+
+class TransferPatientRequest(BaseModel):
+    """Therapist-to-therapist reassignment -- a single FK update, no
+    cascade concerns (unlike parent-to-parent, which goes through
+    ParentChild and is a separate, already-solved multi-child flow)."""
+    new_therapist_id: UUID
 
 
 class PatientDetailOut(PatientOut):
@@ -246,6 +263,26 @@ class PatientDetailOut(PatientOut):
     # patient who was assessed and is ready to start but just hasn't yet --
     # an opportunity to follow up on, not a red flag.
     needs_first_session: bool = False
+
+
+class PatientExportOut(BaseModel):
+    """One-shot compliance/records snapshot -- everything that hangs off
+    patient_id, assembled and returned as a single JSON document rather
+    than a file, so the caller (therapist-facing UI) decides whether to
+    display it, download it, or hand it to a parent."""
+    # Moved below PatientDetailOut (was defined above it, unquoted -- a
+    # genuine pre-existing NameError on import, not something introduced
+    # by this change; confirmed by reproducing it against the pinned
+    # pydantic==2.13.4 + email-validator environment before touching it.
+    patient: PatientDetailOut
+    sessions: list["SessionOut"]
+    notes: list["NoteOut"]
+    assignments: list["AssignmentOut"]
+    goals: list["GoalOut"]
+    messages: list["MessageOut"]
+    home_practice_logs: list["HomePracticeLogOut"]
+    companion_unlocks: list[dict]
+    exported_at: datetime
 
 
 # ------------------------------------------------------------------ #
@@ -697,6 +734,41 @@ class FlashcardsProgressOut(BaseModel):
     weakest: List[PhonemeMasteryOut]     # bottom 3 by accuracy (min attempts threshold)
     mastery: List[PhonemeMasteryOut]     # full list, sorted by accuracy asc (weakest-first)
     recent_words: List[str]              # last ~10 distinct target_words attempted, most recent first
+
+
+class PhonemeGameBreakdownOut(BaseModel):
+    game: str            # "flashcards" | "vaakmirror" | "chime"
+    attempts: int
+    correct: int
+    accuracy: float      # 0-1
+
+
+class CrossGamePhonemeOut(BaseModel):
+    phoneme: str
+    ipa: Optional[str] = None
+    example_word: Optional[str] = None
+    category: Optional[str] = None       # PHONEME_DATA's "category" (stop/fricative/vowel/...)
+    attempts: int
+    correct: int
+    accuracy: float                      # 0-1, across all games combined
+    by_game: List[PhonemeGameBreakdownOut]
+    last_practiced_at: Optional[datetime] = None
+
+
+class CategoryRollupOut(BaseModel):
+    category: str
+    attempts: int
+    correct: int
+    accuracy: float       # 0-1
+
+
+class CrossGamePhonemeSummaryOut(BaseModel):
+    patient_id: str
+    phonemes: List[CrossGamePhonemeOut]              # every phoneme practiced in any game
+    by_category: List[CategoryRollupOut]              # rolled up by articulatory category
+    weakest: List[CrossGamePhonemeOut]                # min 3 attempts, worst accuracy first
+    total_attempts: int
+    overall_accuracy: float                           # 0-1
 
 
 class HomePracticeIdeaOut(BaseModel):

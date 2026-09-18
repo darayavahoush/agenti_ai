@@ -304,6 +304,11 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
   const [audioUrl, setAudioUrl] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Every successful /analyze call's full result, one entry per word --
+  // kept alongside the plain wordsAttempted counter so onFinish can hand
+  // the report screen (pages/kid/AssessmentReport.jsx) real per-word
+  // detail instead of just a count + the very last word's severity read.
+  const [wordResults, setWordResults] = useState([]);
 
   // Custom Audio Recording for Word Pronunciation
   const [customRecording, setCustomRecording] = useState(false);
@@ -546,6 +551,11 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
         const blob = new Blob(chunksRef.current, { type: "audio/wav" });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
+        // Count the word as tried as soon as a recording exists, not only
+        // once Analyze succeeds -- a kid who records but never taps
+        // Analyze (or whose analysis call fails) still genuinely attempted
+        // the word, and "words tried so far" was silently dropping those.
+        setWordsAttempted((n) => n + 1);
       };
 
       mediaRecorderRef.current = recorder;
@@ -594,7 +604,18 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       }
 
       setAnalysisResult(data);
-      setWordsAttempted((n) => n + 1);
+      setWordResults((prev) => [
+        ...prev,
+        {
+          targetWord: data.target_word,
+          spokenWord: data.spoken_word,
+          accuracy: data.accuracy,
+          phonemeMatches: data.phoneme_matches || [],
+          errorPatterns: data.error_patterns || [],
+          severityScore: data.severity_score ?? null,
+          language: langCode,
+        },
+      ]);
     } catch (err) {
       console.error(err);
       setError("Speech analysis failed: " + err.message);
@@ -848,6 +869,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
               onClick={() => onFinish({
                 wordsAttempted,
                 severityClassification: analysisResult?.severity_score || null,
+                wordResults,
               })}
               disabled={wordsAttempted === 0}
               style={{ opacity: wordsAttempted === 0 ? 0.5 : 1, gridColumn: "1 / -1" }}
