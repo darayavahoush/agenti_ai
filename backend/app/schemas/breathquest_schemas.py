@@ -766,6 +766,7 @@ class CrossGamePhonemeSummaryOut(BaseModel):
     patient_id: str
     phonemes: List[CrossGamePhonemeOut]              # every phoneme practiced in any game
     by_category: List[CategoryRollupOut]              # rolled up by articulatory category
+    game_totals: List[PhonemeGameBreakdownOut]        # rolled up by game, independent of phoneme -- the "at a glance" strip
     weakest: List[CrossGamePhonemeOut]                # min 3 attempts, worst accuracy first
     total_attempts: int
     overall_accuracy: float                           # 0-1

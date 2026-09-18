@@ -258,9 +258,9 @@ const TONE_TEXT = { green: 'text-brand-green', amber: 'text-brand-amber', coral:
 const TONE_BORDER = { green: 'border-brand-green/30 bg-brand-green/5', amber: 'border-brand-amber/30 bg-brand-amber/5', coral: 'border-brand-coral/30 bg-brand-coral/5' }
 const TONE_BAR = { green: '#A8FF6F', amber: '#FFC857', coral: '#FF6B6B' }
 
-// One phoneme chip in the full grid -- expands in place to show the
-// per-game breakdown behind its pooled accuracy number, same click-to-expand
-// pattern as ExpandableLevelRow/ExpandableGoalRow above.
+// One phoneme chip in the full grid -- small always-visible per-game dots
+// give an at-a-glance read of which games contributed even when collapsed;
+// expanding still shows the full per-game accuracy breakdown.
 function PhonemeChip({ p }) {
   const [open, setOpen] = useState(false)
   const tone = accuracyTone(p.accuracy)
@@ -270,6 +270,11 @@ function PhonemeChip({ p }) {
         <span className="font-mono uppercase font-semibold text-white">{p.phoneme}</span>
         {p.example_word && <span className="text-white/30 text-xs italic hidden sm:inline">"{p.example_word}"</span>}
         <span className="flex-1" />
+        <span className="flex items-center gap-1" title={p.by_game.map(g => `${GAME_LABELS[g.game] || g.game}: ${Math.round(g.accuracy * 100)}% (${g.attempts}×)`).join(' · ')}>
+          {p.by_game.map(g => (
+            <span key={g.game} className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: GAME_DOT_COLOR[g.game] || '#888' }} />
+          ))}
+        </span>
         <span className={`font-semibold ${TONE_TEXT[tone]}`}>{Math.round(p.accuracy * 100)}%</span>
         <span className="text-white/30 text-xs">{p.attempts}×</span>
         <ChevronDown size={12} className={`text-white/25 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -288,6 +293,31 @@ function PhonemeChip({ p }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// At-a-glance strip: one stat block per game, from summary.game_totals --
+// what each game contributed overall, independent of which phonemes it
+// happened to touch. Lets a therapist see "VaakMirror's numbers look off"
+// without expanding a single phoneme chip.
+function GameTotalsStrip({ gameTotals }) {
+  if (!gameTotals || gameTotals.length === 0) return null
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-5">
+      {gameTotals.map(g => {
+        const tone = accuracyTone(g.accuracy)
+        return (
+          <div key={g.game} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: GAME_DOT_COLOR[g.game] || '#888' }} />
+            <div className="flex-1 min-w-0">
+              <div className="text-white/50 text-xs truncate">{GAME_LABELS[g.game] || g.game}</div>
+              <div className="text-white/30 text-[11px]">{g.attempts} attempts</div>
+            </div>
+            <span className={`text-base font-bold ${TONE_TEXT[tone]}`}>{Math.round(g.accuracy * 100)}%</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -343,6 +373,9 @@ function PhonemeSummaryCard({ summary, loading, error }) {
       <p className="text-white/30 text-xs mb-5">
         One accuracy number per phoneme, pooled across Flashcards, VaakMirror, and Chime.
       </p>
+
+      {/* At-a-glance: what each game contributed overall */}
+      <GameTotalsStrip gameTotals={summary.game_totals} />
 
       {/* Articulatory category rollup */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mb-6">

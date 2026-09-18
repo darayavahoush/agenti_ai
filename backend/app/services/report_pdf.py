@@ -343,6 +343,32 @@ def build_patient_report_pdf(
             ))
             story.append(Spacer(1, 4))
 
+            if ps.get("game_totals"):
+                game_labels = {"flashcards": "Flashcards", "vaakmirror": "VaakMirror", "chime": "Chime"}
+                game_header = ["Game", "Attempts", "Accuracy"]
+                game_rows = [game_header]
+                for g in ps["game_totals"]:
+                    _, _, color_key = _severity_band(g["accuracy"])
+                    game_rows.append([
+                        game_labels.get(g["game"], g["game"]), str(g["attempts"]),
+                        _severity_badge_cell(f"{g['accuracy'] * 100:.0f}%", color_key,
+                                              colors, Paragraph, ParagraphStyle, Table, TableStyle),
+                    ])
+                t = Table(game_rows, colWidths=[2.5 * inch, 1.2 * inch, 1.6 * inch])
+                t.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EEF2FF")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (2, 1), (2, -1), 0),
+                    ("RIGHTPADDING", (2, 1), (2, -1), 0),
+                    ("TOPPADDING", (2, 1), (2, -1), 0),
+                    ("BOTTOMPADDING", (2, 1), (2, -1), 0),
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 8))
+
             if ps.get("by_category"):
                 cat_header = ["Category", "Attempts", "Accuracy"]
                 cat_rows = [cat_header]
