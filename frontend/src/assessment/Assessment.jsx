@@ -546,6 +546,11 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
         const blob = new Blob(chunksRef.current, { type: "audio/wav" });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
+        // Count the word as tried as soon as a recording exists, not only
+        // once Analyze succeeds -- a kid who records but never taps
+        // Analyze (or whose analysis call fails) still genuinely attempted
+        // the word, and "words tried so far" was silently dropping those.
+        setWordsAttempted((n) => n + 1);
       };
 
       mediaRecorderRef.current = recorder;
@@ -594,7 +599,6 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       }
 
       setAnalysisResult(data);
-      setWordsAttempted((n) => n + 1);
     } catch (err) {
       console.error(err);
       setError("Speech analysis failed: " + err.message);
