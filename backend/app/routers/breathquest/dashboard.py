@@ -50,11 +50,12 @@ from app.schemas.breathquest_schemas import (
     MessageCreate, MessageOut,
     HomePracticeLogCreate, HomePracticeLogOut,
     PatientAlert, WeeklySummaryOut, SoundProgressOut, PhonemeMasteryOut, FlashcardsProgressOut, SoundWeekPoint,
-    HomePracticeIdeaOut, HistoryEntry,
+    HomePracticeIdeaOut, HistoryEntry, CrossGamePhonemeSummaryOut,
 )
 from app.breathquest_core.deps import get_current_therapist
 from app.routers.breathquest.assessment_lookup import get_latest_assessment
 from app.services.weekly_summary import generate_weekly_summary
+from app.services.phoneme_summary import get_cross_game_phoneme_summary
 try:
     from app.services.report_pdf import build_patient_report_pdf
     _PDF_EXPORT_IMPORT_ERROR = None
@@ -1174,6 +1175,25 @@ async def get_sound_progress(
         sounds=sounds_out,
         practiced_sound_count=len(sounds_out),
     )
+
+
+@router.get("/patients/{patient_id}/phoneme-summary", response_model=CrossGamePhonemeSummaryOut)
+async def get_phoneme_summary(
+    patient_id: str,
+    therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """One collective view of how each phoneme is doing, merged across
+    every game that measures it (Flashcards, VaakMirror, Chime) — see
+    services/phoneme_summary.py + services/phoneme_crosswalk.py for how
+    each game's own sound/level ids are reconciled onto one vocabulary.
+    Unlike /sound-progress (raw per-sound weekly trend, all-time, no
+    cross-game merge), this rolls everything up into one number per
+    phoneme plus a per-game breakdown, an articulatory-category rollup,
+    and a weakest-phonemes priority list."""
+    await _get_owned_patient(patient_id, therapist, db)
+    result = await get_cross_game_phoneme_summary(db, patient_id, chime_db_path=CHIME_DB_PATH)
+    return CrossGamePhonemeSummaryOut(**result)
 
 
 @router.get("/home-practice-ideas", response_model=list[HomePracticeIdeaOut])
