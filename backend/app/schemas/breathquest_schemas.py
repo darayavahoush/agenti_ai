@@ -164,6 +164,15 @@ class AssessmentStartOut(BaseModel):
 class AssessmentCompleteRequest(BaseModel):
     words_attempted: int = 0
     severity_classification: Optional[str] = None
+    # Per-word breakdown from this run (Assessment.jsx's accumulated
+    # wordResults) -- stored so AssessmentReport.jsx's unlocked "detailed
+    # results" view has real content on revisit too, not just right after
+    # finishing (when it's available via router state instead). Untyped
+    # passthrough on purpose: this mirrors /assessment/analyze's response
+    # shape (target_word/spoken_word/accuracy/phoneme_matches/etc.), which
+    # already lives on the Assessment side and isn't worth re-declaring
+    # field-for-field here.
+    word_results: list[dict] = []
 
 
 # ------------------------------------------------------------------ #

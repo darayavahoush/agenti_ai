@@ -104,6 +104,7 @@ async def complete_assessment(
     row.assessment_summary = {
         "words_attempted": data.words_attempted,
         "severity_classification": data.severity_classification,
+        "word_results": data.word_results,
     }
     await db.commit()
 
@@ -125,4 +126,10 @@ async def get_my_latest_assessment(
     if result is None:
         return None
     result["retake_available_at"] = None
+    # word_results only lives in assessment_summary (stamped by
+    # POST /assessment/complete), not on the SessionModel row
+    # get_latest_assessment reads -- merge it in so a revisit (tapping "My
+    # Results" later, with no router state) still gets the same detailed
+    # per-word breakdown as right after finishing.
+    result["word_results"] = (patient.assessment_summary or {}).get("word_results", [])
     return result
