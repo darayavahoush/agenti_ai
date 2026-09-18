@@ -29,6 +29,12 @@ const AGENT_POLICY = 'tabular_q'
 // startVerificationWindow/finishVerificationWindow.
 const VERIFY_WINDOW_MS = 1200
 const VERIFY_TOAST_MS = 1800
+// See consecutiveFullRejections above: once a genuine-burst window with a
+// real (non-empty) transcript comes back with zero confirmed "ha"s this
+// many times in a row, stop trusting the transcript over the local burst
+// detector for the rest of the sheet -- treat it the same as the
+// unavailable-transcription fallback below.
+const MAX_CONSECUTIVE_FULL_REJECTIONS = 3
 
 function scoreBurst(rmsEnvelope, durationS, minPeakRms = MIN_PEAK_RMS_DEFAULT, maxExpectedPeakRms = MAX_EXPECTED_PEAK_RMS_DEFAULT) {
   if (!rmsEnvelope.length) return { score: 0, isValidAttempt: false }
@@ -52,16 +58,25 @@ function personalizeBurstRange(peakRmsReadings, noiseFloor, fallbackMax = MAX_EX
 // "haa", etc. rather than one clean token per burst, so count "ha"-style
 // syllable occurrences directly rather than a whole-transcript similarity
 // ratio -- same approach as Firefly Jar's countMaOccurrences, applied to "ha".
+//
+// The token gate used to require the WHOLE token to be exactly one or more
+// "ha" syllables back to back (^(?:ha+)+$), which rejects extremely common
+// real transcriptions of a real aspirated "ha!" burst: Whisper frequently
+// renders the trailing consonant release as a second "h" ("hah"), or drops
+// the leading "h" entirely on a breathy attempt ("ah"/"aha"). Those aren't
+// noise -- they're the same burst, just transcribed with an extra/missing
+// letter -- so a kid saying real "ha"s could see every one of them
+// retracted by finishVerificationWindow and get stuck well short of
+// targetPops despite doing the exercise correctly. Loosen the gate to any
+// token made up ENTIRELY of 'h'/'a' characters (still rejects real words
+// like "hat" or "cat"), and still require at least one actual h-then-a
+// sequence in it so a pure "ah" with no "h" at all still doesn't count.
 function countHaOccurrences(transcript) {
   const cleaned = (transcript || '').toLowerCase().replace(/[^a-z\s]/g, ' ')
   const tokens = cleaned.split(/\s+/).filter(Boolean)
   let count = 0
   for (const tok of tokens) {
-    // Only count a token made up ENTIRELY of one or more "ha"-style
-    // syllables back to back -- e.g. "ha" -> 1, "haha" -> 2, "haaha" -> 2.
-    // A token that merely contains "ha" inside another word ("hat")
-    // doesn't match the full-token pattern and is skipped.
-    if (/^(?:ha+)+$/.test(tok)) {
+    if (/^[ha]+$/.test(tok)) {
       const syllables = tok.match(/ha+/g)
       if (syllables) count += syllables.length
     }
@@ -159,6 +174,15 @@ export default function BubbleWrapPop() {
     // Rolling ~1.2s speech-verification window (see VERIFY_WINDOW_MS above).
     windowStartPopCount: 0, windowPoppedIndices: [],
     verifyTimer: null, mediaRecorderRef: null,
+    // How many verification windows in a row got a non-empty transcript
+    // back but confirmed zero of the pops in it. A handful of genuine
+    // misses is normal (kids goof around, mic picks up other noise), but a
+    // long streak of them despite real bursts happening almost always means
+    // this device/mic is producing audio Whisper can't render as "ha" at
+    // all -- same failure shape as the no-MediaRecorder/no-mediaStream cases
+    // above, just discovered at runtime instead of upfront. See
+    // MAX_CONSECUTIVE_FULL_REJECTIONS in finishVerificationWindow.
+    consecutiveFullRejections: 0,
   })
 
   const reduceMotionRef = useRef(reduceMotion)
@@ -349,6 +373,7 @@ export default function BubbleWrapPop() {
     s.lastPopTime = -1
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
+    s.consecutiveFullRejections = 0
     setVerifiedCount(0)
     setTargetPopsDisplay(s.targetPops)
   }
@@ -501,22 +526,37 @@ export default function BubbleWrapPop() {
           const confirmedCount = Math.min(addedThisWindow, haCount)
           const toRetract = addedThisWindow - confirmedCount
 
-          for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[windowIndices[i]] = true
-          if (toRetract > 0) {
-            for (let i = confirmedCount; i < windowIndices.length; i++) {
-              const idx = windowIndices[i]
-              s.poppedFlags[idx] = false
-              s.popPulse[idx] = 0
+          s.consecutiveFullRejections = confirmedCount === 0 ? s.consecutiveFullRejections + 1 : 0
+          const giveUpOnVerification = s.consecutiveFullRejections >= MAX_CONSECUTIVE_FULL_REJECTIONS
+
+          if (giveUpOnVerification) {
+            // Whisper has come back with real text and confirmed nothing,
+            // several genuine bursts in a row -- more likely this mic/device
+            // is mangling the audio than that every single attempt was
+            // actually silence or noise. Stop retracting for the rest of
+            // this sheet so a bad transcription pipeline can't strand a kid
+            // who is audibly doing the exercise.
+            for (const idx of windowIndices) s.verifiedFlags[idx] = true
+            setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+            setVerifyToast(null)
+          } else {
+            for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[windowIndices[i]] = true
+            if (toRetract > 0) {
+              for (let i = confirmedCount; i < windowIndices.length; i++) {
+                const idx = windowIndices[i]
+                s.poppedFlags[idx] = false
+                s.popPulse[idx] = 0
+              }
             }
+            setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
+            const message = toRetract > 0
+              ? (confirmedCount > 0
+                  ? `Heard ${confirmedCount} clear "ha"! ${toRetract} didn't quite catch — try again.`
+                  : 'Didn\'t quite catch a "ha" — try again!')
+              : 'Great "ha"! 🎉'
+            setVerifyToast({ status: toRetract > 0 ? 'rejected' : 'verified', message })
+            setTimeout(() => setVerifyToast(cur => (cur && cur.message === message ? null : cur)), VERIFY_TOAST_MS)
           }
-          setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
-          const message = toRetract > 0
-            ? (confirmedCount > 0
-                ? `Heard ${confirmedCount} clear "ha"! ${toRetract} didn't quite catch — try again.`
-                : 'Didn\'t quite catch a "ha" — try again!')
-            : 'Great "ha"! 🎉'
-          setVerifyToast({ status: toRetract > 0 ? 'rejected' : 'verified', message })
-          setTimeout(() => setVerifyToast(cur => (cur && cur.message === message ? null : cur)), VERIFY_TOAST_MS)
         } else {
           // Unverifiable window (transcription failed or came back empty) --
           // trust the local burst detector rather than stranding a kid
