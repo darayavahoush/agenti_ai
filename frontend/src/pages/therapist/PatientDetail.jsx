@@ -9,6 +9,11 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
 import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind, Clock } from 'lucide-react'
 
+// Labeling Queue badge colors, keyed by the only three tiers MirrorMirror.jsx's
+// scoreAgainstTarget ever assigns to an attempt (see mouthMetrics.js) --
+// green/yellow/red mapped onto Badge's own green/amber/coral palette.
+const TIER_COLORS = { green: 'green', yellow: 'amber', red: 'coral' }
+
 // Level Details rows expand in place to show that level's own session
 // history -- filtered client-side from `sessions` (data.recent_sessions),
 // which the Sessions tab already has in full, so no extra fetch is needed
