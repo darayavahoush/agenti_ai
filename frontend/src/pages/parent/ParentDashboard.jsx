@@ -259,6 +259,216 @@ function GameSection({ section, items }) {
   )
 }
 
+// Same three colors the therapist-side Phoneme Command Center uses for
+// accuracy (mint/amber/coral), just returned as hex for inline style since
+// this file leans on style={{color}} rather than tailwind color utilities
+// for dynamic accents throughout (see Stars/Accuracy above).
+function toneColor(accuracy) {
+  if (accuracy >= 0.8) return '#8FE0D4'
+  if (accuracy >= 0.5) return '#FAC775'
+  return '#FF8A73'
+}
+
+// Per-game identity for the Sounds tab -- deliberately its own small accent
+// set (mint/gold/coral-light) rather than reusing GAME_SECTIONS' accents,
+// so the three games read as distinct dots/icons here the way they do in
+// the therapist's GameTotalsStrip, instead of two of them sharing one color.
+const GAME_META = {
+  flashcards: { label: 'Flashcards', icon: Layers, accent: '#2FB8A6' },
+  vaakmirror: { label: 'VaakMirror', icon: Mic, accent: '#F4B942' },
+  chime: { label: 'Chime', icon: Bell, accent: '#FF8A73' },
+}
+
+// At-a-glance strip from summary.game_totals — parent-palette equivalent of
+// the therapist's GameTotalsStrip in PatientDetail.jsx. What each game
+// contributed to sound practice overall, independent of which sounds it
+// happened to touch.
+function GameTotalsStripParent({ gameTotals }) {
+  if (!gameTotals || gameTotals.length === 0) return null
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      {gameTotals.map(g => {
+        const meta = GAME_META[g.game] || { label: titleiseSnake(g.game), icon: Sparkles, accent: '#2FB8A6' }
+        const Icon = meta.icon
+        return (
+          <div key={g.game} className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-3 flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: `${meta.accent}1f`, border: `1px solid ${meta.accent}33` }}
+            >
+              <Icon size={16} style={{ color: meta.accent }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-paper text-sm font-semibold truncate">{meta.label}</p>
+              <p className="text-paper/35 text-xs mt-0.5">{g.attempts} attempt{g.attempts === 1 ? '' : 's'}</p>
+            </div>
+            <span className="font-display text-lg font-bold tabular-nums shrink-0" style={{ color: toneColor(g.accuracy) }}>
+              {Math.round(g.accuracy * 100)}%
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// One sound in the "Going well" / "Worth practicing" lists -- phoneme +
+// example word only, no raw IPA. IPA notation is a clinical convention a
+// parent was never taught; the example word already carries the same
+// information in a form they can actually say out loud with their kid.
+function SoundRow({ p }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-white/[0.05] last:border-0 last:pb-0 first:pt-0">
+      <div className="min-w-0">
+        <p className="text-paper text-sm font-semibold">
+          the "{p.phoneme}" sound
+          {p.example_word && <span className="text-paper/40 font-normal"> · like in "{p.example_word}"</span>}
+        </p>
+        <p className="text-paper/35 text-xs mt-0.5">
+          {p.attempts} attempt{p.attempts === 1 ? '' : 's'} across {p.by_game.length} game{p.by_game.length === 1 ? '' : 's'}
+        </p>
+      </div>
+      <span className="font-display text-base font-bold tabular-nums shrink-0" style={{ color: toneColor(p.accuracy) }}>
+        {Math.round(p.accuracy * 100)}%
+      </span>
+    </div>
+  )
+}
+
+// Sounds tab -- GET /parent/phoneme-summary, the parent-scoped version of
+// the same cross-game merge (services/phoneme_summary.py) that powers the
+// therapist's Phoneme Command Center and the ICF PDF report. Reframed for a
+// parent audience: "going well" / "worth practicing" instead of
+// strongest/weakest, no articulatory category jargon (stop/fricative/etc),
+// no full always-visible phoneme grid -- just the at-a-glance strip plus
+// the handful of sounds actually worth a parent's attention either way.
+function SoundsTab({ summary, loading, error, onRetry }) {
+  if (loading) {
+    return (
+      <Card className="py-14 flex items-center justify-center">
+        <Loader2 className="animate-spin text-paper/25" size={22} />
+      </Card>
+    )
+  }
+  if (error) {
+    return (
+      <Card className="text-center py-12">
+        <p className="text-paper/50 text-sm mb-4">Couldn't load sound-by-sound progress.</p>
+        <button
+          onClick={onRetry}
+          className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-paper text-sm font-medium transition"
+        >
+          Try again
+        </button>
+      </Card>
+    )
+  }
+  if (!summary || summary.total_attempts === 0) {
+    return (
+      <Card className="text-center py-12">
+        <p className="text-paper/40 text-sm leading-relaxed max-w-xs mx-auto">
+          No sound-by-sound progress yet — this fills in once your child's played Flashcards, VaakMirror, or Chime.
+        </p>
+      </Card>
+    )
+  }
+
+  const celebrate = [...summary.phonemes]
+    .filter(p => p.attempts >= 3)
+    .sort((a, b) => b.accuracy - a.accuracy)
+    .slice(0, 3)
+  const practice = summary.weakest.slice(0, 3)
+
+  return (
+    <>
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <p className="font-mono text-xs uppercase tracking-widest text-mint">Every game, one sound at a time</p>
+          <span className="font-display text-lg font-bold text-paper tabular-nums">
+            {Math.round(summary.overall_accuracy * 100)}%
+          </span>
+        </div>
+        <p className="text-paper/35 text-xs mb-5">
+          {summary.total_attempts} attempt{summary.total_attempts === 1 ? '' : 's'} combined across Flashcards, VaakMirror and Chime.
+        </p>
+        <GameTotalsStripParent gameTotals={summary.game_totals} />
+      </Card>
+
+      {(celebrate.length > 0 || practice.length > 0) ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {celebrate.length > 0 && (
+            <Card>
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles size={15} className="text-mint" />
+                <p className="text-paper/60 text-sm font-medium">Going well</p>
+              </div>
+              <div className="flex flex-col">
+                {celebrate.map(p => <SoundRow key={p.phoneme} p={p} />)}
+              </div>
+            </Card>
+          )}
+          {practice.length > 0 && (
+            <Card>
+              <div className="flex items-center gap-2 mb-1">
+                <Target size={15} className="text-coral-light" />
+                <p className="text-paper/60 text-sm font-medium">Worth practicing</p>
+              </div>
+              <div className="flex flex-col">
+                {practice.map(p => <SoundRow key={p.phoneme} p={p} />)}
+              </div>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <Card className="text-center py-8">
+          <p className="text-paper/40 text-sm">
+            Not enough attempts on any one sound yet to call out — keep playing and this will fill in.
+          </p>
+        </Card>
+      )}
+    </>
+  )
+}
+
+const TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'sounds', label: 'Sounds' },
+  { key: 'games', label: 'Games' },
+  { key: 'messages', label: 'Messages' },
+]
+
+// Page nav -- the page used to be one long scroll (weekly summary, goals,
+// assignments, messages, then five full game sections one after another),
+// which buried "did we get a reply from the therapist" under a screen of
+// stats a parent had already seen that week. Four tabs instead: a quick
+// weekly read, the new cross-game sound view, per-game detail for anyone
+// who wants it, and messages on their own so they're not scroll-distance
+// from the header.
+function TabBar({ active, onChange, unreadMessages }) {
+  return (
+    <div className="flex items-center gap-1.5 mb-7 -mx-1 px-1 overflow-x-auto">
+      {TABS.map(t => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={`relative px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors shrink-0 ${
+            active === t.key
+              ? 'bg-coral text-paper'
+              : 'text-paper/45 hover:text-paper hover:bg-white/[0.06]'
+          }`}
+        >
+          {t.label}
+          {t.key === 'messages' && unreadMessages > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-mint text-ink text-[10px] font-bold flex items-center justify-center">
+              {unreadMessages}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // Parent-facing dashboard, reading GET /parent/progress — a fully-built
 // backend endpoint (routers/parent.py) that already existed with zero
 // frontend consumer, same situation as kid_progress.py before MyProgress.jsx.
@@ -280,6 +490,16 @@ export default function ParentDashboard() {
   const [messagesLoaded, setMessagesLoaded] = useState(false)
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [tab, setTab] = useState('overview')
+  const [phonemeSummary, setPhonemeSummary] = useState(null)
+  const [phonemeStatus, setPhonemeStatus] = useState('loading')
+
+  const loadPhonemeSummary = () => {
+    setPhonemeStatus('loading')
+    parentAPI.phonemeSummary()
+      .then(({ data }) => { setPhonemeSummary(data); setPhonemeStatus('ready') })
+      .catch(() => setPhonemeStatus('error'))
+  }
 
   // Extracted so the error state's "Try again" button can re-fire the same
   // fetch, not just the effect on mount.
@@ -292,6 +512,7 @@ export default function ParentDashboard() {
     const cancelledRef = { current: false }
     setStatus('loading')
     loadProgress(cancelledRef)
+    loadPhonemeSummary()
     parentAPI.guidedActivity()
       .then(({ data }) => { if (!cancelledRef.current) setActivity(data) })
       .catch(err => console.error('Failed to load guided activity:', err))
@@ -331,6 +552,12 @@ export default function ParentDashboard() {
 
   const starPct = data ? Math.min(100, Math.round((data.total_stars / Math.max(1, data.max_possible_stars)) * 100)) : 0
   const trend = data?.improvement_trend
+  // Read from local state rather than the server's read_at -- markMessageRead
+  // calls above fire-and-forget without updating `messages`, so this count
+  // stays put for the rest of the visit instead of vanishing the instant the
+  // background read-receipt lands, giving the Messages tab badge a moment to
+  // actually mean something.
+  const unreadMessages = messages.filter(m => m.sender_role === 'therapist' && !m.read_at).length
 
   const handleShareRecap = async () => {
     if (!data || sharingRecap) return
@@ -435,6 +662,10 @@ export default function ParentDashboard() {
                 </Link>
               </div>
             </header>
+
+            <TabBar active={tab} onChange={setTab} unreadMessages={unreadMessages} />
+
+            {tab === 'overview' && <>
 
             {/* Today's difficulty recommendation -- same adaptive-difficulty
                 agent decision therapists already see, now surfaced for
@@ -681,6 +912,19 @@ export default function ParentDashboard() {
               </Card>
             )}
 
+            </>}
+
+            {tab === 'sounds' && (
+              <SoundsTab
+                summary={phonemeSummary}
+                loading={phonemeStatus === 'loading'}
+                error={phonemeStatus === 'error'}
+                onRetry={loadPhonemeSummary}
+              />
+            )}
+
+            {tab === 'messages' && <>
+
             {/* Messages -- parent's side of the same therapist<->parent
                 log the therapist writes to from PatientDetail.jsx's Care
                 tab. Only shown once a therapist is actually linked --
@@ -748,13 +992,19 @@ export default function ParentDashboard() {
               </Card>
             )}
 
-            {/* One <GameSection> per game (see GAME_SECTIONS above) instead
-                of four hand-copied blocks. Sections always render, even with
-                no sessions -- a game vanishing entirely made the app look
-                BreathQuest-only rather than "not tried yet". */}
-            {GAME_SECTIONS.map(section => (
-              <GameSection key={section.key} section={section} items={data.categories?.[section.key]} />
-            ))}
+            </>}
+
+            {tab === 'games' && (
+              /* One <GameSection> per game (see GAME_SECTIONS above) instead
+                 of four hand-copied blocks. Sections always render, even with
+                 no sessions -- a game vanishing entirely made the app look
+                 BreathQuest-only rather than "not tried yet". */
+              <>
+                {GAME_SECTIONS.map(section => (
+                  <GameSection key={section.key} section={section} items={data.categories?.[section.key]} />
+                ))}
+              </>
+            )}
 
           </>
         )}
