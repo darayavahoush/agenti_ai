@@ -36,6 +36,13 @@ _BRAND = {
 _COVER_BAND_HEIGHT = 1.15  # inches
 _FOOTER_ZONE = 0.5  # inches
 
+# Brand identity, matching the live site (frontend/index.html <title>,
+# README.md, app/config.py's API_BASE_URL) -- previously the PDF never
+# named the product or where it lives, so a page forwarded on its own read
+# as an anonymous clinical export rather than something from Vaaksudhi.
+_BRAND_NAME = "Vaaksudhi"
+_SITE_URL = "vaaksudhi.manaslearning.com"
+
 
 def _init_styles():
     global _styles, _h1, _h2, _body, _small, PDF_EXPORT_UNAVAILABLE
@@ -117,14 +124,34 @@ def _make_numbered_canvas(patient_first_name, generated_on):
                 self.rect(0, page_h - band_h, page_w, band_h, stroke=0, fill=1)
                 self.setFillColor(colors.HexColor(_BRAND["green"]))
                 self.rect(0, page_h - band_h, page_w, 4, stroke=0, fill=1)
+
+                # Brand mark, top-right of the band: a small two-tone dot
+                # (echoes the app's own sparkle/orb accents) plus a
+                # letter-spaced wordmark. Previously the band had no brand
+                # identity at all -- just the generic title -- so a
+                # therapist (or a parent it got forwarded to) had no visual
+                # cue this came from Vaaksudhi rather than a plain export.
+                self.setFont("Helvetica-Bold", 9)
+                wordmark = " ".join(_BRAND_NAME.upper())  # reportlab has no letter-tracking API
+                wordmark_w = self.stringWidth(wordmark, "Helvetica-Bold", 9)
+                wm_x = page_w - 0.75 * 72 - wordmark_w
+                wm_y = page_h - 0.34 * 72
+                dot_cx = wm_x - 10
+                self.setFillColor(colors.HexColor(_BRAND["green"]))
+                self.circle(dot_cx, wm_y + 3, 4, stroke=0, fill=1)
+                self.setFillColor(colors.HexColor(_BRAND["dark"]))
+                self.circle(dot_cx + 1.5, wm_y + 1.5, 1.8, stroke=0, fill=1)
+                self.setFillColor(colors.white)
+                self.drawString(wm_x, wm_y, wordmark)
+
                 self.setFillColor(colors.white)
                 self.setFont("Helvetica-Bold", 20)
-                self.drawString(0.75 * 72, page_h - 0.55 * 72,
+                self.drawString(0.75 * 72, page_h - 0.6 * 72,
                                  f"Progress Report — {patient_first_name}")
                 self.setFillColor(colors.HexColor(_BRAND["green"]))
                 self.setFont("Helvetica", 9)
-                self.drawString(0.75 * 72, page_h - 0.85 * 72,
-                                 f"Generated {generated_on}")
+                self.drawString(0.75 * 72, page_h - 0.9 * 72,
+                                 f"Generated {generated_on}  ·  {_SITE_URL}")
 
             self.setStrokeColor(colors.lightgrey)
             self.setLineWidth(0.4)
@@ -135,6 +162,12 @@ def _make_numbered_canvas(patient_first_name, generated_on):
                              "Practice-performance data from in-app activity — not a substitute for clinical assessment.")
             self.drawRightString(page_w - 0.75 * 72, footer_h - 12,
                                   f"Page {page_num} of {total_pages}")
+            # Brand + site, every page -- not just the cover -- so a page
+            # separated from page 1 (printed loose, forwarded as a single
+            # attachment) still traces back to Vaaksudhi.
+            self.setFont("Helvetica", 7)
+            self.setFillColor(colors.HexColor(_BRAND["purple"]))
+            self.drawString(0.75 * 72, footer_h - 22, f"{_BRAND_NAME} · {_SITE_URL}")
             self.restoreState()
 
     return _ReportCanvas
