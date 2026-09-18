@@ -1237,6 +1237,14 @@ async def get_patient_report(
         g.id: await get_goal_history(g.id, therapist, db) for g in goals
     }
 
+    # Same cross-game phoneme aggregate the "Phoneme Command Center" dashboard
+    # card uses — best-effort: a phoneme-summary failure shouldn't block the
+    # rest of the report, since it's an additive section, not core data.
+    try:
+        phoneme_summary = await get_cross_game_phoneme_summary(db, patient_id, chime_db_path=CHIME_DB_PATH)
+    except Exception:
+        phoneme_summary = None
+
     if build_patient_report_pdf is None:
         raise HTTPException(
             status_code=503,
@@ -1249,7 +1257,8 @@ async def get_patient_report(
         build_patient_report_pdf(
             patient=patient, progress=progress, weekly_summary=weekly_summary,
             goals=goals, assignments=assignments, therapist=therapist,
-            goal_histories=goal_histories, output_path=tmp_path,
+            goal_histories=goal_histories, phoneme_summary=phoneme_summary,
+            output_path=tmp_path,
         )
     except Exception as e:
         os.remove(tmp_path)
