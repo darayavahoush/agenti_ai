@@ -30,7 +30,16 @@ jobs:
     # Restricting the actual deploy to one canonical repo -- the run still
     # fires on the other, it just no-ops -- means secrets only ever need to
     # be set in one place, and removes this race for every future deploy.
-    if: github.repository == 'darayavahoush/agenti_ai'
+    #
+    # Canonical repo switched from darayavahoush/agenti_ai to
+    # lavanya2kowmar/agenti_ai on 2026-09-18. Before this takes effect,
+    # lavanya2kowmar/agenti_ai needs its OWN copies of every secret this
+    # workflow references (AZURE_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID as repo
+    # variables, SMTP_HOST/USER/PASSWORD as repo secrets) -- Actions secrets
+    # don't carry over between repos. Skipping that step reintroduces
+    # exactly the stale/blank-secret bug this comment describes, just with
+    # the two repos' roles reversed.
+    if: github.repository == 'lavanya2kowmar/agenti_ai'
 
     steps:
       - name: Checkout staging
