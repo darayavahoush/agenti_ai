@@ -201,6 +201,7 @@ class PatientCreate(BaseModel):
     pin: str
     age: Optional[int] = None
     diagnosis_notes: Optional[str] = None
+    allow_duplicate: bool = False  # set true to add a second same-named patient under one therapist
 
     @validator("pin")
     def pin_format(cls, v):
