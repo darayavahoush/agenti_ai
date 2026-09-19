@@ -817,9 +817,10 @@ export default function VillageBuilder() {
 
       <button
         onClick={() => navigate('/play/chime')}
+        aria-label="Back to Chime"
         className="fixed top-4 left-4 z-30 flex items-center gap-2 text-white/70 hover:text-white text-sm bg-black/15 backdrop-blur-sm rounded-full px-4 py-2 transition-colors"
       >
-        <ArrowLeft size={16} /> Back to Chime
+        <ArrowLeft size={16} /> <span className="hidden sm:inline">Back to Chime</span>
       </button>
 
       {phase === 'start' && (
@@ -868,7 +869,7 @@ export default function VillageBuilder() {
         <>
           <div className="fixed top-4 right-4 z-20 flex flex-col items-end gap-2 max-w-[calc(100vw-32px)]">
             <div className="flex items-center gap-2">
-              <div className="bg-white/92 rounded-3xl px-8 py-3.5 flex items-center gap-2 shadow-lg">
+              <div className="bg-white/90 rounded-3xl px-5 sm:px-8 py-3.5 flex items-center gap-2 shadow-lg">
                 <span className="villb-title text-2xl md:text-3xl" style={{ color: '#2E4A2E' }}>{targetWord}</span>
                 <button onClick={speakTargetWord} className="villb-icon-btn" style={{ width: 36, height: 36, fontSize: '1.1rem' }} aria-label="Hear the word">
                   <Volume2 size={16} />
@@ -886,7 +887,7 @@ export default function VillageBuilder() {
           </div>
 
           {settingsOpen && (
-            <div className="fixed z-30 bg-white/92 rounded-2xl px-5 py-4 w-60 text-left" style={{ top: 90, right: 18, color: '#2E4A2E' }}>
+            <div className="fixed z-30 bg-white/90 rounded-2xl px-5 py-4 w-60 text-left" style={{ top: 90, right: 18, color: '#2E4A2E' }}>
               <h3 className="villb-title text-base mb-3">Settings</h3>
               <div className="flex items-center justify-between font-bold text-sm mb-3">
                 <span>Reduce motion</span>
@@ -900,7 +901,7 @@ export default function VillageBuilder() {
           )}
 
           {recentAttempt.visible && (
-            <div className="fixed bottom-7 left-1/2 -translate-x-1/2 z-20 bg-white/92 rounded-full px-6 py-2.5 font-bold text-sm" style={{ color: '#2E4A2E' }}>
+            <div className="fixed bottom-7 left-1/2 -translate-x-1/2 z-20 bg-white/90 rounded-full px-6 py-2.5 font-bold text-sm" style={{ color: '#2E4A2E' }}>
               {recentAttempt.text}
             </div>
           )}

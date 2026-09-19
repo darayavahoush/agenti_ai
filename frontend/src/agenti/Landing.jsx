@@ -1,8 +1,20 @@
+import { useEffect, useState } from "react";
 import { T } from "../assessment/constants";
 import { Button, BunnyMascot } from "./UI";
 import { PartyPopper, Gamepad2, Globe, Brain, Flame, PawPrint, Mic2, Bell, Layers, Sparkles, Sparkle, Target, ShieldCheck, Activity, Heart } from "lucide-react";
 
 export function Landing({ onStart }) {
+  // The hero is a two-column row on desktop. Below ~700px the columns used to
+  // stay side by side (text squeezed to ~230px, 430px mascot pushed off-screen),
+  // so let them wrap and scale the mascot to the viewport.
+  const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const mascotSize = Math.max(200, Math.min(430, vw - 64));
+
   return (
     <div
       style={{
@@ -66,10 +78,10 @@ export function Landing({ onStart }) {
       <div
         style={{
           maxWidth: "1220px", width: "100%", display: "flex", alignItems: "center",
-          justifyContent: "space-between", gap: "48px", zIndex: 1,
+          justifyContent: "space-between", gap: "32px 48px", zIndex: 1, flexWrap: "wrap",
         }}
       >
-        <div className="animate-slide-up" style={{ flex: 1, maxWidth: "560px" }}>
+        <div className="animate-slide-up" style={{ flex: "1 1 320px", maxWidth: "560px" }}>
           <div
             style={{
               display: "inline-flex", alignItems: "center", gap: "10px", padding: "10px 16px",
@@ -182,7 +194,7 @@ export function Landing({ onStart }) {
           </div>
         </div>
 
-        <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center" }}>
           <div style={{ position: "relative", width: "520px", maxWidth: "100%", display: "flex", justifyContent: "center" }}>
             <div
               style={{
@@ -222,7 +234,7 @@ export function Landing({ onStart }) {
                 />
               ))}
             </div>
-            <BunnyMascot size={430} mood="happy" style={{ position: "relative", zIndex: 2 }} />
+            <BunnyMascot size={mascotSize} mood="happy" style={{ position: "relative", zIndex: 2 }} />
           </div>
         </div>
       </div>
