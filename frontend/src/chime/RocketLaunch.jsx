@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const LEVEL_ID = 'aa'
@@ -590,7 +591,7 @@ export default function RocketLaunch() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToLaunchSeconds)
 
     s.difficultyConfig = DIFFICULTY_AGENT.apply(s.difficultyConfig, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   // Marks the level as passed independent of any single burst's score — altitude
@@ -1064,7 +1065,7 @@ export default function RocketLaunch() {
             <div className="text-6xl mb-3">🌟</div>
             <h1 className="text-3xl font-extrabold mb-2">You did it!</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-1">Your rocket reached the stars!</p>
-            {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
+            {agentFeedback && <p className="text-sm opacity-85 mb-5">{successScreenAgentMessage(agentFeedback)}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (
                 <button

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const TARGET_F1_DEFAULT = 300.0
@@ -557,7 +558,7 @@ export default function SubmarineDive() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToDiveSeconds)
 
     s.difficultyConfig = DIFFICULTY_AGENT.apply(s.difficultyConfig, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   // Marks the level as passed independent of any single attempt's score — depth
@@ -1028,7 +1029,7 @@ export default function SubmarineDive() {
             <div className="sdv-mic-icon">🐚</div>
             <h1 className="sdv-title">You reached the deep!</h1>
             <p className="sdv-subtitle">Your submarine found the ocean floor!</p>
-            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{agentFeedback}</p>
+            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{successScreenAgentMessage(agentFeedback)}</p>
             {getNextLevelRoute(LEVEL_ID) && (
               <button className="sdv-btn" onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}>Next Level →</button>
             )}

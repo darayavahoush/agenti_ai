@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const LEVEL_ID = 'ee'
@@ -115,7 +116,7 @@ export default function XylophoneTower() {
     noiseFloor: 0.01, maxExpectedRms: 0.3,
     smoothedScore: 0, lastFrameTime: 0, quietStreak: 0,
     height: 0, barsRung: 0, sustainedSeconds: 0, hasFinished: false,
-    particles: [], notes: [], birds: [], stars: [],
+    particles: [], notes: [], birds: [], stars: [], clouds: [], fireflies: [],
     attemptStartTime: 0, attemptNumber: 0,
     requiredSustainSeconds: 3,
     inVoicing: false, voicingScores: [],
@@ -171,6 +172,18 @@ export default function XylophoneTower() {
     }))
     s.birds = Array.from({ length: 3 }, (_, i) => ({
       x: s.W * 0.15 + i * 60, y: s.H * 0.16 + (i % 2) * 20, phase: Math.random() * Math.PI * 2,
+    }))
+    // Slow-drifting wisps of cloud, lit from below by the dusk glow
+    s.clouds = Array.from({ length: 5 }, () => ({
+      x: Math.random() * s.W, y: s.H * (0.1 + Math.random() * 0.3),
+      scale: 0.7 + Math.random() * 0.9, speed: 3 + Math.random() * 5,
+    }))
+    // Fireflies rising out of the mist around the tower base, so the ground
+    // area feels alive rather than a flat dark band
+    s.fireflies = Array.from({ length: 18 }, () => ({
+      x: Math.random() * s.W, y: s.H * (0.72 + Math.random() * 0.24),
+      r: 1.5 + Math.random() * 1.8, phase: Math.random() * Math.PI * 2,
+      speed: 6 + Math.random() * 10, drift: 8 + Math.random() * 14,
     }))
   }
 
@@ -460,7 +473,7 @@ export default function XylophoneTower() {
     }
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToTopSeconds)
     s.requiredSustainSeconds = DIFFICULTY_AGENT.apply(s.requiredSustainSeconds, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   function ringBar(barIndex) {
@@ -515,6 +528,15 @@ export default function XylophoneTower() {
 
     for (const b of s.birds) b.phase += dt * 1.5
     for (const st of s.stars) st.phase += dt
+    for (const c of s.clouds) {
+      c.x += c.speed * dt
+      if (c.x > s.W + 90) c.x = -90
+    }
+    for (const f of s.fireflies) {
+      f.phase += dt * 1.6
+      f.y -= f.speed * dt
+      if (f.y < s.H * 0.6) { f.y = s.H * 0.95; f.x = Math.random() * s.W }
+    }
     for (const n of s.notes) { n.x += n.vx * dt * 40; n.y += n.vy * dt * 40; n.vy += 0.3 * dt * 40 * -0.02; n.life -= dt * 0.7 }
     s.notes = s.notes.filter(n => n.life > 0)
     for (const p of s.particles) { p.x += p.vx * dt * 60; p.y += p.vy * dt * 60; p.vy += 0.12; p.life -= dt * 1.1 }
@@ -602,6 +624,57 @@ export default function XylophoneTower() {
     }
     ctx.globalAlpha = 1
 
+    // Moon with a soft halo and a few craters
+    const moonX = s.W * 0.8, moonY = s.H * 0.17
+    const halo = ctx.createRadialGradient(moonX, moonY, 22, moonX, moonY, 80)
+    halo.addColorStop(0, `rgba(255,244,214,${0.28 + duskT * 0.2})`)
+    halo.addColorStop(1, 'rgba(255,244,214,0)')
+    ctx.fillStyle = halo
+    ctx.beginPath(); ctx.arc(moonX, moonY, 80, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = 'rgba(255,246,222,0.95)'
+    ctx.beginPath(); ctx.arc(moonX, moonY, 24, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = 'rgba(210,196,170,0.55)'
+    ctx.beginPath(); ctx.arc(moonX - 7, moonY - 5, 5, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(moonX + 8, moonY + 6, 3.5, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(moonX + 2, moonY - 10, 2.5, 0, Math.PI * 2); ctx.fill()
+
+    // Drifting clouds
+    ctx.fillStyle = 'rgba(200,180,240,0.16)'
+    for (const c of s.clouds) {
+      ctx.beginPath()
+      ctx.ellipse(c.x, c.y, 36 * c.scale, 12 * c.scale, 0, 0, Math.PI * 2)
+      ctx.ellipse(c.x - 22 * c.scale, c.y + 4 * c.scale, 24 * c.scale, 9 * c.scale, 0, 0, Math.PI * 2)
+      ctx.ellipse(c.x + 24 * c.scale, c.y + 3 * c.scale, 26 * c.scale, 10 * c.scale, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Distant mountain ranges for parallax depth (two layers, far then near)
+    const ridgeY = s.H * 0.92
+    ctx.fillStyle = 'rgba(58,46,110,0.55)'
+    ctx.beginPath()
+    ctx.moveTo(0, ridgeY)
+    ctx.lineTo(0, s.H * 0.74)
+    ctx.lineTo(s.W * 0.14, s.H * 0.66)
+    ctx.lineTo(s.W * 0.28, s.H * 0.75)
+    ctx.lineTo(s.W * 0.42, s.H * 0.64)
+    ctx.lineTo(s.W * 0.6, s.H * 0.76)
+    ctx.lineTo(s.W * 0.78, s.H * 0.67)
+    ctx.lineTo(s.W, s.H * 0.75)
+    ctx.lineTo(s.W, ridgeY)
+    ctx.closePath(); ctx.fill()
+    ctx.fillStyle = 'rgba(32,24,72,0.75)'
+    ctx.beginPath()
+    ctx.moveTo(0, ridgeY)
+    ctx.lineTo(0, s.H * 0.82)
+    ctx.lineTo(s.W * 0.18, s.H * 0.74)
+    ctx.lineTo(s.W * 0.34, s.H * 0.83)
+    ctx.lineTo(s.W * 0.55, s.H * 0.77)
+    ctx.lineTo(s.W * 0.72, s.H * 0.84)
+    ctx.lineTo(s.W * 0.9, s.H * 0.76)
+    ctx.lineTo(s.W, s.H * 0.82)
+    ctx.lineTo(s.W, ridgeY)
+    ctx.closePath(); ctx.fill()
+
     // Birds
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'
     ctx.lineWidth = 2
@@ -614,6 +687,16 @@ export default function XylophoneTower() {
     }
 
     drawTower(ctx, s)
+
+    // Fireflies glowing in the mist at the tower's base (drawn over the ground)
+    for (const f of s.fireflies) {
+      const glow = 0.35 + (Math.sin(f.phase * 2) * 0.5 + 0.5) * 0.65
+      const fx = f.x + Math.sin(f.phase) * f.drift
+      ctx.fillStyle = `rgba(255,236,150,${0.18 * glow})`
+      ctx.beginPath(); ctx.arc(fx, f.y, f.r * 3.2, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = `rgba(255,244,190,${0.9 * glow})`
+      ctx.beginPath(); ctx.arc(fx, f.y, f.r, 0, Math.PI * 2); ctx.fill()
+    }
 
     // Floating notes
     for (const n of s.notes) {
@@ -656,12 +739,60 @@ export default function XylophoneTower() {
     ctx.fillStyle = shaft
     ctx.fillRect(towerX - towerWidth / 2, towerTop, towerWidth, groundY - towerTop)
 
+    // Stone brick courses so the shaft reads as masonry, not a flat slab
+    ctx.strokeStyle = 'rgba(20,12,40,0.22)'
+    ctx.lineWidth = 1
+    for (let y = towerTop + 22, row = 0; y < groundY - 6; y += 22, row++) {
+      ctx.beginPath(); ctx.moveTo(towerX - towerWidth / 2, y); ctx.lineTo(towerX + towerWidth / 2, y); ctx.stroke()
+      const off = row % 2 ? 12 : 0
+      for (let x = towerX - towerWidth / 2 + 12 + off; x < towerX + towerWidth / 2; x += 24) {
+        ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x, y); ctx.stroke()
+      }
+    }
+
+    // Arched doorway at the base with a warm glow that brightens as you climb
+    const doorW = 22, doorH = 34
+    ctx.fillStyle = `rgba(255,214,140,${0.35 + s.height * 0.5})`
+    ctx.beginPath()
+    ctx.moveTo(towerX - doorW / 2, groundY - 8)
+    ctx.lineTo(towerX - doorW / 2, groundY - 8 - doorH + doorW / 2)
+    ctx.arc(towerX, groundY - 8 - doorH + doorW / 2, doorW / 2, Math.PI, 0)
+    ctx.lineTo(towerX + doorW / 2, groundY - 8)
+    ctx.closePath(); ctx.fill()
+
+    // Small arched windows glowing on either side of the bell stack
+    const winCount = 3
+    for (let i = 0; i < winCount; i++) {
+      const wy = towerTop + 40 + i * ((groundY - towerTop - 120) / winCount)
+      const lit = s.height * winCount > i
+      ctx.fillStyle = lit ? 'rgba(255,225,150,0.75)' : 'rgba(255,255,255,0.08)'
+      for (const wx of [towerX - 26, towerX + 26]) {
+        ctx.beginPath()
+        ctx.moveTo(wx - 4, wy + 12)
+        ctx.lineTo(wx - 4, wy + 4)
+        ctx.arc(wx, wy + 4, 4, Math.PI, 0)
+        ctx.lineTo(wx + 4, wy + 12)
+        ctx.closePath(); ctx.fill()
+      }
+    }
+
     // Roof
-    ctx.fillStyle = '#3A2E56'
     ctx.beginPath()
     ctx.moveTo(towerX - towerWidth / 2 - 14, towerTop)
     ctx.lineTo(towerX, towerTop - 46)
     ctx.lineTo(towerX + towerWidth / 2 + 14, towerTop)
+    ctx.closePath(); ctx.fill()
+
+    // Little pennant fluttering from the roof peak
+    const flutter = Math.sin(performance.now() / 260) * 3
+    ctx.strokeStyle = '#D8C9F5'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(towerX, towerTop - 46); ctx.lineTo(towerX, towerTop - 66); ctx.stroke()
+    ctx.fillStyle = '#F0997B'
+    ctx.beginPath()
+    ctx.moveTo(towerX, towerTop - 66)
+    ctx.quadraticCurveTo(towerX + 10, towerTop - 66 + flutter, towerX + 20, towerTop - 61)
+    ctx.quadraticCurveTo(towerX + 10, towerTop - 58 - flutter, towerX, towerTop - 56)
     ctx.closePath(); ctx.fill()
 
     // Bells/bars stacked up the tower, one per pentatonic note. Bar i lights
@@ -822,7 +953,7 @@ export default function XylophoneTower() {
             <div className="text-6xl mb-3">🔔</div>
             <h1 className="text-3xl font-extrabold mb-2">Ding! You reached the top!</h1>
             <p className="text-lg font-bold text-[#FACC15] mb-1">Every bell in the tower is ringing!</p>
-            {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
+            {agentFeedback && <p className="text-sm opacity-85 mb-5">{successScreenAgentMessage(agentFeedback)}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (
                 <button

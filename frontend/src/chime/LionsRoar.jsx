@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const LEVEL_ID = 'r'
@@ -170,6 +171,22 @@ export default function LionsRoar() {
     s.birds = Array.from({ length: 6 }, (_, i) => ({
       x: s.W * 0.2 + i * 40, y: s.H * 0.18 + (i % 3) * 18, homeX: s.W * 0.2 + i * 40,
       fleeX: 0, phase: Math.random() * Math.PI * 2,
+    }))
+    // Slow-drifting clouds across the golden-hour sky, and a scattering of
+    // backlit pollen motes for a warmer, livelier savanna feel than the
+    // previously-empty upper sky.
+    s.clouds = Array.from({ length: 5 }, (_, i) => ({
+      x: Math.random() * s.W, y: s.H * (0.08 + Math.random() * 0.22),
+      scale: 0.7 + Math.random() * 0.9, speed: 4 + Math.random() * 6,
+    }))
+    s.pollen = Array.from({ length: 24 }, () => ({
+      x: Math.random() * s.W, y: s.H * (0.3 + Math.random() * 0.55),
+      r: 1 + Math.random() * 2, phase: Math.random() * Math.PI * 2, drift: 6 + Math.random() * 10,
+    }))
+    // Foreground grass tufts along the ground line, swaying independently
+    // so the savanna floor doesn't read as a flat, static color band.
+    s.grassTufts = Array.from({ length: 26 }, () => ({
+      x: Math.random() * s.W, h: 14 + Math.random() * 22, phase: Math.random() * Math.PI * 2,
     }))
   }
 
@@ -443,7 +460,7 @@ export default function LionsRoar() {
     }
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToWinSeconds)
     s.targetRoars = DIFFICULTY_AGENT.apply(s.targetRoars, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   function spawnShockwave(boost) {
@@ -525,6 +542,12 @@ export default function LionsRoar() {
       b.phase += dt * 2
       b.fleeX = Math.max(0, b.fleeX - dt * 40)
     }
+    for (const c of s.clouds) {
+      c.x += c.speed * dt
+      if (c.x > s.W + 80) c.x = -80
+    }
+    for (const p of s.pollen) p.phase += dt * 0.8
+    for (const g of s.grassTufts) g.phase += dt * 1.3
     for (const w of s.shockwaves) { w.r += (w.maxR - w.r) * dt * 3; w.life -= dt * 1.1 }
     s.shockwaves = s.shockwaves.filter(w => w.life > 0)
     for (const p of s.dust) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt; p.life -= dt * 0.9 }
@@ -610,6 +633,40 @@ export default function LionsRoar() {
     // Sun
     ctx.fillStyle = 'rgba(255,235,190,0.9)'
     ctx.beginPath(); ctx.arc(s.W * 0.78, s.H * 0.32, 46, 0, Math.PI * 2); ctx.fill()
+    // Soft glow ring around the sun so it reads as a light source, not a flat disc
+    const sunGlow = ctx.createRadialGradient(s.W * 0.78, s.H * 0.32, 46, s.W * 0.78, s.H * 0.32, 90)
+    sunGlow.addColorStop(0, 'rgba(255,220,170,0.35)')
+    sunGlow.addColorStop(1, 'rgba(255,220,170,0)')
+    ctx.fillStyle = sunGlow
+    ctx.beginPath(); ctx.arc(s.W * 0.78, s.H * 0.32, 90, 0, Math.PI * 2); ctx.fill()
+
+    // Slow-drifting clouds, backlit by the golden-hour sky behind them
+    ctx.fillStyle = 'rgba(255,255,255,0.22)'
+    for (const c of s.clouds) {
+      ctx.beginPath()
+      ctx.ellipse(c.x, c.y, 34 * c.scale, 13 * c.scale, 0, 0, Math.PI * 2)
+      ctx.ellipse(c.x - 20 * c.scale, c.y + 4 * c.scale, 22 * c.scale, 10 * c.scale, 0, 0, Math.PI * 2)
+      ctx.ellipse(c.x + 22 * c.scale, c.y + 3 * c.scale, 24 * c.scale, 10 * c.scale, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Backlit pollen motes drifting through the warm upper air
+    for (const p of s.pollen) {
+      const wobble = Math.sin(p.phase) * p.drift
+      ctx.fillStyle = 'rgba(255,225,180,0.55)'
+      ctx.beginPath(); ctx.arc(p.x + wobble, p.y, p.r, 0, Math.PI * 2); ctx.fill()
+    }
+
+    // Rolling savanna hills for depth between the sky and the tree line
+    ctx.fillStyle = 'rgba(120,70,40,0.35)'
+    ctx.beginPath()
+    ctx.moveTo(0, s.H * 0.66)
+    ctx.quadraticCurveTo(s.W * 0.22, s.H * 0.58, s.W * 0.46, s.H * 0.65)
+    ctx.quadraticCurveTo(s.W * 0.7, s.H * 0.72, s.W, s.H * 0.6)
+    ctx.lineTo(s.W, s.H * 0.7)
+    ctx.lineTo(0, s.H * 0.7)
+    ctx.closePath()
+    ctx.fill()
 
     // Distant acacia silhouettes
     ctx.fillStyle = 'rgba(60,30,20,0.55)'
@@ -625,6 +682,19 @@ export default function LionsRoar() {
     ground.addColorStop(1, '#7A5A2E')
     ctx.fillStyle = ground
     ctx.fillRect(0, s.H * 0.68, s.W, s.H * 0.32)
+
+    // Foreground grass tufts, each swaying independently so the ground
+    // doesn't read as a flat static color band
+    ctx.strokeStyle = 'rgba(90,120,40,0.65)'
+    ctx.lineWidth = 2.5
+    for (const g of s.grassTufts) {
+      const sway = Math.sin(g.phase) * 4
+      const gy = s.H * 0.68 + (g.x % 37)
+      ctx.beginPath()
+      ctx.moveTo(g.x, gy)
+      ctx.quadraticCurveTo(g.x + sway, gy - g.h * 0.6, g.x + sway * 1.4, gy - g.h)
+      ctx.stroke()
+    }
 
     // Birds fleeing
     ctx.strokeStyle = 'rgba(40,20,15,0.8)'
@@ -854,7 +924,7 @@ export default function LionsRoar() {
             <div className="text-6xl mb-3">🦁</div>
             <h1 className="text-3xl font-extrabold mb-2">RAWR! What a roar!</h1>
             <p className="text-lg font-bold text-[#F0604A] mb-1">You gathered the whole pride!</p>
-            {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
+            {agentFeedback && <p className="text-sm opacity-85 mb-5">{successScreenAgentMessage(agentFeedback)}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (
                 <button
