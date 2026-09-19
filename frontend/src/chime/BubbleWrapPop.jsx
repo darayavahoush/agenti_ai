@@ -500,8 +500,13 @@ export default function BubbleWrapPop() {
   // it, a late result could flip a bubble on a sheet the child isn't even on.
   async function finishVerificationWindow(chunks, generation) {
     const s = stateRef.current
+    // windowPoppedIndices is the LIVE array gameLoop keeps pushing into, and
+    // the transcription await below can take several seconds (Whisper on a
+    // small CPU container). Snapshot exactly the pops this window recorded;
+    // anything pushed after that is a "late" pop, handled after the block.
     const windowIndices = s.windowPoppedIndices
     const addedThisWindow = windowIndices.length
+    const evaluated = windowIndices.slice()
 
     if (addedThisWindow > 0 && chunks.length > 0) {
       setVerifyToast({ status: 'checking', message: 'Checking your "ha"s...' })
@@ -536,14 +541,14 @@ export default function BubbleWrapPop() {
             // actually silence or noise. Stop retracting for the rest of
             // this sheet so a bad transcription pipeline can't strand a kid
             // who is audibly doing the exercise.
-            for (const idx of windowIndices) s.verifiedFlags[idx] = true
+            for (const idx of evaluated) s.verifiedFlags[idx] = true
             setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
             setVerifyToast(null)
           } else {
-            for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[windowIndices[i]] = true
+            for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[evaluated[i]] = true
             if (toRetract > 0) {
-              for (let i = confirmedCount; i < windowIndices.length; i++) {
-                const idx = windowIndices[i]
+              for (let i = confirmedCount; i < evaluated.length; i++) {
+                const idx = evaluated[i]
                 s.poppedFlags[idx] = false
                 s.popPulse[idx] = 0
               }
@@ -561,11 +566,27 @@ export default function BubbleWrapPop() {
           // Unverifiable window (transcription failed or came back empty) --
           // trust the local burst detector rather than stranding a kid
           // mid-sheet because verification is down.
-          for (const idx of windowIndices) s.verifiedFlags[idx] = true
+          for (const idx of evaluated) s.verifiedFlags[idx] = true
           setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
           setVerifyToast(null)
         }
       }
+    }
+
+    // Pops that were never part of a recorded window are trusted to the local
+    // burst detector instead of being stranded (popped in poppedFlags but
+    // never verified, so the sheet can't reach targetPops):
+    //  - "late" pops: bubbles popped while the transcription above was in
+    //    flight -- no recorder was running then, so there is no audio to
+    //    check them against. startVerificationWindow() is about to reset
+    //    windowPoppedIndices, which used to silently drop them.
+    //  - a window that had pops but no recorded audio at all.
+    if (generation === s.sheetGeneration) {
+      const unchecked = (addedThisWindow > 0 && chunks.length > 0)
+        ? windowIndices.slice(addedThisWindow)
+        : windowIndices
+      for (const idx of unchecked) if (s.poppedFlags[idx]) s.verifiedFlags[idx] = true
+      if (unchecked.length > 0) setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
     }
 
     if (generation === s.sheetGeneration && !s.hasFinished) startVerificationWindow()
