@@ -3,10 +3,33 @@ schemas/breathquest_schemas.py — Pydantic v1 request/response models for Breat
 """
 
 from datetime import datetime, date
-from typing import Any, Optional, List
+from enum import Enum
+from typing import Annotated, Any, Optional, List
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, BeforeValidator, EmailStr, validator
 import re
+
+
+def _id_to_str(v):
+    """UUID (and str-less Enum) values from ORM rows -> plain str.
+
+    Pydantic v2 refuses to coerce a uuid.UUID into a `str` field, so any
+    endpoint that returned a raw ORM row through an `*Out` schema declaring
+    `id: str` failed response validation -- a 500 that the browser reports
+    as a CORS error, because errors raised outside CORSMiddleware carry no
+    Access-Control-Allow-Origin header. Notes dodged it by hand-building
+    NoteOut with str(...); Assignments/Goals/Messages/HomePractice returned
+    the row directly and broke on every create (and on every list once a
+    row existed).
+    """
+    if isinstance(v, UUID):
+        return str(v)
+    if isinstance(v, Enum) and not isinstance(v, str):
+        return str(v.value)
+    return v
+
+
+StrId = Annotated[str, BeforeValidator(_id_to_str)]
 
 
 # ------------------------------------------------------------------ #
@@ -931,9 +954,9 @@ class AssignmentOut(BaseModel):
     class Config:
         from_attributes = True
 
-    id: str
-    patient_id: str
-    assigned_by: str
+    id: StrId
+    patient_id: StrId
+    assigned_by: StrId
     game: str
     level_id: Optional[str]
     title: str
@@ -965,9 +988,9 @@ class GoalOut(BaseModel):
     class Config:
         from_attributes = True
 
-    id: str
-    patient_id: str
-    created_by: str
+    id: StrId
+    patient_id: StrId
+    created_by: StrId
     target_metric: str
     target_value: float
     baseline_value: Optional[float]
@@ -1031,10 +1054,10 @@ class MessageOut(BaseModel):
     class Config:
         from_attributes = True
 
-    id: str
-    patient_id: str
+    id: StrId
+    patient_id: StrId
     sender_role: str
-    sender_id: Optional[str]
+    sender_id: Optional[StrId]
     body: str
     created_at: datetime
     read_at: Optional[datetime]
@@ -1061,8 +1084,8 @@ class HomePracticeLogOut(BaseModel):
     class Config:
         from_attributes = True
 
-    id: str
-    patient_id: str
+    id: StrId
+    patient_id: StrId
     logged_at: datetime
     practiced_on: datetime
     duration_minutes: Optional[int]
