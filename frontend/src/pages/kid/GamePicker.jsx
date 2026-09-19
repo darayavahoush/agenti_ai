@@ -201,7 +201,7 @@ export default function GamePicker() {
       <div className="relative flex-1 overflow-hidden" style={{ background: 'linear-gradient(180deg, #12142E 0%, #1E1E3F 100%)' }}>
         <Starfield />
 
-        <div className="relative flex items-center justify-between px-6 py-4 border-b border-white/10 backdrop-blur-sm">
+        <div className="relative flex flex-wrap items-center justify-between gap-y-2 px-4 sm:px-6 py-4 border-b border-white/10 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <Avatar avatar={patient?.avatar} photoUrl={patient?.avatar_photo_url} size="sm" />
             <div>
@@ -209,7 +209,7 @@ export default function GamePicker() {
               <span className="text-white/30 text-xs ml-2">#{patient?.player_code}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button onClick={() => navigate('/play/account')} className="flex items-center gap-1.5 text-white/65 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors px-3 py-2 rounded-lg active:scale-95">
               <TrendingUp size={16} /> My Account
             </button>

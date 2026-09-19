@@ -255,6 +255,26 @@ function NavItem({ label, Icon, active, collapsed, t, to, onClick, locked, locke
   )
 }
 
+// Below this width a permanently-open 256px sidebar leaves a phone with
+// ~130px of real content (headings clip, cards squash), so the sidebar
+// collapses to its 72px icon rail by default and, when opened, slides OVER
+// the page instead of pushing it.
+const NARROW_QUERY = '(max-width: 767px)'
+
+function useIsNarrow() {
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(NARROW_QUERY).matches,
+  )
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const mq = window.matchMedia(NARROW_QUERY)
+    const onChange = (e) => setNarrow(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return narrow
+}
+
 export default function Sidebar({
   role = 'therapist',   // 'therapist' | 'parent'
   items = [],            // [{ label, icon: LucideIcon, to?, onClick?, locked?, lockedHint? }]
@@ -263,16 +283,33 @@ export default function Sidebar({
   onLogout,
   extraFooter,           // optional ReactNode rendered between the name block and "Switch profile"/Log out -- e.g. ChildSwitcher for parent role. Independent of the device-level profile switcher below: that one swaps which ACCOUNT is active on this device, this is for a single parent account with more than one child.
 }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const narrow = useIsNarrow()
+  const [collapsed, setCollapsed] = useState(narrow)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const location = useLocation()
+
+  // Crossing the breakpoint (rotating a tablet, resizing a window) snaps to
+  // the sensible default for that size; a manual toggle still sticks until then.
+  useEffect(() => { setCollapsed(narrow) }, [narrow])
+  // After picking a destination on a phone, get out of the way.
+  useEffect(() => { if (narrow) setCollapsed(true) }, [location.pathname, narrow])
+
+  const overlayOpen = narrow && !collapsed
   const t = THEMES[role] || THEMES.therapist
   const { knownAccounts } = useAuth() || {}
 
   return (
+    <>
+    {/* On phones the aside is fixed (so opening it can overlay the page), so
+        keep a 72px spacer in the layout for the icon rail, plus a tap-away
+        backdrop while it's expanded. */}
+    {narrow && <div className="shrink-0 w-[72px]" aria-hidden="true" />}
+    {overlayOpen && (
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setCollapsed(true)} aria-hidden="true" />
+    )}
     <aside
       style={{ background: LANDING_GRADIENT }}
-      className={`sticky top-0 h-dvh shrink-0 flex flex-col border-r border-white/[0.08]
+      className={`${narrow ? 'fixed left-0 top-0 z-50' : 'sticky top-0'} h-dvh shrink-0 flex flex-col border-r border-white/[0.08]
                   shadow-[4px_0_24px_-8px_rgba(0,0,0,0.5)]
                   transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}
     >
@@ -334,5 +371,6 @@ export default function Sidebar({
       </div>
       {switcherOpen && <ProfileSwitcherModal onClose={() => setSwitcherOpen(false)} />}
     </aside>
+    </>
   )
 }
