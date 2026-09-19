@@ -21,9 +21,6 @@ export default function ChildSwitcher() {
   const [addForm, setAddForm] = useState({ firstName: '', avatar: 'chick', pin: '' })
   const [linkCode, setLinkCode] = useState('')
 
-  if (!parent) return null
-
-  const activeChild = childrenList.find((c) => c.is_active)
   const close = () => {
     setOpen(false)
     setView('list')
@@ -33,12 +30,21 @@ export default function ChildSwitcher() {
 
   // Escape closes the modal, matching the click-outside-to-dismiss backdrop
   // -- without this, keyboard-only users have no way to back out.
+  // NOTE: hooks must run on every render, so this sits ABOVE the
+  // `!parent` early return below. Returning first would change the hook
+  // count whenever `parent` flips (login/logout) and crash React with
+  // "Rendered more hooks than during the previous render".
   useEffect(() => {
     if (!open) return
     const handleKey = (e) => { if (e.key === 'Escape') close() }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  if (!parent) return null
+
+  const activeChild = childrenList.find((c) => c.is_active)
 
   const handleSwitch = async (child) => {
     if (child.is_active) { close(); return }

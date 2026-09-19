@@ -32,6 +32,13 @@ export default function GamePage() {
   const breatheSpeechDone = useRef(false)
   const breatheMinElapsed = useRef(false)
   const breatheStarted = useRef(false)
+  // Always points at the CURRENT render's maybeBeginPlaying. onBreatheSpeechEnd
+  // below is memoized with [] (useSpokenInstruction fires it from a speech
+  // event, long after the render that created it), so calling
+  // maybeBeginPlaying directly there would keep running the FIRST level's
+  // closures (levelId, startGameLoop, complete) after "Next Level ->"
+  // reuses this same component instance for a different :levelId.
+  const maybeBeginPlayingRef = useRef(() => {})
   const lastTime    = useRef(null)
   const metricsRef  = useRef({ timeSeconds: 0, mistakes: 0, targetHits: 0, puffs: 0, progress: 0 })
   const startTime   = useRef(null)
@@ -93,7 +100,7 @@ export default function GamePage() {
   // case a browser never fires the completion event at all.
   const onBreatheSpeechEnd = useCallback(() => {
     breatheSpeechDone.current = true
-    maybeBeginPlaying()
+    maybeBeginPlayingRef.current()
   }, [])
   const replayBreathe = useSpokenInstruction(
     'Take a big breath in! Fill up your belly like a balloon, then get ready to blow.',
@@ -119,6 +126,7 @@ export default function GamePage() {
   const maybeBeginPlaying = () => {
     if (breatheSpeechDone.current && breatheMinElapsed.current) beginPlaying()
   }
+  useEffect(() => { maybeBeginPlayingRef.current = maybeBeginPlaying })
 
   const startGame = async () => {
     if (!unlocked) return

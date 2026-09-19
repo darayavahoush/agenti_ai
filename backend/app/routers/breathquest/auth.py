@@ -183,7 +183,7 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
         try:
             send_player_code_email(data.parent_email, existing_kid.player_code)
         except Exception as exc:
-            logging.getLogger("uvicorn.error").warning(
+            logger.warning(
                 "Duplicate kid-register player-code email failed for %s: %s", data.parent_email, exc
             )
         raise HTTPException(
@@ -214,8 +214,7 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     try:
         send_kid_registered_welcome_email(patient.parent_email, patient.first_name, patient.player_code, data.pin)
     except Exception as exc:
-        import logging
-        logging.getLogger("uvicorn.error").warning(
+        logger.warning(
             "Kid-registered welcome email failed for %s: %s", patient.parent_email, exc
         )
 
