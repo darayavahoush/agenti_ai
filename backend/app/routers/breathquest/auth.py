@@ -164,6 +164,37 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
         detail = detail_by_reason.get(consent.reason, "A parent needs to verify their email before creating this account")
         raise HTTPException(status_code=403, detail=detail)
 
+    # Dedup (2026-09-19): a kid who lost their code used to just register
+    # again, minting a new empty account each time (one child ended up with
+    # 8). The parent email was verified a few lines up, so it's safe to
+    # re-send the existing player code to it -- and we deliberately don't
+    # return the code or a token here (that would let anyone who can verify
+    # an email log in as the child without the PIN).
+    existing_kid = (await db.execute(
+        select(BreathQuestPatient)
+        .where(
+            BreathQuestPatient.is_active.is_(True),
+            func.lower(BreathQuestPatient.first_name) == data.first_name.strip().lower(),
+            func.lower(BreathQuestPatient.parent_email) == data.parent_email.strip().lower(),
+        )
+        .order_by(BreathQuestPatient.created_at)
+    )).scalars().first()
+    if existing_kid:
+        try:
+            send_player_code_email(data.parent_email, existing_kid.player_code)
+        except Exception as exc:
+            logging.getLogger("uvicorn.error").warning(
+                "Duplicate kid-register player-code email failed for %s: %s", data.parent_email, exc
+            )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"An account for {existing_kid.first_name} already exists for this email. "
+                "We've emailed the player code to the parent's address -- please log in "
+                "with it instead of registering again."
+            ),
+        )
+
     player_code = await generate_unique_player_code(db, data.avatar)
     patient = BreathQuestPatient(
         therapist_id=None,
@@ -311,8 +342,20 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Registered child not found")
 
     player_code = f"P{str(main_patient.id).replace('-', '')[:9].upper()}"
-    result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == player_code))
-    patient = result.scalar_one_or_none()
+    # Dedup (2026-09-19): a therapist-created patient (POST /patients) already
+    # has a BreathQuestPatient linked via assessment_patient_id but with a
+    # *different* player_code than the one derived here, so the code-only
+    # lookup below missed it and minted a second row for the same child.
+    # Prefer an existing linked row (completed assessment first, then oldest).
+    result = await db.execute(
+        select(BreathQuestPatient)
+        .where(BreathQuestPatient.assessment_patient_id == main_patient.id)
+        .order_by(BreathQuestPatient.assessment_completed.desc(), BreathQuestPatient.created_at)
+    )
+    patient = result.scalars().first()
+    if patient is None:
+        result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == player_code))
+        patient = result.scalar_one_or_none()
 
     if patient:
         patient.first_name = main_patient.name

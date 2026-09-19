@@ -47,6 +47,27 @@ async def create_patient(
     Single flush at the end, no intermediate commit -- both rows are
     created atomically or neither is, since Patient's own creation has no
     meaningful existence without a BreathQuestPatient to hand it back to."""
+    # Dedup (2026-09-19): same therapist + same first name is almost always
+    # a double-add (or a child who already self-registered and was linked),
+    # which is what produced two unrelated rows per kid. Real same-name
+    # siblings can still be added by sending allow_duplicate=true.
+    if not data.allow_duplicate:
+        dup = (await db.execute(
+            select(BreathQuestPatient).where(
+                BreathQuestPatient.therapist_id == therapist.id,
+                BreathQuestPatient.is_active.is_(True),
+                func.lower(BreathQuestPatient.first_name) == data.first_name.strip().lower(),
+            )
+        )).scalars().first()
+        if dup:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"You already have a patient named {dup.first_name} (player code {dup.player_code}). "
+                    "Open that profile instead, or confirm this is a different child."
+                ),
+            )
+
     assessment_patient = Patient(
         name=data.first_name,
         age=data.age,
