@@ -5,6 +5,7 @@ import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from
 import { getNextLevelRoute } from './lib/levelProgress'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
+import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
 const MAX_EXPECTED_PEAK_RMS_DEFAULT = 0.4
@@ -405,7 +406,6 @@ export default function BubbleWrapPop() {
         setFeedbackEventId(result.id)
         setFeedbackSubmitted(false)
         clearTimeout(feedbackTimeoutRef.current)
-        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
       }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
@@ -932,18 +932,15 @@ export default function BubbleWrapPop() {
         </div>
       )}
 
-      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
-          display: 'flex', alignItems: 'center', gap: 12,
-          background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 9999, padding: '10px 20px', backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 14, fontWeight: 700, color: '#fff',
-        }}>
-          <span>Did we score that right?</span>
-          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👍</button>
-          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👎</button>
-        </div>
+      {hudVisible && feedbackEventId != null && (
+        <ScoreFeedbackPrompt
+          key={feedbackEventId}
+          what="that"
+          variant="thumbs"
+          submitted={feedbackSubmitted}
+          onChoose={handleFeedback}
+          onExpire={() => setFeedbackEventId(null)}
+        />
       )}
 
       <div className="bwp-visually-hidden" aria-live="polite">{ariaMsg}</div>

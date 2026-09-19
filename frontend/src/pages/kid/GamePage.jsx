@@ -631,11 +631,13 @@ export default function GamePage() {
               </p>
 
               {rlEventId && (
-                <div className="flex items-center gap-3 mb-6 text-sm font-semibold text-white/70">
+                <div className="flex flex-col items-center gap-2 mb-6 max-w-sm text-sm font-semibold text-white/70">
                   {feedbackGiven ? (
-                    <span>Thanks for the feedback!</span>
+                    <span>✅ Saved — thank you!</span>
                   ) : (
                     <>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Grown-up check</span>
+                      <div className="flex items-center gap-3">
                       <span>Did we score that right?</span>
                       <button
                         onClick={() => {
@@ -657,6 +659,11 @@ export default function GamePage() {
                       >
                         👎
                       </button>
+                      </div>
+                      <p className="text-xs font-normal leading-snug text-white/60 text-center">
+                        A parent or therapist watching can answer. Tap 👍 if the stars and result matched what you
+                        saw and heard, or 👎 if not. It is saved with this attempt so scoring mistakes can be found and fixed.
+                      </p>
                     </>
                   )}
                 </div>
