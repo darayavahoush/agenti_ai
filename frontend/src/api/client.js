@@ -345,6 +345,7 @@ export const vaakmirrorAPI = {
 // ------------------------------------------------------------------ //
 
 export const meAPI = {
+  profile:         () => api.get('/me'),
   progress:        () => api.get('/me/progress'),
   calendar:        () => api.get('/me/calendar'),
   quests:          () => api.get('/me/quests'),
