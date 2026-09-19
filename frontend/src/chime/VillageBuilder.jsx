@@ -151,6 +151,11 @@ export default function VillageBuilder() {
     hasFinished: false,
     particles: [],
     clouds: [],
+    stars: [],
+    birds: [],
+    butterflies: [],
+    trees: [],
+    flowers: [],
     listening: false,
     W: 0, H: 0, DPR: Math.min(window.devicePixelRatio || 1, 2),
   }).current
@@ -199,6 +204,29 @@ export default function VillageBuilder() {
     ctx.setTransform(s.DPR, 0, 0, s.DPR, 0, 0)
     s.clouds = Array.from({ length: 4 }, () => ({
       x: Math.random() * s.W, y: Math.random() * s.H * 0.3, speed: Math.random() * 0.15 + 0.05, scale: Math.random() * 0.5 + 0.7,
+    }))
+    // Stars twinkle in the early-evening sky and fade out as the village fills up and dawn arrives
+    s.stars = Array.from({ length: 36 }, () => ({
+      x: Math.random() * s.W, y: Math.random() * s.H * 0.4, r: Math.random() * 1.4 + 0.5, phase: Math.random() * Math.PI * 2,
+    }))
+    // A few birds crossing the sky, each on its own height and speed
+    s.birds = Array.from({ length: 4 }, () => ({
+      x: Math.random() * s.W, y: s.H * (0.1 + Math.random() * 0.3), speed: Math.random() * 0.35 + 0.25,
+      phase: Math.random() * Math.PI * 2, scale: Math.random() * 0.5 + 0.8,
+    }))
+    // Butterflies fluttering low over the meadow
+    s.butterflies = Array.from({ length: 5 }, (_, i) => ({
+      baseX: Math.random() * s.W, baseY: s.H * (0.8 + Math.random() * 0.14),
+      phase: Math.random() * Math.PI * 2, speed: Math.random() * 0.02 + 0.015,
+      color: ['#FFB4C8', '#FFD166', '#B4DCFF', '#D6B4FF', '#FFB48A'][i % 5],
+    }))
+    // Background trees behind the houses, and foreground wildflowers
+    s.trees = Array.from({ length: 7 }, (_, i) => ({
+      x: (s.W / 7) * (i + 0.2 + Math.random() * 0.6), scale: Math.random() * 0.5 + 0.8, sway: Math.random() * Math.PI * 2,
+    }))
+    s.flowers = Array.from({ length: 22 }, (_, i) => ({
+      x: Math.random() * s.W, y: s.H * (0.86 + Math.random() * 0.12),
+      color: ['#FF8FA3', '#FFD166', '#FFFFFF', '#C4A7FF'][i % 4],
     }))
   }, [s])
 
@@ -255,6 +283,96 @@ export default function VillageBuilder() {
       ctx.ellipse(-20, -4, 16, 11, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
+    }
+    ctx.restore()
+  }, [s])
+
+  const drawStars = useCallback((ctx, progress) => {
+    const fade = Math.max(0, 1 - progress * 1.6)
+    if (fade <= 0) return
+    ctx.save()
+    ctx.fillStyle = '#FFFFFF'
+    const t = animFrameCountRef.current * 0.04
+    for (const st of s.stars) {
+      const tw = reduceMotionRef.current ? 0.8 : 0.5 + Math.sin(t + st.phase) * 0.5
+      ctx.globalAlpha = fade * 0.85 * tw
+      ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2); ctx.fill()
+    }
+    ctx.restore()
+  }, [s])
+
+  const drawBirds = useCallback((ctx) => {
+    ctx.save()
+    ctx.strokeStyle = 'rgba(40,30,60,0.55)'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    for (const b of s.birds) {
+      if (!reduceMotionRef.current) {
+        b.x += b.speed; b.phase += 0.12
+        if (b.x > s.W + 30) { b.x = -30; b.y = s.H * (0.1 + Math.random() * 0.3) }
+      }
+      const flap = Math.sin(b.phase) * 5 * b.scale
+      ctx.beginPath()
+      ctx.moveTo(b.x - 9 * b.scale, b.y)
+      ctx.quadraticCurveTo(b.x - 4 * b.scale, b.y - flap - 2, b.x, b.y)
+      ctx.quadraticCurveTo(b.x + 4 * b.scale, b.y - flap - 2, b.x + 9 * b.scale, b.y)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }, [s])
+
+  const drawButterflies = useCallback((ctx) => {
+    ctx.save()
+    for (const b of s.butterflies) {
+      if (!reduceMotionRef.current) b.phase += b.speed
+      const x = b.baseX + Math.sin(b.phase * 1.3) * 34
+      const y = b.baseY + Math.sin(b.phase * 2.1) * 12
+      const flap = Math.abs(Math.sin(animFrameCountRef.current * 0.25 + b.baseX)) * 0.8 + 0.2
+      ctx.fillStyle = b.color
+      ctx.globalAlpha = 0.9
+      ctx.beginPath()
+      ctx.ellipse(x - 3, y, 4 * flap + 1, 3.5, -0.4, 0, Math.PI * 2)
+      ctx.ellipse(x + 3, y, 4 * flap + 1, 3.5, 0.4, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#4A3A30'
+      ctx.fillRect(x - 0.6, y - 3, 1.2, 6)
+    }
+    ctx.restore()
+  }, [s])
+
+  const drawTree = (ctx, x, groundY, scale, progress, sway) => {
+    const swayX = reduceMotionRef.current ? 0 : Math.sin(animFrameCountRef.current * 0.02 + sway) * 1.5
+    ctx.save()
+    ctx.translate(x, groundY)
+    ctx.scale(scale, scale)
+    ctx.fillStyle = '#5A3820'
+    ctx.fillRect(-3, -26, 6, 26)
+    ctx.fillStyle = lerpColor('#2F6538', '#4F9E5C', progress)
+    ctx.beginPath()
+    ctx.arc(swayX, -38, 15, 0, Math.PI * 2)
+    ctx.arc(-11 + swayX, -30, 11, 0, Math.PI * 2)
+    ctx.arc(11 + swayX, -30, 11, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  const drawScenery = useCallback((ctx, progress) => {
+    const treeY = s.H * 0.76
+    ctx.save()
+    ctx.globalAlpha = 0.85
+    for (const tr of s.trees) drawTree(ctx, tr.x, treeY, tr.scale, progress, tr.sway)
+    ctx.restore()
+  }, [s])
+
+  const drawFlowers = useCallback((ctx) => {
+    ctx.save()
+    for (const f of s.flowers) {
+      ctx.strokeStyle = '#2F6538'; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x, f.y + 7); ctx.stroke()
+      ctx.fillStyle = f.color
+      ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = '#FFD166'
+      ctx.beginPath(); ctx.arc(f.x, f.y, 1.2, 0, Math.PI * 2); ctx.fill()
     }
     ctx.restore()
   }, [s])
@@ -401,14 +519,19 @@ export default function VillageBuilder() {
     grad.addColorStop(0, lerpColor('#342B5C', '#8FD3F4', progress))
     grad.addColorStop(1, lerpColor('#C97B84', '#FFE7B8', progress))
     ctx.fillStyle = grad; ctx.fillRect(0, 0, s.W, s.H * 0.75)
+    drawStars(ctx, progress)
     drawHills(ctx, progress)
     ctx.fillStyle = lerpColor('#3B7A45', '#4F9E5C', progress)
     ctx.fillRect(0, s.H * 0.72, s.W, s.H * 0.28)
     drawSun(ctx, progress)
     drawClouds(ctx)
-    drawParticles(ctx)
+    drawBirds(ctx)
+    drawScenery(ctx, progress)
+    drawFlowers(ctx)
     drawVillage(ctx)
-  }, [s, drawHills, drawSun, drawClouds, drawParticles, drawVillage])
+    drawButterflies(ctx)
+    drawParticles(ctx)
+  }, [s, drawStars, drawHills, drawSun, drawClouds, drawBirds, drawScenery, drawFlowers, drawVillage, drawButterflies, drawParticles])
 
   const spawnCelebrationParticles = useCallback(() => {
     const count = reduceMotionRef.current ? 16 : 50
@@ -782,7 +905,7 @@ export default function VillageBuilder() {
             </div>
           )}
 
-          {difficultyMsg && (
+          {difficultyMsg && !finished && (
             <p className="fixed bottom-2 left-1/2 -translate-x-1/2 z-20 text-white/50 text-xs">{difficultyMsg}</p>
           )}
 

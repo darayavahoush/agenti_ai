@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 const LEVEL_ID = 'fa'
@@ -427,7 +428,7 @@ export default function WindChimeGarden() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToWinSeconds)
 
     s.targetBubbles = DIFFICULTY_AGENT.apply(s.targetBubbles, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   function spawnBubble(index) {
@@ -927,7 +928,7 @@ export default function WindChimeGarden() {
             <div className="text-6xl mb-3">🫧</div>
             <h1 className="font-['Baloo_2'] text-3xl font-extrabold mb-2">Garden full of bubbles!</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-1">You filled the evening sky with glowing bubbles!</p>
-            {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
+            {agentFeedback && <p className="text-sm opacity-85 mb-5">{successScreenAgentMessage(agentFeedback)}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (
                 <button

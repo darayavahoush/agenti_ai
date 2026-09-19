@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 
 
@@ -484,7 +485,7 @@ export default function FireflyJar() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToFillSeconds)
 
     s.catchThreshold = DIFFICULTY_AGENT.apply(s.catchThreshold, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   function spawnJarFirefly() {
@@ -871,7 +872,7 @@ export default function FireflyJar() {
             <div className="fjar-mic-icon">🌟</div>
             <h1 className="fjar-title">Jar is full of light!</h1>
             <p className="fjar-subtitle">You caught every firefly!</p>
-            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{agentFeedback}</p>
+            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{successScreenAgentMessage(agentFeedback)}</p>
             {getNextLevelRoute(LEVEL_ID) && (
               <button className="fjar-btn" onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}>Next Level →</button>
             )}
