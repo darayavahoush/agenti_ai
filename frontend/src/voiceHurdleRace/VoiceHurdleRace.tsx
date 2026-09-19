@@ -7250,6 +7250,7 @@ function GameOver({
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 10,
               marginTop: 16,
               fontSize: 13,
@@ -7258,9 +7259,10 @@ function GameOver({
             }}
           >
             {feedbackGiven ? (
-              <span>Thanks for the feedback!</span>
+              <span>✅ Saved — thank you!</span>
             ) : (
               <>
+                <span style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.7, flexBasis: '100%', textAlign: 'center' }}>Grown-up check</span>
                 <span>Did we score that right?</span>
                 <button
                   onClick={() => handleFeedback('up')}
@@ -7276,6 +7278,10 @@ function GameOver({
                 >
                   👎
                 </button>
+                <span style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.35, opacity: 0.85, flexBasis: '100%', textAlign: 'center' }}>
+                  A parent or therapist watching can answer. Tap 👍 if the result matched what you saw and heard, or 👎
+                  if not. It is saved with this attempt so scoring mistakes can be found and fixed.
+                </span>
               </>
             )}
           </div>
