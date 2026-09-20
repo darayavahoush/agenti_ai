@@ -155,7 +155,7 @@ export const verifyAPI = {
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login:    (data) => api.post('/auth/login', data),
-  googleAuthTherapist: (idToken) => api.post('/auth/google', { id_token: idToken }),
+  googleAuthTherapist: (idToken, intent = 'register') => api.post('/auth/google', { id_token: idToken, intent }),
   kidRegister: (data) => api.post('/auth/kid-register', data),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
   parentRegister: (data) => api.post('/auth/parent-register', data),

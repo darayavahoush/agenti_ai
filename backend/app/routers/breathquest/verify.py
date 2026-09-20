@@ -13,6 +13,7 @@ same class of bug already fixed for chime.py/voicehurdlerace.py).
 
 import hashlib
 import random
+import smtplib
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,6 +27,7 @@ from app.models.breathquest_models import EmailVerification
 from app.schemas.breathquest_schemas import (
     VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut,
 )
+from app.config import settings
 from app.services.email import send_otp_email
 
 logger = logging.getLogger("uvicorn.error")
@@ -82,11 +84,24 @@ async def request_verification(data: VerifyRequestIn, db: AsyncSession = Depends
     # see handleSendParentContact/handleResendEmailCode in Play.jsx.
     try:
         send_otp_email(data.email, code)
+    except smtplib.SMTPAuthenticationError:
+        # Not a transient blip -- retrying will never work until the
+        # credentials are fixed, so make that obvious in the log.
+        logger.exception(
+            "OTP email FAILED: SMTP login was rejected for %s. Check the "
+            "SMTP_USER / SMTP_PASSWORD secrets (Gmail needs a 16-character "
+            "app password generated for that exact account; a truncated or "
+            "revoked one gives this error).", settings.SMTP_USER,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="We couldn't send the verification email. Please try again in a few minutes, or contact support if it keeps happening.",
+        )
     except Exception:
         logger.exception(f"Failed to send OTP email to {data.email}")
         raise HTTPException(
             status_code=502,
-            detail="Couldn't send the verification email right now — please try again in a moment",
+            detail="We couldn't send the verification email. Please try again in a few minutes, or contact support if it keeps happening.",
         )
 
     return {"message": f"Verification code sent to {data.email}"}
