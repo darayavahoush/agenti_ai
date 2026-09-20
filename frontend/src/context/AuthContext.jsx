@@ -118,8 +118,8 @@ export function AuthProvider({ children }) {
   // /auth/google endpoint -- unlike password auth there's no separate
   // registerTherapistGoogle, since a therapist account needs nothing
   // beyond what the verified Google token already gives us.
-  const loginTherapistGoogle = async (idToken) => {
-    const { data } = await authAPI.googleAuthTherapist(idToken)
+  const loginTherapistGoogle = async (idToken, intent = 'register') => {
+    const { data } = await authAPI.googleAuthTherapist(idToken, intent)
     _persistSession('therapist', data)
     setTherapist(data); setPatient(null); setParent(null)
     return data

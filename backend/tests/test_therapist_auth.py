@@ -39,7 +39,7 @@ async def test_register_rejects_duplicate_email(client):
 
     second = await client.post("/api/v1/auth/register", json=payload)
     assert second.status_code == 400
-    assert "already registered" in second.json()["detail"].lower()
+    assert "already exists" in second.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

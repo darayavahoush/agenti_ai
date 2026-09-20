@@ -257,7 +257,7 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
 
     existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
     if existing_parent_email.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
 
     player_code = await generate_unique_player_code(db, data.avatar)
     patient = BreathQuestPatient(
@@ -641,7 +641,7 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
 
     existing_email = await db.execute(select(Parent).where(Parent.email == data.email))
     if existing_email.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
     existing_link = await db.execute(select(Parent).where(Parent.patient_id == child.id))
     if existing_link.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="This child already has a linked parent account")

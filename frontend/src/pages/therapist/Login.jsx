@@ -39,6 +39,15 @@ function TherapistLoginForm() {
   const [resendMsg, setResendMsg] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
 
+  // Register is a two-step flow: details -> emailed 6-digit code -> account.
+  // The backend refuses to create a therapist unless this exact email was
+  // OTP-verified in the last 30 minutes, and this form used to skip the
+  // verification entirely, so every password sign-up failed with
+  // "Please verify your email before registering".
+  const [regStep, setRegStep] = useState('form') // form | verify
+  const [regCode, setRegCode] = useState('')
+  const verifying = mode === 'register' && regStep === 'verify'
+
   useEffect(() => {
     if (resendCooldown <= 0) return
     const t = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000)
@@ -100,19 +109,48 @@ function TherapistLoginForm() {
     }
   }
 
+  const ALREADY_EXISTS = /already exists/i
+
+  const handleResendRegisterCode = async () => {
+    setError(''); setResendMsg(''); setLoading(true)
+    try {
+      await verifyAPI.request({ email: form.email.trim() })
+      setResendMsg('Code resent!')
+      setResendCooldown(60)
+    } catch (err) {
+      setError(getErrorMessage(err, "Couldn't resend the code — try again"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const submit = async (e) => {
     e.preventDefault()
     setError('')
+    if (verifying && regCode.trim().length !== 6) { setError('Enter the 6-digit code'); return }
     setLoading(true)
     try {
       if (mode === 'login') {
         await loginTherapist(form.email, form.password)
+      } else if (regStep === 'form') {
+        // Step 1: email the code. Nothing is created yet.
+        await verifyAPI.request({ email: form.email.trim() })
+        setRegStep('verify'); setRegCode(''); setResendMsg(''); setResendCooldown(60)
+        return
       } else {
-        await registerTherapist(form)
+        // Step 2: confirm the code, then create the account.
+        await verifyAPI.confirm({ email: form.email.trim(), code: regCode.trim() })
+        await registerTherapist({ ...form, email: form.email.trim() })
       }
       navigate('/therapist/dashboard')
     } catch (err) {
-      setError(getErrorMessage(err))
+      const msg = getErrorMessage(err)
+      if (mode === 'register' && ALREADY_EXISTS.test(msg)) {
+        // Verified and still turned away: this email already has an account.
+        // Put them on Sign in with their email kept, instead of a dead end.
+        setMode('login'); setRegStep('form'); setRegCode('')
+      }
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -122,7 +160,7 @@ function TherapistLoginForm() {
     setError('')
     setLoading(true)
     try {
-      await loginTherapistGoogle(idToken)
+      await loginTherapistGoogle(idToken, mode === 'login' ? 'login' : 'register')
       navigate('/therapist/dashboard')
     } catch (err) {
       setError(getErrorMessage(err))
@@ -254,7 +292,7 @@ function TherapistLoginForm() {
             <>
             <div className="flex bg-white/5 rounded-xl p-1 mb-6">
               {['login', 'register'].map(m => (
-                <button key={m} onClick={() => { setMode(m); setError('') }}
+                <button key={m} type="button" onClick={() => { setMode(m); setError(''); setRegStep('form'); setRegCode('') }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all
                     ${mode === m ? 'bg-mint text-brand-dark shadow-sm' : 'text-white/50 hover:text-white'}`}>
                   {m === 'login' ? 'Sign In' : 'Register'}
@@ -268,17 +306,51 @@ function TherapistLoginForm() {
               </div>
             )}
 
-            {/* Google covers both modes: login-or-register happens
-                server-side in one call (see /auth/google's docstring),
-                so this button doesn't change with `mode`. */}
-            <GoogleAuthButton onIdToken={submitGoogle} onError={setError} disabled={loading} />
+            {/* The tab decides what Google may do: on Sign in it never
+                creates an account (the server answers 404 instead), on
+                Register it is login-or-register. Hidden while a code is
+                being entered so there's one clear path. */}
+            {!verifying && (
+              <>
+                <GoogleAuthButton onIdToken={submitGoogle} onError={setError} disabled={loading} />
 
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-white/30 text-xs font-medium">or</span>
-              <div className="flex-1 h-px bg-white/10" />
-            </div>
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-white/10" />
+                  <span className="text-white/30 text-xs font-medium">or</span>
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
+              </>
+            )}
 
+            {verifying ? (
+              <form onSubmit={submit} className="flex flex-col gap-4">
+                <p className="text-white/60 text-sm">
+                  We sent a 6-digit code to <span className="font-semibold text-white">{form.email}</span>.
+                  Enter it to finish creating your account.
+                </p>
+                <Input label="6-digit code" placeholder="123456" autoComplete="one-time-code" inputMode="numeric"
+                       value={regCode} onChange={(e) => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
+                {resendMsg && <p className="text-mint-light text-sm">{resendMsg}</p>}
+                {error && (
+                  <div className="bg-brand-coral/10 border border-brand-coral/30 rounded-xl px-4 py-3 text-brand-coral text-sm">
+                    {error}
+                  </div>
+                )}
+                <Button type="submit" variant="teal" className="w-full" disabled={loading}>
+                  {loading ? 'Please wait…' : 'Verify & create account'}
+                </Button>
+                <div className="flex items-center justify-between text-sm">
+                  <button type="button" onClick={handleResendRegisterCode} disabled={loading || resendCooldown > 0}
+                          className="text-white/50 hover:text-white disabled:opacity-40 transition-colors">
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                  </button>
+                  <button type="button" onClick={() => { setRegStep('form'); setRegCode(''); setError(''); setResendMsg('') }}
+                          className="text-white/50 hover:text-white transition-colors">
+                    ← Change email
+                  </button>
+                </div>
+              </form>
+            ) : (
             <form onSubmit={submit} className="flex flex-col gap-4">
               {mode === 'register' && (
                 <>
@@ -326,9 +398,10 @@ function TherapistLoginForm() {
               )}
 
               <Button type="submit" variant="teal" className="w-full mt-2" disabled={loading}>
-                {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+                {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Send verification code'}
               </Button>
             </form>
+            )}
             </>
             )}
           </Card>

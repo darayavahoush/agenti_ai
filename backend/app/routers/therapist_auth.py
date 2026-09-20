@@ -52,7 +52,7 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
 
     existing = await db.execute(select(Therapist).where(Therapist.email == data.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
 
     therapist = Therapist(
         email=data.email,
@@ -221,6 +221,16 @@ async def google_login_or_register_therapist(
             therapist = existing
 
     if therapist is None:
+        # "Sign in" must not silently create a teacher account. Someone who
+        # registered as a parent (or just clicked the wrong tab) and taps
+        # "Continue with Google" on the Sign In tab used to become a
+        # therapist with no warning. Clients that don't send an intent keep
+        # the old login-or-register behaviour.
+        if data.intent == "login":
+            raise HTTPException(
+                status_code=404,
+                detail="No teacher account found for this Google account. Switch to Register to create one.",
+            )
         if not google_user.email_verified:
             raise HTTPException(status_code=403, detail="Google account email isn't verified")
         therapist = Therapist(
