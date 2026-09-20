@@ -90,6 +90,12 @@ function ParentAuthForm() {
   useEffect(() => {
     const raw = localStorage.getItem('bq_pending_parent_kid_register')
     if (!raw) return
+    if (!NEW_CHILD_SIGNUP_ENABLED) {
+      // Option is hidden: restoring it would show child-name fields with no
+      // toggle to get back to the code form. Drop the stale entry instead.
+      localStorage.removeItem('bq_pending_parent_kid_register')
+      return
+    }
     try {
       const pending = JSON.parse(raw)
       setMode('register')
@@ -346,6 +352,7 @@ function ParentAuthForm() {
                       player_code/invite sub-choice only matters within
                       "existing child", so it's nested below rather than
                       flattened into one 3-way row. */}
+                  {NEW_CHILD_SIGNUP_ENABLED && (
                   <div className="flex rounded-full bg-ink p-1 border border-white/10 text-xs font-semibold">
                     <button type="button" onClick={() => setCodeType('player_code')}
                       className={`flex-1 rounded-full py-2 transition-colors ${codeType !== 'new_child' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
@@ -356,6 +363,7 @@ function ParentAuthForm() {
                       New child, no therapist
                     </button>
                   </div>
+                  )}
 
                   {codeType === 'new_child' ? (
                     <>
@@ -375,7 +383,7 @@ function ParentAuthForm() {
                         connects your account to your child's, so you can see their progress.
                       </p>
                       <Field icon={KeyRound} type="text" required
-                        placeholder="Child's player code (e.g. CHICK42)"
+                        placeholder="Child's player code"
                         value={form.code} onChange={update('code')} />
 
                       {/* Google-register only covers the code-linked path
@@ -554,6 +562,13 @@ function ParentAuthForm() {
     </div>
   )
 }
+
+// "New child, no therapist" (parent creates the child + account in one step,
+// POST /auth/parent-kid-register) is switched off for now: parents only link to
+// a child through the player code a therapist gives them. Flip to true to bring
+// the option back -- the toggle, the resume-after-verify restore below, and the
+// form fields are all still here, just hidden.
+const NEW_CHILD_SIGNUP_ENABLED = false
 
 export default function ParentAuth() {
   return (
