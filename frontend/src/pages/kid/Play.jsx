@@ -240,7 +240,7 @@ function KidPlayForm() {
     if (!parentEmail.trim()) { setError("Enter a parent's email"); return }
     setError(''); setResendMsg(''); setLoading(true)
     try {
-      await verifyAPI.request({ email: parentEmail.trim() })
+      await verifyAPI.request({ email: parentEmail.trim(), purpose: 'register_kid', first_name: firstName.trim() })
       setRegisterStep('verifyEmail')
       setResendCooldown(60)
     } catch (e) {
@@ -253,7 +253,7 @@ function KidPlayForm() {
   const handleResendEmailCode = async () => {
     setError(''); setResendMsg(''); setLoading(true)
     try {
-      await verifyAPI.request({ email: parentEmail.trim() })
+      await verifyAPI.request({ email: parentEmail.trim(), purpose: 'register_kid', first_name: firstName.trim() })
       setResendMsg('Code resent!')
       setResendCooldown(60)
     } catch (e) {

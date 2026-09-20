@@ -114,7 +114,7 @@ function TherapistLoginForm() {
   const handleResendRegisterCode = async () => {
     setError(''); setResendMsg(''); setLoading(true)
     try {
-      await verifyAPI.request({ email: form.email.trim() })
+      await verifyAPI.request({ email: form.email.trim(), purpose: 'register_therapist' })
       setResendMsg('Code resent!')
       setResendCooldown(60)
     } catch (err) {
@@ -134,7 +134,7 @@ function TherapistLoginForm() {
         await loginTherapist(form.email, form.password)
       } else if (regStep === 'form') {
         // Step 1: email the code. Nothing is created yet.
-        await verifyAPI.request({ email: form.email.trim() })
+        await verifyAPI.request({ email: form.email.trim(), purpose: 'register_therapist' })
         setRegStep('verify'); setRegCode(''); setResendMsg(''); setResendCooldown(60)
         return
       } else {

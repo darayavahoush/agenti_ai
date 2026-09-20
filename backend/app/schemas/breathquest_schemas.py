@@ -4,7 +4,7 @@ schemas/breathquest_schemas.py — Pydantic v1 request/response models for Breat
 
 from datetime import datetime, date
 from enum import Enum
-from typing import Annotated, Any, Optional, List
+from typing import Annotated, Any, Literal, Optional, List
 from uuid import UUID
 from pydantic import BaseModel, BeforeValidator, EmailStr, validator
 import re
@@ -918,7 +918,18 @@ class ForgotPinRequest(BaseModel):
 
 
 class VerifyRequestIn(BaseModel):
+    """Ask for a 6-digit code by email.
+
+    `purpose` is set only by the two REGISTRATION screens, so the server can
+    say "that account already exists" up front instead of mailing a code
+    that leads nowhere. It is deliberately absent from forgot-password /
+    forgot-PIN, which must keep sending codes to existing accounts.
+    Accepted trade-off: because of this, a registration screen can be used
+    to check whether an email (or a kid's name + parent email) has an
+    account -- mitigated by the per-IP auth rate limit."""
     email: EmailStr
+    purpose: Literal["register_therapist", "register_kid"] | None = None
+    first_name: str | None = None  # register_kid only
 
 
 class VerifyConfirmIn(BaseModel):
