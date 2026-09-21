@@ -912,6 +912,55 @@ async def analyze_assessment_pronunciation(
 
 
 
+@router.post("/alphabet/analyze")
+async def analyze_alphabet_letter(
+    file: UploadFile = File(...),
+    letter: str = Form(...),
+    patient_name: str = Form(default="Child"),
+):
+    """
+    One letter of the Alphabet check. The child says a short keyword that
+    starts with the letter's sound ("ball" for B); the alphabet LangGraph
+    (graph/alphabet_graph.py) runs the same speech + articulation agents the
+    word assessment uses, then keeps only that letter's own sound.
+
+    Deliberately writes nothing: results are collected by the client and
+    saved once, with the VaakMirror plan, by POST /assessment/alphabet/complete
+    (which is authenticated). Same unauthenticated shape as /analyze.
+    """
+    from app.services.alphabet_sounds import LETTERS
+    from app.graph.alphabet_graph import get_letter_graph
+    from app.state.alphabet_state import AlphabetState
+
+    key = (letter or "").strip().upper()
+    spec = LETTERS.get(key)
+    if spec is None:
+        raise HTTPException(status_code=400, detail=f"'{letter}' can't be checked by voice.")
+
+    path = save_audio(file)
+    try:
+        initial = AlphabetState(
+            patient_name=patient_name, age=None, target_word=spec["word"], language="en",
+            audio_path=path, sample_rate=None, audio=None, child_audio=None,
+            transcript=None, spoken_word=None, expected_phonemes=[], spoken_phonemes=[],
+            phoneme_accuracy=None, phoneme_matches=[], expected_phonemes_display=[],
+            spoken_phonemes_display=[], duration=None, pitch=None, loudness=None,
+            accuracy=None, feedback=None, stars=None, reasoning=None, vocal_reasoning=None,
+            recommendations=[], error_patterns=[], severity_score=None,
+            diagnostic_report=None, targeted_quests=[], error=None,
+            letter=key, letter_result=None,
+        )
+        result = await asyncio.to_thread(get_letter_graph().invoke, initial)
+        if result.get("error"):
+            raise HTTPException(status_code=500, detail=f"Letter check failed: {result['error']}")
+        letter_result = result.get("letter_result")
+        if letter_result is None:
+            raise HTTPException(status_code=500, detail="Letter check produced no result")
+        return {"letter_result": letter_result}
+    finally:
+        delete_audio(path)
+
+
 @router.get("/patients/{patient_id}/latest", dependencies=[Depends(verify_service_api_key)])
 def get_latest_assessment_for_patient(patient_id: str, db: Session = Depends(get_db)):
     """

@@ -194,6 +194,8 @@ export const authAPI = {
 export const assessmentAPI = {
   start:    () => api.post('/assessment/start'),
   complete: (data) => api.post('/assessment/complete', data),
+  // Sound Check (Alphabet): the VaakMirror planner agent's plan for these letter results.
+  alphabetComplete: (letterResults) => api.post('/assessment/alphabet/complete', { letter_results: letterResults }),
 }
 
 // ------------------------------------------------------------------ //
