@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { createRecorder, recordingFilename } from './lib/recorder'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
@@ -101,6 +102,9 @@ export default function XylophoneTower() {
   const [calibLabel, setCalibLabel] = useState({ title: "Let's find quiet...", subtitle: 'Stay nice and quiet for a moment', emoji: '🤫' })
   const [calibProgress, setCalibProgress] = useState(0)
   const [hudVisible, setHudVisible] = useState(false)
+  // True while the goal is reached provisionally and the server is still
+  // confirming the sound -- so a brief wait reads as "checking", not "frozen".
+  const [checking, setChecking] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [reduceMotion, setReduceMotion] = useState(() => localStorage.getItem('chime_reduce_motion') === 'true')
   const [muted, setMuted] = useState(() => localStorage.getItem('chime_muted') === 'true')
@@ -353,9 +357,21 @@ export default function XylophoneTower() {
     const chunks = []
     let recorder
     try {
-      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+      recorder = createRecorder(s.mediaStream)
     } catch (err) {
-      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      // No usable recorder in this browser, so there is nothing to verify --
+      // but the goal check in finishVerificationWindow MUST still run on the
+      // usual cadence. It used to be reachable only from a recorder's onstop,
+      // so with no recorder the game filled up and then never finished.
+      if (!s.recorderWarned) {
+        console.warn('MediaRecorder unavailable, speech verification skipped (provisional progress stands):', err)
+        s.recorderWarned = true
+      }
+      s.verifyTimer = setTimeout(() => {
+        if (s.hasFinished) return
+        startVerificationWindow()
+        finishVerificationWindow([], 0)
+      }, VERIFY_WINDOW_MS)
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
@@ -375,10 +391,10 @@ export default function XylophoneTower() {
     const s = stateRef.current
 
     if (gained > 0 && chunks.length > 0) {
-      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' })
       let result = null
       try {
-        result = await scorePhoneme(LEVEL_ID, blob)
+        result = await scorePhoneme(LEVEL_ID, blob, recordingFilename(blob.type))
       } catch (err) {
         console.warn('Backend phoneme scoring unavailable — window left unverified, provisional climb stands:', err)
       }
@@ -410,6 +426,8 @@ export default function XylophoneTower() {
     // gate anything else.
     if (s.height >= 0.999 && !s.hasFinished) {
       s.hasFinished = true
+      s.checkingShown = false
+      setChecking(false)
       onTowerComplete()
     }
   }
@@ -546,6 +564,9 @@ export default function XylophoneTower() {
 
     if (rawScore < 0.08) s.quietStreak += dt; else s.quietStreak = 0
     setEncourageVisible(s.quietStreak > 3 && s.barsRung < 1)
+
+    const goalReached = s.height >= 0.999 && !s.hasFinished
+    if (goalReached !== !!s.checkingShown) { s.checkingShown = goalReached; setChecking(goalReached) }
 
     render()
 
@@ -870,6 +891,12 @@ export default function XylophoneTower() {
   return (
     <div className="fixed inset-0 bg-[#12122A] text-[#FFF8EC] overflow-hidden select-none" style={{ fontFamily: "'Quicksand', sans-serif" }}>
       <canvas ref={canvasRef} className="fixed inset-0 w-full h-full block" aria-hidden="true" />
+
+      {hudVisible && checking && (
+        <div role="status" className="fixed top-24 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/50 px-4 py-2 text-sm font-bold text-white backdrop-blur-md">
+          🎵 Checking your notes…
+        </div>
+      )}
 
       <button
         onClick={() => navigate('/play/chime')}
