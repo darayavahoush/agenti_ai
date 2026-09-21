@@ -215,7 +215,7 @@ function KidPlayForm() {
   // that's instructional, not just narration of a menu.
   const CHOOSE_TXT     = 'Ready to play? Tap New Player to create an account, or I have a code to log back in.'
   const REGISTER_TXT   = 'Create your account. Type your name, pick your character, and choose a 4 digit PIN.'
-  const LOGIN_TXT      = 'Welcome back! Enter your name or player code, and your PIN.'
+  const LOGIN_TXT      = 'Welcome back! Enter your username or player code, and your PIN.'
   const ASSESSMENT_TXT = 'Find your name in the list, pick your character, and choose a 4 digit PIN.'
   const registeredText = registered
     ? `You're in, ${AVATAR_NAMES[avatar]}! Write down your player code and your PIN so you can log back in.`
@@ -291,7 +291,7 @@ function KidPlayForm() {
   }
 
   const handleLogin = async () => {
-    if (!playerCode.trim()) { setError('Enter your name or player code'); return }
+    if (!playerCode.trim()) { setError('Enter your username or player code'); return }
     if (pin.length < 4)     { setError('Enter your PIN'); return }
     setError(''); setLoading(true)
     try {
@@ -752,9 +752,9 @@ function KidPlayForm() {
           )}
 
           <div className="mb-2">
-            <label className="text-sm text-white/50 block mb-1">Your Name, Email, or Player Code</label>
+            <label className="text-sm text-white/50 block mb-1">Your Username, Player Code, or Email</label>
             <input className="input text-center text-xl font-bold tracking-widest"
-                   placeholder="e.g. CHICK42, your name, or parent email"
+                   placeholder="e.g. @sunny.otter, CHICK42, or parent email"
                    value={playerCode} onChange={e => setPlayerCode(e.target.value)} />
           </div>
           <p className="text-white/30 text-xs text-center mb-4">

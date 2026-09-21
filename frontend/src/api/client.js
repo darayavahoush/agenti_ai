@@ -395,6 +395,29 @@ export const parentAPI = {
   updateEmailPreferences: (weekly_email_opt_out) => api.put('/parent/email-preferences', { weekly_email_opt_out }),
 }
 
+// ------------------------------------------------------------------ //
+//  Editable @username (kid / parent / therapist) -- one shared factory
+//  server-side (routers/username_routes.py), one shared client-side call
+//  set here. Every route is auth'd as the account itself, so there's no
+//  "look up someone else's username" call -- just get/check/suggestions/
+//  set for whoever is currently logged in.
+// ------------------------------------------------------------------ //
+
+function makeUsernameAPI(base) {
+  return {
+    get:         () => api.get(base),
+    check:       (username) => api.get(`${base}/check`, { params: { username } }),
+    suggestions: () => api.get(`${base}/suggestions`),
+    set:         (username) => api.patch(base, { username }),
+  }
+}
+
+export const usernameAPI = {
+  kid:       makeUsernameAPI('/breathquest/patients/me/username'),
+  parent:    makeUsernameAPI('/parent/username'),
+  therapist: makeUsernameAPI('/auth/therapist/username'),
+}
+
 // FastAPI's `detail` field is a plain string for most HTTPExceptions (e.g.
 // "Invalid email or password"), but automatic Pydantic request-validation
 // failures (422s — e.g. an email that fails EmailStr's format check) return

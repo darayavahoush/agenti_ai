@@ -644,3 +644,10 @@ async def update_email_preferences(
     patient.weekly_email_opt_out = data.weekly_email_opt_out
     await db.commit()
     return EmailPreferencesOut(weekly_email_opt_out=patient.weekly_email_opt_out)
+
+# Editable @username (GET / check / suggestions / PATCH) -- see routers/username_routes.py.
+from app.routers.username_routes import make_username_router  # noqa: E402
+router.include_router(
+    make_username_router(get_current_parent, "parent"),
+    prefix="/username",
+)

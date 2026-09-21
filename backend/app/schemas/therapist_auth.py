@@ -60,3 +60,4 @@ class TherapistTokenResponse(BaseModel):
     full_name: str
     email: str
     phone: str | None = None
+    username: str | None = None

@@ -248,6 +248,7 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
         avatar_photo_url=patient.avatar_photo_url,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
+        username=patient.username,
     )
 
 
@@ -401,6 +402,7 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
         avatar=patient.avatar,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
+        username=patient.username,
     )
 
 @router.post("/forgot-email", status_code=202)
@@ -528,6 +530,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(BreathQuestPatient).where(
             (BreathQuestPatient.player_code == identifier.upper())
+            | (BreathQuestPatient.username == identifier.lstrip("@").lower())
             | (func.lower(BreathQuestPatient.first_name) == identifier.lower())
             | (func.lower(BreathQuestPatient.parent_email) == identifier.lower())
         )
@@ -541,7 +544,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     if not matching_patients:
         await record_failure(identifier, db)
         await db.commit()
-        raise HTTPException(status_code=401, detail="Incorrect name, email, player code, or PIN")
+        raise HTTPException(status_code=401, detail="Incorrect name, email, username, player code, or PIN")
     if len(matching_patients) > 1:
         raise HTTPException(status_code=409, detail="More than one player matches. Please use your player code.")
 
@@ -575,6 +578,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
         avatar_photo_url=patient.avatar_photo_url,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
+        username=patient.username,
     )
 
 
@@ -620,6 +624,7 @@ async def _get_child_summaries(db: AsyncSession, parent: Parent) -> list[ChildSu
             player_code=child.player_code,
             is_active=(child.id == parent.patient_id),
             is_primary=link.is_primary,
+            username=child.username,
         )
         for link, child in rows
     ]
@@ -639,6 +644,7 @@ async def _make_parent_token_response(db: AsyncSession, parent: Parent, child_fi
         phone=parent.phone,
         child_first_name=child_first_name,
         children=children,
+        username=parent.username,
     )
 
 
@@ -878,6 +884,7 @@ async def add_child(
         patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
         avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
         is_active=(child.id == parent.patient_id), is_primary=False,
+        username=child.username,
     )
 
 
@@ -910,6 +917,7 @@ async def link_child(
         patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
         avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
         is_active=(child.id == parent.patient_id), is_primary=False,
+        username=child.username,
     )
 
 
