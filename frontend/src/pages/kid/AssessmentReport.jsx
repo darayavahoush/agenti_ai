@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { PartyPopper, Sparkles, Lock, CheckCircle2, RotateCcw } from 'lucide-react'
+import { PartyPopper, Sparkles, Lock, CheckCircle2, RotateCcw, NotebookText } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Button, Card } from '../../components/ui'
 import { meAPI } from '../../api/client'
 import GamePlanCard from '../../components/kid/GamePlanCard'
+import NextStepsWalkthrough from '../../components/kid/NextStepsWalkthrough'
 
 // Shown right after a kid finishes their first assessment
 // (pages/kid/AssessmentGate.jsx's onFinish) -- and also whatever this kid
@@ -32,15 +33,17 @@ export default function AssessmentReport() {
 
   // No router state means we weren't routed here right after finishing an
   // assessment (e.g. tapped "My Results" from GamePicker instead) -- fetch
-  // the kid's most recent result directly.
+  // the kid's most recent result directly. Fetched either way (not just as
+  // a fallback) because it's also the only source for alphabet_completed,
+  // which the walkthrough below needs even right after finishing the word
+  // assessment.
   useEffect(() => {
-    if (routedSummary) return
     let cancelled = false
     meAPI.latestAssessment()
       .then(({ data }) => { if (!cancelled) setLatest(data) })
       .catch(() => { if (!cancelled) setLatest(null) })
     return () => { cancelled = true }
-  }, [routedSummary])
+  }, [])
 
   // The plan is computed server-side when the assessment is completed, so
   // it is always fetched rather than carried in router state.
@@ -77,6 +80,21 @@ export default function AssessmentReport() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([pattern]) => pattern)
+
+  // A plain-language aggregate summary -- separate from the per-word
+  // diagnostic_report text below (each of those is written about ONE
+  // word, e.g. "practicing 'apple'"), this is the whole-session read so
+  // the report opens with something that actually reads like a summary
+  // rather than only a scorecard.
+  const sessionNarrative = wordResults.length
+    ? `Across ${wordResults.length} word${wordResults.length === 1 ? '' : 's'}, ${patient?.first_name || 'the check-in'} averaged ${avgAccuracy}% accuracy` +
+      (severity ? `, landing in the "${severity}" range` : '') +
+      (topErrorPatterns.length
+        ? `. The patterns that showed up most: ${topErrorPatterns.join(', ')}.`
+        : '. No pattern stood out more than the others.')
+    : null
+
+  const alphabetCompleted = Boolean(latest?.alphabet_completed)
 
   // retake_available_at is only ever set (non-null) while still on
   // cooldown -- see assessment.py's _retake_available_at. null here means
@@ -156,6 +174,13 @@ export default function AssessmentReport() {
                 </span>
               </div>
 
+              {sessionNarrative && (
+                <p className="text-white/70 text-xs leading-relaxed mb-3 flex items-start gap-1.5">
+                  <NotebookText className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-brand-green" />
+                  <span>{sessionNarrative}</span>
+                </p>
+              )}
+
               {wordResults.length > 0 ? (
                 <>
                   {avgAccuracy !== null && (
@@ -165,22 +190,27 @@ export default function AssessmentReport() {
                     </div>
                   )}
 
-                  <div className="space-y-1.5 mb-3">
+                  <div className="space-y-2.5 mb-3">
                     {wordResults.map((w, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="text-white/70 capitalize">{w.targetWord}</span>
-                        <div className="flex items-center gap-2 flex-1 mx-3">
-                          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${Math.max(0, Math.min(100, w.accuracy || 0))}%`,
-                                background: (w.accuracy || 0) >= 75 ? '#A8FF6F' : (w.accuracy || 0) >= 45 ? '#FF9B54' : '#FF6F6F',
-                              }}
-                            />
+                      <div key={i} className="text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70 capitalize">{w.targetWord}</span>
+                          <div className="flex items-center gap-2 flex-1 mx-3">
+                            <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.max(0, Math.min(100, w.accuracy || 0))}%`,
+                                  background: (w.accuracy || 0) >= 75 ? '#A8FF6F' : (w.accuracy || 0) >= 45 ? '#FF9B54' : '#FF6F6F',
+                                }}
+                              />
+                            </div>
                           </div>
+                          <span className="text-white/50 w-9 text-right">{w.accuracy ?? '--'}%</span>
                         </div>
-                        <span className="text-white/50 w-9 text-right">{w.accuracy ?? '--'}%</span>
+                        {w.diagnosticReport && (
+                          <p className="text-white/40 text-[11px] leading-snug mt-1 pl-0.5">{w.diagnosticReport}</p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -210,6 +240,14 @@ export default function AssessmentReport() {
         </Card>
 
         <GamePlanCard plan={gamePlan} className="mb-6 animate-[cardIn_0.5s_ease-out_0.25s_backwards]" />
+
+        <NextStepsWalkthrough
+          plan={gamePlan}
+          alphabetCompleted={alphabetCompleted}
+          severity={severity}
+          firstName={patient?.first_name}
+          className="mb-6 animate-[cardIn_0.5s_ease-out_0.3s_backwards]"
+        />
 
         {access !== null && !access.has_access && (
           <Button

@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 import { dashboardAPI } from '../../api/client'
 import { Button, Card, Badge, Avatar, StatCard, PageLoader, Sidebar, AmbientGlow, AboutModal } from '../../components/ui'
 import AddPatientModal from '../../components/therapist/AddPatientModal'
+import LinkPatientModal from '../../components/therapist/LinkPatientModal'
 import {
   Users, UserCheck, Gamepad2, Star, AlertTriangle, Clock,
-  Search, ArrowUpDown, Sparkles, UserPlus, ChevronRight, LayoutDashboard, CreditCard, Rocket, Settings,
+  Search, ArrowUpDown, Sparkles, UserPlus, Link2, ChevronRight, LayoutDashboard, CreditCard, Rocket, Settings,
 } from 'lucide-react'
 
 function relativeDate(iso) {
@@ -40,6 +42,7 @@ export default function TherapistDashboard() {
   const [loading, setLoading]       = useState(true)
   const [loadError, setLoadError]   = useState(false)
   const [showAdd, setShowAdd]       = useState(false)
+  const [showLink, setShowLink]     = useState(false)
   const [search,  setSearch]        = useState('')
   const [sortBy,  setSortBy]        = useState('attention')
 
@@ -144,10 +147,32 @@ export default function TherapistDashboard() {
               Welcome back, {firstName(therapist?.full_name)}
             </h1>
           </div>
-          <Button onClick={() => setShowAdd(true)}>
-            <UserPlus size={16} className="mr-1.5 inline -mt-0.5" /> Add Patient
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => setShowLink(true)} title="Add a patient who already has a player code (self-registered or signed up by a parent)">
+              <Link2 size={16} className="mr-1.5 inline -mt-0.5" /> Link Existing Patient
+            </Button>
+            <Button onClick={() => setShowAdd(true)}>
+              <UserPlus size={16} className="mr-1.5 inline -mt-0.5" /> Add Patient
+            </Button>
+          </div>
         </div>
+
+        {/* First-time guidance -- new accounts are adult-only now (kids
+            can no longer self-register a brand-new player), so a
+            therapist's two starting moves are spelled out here rather
+            than left for them to discover: create a patient from
+            scratch, or attach to one a parent already set up. */}
+        {summary?.total_patients === 0 && (
+          <div className="rounded-2xl border border-brand-green/25 bg-brand-green/5 p-4 mb-6 text-sm text-white/60">
+            <p className="text-white font-semibold mb-1">Getting started</p>
+            <p>
+              <span className="text-white/80 font-medium">Add Patient</span> creates a brand-new player
+              account and PIN for a child right now. <span className="text-white/80 font-medium">Link Existing Patient</span> attaches
+              you to a child who already has an account -- ask their parent for the player code shown on
+              their dashboard (or in the welcome email) and enter it there.
+            </p>
+          </div>
+        )}
 
         {/* Needs attention — multi-child alerts, previously computed by the
             backend but never surfaced anywhere in this dashboard. */}
@@ -270,7 +295,12 @@ export default function TherapistDashboard() {
             <p className="text-white/50">
               {search ? 'No patients match your search.' : 'No patients yet — add your first one!'}
             </p>
-            {!search && <Button className="mt-4" onClick={() => setShowAdd(true)}>Add Patient</Button>}
+            {!search && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button onClick={() => setShowAdd(true)}>Add Patient</Button>
+                <Button variant="ghost" onClick={() => setShowLink(true)}>Link Existing Patient</Button>
+              </div>
+            )}
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -287,6 +317,17 @@ export default function TherapistDashboard() {
         <AddPatientModal
           onClose={() => setShowAdd(false)}
           onAdded={() => { setShowAdd(false); load() }}
+        />
+      )}
+
+      {showLink && (
+        <LinkPatientModal
+          onClose={() => setShowLink(false)}
+          onLinked={(patient) => {
+            setShowLink(false)
+            toast.success(`${patient.first_name} is now linked to you`)
+            load()
+          }}
         />
       )}
     </div>

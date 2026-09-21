@@ -28,6 +28,18 @@ class BreathQuestSettings(BaseSettings):
     # true and leaving _mark_active's free-grant path in place is a bug --
     # it should be swapped for the real provider call in the same change.
     PAYMENTS_LIVE: bool = False
+    # Added 2026-09-21: kids used to be able to create a brand-new player
+    # account themselves from the "New Player" button on the kid landing
+    # screen (POST /auth/kid-register), gated only on a parent's email
+    # being verified first. Product decision: a NEW account should only
+    # ever be created by an adult (a parent, via parent-kid-register/
+    # add-child, or a therapist, via POST /breathquest/patients) -- a kid
+    # can still finish PIN setup for an account an adult already started
+    # (kid-pin-setup) and log back in, just not originate one alone.
+    # Kept as a flag rather than deleting kid-register outright so it can
+    # be flipped back on without a redeploy if that product decision
+    # changes.
+    KID_SELF_SERVICE_SIGNUP_ENABLED: bool = False
     APP_NAME: str = "BreathQuest"
     DEBUG: bool = False
     ALLOWED_ORIGINS: list[str] = [

@@ -639,7 +639,7 @@ export default function ParentDashboard() {
                 or stats card with no title of its own -- the only thing
                 naming the child was the sidebar, which collapses. */}
             <header className="flex items-center gap-4 mb-8">
-              <Avatar avatar={data.avatar} size="lg" />
+              <Avatar avatar={data.avatar} photoUrl={data.avatar_photo_url} size="lg" name={data.child_first_name} />
               <div className="min-w-0 flex-1">
                 <h1 className="font-display text-2xl font-bold text-paper tracking-tight truncate">
                   {data.child_first_name}'s progress

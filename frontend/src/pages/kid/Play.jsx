@@ -1,7 +1,7 @@
 import { SparkLoader } from '../../components/ui'
 import { useEffect, useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
-import { KeyRound, PartyPopper, Sparkles, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail } from 'lucide-react'
+import { KeyRound, PartyPopper, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail, Heart } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { authAPI, verifyAPI, getErrorMessage } from '../../api/client'
 import { Button, Avatar, SavedProfilesGate } from '../../components/ui'
@@ -130,7 +130,7 @@ function PinPad({ onDigit, onDelete }) {
 // who has a saved kid profile on this device sees a "who's continuing"
 // picker instead of this welcome/code-entry flow -- see
 // SavedProfilesGate.jsx.
-function KidPlayForm() {
+function KidPlayForm({ onSwitchRole }) {
   const [searchParams] = useSearchParams()
   const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
   // Normally kids land on the marketing chooser first -- but if we're here
@@ -138,6 +138,11 @@ function KidPlayForm() {
   // jumping straight to the login step (with an explanation, below) beats
   // dropping them on a chooser screen that doesn't acknowledge anything
   // happened.
+  // 'register' (self-signup) is no longer reachable from the choose screen
+  // (see the "New here?" panel below) -- the mode and its form/parentContact/
+  // verifyEmail steps are left in place rather than deleted, since the
+  // backend flag gating POST /auth/kid-register is meant to be reversible.
+  // Nothing currently calls setMode('register').
   const [mode, setMode]         = useState(() => sessionExpired ? 'login' : 'choose')   // choose | register | login
   const [avatar, setAvatar]     = useState('chick')
   const [firstName, setFirstName] = useState('')
@@ -213,7 +218,7 @@ function KidPlayForm() {
   // here (and Landing.jsx / GamePicker.jsx) — the actual games still
   // auto-speak once per level/attempt via useSpokenInstruction, since
   // that's instructional, not just narration of a menu.
-  const CHOOSE_TXT     = 'Ready to play? Tap New Player to create an account, or I have a code to log back in.'
+  const CHOOSE_TXT     = 'Ready to play? Tap I have a code to log back in, or My Therapist Set Me Up to find your name.'
   const REGISTER_TXT   = 'Create your account. Type your name, pick your character, and choose a 4 digit PIN.'
   const LOGIN_TXT      = 'Welcome back! Enter your username or player code, and your PIN.'
   const ASSESSMENT_TXT = 'Find your name in the list, pick your character, and choose a 4 digit PIN.'
@@ -498,26 +503,43 @@ function KidPlayForm() {
             Works with or without a therapist.
           </p>
           <div className="flex flex-col gap-4">
-            <button onClick={() => setMode('register')}
-              className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
-                         bg-gradient-to-br from-brand-amber/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-amber/40
-                         hover:border-brand-amber hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-amber/20
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-amber focus-visible:ring-offset-2 focus-visible:ring-offset-[#12142E]
-                         transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
-              style={{ transitionDelay: mounted ? '0ms' : '0ms' }}>
-              <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-brand-amber/10 blur-2xl
-                              group-hover:bg-brand-amber/20 transition-colors duration-300" />
-              <div className="relative flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-brand-amber/15 border border-brand-amber/25 flex items-center
-                                justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                  <Sparkles className="w-6 h-6 text-brand-amber" />
-                </div>
-                <div>
-                  <p className="font-vm-display text-xl font-bold text-white">New Player</p>
-                  <p className="text-white/40 text-sm">Create your account</p>
-                </div>
+            {/* "New Player" self-signup removed 2026-09-21: a brand-new
+                account is now always started by an adult (a parent, or a
+                therapist) -- see KID_SELF_SERVICE_SIGNUP_ENABLED in the
+                backend. A kid who's never played before either already
+                has a player code from a parent/therapist ("I have a
+                code" below), or needs one of those adults to set them up
+                first, which this panel points them to instead of a form
+                the backend would now reject anyway. */}
+            <div className={`relative overflow-hidden rounded-[2rem] p-5 text-left
+                         bg-white/[0.04] backdrop-blur-sm border-2 border-dashed border-white/15
+                         transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              <p className="font-vm-display text-base font-bold text-white mb-1">New here?</p>
+              <p className="text-white/45 text-sm mb-4">
+                A parent or therapist sets up your account first -- then they'll give you a
+                player code and PIN to play with.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onSwitchRole?.('parent')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold
+                             bg-brand-coral/15 text-brand-coral border border-brand-coral/30
+                             hover:bg-brand-coral/25 transition-colors"
+                >
+                  <Heart className="w-3.5 h-3.5" /> I'm a parent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSwitchRole?.('therapist')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold
+                             bg-mint/15 text-mint border border-mint/30
+                             hover:bg-mint/25 transition-colors"
+                >
+                  <Stethoscope className="w-3.5 h-3.5" /> I'm a therapist
+                </button>
               </div>
-            </button>
+            </div>
             <button onClick={() => { setMode('login'); setShowCodeLookup(false); setLookupSent(false); setLookupEmail('') }}
               className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
                          bg-gradient-to-br from-brand-green/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-green/40
@@ -948,10 +970,10 @@ function KidPlayForm() {
   )
 }
 
-export default function KidPlay() {
+export default function KidPlay({ onSwitchRole }) {
   return (
     <SavedProfilesGate role="kid">
-      <KidPlayForm />
+      <KidPlayForm onSwitchRole={onSwitchRole} />
     </SavedProfilesGate>
   )
 }

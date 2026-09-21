@@ -104,6 +104,18 @@ export const SELECTION_BG = "radial-gradient(ellipse 1100px 650px at 50% -10%, #
 export function GlobalSelectionStyles() {
   return (
     <style>{`
+      /* Phones: the sidebar becomes a floating 44px hamburger pinned at
+         top-left (16px inset, see Sidebar.jsx). Nothing on these pages
+         reserved room for it, so it sat on top of the first thing in the
+         corner -- the character/name in the practice header and the
+         "Back to topics" button on the selection steps. Push content
+         below it, and let the practice header wrap instead of squeezing
+         the topic / Switch / Attempt pills into one 350px row. */
+      @media (max-width: 767px) {
+        .fc-clear-menu { padding-top: 68px !important; }
+        .fc-head { flex-wrap: wrap; row-gap: 10px; }
+        .fc-head-actions { flex-wrap: wrap; }
+      }
       @keyframes popIn {
         0% { opacity: 0; transform: scale(0.92) translateY(10px); }
         100% { opacity: 1; transform: scale(1) translateY(0); }

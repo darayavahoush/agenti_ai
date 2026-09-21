@@ -21,7 +21,7 @@ function CharacterSelect({ onPick }) {
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
       <PlayfulBackdrop tint="#A78BFA" />
       <GlobalSelectionStyles />
-      <div style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
+      <div className="fc-clear-menu" style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={3} total={3} />
         <SectionHeader eyebrow="Step 3 of 3" title="Who's helping you today? 🚀" subtitle="Pick a friend to practice words with" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
@@ -296,16 +296,16 @@ export default function Flashcards() {
             <p style={{ color: th?.text || "#fff", fontFamily: "Nunito, sans-serif", opacity: 0.7 }}>Loading a card…</p>
           </div>
         ) : (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", position: "relative" }}>
+          <div className="fc-clear-menu" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", position: "relative" }}>
             <CharacterBackdrop character={character} />
             <div style={{ width: "100%", maxWidth: "980px", display: "flex", flexDirection: "column", gap: "16px", position: "relative", zIndex: 1 }}>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="fc-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <img src={char.image} alt={char.name} style={{ width: "40px", height: "40px", objectFit: "contain" }} />
                   <span style={{ color: th.text, fontWeight: 800, fontSize: "0.95rem", fontFamily: "Nunito, sans-serif" }}>{char.name}</span>
                 </div>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <div className="fc-head-actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <button onClick={() => { setShowTopicSwitcher(!showTopicSwitcher); setShowSwitcher(false); }} style={{ background: th.card, border: `1.5px solid ${th.accent}44`, borderRadius: "10px", padding: "5px 12px", color: th.sub, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer", fontFamily: "Nunito, sans-serif" }}>
                     {currentThemeLabel}
                   </button>
