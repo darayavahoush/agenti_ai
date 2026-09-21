@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Flame, Pencil, Check, X, History, Camera } from 'lucide-react'
-import { Avatar } from '../../components/ui'
+import { Avatar, UsernamePicker } from '../../components/ui'
 import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { meAPI, getErrorMessage } from '../../api/client'
 import PhotoCropModal from './PhotoCropModal'
@@ -28,6 +28,8 @@ export default function MyAccount() {
   const [cropImageSrc, setCropImageSrc] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [deletePin, setDeletePin] = useState('')
+
+  const [editingUsername, setEditingUsername] = useState(false)
 
   const [changingPin, setChangingPin] = useState(false)
   const [currentPinDraft, setCurrentPinDraft] = useState('')
@@ -264,6 +266,24 @@ export default function MyAccount() {
                   </>
                 )}
               </div>
+              {editingUsername ? (
+                <div className="mt-4 max-w-xs mx-auto text-left">
+                  <UsernamePicker
+                    role="kid"
+                    currentUsername={patient?.username}
+                    onSaved={(username) => { updatePatient({ username }); setEditingUsername(false); toast.success('Username saved!') }}
+                    onCancel={() => setEditingUsername(false)}
+                  />
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center justify-center gap-1.5">
+                  <span className="text-white/40 text-sm">@{patient?.username || 'no username yet'}</span>
+                  <button onClick={() => setEditingUsername(true)} className="text-white/45 hover:text-white transition-colors" aria-label="Edit username">
+                    <Pencil size={13} />
+                  </button>
+                </div>
+              )}
+
               <p className="text-white/40 mt-2">Look how far you've come! 🎉</p>
               <p className="text-white/25 text-xs mt-1">Tap the pencils to change your name or photo</p>
             </div>

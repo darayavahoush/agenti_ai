@@ -469,6 +469,32 @@ export function AuthProvider({ children }) {
     })
   }
 
+  // Same pattern as updatePatient above, for the other two roles --
+  // UsernameGate and each role's Settings page need to merge a freshly
+  // saved username into both React state and the localStorage blob
+  // without a full re-login.
+  const updateTherapist = (fields) => {
+    setTherapist((prev) => {
+      const next = { ...prev, ...fields }
+      try {
+        const stored = JSON.parse(localStorage.getItem('bq_user_data') || '{}')
+        localStorage.setItem('bq_user_data', JSON.stringify({ ...stored, ...fields }))
+      } catch { /* ignore malformed existing storage */ }
+      return next
+    })
+  }
+
+  const updateParent = (fields) => {
+    setParent((prev) => {
+      const next = { ...prev, ...fields }
+      try {
+        const stored = JSON.parse(localStorage.getItem('bq_user_data') || '{}')
+        localStorage.setItem('bq_user_data', JSON.stringify({ ...stored, ...fields }))
+      } catch { /* ignore malformed existing storage */ }
+      return next
+    })
+  }
+
   const logout = async () => {
     const refreshToken = localStorage.getItem('bq_refresh_token')
     if (refreshToken) {
@@ -507,7 +533,7 @@ export function AuthProvider({ children }) {
       startSupervisedSession, endSupervisedSession,
       loginParent, registerParent, loginParentGoogle, registerParentGoogle, logout,
       deleteParentAccount, deleteKidAccount, deleteTherapistAccount,
-      updatePatient,
+      updatePatient, updateTherapist, updateParent,
       knownAccounts, switchAccount, forgetAccount,
       childrenList, switchChild, addChild, linkChild, refreshChildren,
       currentAccountKey: currentAccountKey(),

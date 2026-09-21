@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, TrendingUp, CreditCard, Eye, EyeOff, Mail } from 'lucide-react'
+import { Trash2, TrendingUp, CreditCard, Eye, EyeOff, Mail, Pencil } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { Sidebar, ChildSwitcher, AboutModal } from '../../components/ui'
+import { Sidebar, ChildSwitcher, AboutModal, UsernamePicker } from '../../components/ui'
 import { parentAPI, getErrorMessage } from '../../api/client'
 import toast from 'react-hot-toast'
 
 export default function ParentSettings() {
-  const { parent, logout, deleteParentAccount } = useAuth()
+  const { parent, logout, deleteParentAccount, updateParent } = useAuth()
   const navigate = useNavigate()
+  const [editingUsername, setEditingUsername] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -70,6 +71,25 @@ export default function ParentSettings() {
               <span className="text-paper/40">Phone</span>
               <span className="text-paper/80">{parent?.phone || '—'}</span>
             </div>
+            <div className="flex justify-between items-center">
+              <span className="text-paper/40">Username</span>
+              {editingUsername ? null : (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-paper/80">@{parent?.username || 'not set'}</span>
+                  <button onClick={() => setEditingUsername(true)} className="text-paper/40 hover:text-paper transition-colors" aria-label="Edit username">
+                    <Pencil size={12} />
+                  </button>
+                </span>
+              )}
+            </div>
+            {editingUsername && (
+              <UsernamePicker
+                role="parent"
+                currentUsername={parent?.username}
+                onSaved={(username) => { updateParent({ username }); setEditingUsername(false); toast.success('Username saved!') }}
+                onCancel={() => setEditingUsername(false)}
+              />
+            )}
           </div>
         </div>
 
