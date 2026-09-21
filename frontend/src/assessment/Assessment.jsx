@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import MouthShapeGuide from "../vaakmirror/components/MouthShapeGuide";
-import { ALPHABET_SOUNDS, PHONIC_SOUNDS, SVGKEY_TO_MOUTH_SHAPE, KEYBOARD_ROWS } from "./alphabetData";
+import { ALPHABET_SOUNDS, PHONIC_SOUNDS } from "./alphabetData";
 import "./Assessment.css";
+import AlphabetCheck from "./AlphabetCheck";
 
 // Words the assessment aims for before the game-prediction agent picks games.
 // Finishing earlier is allowed; the plan just says it is a first guess.
@@ -91,7 +92,7 @@ function mapPhonemeToLetter(phoneme) {
   return mapping[p] || null;
 }
 
-export default function Assessment({ authedPatientName, authedPatientId, onFinish } = {}) {
+export default function Assessment({ authedPatientName, authedPatientId, onFinish, onAlphabetComplete } = {}) {
   const [section, setSection] = useState(authedPatientId ? "home" : "auth-selection");
   const [wordsAttempted, setWordsAttempted] = useState(0);
   const [word, setWord] = useState(null);
@@ -861,8 +862,8 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
           <button className="assessment-choice alphabet-choice" onClick={openAlphabet}>
             <span className="choice-icon">⌨️</span>
             <span className="choice-copy">
-              <strong>Alphabet</strong>
-              <small>Explore tongue, mouth, airflow and stress positions.</small>
+              <strong>Sound Check</strong>
+              <small>See how each letter sound is made, say it, and get mouth games matched to you.</small>
             </span>
             <span className="choice-arrow">→</span>
           </button>
@@ -1842,136 +1843,19 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
       )}
 
       {section === "alphabet" && (
-        <section className="alphabet-assessment">
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px", padding: "0 20px" }}>
-            <button
-              onClick={() => setSection(authedPatientId ? "home" : "patient-details")}
-              style={{
-                padding: "8px 16px",
-                border: "2px solid #a855f7",
-                borderRadius: "8px",
-                background: "#faf5ff",
-                color: "#7c3aed",
-                fontWeight: 600,
-                fontSize: "14px",
-                cursor: "pointer",
-                transition: "all 0.3s ease"
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = "#a855f7";
-                e.target.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = "#faf5ff";
-                e.target.style.color = "#7c3aed";
-              }}
-            >
-              {authedPatientId ? "← Back" : "✏️ Edit Details"}
-            </button>
-          </div>
-          <div className="keyboard-card">
-            <div className="keyboard-title">
-              <div>
-                <span>Interactive keyboard</span>
-                <h2>Choose a letter</h2>
-              </div>
-              <div className="selected-letter-mini">{letter}</div>
-            </div>
-            <p style={{ margin: "0 20px 12px 20px", fontSize: "13px", color: "#6b7280", fontWeight: 600 }}>
-              👇 Tap any letter below — the card underneath will show exactly how to say it.
-            </p>
-            <div style={{ padding: "0 20px 20px 20px" }}>
-              <label style={{ fontSize: "13px", fontWeight: 700, color: "#6d28d9" }}>🌐 Select Language:</label>
-              <div style={{ position: "relative", display: "inline-block", marginTop: "8px" }}>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  style={{
-                    padding: "8px 32px 8px 12px",
-                    borderRadius: "8px",
-                    border: "2px solid #a855f7",
-                    background: "#faf5ff",
-                    color: "#6d28d9",
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    MozAppearance: "none",
-                  }}
-                >
-                  {INDIAN_LANGUAGES.map((lang) => (
-                    <option key={lang.code} value={lang.code}>
-                      {lang.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#6d28d9", pointerEvents: "none" }} />
-              </div>
-              <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>
-                Changes the accent used for 🔊 — the written guide below stays in English.
-              </p>
-            </div>
-            <div className="alphabet-keyboard">
-              {KEYBOARD_ROWS.map((row, rowIndex) => (
-                <div className={`keyboard-row row-${rowIndex + 1}`} key={row.join("")}>
-                  {row.map((key) => (
-                    <button
-                      key={key}
-                      className={letter === key ? "active" : ""}
-                      onClick={() => selectLetter(key)}
-                      aria-label={`Show articulation for ${key}`}
-                    >
-                      {key}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <article className="articulation-card" ref={articulationCardRef}>
-            <div className="sound-header">
-              <div className="big-letter">{letter}</div>
-              <div>
-                <span>Letter sound</span>
-                <h2>{selectedSound.ipa}</h2>
-                <p>say <strong>“{selectedSound.spoken}”</strong></p>
-              </div>
-              <button onClick={() => speakIndianEnglish(selectedSound.spoken, false, selectedLanguage)} aria-label={`Hear the sound for ${letter}`}>
-                🔊
-              </button>
-            </div>
-
-            <div className="articulation-content">
-              <div className="mouth-visual">
-                <div style={{ width: "160px", height: "160px" }}>
-                  <MouthShapeGuide
-                    shape={(SVGKEY_TO_MOUTH_SHAPE[selectedSound.svgKey] || SVGKEY_TO_MOUTH_SHAPE.mid_mid).shape}
-                    manner={(SVGKEY_TO_MOUTH_SHAPE[selectedSound.svgKey] || {}).manner}
-                  />
-                </div>
-                <span>Real mouth shape reference</span>
-              </div>
-              <div className="position-guide">
-                <div className="position-summary">
-                  <span>👄 Shape & position</span>
-                  <strong>{letterGuide.anatomy}</strong>
-                </div>
-                <h3>How to say “{selectedSound.spoken}”</h3>
-                <ol>
-                  {selectedSound.tip && <li className="letter-transition">{selectedSound.tip}</li>}
-                  {letterGuide.steps.map((step) => <li key={step}>{step}</li>)}
-                
-                </ol>
-                <div className="stress-tip">
-                  <span>💨 Stress, voice & airflow</span>
-                  <p>{letterGuide.steps[letterGuide.steps.length - 1]}</p>
-                </div>
-              </div>
-            </div>
-          </article>
-        </section>
+        <AlphabetCheck
+          letter={letter}
+          onLetterChange={setLetter}
+          language={selectedLanguage}
+          onLanguageChange={setSelectedLanguage}
+          languages={INDIAN_LANGUAGES}
+          speak={speakIndianEnglish}
+          apiUrl={API_URL}
+          patientName={patientName}
+          onBack={() => setSection(authedPatientId ? "home" : "patient-details")}
+          backLabel={authedPatientId ? "← Back" : "✏️ Edit Details"}
+          onSave={onAlphabetComplete}
+        />
       )}
     </main>
   );
