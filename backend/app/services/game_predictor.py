@@ -48,7 +48,7 @@ CATALOG: list[dict[str, Any]] = [
      "sounds": {"AA"}, "weight": 1.0, "how": "a big open \"aaa\""},
     {"id": "chime_oo", "name": "Submarine Dive", "family": "Chime", "path": "/play/chime/submarine-dive",
      "sounds": {"UW"}, "weight": 1.0, "how": "a long round \"oooo\""},
-    {"id": "chime_ee", "name": "Xylophone Tower", "family": "Chime", "path": "/play/chime/xylophone-tower",
+    {"id": "chime_ee", "name": "Xylophone", "family": "Chime", "path": "/play/chime/xylophone-tower",
      "sounds": {"IY"}, "weight": 1.0, "how": "a bright \"eeee\""},
     {"id": "chime_r", "name": "Lion's Roar", "family": "Chime", "path": "/play/chime/lions-roar",
      "sounds": {"R"}, "weight": 1.0, "how": "a growly \"rrrr\""},
