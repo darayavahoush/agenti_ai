@@ -237,8 +237,14 @@ async def generate_unique_player_code(db, avatar: str) -> str:
     while True:
         code = avatar.upper()[:5] + str(random.randint(10, 99))
         exists = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == code))
-        if not exists.scalar_one_or_none():
-            return code
+        if exists.scalar_one_or_none():
+            continue
+        # kid-login accepts a username OR a player code, so a new code can't
+        # equal anyone's @username (see breathquest_core/username.py).
+        from app.breathquest_core.username import is_username_taken
+        if await is_username_taken(db, code.lower()):
+            continue
+        return code
 
 
 # ------------------------------------------------------------------ #

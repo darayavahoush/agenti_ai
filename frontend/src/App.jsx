@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { meAPI } from './api/client'
 import { Toaster } from 'react-hot-toast'
-import { PageLoader, SupervisedBanner, OfflineBanner } from './components/ui'
+import { PageLoader, SupervisedBanner, OfflineBanner, UsernameGate } from './components/ui'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
 
 // Route-level code splitting -- previously every page (all four apps:
@@ -102,7 +102,7 @@ function ProtectedTherapist({ children }) {
   const { isTherapist, loading } = useAuth()
   if (loading) return <PageLoader />
   if (!isTherapist) return <Navigate to="/therapist/login" replace />
-  return children
+  return <UsernameGate role="therapist">{children}</UsernameGate>
 }
 
 function ProtectedKid({ children, requireEntitlement = true }) {
@@ -137,14 +137,17 @@ function ProtectedKid({ children, requireEntitlement = true }) {
     if (access === null) return <PageLoader />
     if (!access.has_access) return <Navigate to="/assessment/report" replace />
   }
-  return children
+  // Username gate comes after the assessment gate above -- a kid picks a
+  // username once they're actually a real account (post-assessment), not
+  // as one more step crammed into registration.
+  return <UsernameGate role="kid">{children}</UsernameGate>
 }
 
 function ProtectedParent({ children }) {
   const { isParent, loading } = useAuth()
   if (loading) return <PageLoader />
   if (!isParent) return <Navigate to="/parent/login" replace />
-  return children
+  return <UsernameGate role="parent">{children}</UsernameGate>
 }
 
 function AppRoutes() {

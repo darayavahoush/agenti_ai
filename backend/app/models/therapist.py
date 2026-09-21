@@ -44,3 +44,6 @@ class Therapist(Base):
     # accounts that never linked Google), but any row that does must be
     # unique so a Google identity can't front two different therapists.
     google_sub = Column(String, nullable=True, unique=True, index=True)
+    # Added 2026-09-21 -- editable, memorable @handle, unique across kids/
+    # parents/therapists together. See breathquest_core/username.py.
+    username = Column(String(30), nullable=True, unique=True, index=True)

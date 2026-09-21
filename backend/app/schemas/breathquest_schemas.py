@@ -163,6 +163,9 @@ class KidTokenResponse(BaseModel):
     avatar_photo_url: str | None = None
     player_code: str
     assessment_completed: bool = False
+    # None until the kid picks one -- the frontend shows the first-login
+    # username picker whenever this comes back null.
+    username: str | None = None
 
 
 # ------------------------------------------------------------------ #
@@ -257,6 +260,7 @@ class PatientOut(BaseModel):
     avatar: str
     avatar_photo_url: Optional[str] = None
     player_code: str
+    username: Optional[str] = None
     age: Optional[int]
     is_active: bool
     created_at: datetime
@@ -612,6 +616,7 @@ class ChildSummary(BaseModel):
     player_code: str
     is_active: bool
     is_primary: bool
+    username: str | None = None
 
 
 class ParentTokenResponse(BaseModel):
@@ -628,6 +633,7 @@ class ParentTokenResponse(BaseModel):
     # stay the CURRENTLY ACTIVE one for backward compatibility with every
     # existing caller). See ChildSummary above.
     children: list[ChildSummary] = []
+    username: str | None = None
 
 
 class ParentChildrenResponse(BaseModel):
@@ -1172,3 +1178,30 @@ class SubscriptionOut(BaseModel):
     status: str
     trial_ends_at: datetime
     current_period_end: Optional[datetime]
+
+
+# ------------------------------------------------------------------ #
+#  Usernames (kid / parent / therapist -- see breathquest_core/username.py)
+# ------------------------------------------------------------------ #
+
+class UsernameSetRequest(BaseModel):
+    username: str
+
+
+class UsernameOut(BaseModel):
+    """Current handle for the signed-in account; null until they pick one."""
+    username: str | None = None
+
+
+class UsernameCheckOut(BaseModel):
+    """Result of the live availability check. `username` is the normalized
+    form (lower-cased, '@' stripped) so the UI can show exactly what would
+    be saved. `reason` is a short, kid-readable sentence whenever
+    available is false."""
+    username: str
+    available: bool
+    reason: str | None = None
+
+
+class UsernameSuggestionsOut(BaseModel):
+    suggestions: list[str]

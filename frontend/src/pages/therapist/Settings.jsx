@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, LayoutDashboard, CreditCard, Eye, EyeOff } from 'lucide-react'
+import { Trash2, LayoutDashboard, CreditCard, Eye, EyeOff, Pencil } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
-import { Sidebar, AmbientGlow, AboutModal } from '../../components/ui'
+import { Sidebar, AmbientGlow, AboutModal, UsernamePicker } from '../../components/ui'
 import { getErrorMessage } from '../../api/client'
 
 export default function TherapistSettings() {
-  const { therapist, logout, deleteTherapistAccount } = useAuth()
+  const { therapist, logout, deleteTherapistAccount, updateTherapist } = useAuth()
   const navigate = useNavigate()
+  const [editingUsername, setEditingUsername] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -33,6 +35,30 @@ export default function TherapistSettings() {
       <div className="relative flex-1 min-w-0 max-w-2xl mx-auto px-6 py-10">
         <h1 className="font-vm-display text-2xl font-bold text-white mb-1">Account settings</h1>
         <p className="text-white/50 text-sm mb-10">{therapist?.email}</p>
+
+        <div className="rounded-2xl p-6 border border-white/10 bg-white/5 mb-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-white/80 text-sm font-semibold">Username</h2>
+            {!editingUsername && (
+              <span className="flex items-center gap-1.5">
+                <span className="text-white/80 text-sm">@{therapist?.username || 'not set'}</span>
+                <button onClick={() => setEditingUsername(true)} className="text-white/40 hover:text-white transition-colors" aria-label="Edit username">
+                  <Pencil size={12} />
+                </button>
+              </span>
+            )}
+          </div>
+          {editingUsername && (
+            <div className="mt-4">
+              <UsernamePicker
+                role="therapist"
+                currentUsername={therapist?.username}
+                onSaved={(username) => { updateTherapist({ username }); setEditingUsername(false); toast.success('Username saved!') }}
+                onCancel={() => setEditingUsername(false)}
+              />
+            </div>
+          )}
+        </div>
 
         <div className="rounded-2xl p-6 border border-white/10 bg-white/5">
           <h2 className="text-white/80 text-sm font-semibold mb-1">Danger zone</h2>
