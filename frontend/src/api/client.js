@@ -359,6 +359,7 @@ export const meAPI = {
   recommendedPractice: () => api.get('/me/recommended-practice'),
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
+  gamePlan:        () => api.get('/assessment/me/game-plan'),
   updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),
   changePin:       (data) => api.patch('/breathquest/patients/me/change-pin', data),
   uploadProfilePhoto: (file) => {

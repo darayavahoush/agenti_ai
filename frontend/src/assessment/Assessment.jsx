@@ -4,6 +4,10 @@ import MouthShapeGuide from "../vaakmirror/components/MouthShapeGuide";
 import { ALPHABET_SOUNDS, PHONIC_SOUNDS, SVGKEY_TO_MOUTH_SHAPE, KEYBOARD_ROWS } from "./alphabetData";
 import "./Assessment.css";
 
+// Words the assessment aims for before the game-prediction agent picks games.
+// Finishing earlier is allowed; the plan just says it is a first guess.
+const ASSESSMENT_TARGET_WORDS = 5;
+
 // Deliberately its own base URL, not api/client.js's axios instance --
 // this file predates that client and still uses plain fetch() throughout.
 // VITE_API_URL is shared with that axios client, though, which expects
@@ -881,7 +885,9 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
                 <small>
                   {wordsAttempted === 0
                     ? "Try a word or two above, then finish up here."
-                    : `${wordsAttempted} word${wordsAttempted === 1 ? "" : "s"} attempted so far.`}
+                    : wordsAttempted >= ASSESSMENT_TARGET_WORDS
+                      ? `${wordsAttempted} words done. Finish to see which games will help most!`
+                      : `${wordsAttempted} of ${ASSESSMENT_TARGET_WORDS} words done. Say ${ASSESSMENT_TARGET_WORDS - wordsAttempted} more for the best game plan.`}
                 </small>
               </span>
               <span className="choice-arrow">→</span>
