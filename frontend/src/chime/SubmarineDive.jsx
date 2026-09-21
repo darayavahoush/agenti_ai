@@ -7,6 +7,7 @@ import { createRecorder, recordingFilename } from './lib/recorder'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 const TARGET_F1_DEFAULT = 300.0
 const TARGET_F2_DEFAULT = 870.0
@@ -419,6 +420,10 @@ export default function SubmarineDive() {
   }
 
   function finishCalibration() {
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     const s = stateRef.current
@@ -1014,6 +1019,8 @@ export default function SubmarineDive() {
           </div>
         </div>
       )}
+
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {hudVisible && (
         <div className="sdv-hud">

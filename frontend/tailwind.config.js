@@ -69,8 +69,14 @@ export default {
         "flicker": "flicker 2.6s ease-in-out infinite",
         "drift-ember": "driftEmber 12s linear infinite",
         "card-pop": "cardPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        "countdown-pop": "countdownPop 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards",
       },
       keyframes: {
+        countdownPop: {
+          '0%':   { opacity: '0', transform: 'scale(0.5)' },
+          '35%':  { opacity: '1', transform: 'scale(1.18)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
         modalPop: {
           '0%':   { opacity: '0', transform: 'scale(0.96) translateY(4px)' },
           '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },

@@ -6,6 +6,7 @@ import { getNextLevelRoute } from './lib/levelProgress'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 const LEVEL_ID = 'aa'
 const AGENT_POLICY = 'tabular_q'
@@ -405,6 +406,14 @@ export default function RocketLaunch() {
   }
 
   function finishCalibration() {
+    // Give the kid a beat -- calibration used to hand off straight into
+    // scoring/recording on the very next frame, with no cue that the mic
+    // was now live. A quick 3-2-1-Go here doesn't change any of the
+    // scoring below; it just delays the same beginPlaying() by ~2.8s.
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     const s = stateRef.current
@@ -1029,6 +1038,8 @@ export default function RocketLaunch() {
           </div>
         </div>
       )}
+
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {hudVisible && (
         <div className="fixed top-0 left-0 right-0 flex justify-between items-start px-5 py-4 z-20">

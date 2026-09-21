@@ -7,6 +7,7 @@ import { createRecorder, recordingFilename } from './lib/recorder'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 const LEVEL_ID = 'r'
 const AGENT_POLICY = 'tabular_q'
@@ -328,6 +329,10 @@ export default function LionsRoar() {
   }
 
   function finishCalibration() {
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     const s = stateRef.current
@@ -910,6 +915,8 @@ export default function LionsRoar() {
           </div>
         </div>
       )}
+
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {hudVisible && (
         <div className="fixed top-0 left-0 right-0 flex justify-between items-start px-5 py-4 z-20">

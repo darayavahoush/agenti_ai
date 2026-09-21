@@ -6,6 +6,7 @@ import { getNextLevelRoute } from './lib/levelProgress'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
 const MAX_EXPECTED_PEAK_RMS_DEFAULT = 0.4
@@ -381,6 +382,10 @@ export default function BubbleWrapPop() {
   }
 
   function finishCalibration() {
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     startNewSheet()
@@ -875,6 +880,8 @@ export default function BubbleWrapPop() {
           </div>
         </div>
       )}
+
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {hudVisible && (
         <div className="bwp-hud">
