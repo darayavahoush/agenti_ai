@@ -269,6 +269,23 @@ class PatientOut(BaseModel):
     # Note: diagnosis_notes and pin_hash are NOT exposed here (therapist-only)
 
 
+class LinkPatientRequest(BaseModel):
+    """Therapist-initiated: attach the calling therapist to an EXISTING
+    kid account (one that registered itself, or was created by a parent)
+    by player_code -- the same lookup parents already use in
+    LinkChildRequest, just from the therapist side. Sets
+    BreathQuestPatient.therapist_id; does not touch anything on the
+    Assessment/Patient side."""
+    player_code: str
+
+    @validator("player_code")
+    def player_code_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter the child's player code")
+        return v
+
+
 class TransferPatientRequest(BaseModel):
     """Therapist-to-therapist reassignment -- a single FK update, no
     cascade concerns (unlike parent-to-parent, which goes through
@@ -683,6 +700,33 @@ class LinkChildRequest(BaseModel):
     player_code: str
 
 
+class LinkTherapistRequest(BaseModel):
+    """Parent-initiated: attach an EXISTING therapist account to the
+    parent's currently-active child, by the therapist's login identifier
+    (their email, or their @username if they've set one -- see
+    breathquest_core/username.py). This is the reverse of
+    POST /breathquest/patients/link below (which a therapist uses to
+    attach themselves to an existing, self/parent-registered kid) -- one
+    endpoint per direction, same underlying effect: setting
+    BreathQuestPatient.therapist_id."""
+    therapist_code: str
+
+    @validator("therapist_code")
+    def therapist_code_present(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter your therapist's email or @username")
+        return v.lstrip("@")
+
+
+class LinkTherapistResponse(BaseModel):
+    patient_id: str
+    child_first_name: str
+    therapist_id: str
+    therapist_name: str
+    clinic_name: str | None = None
+
+
 class SwitchChildRequest(BaseModel):
     patient_id: str
 
@@ -1033,6 +1077,10 @@ class ParentProgressOut(BaseModel):
     assignments_completed for the counts-only view this supplements."""
     child_first_name: str
     avatar: str
+    # Uploaded profile photo (overrides the creature art wherever set), same
+    # field the therapist views already return -- the parent dashboard header
+    # used to get only `avatar`, so a photo the kid uploaded never showed here.
+    avatar_photo_url: Optional[str] = None
     total_sessions: int
     total_stars: int
     max_possible_stars: int

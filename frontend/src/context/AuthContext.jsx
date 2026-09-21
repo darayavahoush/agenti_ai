@@ -331,6 +331,17 @@ export function AuthProvider({ children }) {
     return child
   }
 
+  // Attaches an existing therapist (by email or @username) to whichever
+  // child is currently active -- the parent-side half of linking a
+  // therapist to a kid/parent that already registered on their own.
+  // Doesn't touch childrenList (a child's therapist isn't part of that
+  // shape); the caller re-reads it from the response if it needs to
+  // show a confirmation.
+  const linkTherapist = async (therapistCode) => {
+    const { data } = await authAPI.linkTherapist(therapistCode)
+    return data
+  }
+
   // Re-fetches the children list from the backend -- useful after
   // something outside this tab could have changed it (another
   // device/tab adding a child), or just to recover from a stale local
@@ -549,7 +560,7 @@ export function AuthProvider({ children }) {
       deleteParentAccount, deleteKidAccount, deleteTherapistAccount,
       updatePatient, updateTherapist, updateParent,
       knownAccounts, switchAccount, forgetAccount,
-      childrenList, switchChild, addChild, linkChild, refreshChildren,
+      childrenList, switchChild, addChild, linkChild, linkTherapist, refreshChildren,
       currentAccountKey: currentAccountKey(),
       isTherapist: !!therapist,
       isKid:       !!patient,

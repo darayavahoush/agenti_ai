@@ -50,7 +50,7 @@ export default function AuthPage({ initialRole }) {
   return (
     <div className="relative">
       <RoleTabs role={role} setRole={setRole} />
-      {role === 'kid' && <KidPlay />}
+      {role === 'kid' && <KidPlay onSwitchRole={setRole} />}
       {role === 'therapist' && <TherapistLogin />}
       {role === 'parent' && <ParentAuth />}
     </div>

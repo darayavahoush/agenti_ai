@@ -269,6 +269,7 @@ async def get_parent_progress(
     return ParentProgressOut(
         child_first_name=patient.first_name,
         avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url,
         total_sessions=len(sessions),
         total_stars=total_stars + vhr_total_stars,
         max_possible_stars=max_possible + len(vhr_by_level) * 3,

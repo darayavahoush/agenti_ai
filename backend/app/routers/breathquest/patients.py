@@ -19,6 +19,7 @@ from app.models.breathquest_models import BreathQuestPatient, GameSession
 from app.models.patient import Patient
 from app.schemas.breathquest_schemas import (
     PatientCreate, PatientUpdate, PatientOut, PatientDetailOut, KidTokenResponse,
+    LinkPatientRequest,
 )
 from app.breathquest_core.deps import get_current_therapist
 from app.breathquest_core.security import hash_pin, verify_pin, create_kid_token, create_refresh_token
@@ -96,6 +97,50 @@ async def create_patient(
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
         username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
+
+@router.post("/link", response_model=PatientOut)
+async def link_existing_patient(
+    data: LinkPatientRequest,
+    therapist = Depends(get_current_therapist),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attaches the calling therapist to a kid account that already
+    exists -- self-registered by the kid before signups were adult-only,
+    created by a parent (parent-kid-register / add-child), or created by
+    a *different* therapist -- rather than creating a new patient row.
+    Looked up by player_code, same as parent/link-child.
+
+    Deliberately allows re-pointing therapist_id when the patient
+    currently has a different therapist (rather than refusing outright):
+    families do switch therapists, and there's no invite/handoff flow
+    yet for the old therapist to release the patient first. This does
+    mean two therapists asking for the same code back-to-back will each
+    win in turn -- acceptable for now given there's exactly one
+    therapist_id slot on a patient (see BreathQuestPatient's schema);
+    revisit if that becomes a real support complaint."""
+    result = await db.execute(
+        select(BreathQuestPatient).where(
+            BreathQuestPatient.player_code == data.player_code.strip().upper()
+        )
+    )
+    patient = result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="No child found with that player code")
+
+    if patient.therapist_id == therapist.id:
+        raise HTTPException(status_code=400, detail=f"{patient.first_name} is already linked to you")
+
+    patient.therapist_id = therapist.id
+    db.add(patient)
+    await db.commit()
+    await db.refresh(patient)
+    return PatientOut(
+        id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
+        avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
+        username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+        assessment_patient_id=str(patient.assessment_patient_id) if patient.assessment_patient_id else None,
+    )
+
 
 @router.post("/{patient_id}/start-session", response_model=KidTokenResponse)
 async def start_session(
