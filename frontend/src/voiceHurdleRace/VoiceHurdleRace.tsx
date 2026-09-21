@@ -27,6 +27,7 @@ import {
   LevelConfig,
   calculateStars,
   updateLevelProgress,
+  getLevelProgress,
 } from './levels';
 
 import LevelSelection from './LevelSelection';
@@ -551,6 +552,33 @@ export default function VoiceHurdleRace() {
 
       setError(null);
     };
+
+
+  /*
+   * "Next" on the result screen: the level after this one, but only when it
+   * exists and is actually unlocked (finishing a race unlocks it, unless the
+   * progress couldn't be saved). Falls back to the Levels button otherwise.
+   */
+  const nextPlayableLevel = (() => {
+    if (!selectedLevel) return null;
+    const idx = LEVELS.findIndex((l) => l.id === selectedLevel.id);
+    const next = idx >= 0 ? LEVELS[idx + 1] : undefined;
+    if (!next) return null;
+    const unlocked = getLevelProgress().some(
+      (p) => p.levelId === next.id && p.unlocked
+    );
+    return unlocked ? next : null;
+  })();
+
+  const handleNextLevel = () => {
+    if (!nextPlayableLevel) return;
+    if (animationRef.current !== null) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    gameEngineRef.current?.stop();
+    handleSelectLevel(nextPlayableLevel.id);
+  };
 
 
   const handlePlayAgain =
@@ -1098,6 +1126,11 @@ export default function VoiceHurdleRace() {
             }
             onLevels={
               handleBackToLevels
+            }
+            onNext={
+              nextPlayableLevel
+                ? handleNextLevel
+                : null
             }
           />
         )}
@@ -7042,12 +7075,15 @@ function GameOver({
   rlEventId,
   onAgain,
   onLevels,
+  onNext,
 }: {
   state: GameState;
   level: LevelConfig | null;
   rlEventId: number | null;
   onAgain: () => void;
   onLevels: () => void;
+  /** Present only when there is a next level and it is unlocked. */
+  onNext: (() => void) | null;
 }) {
   const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
 
@@ -7232,17 +7268,41 @@ function GameOver({
             🔄 Race Again
           </button>
 
-          <button
-            onClick={
-              onLevels
-            }
-            style={
-              secondaryButton
-            }
-          >
-            📋 Levels
-          </button>
+          {onNext ? (
+            <button
+              onClick={onNext}
+              style={secondaryButton}
+            >
+              Next ▶
+            </button>
+          ) : (
+            <button
+              onClick={onLevels}
+              style={secondaryButton}
+            >
+              📋 Levels
+            </button>
+          )}
         </div>
+
+        {onNext && (
+          <div style={{ textAlign: 'center', marginTop: 10 }}>
+            <button
+              onClick={onLevels}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#7c5b43',
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: 'underline',
+              }}
+            >
+              Back to levels
+            </button>
+          </div>
+        )}
 
         {rlEventId && (
           <div
