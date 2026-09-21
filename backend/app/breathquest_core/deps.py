@@ -14,12 +14,21 @@ and create_parent_token/decode_parent_token were ported over as part of
 the same merge.
 """
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
+
+# How stale last_seen_at can be before we bother writing a fresh value --
+# every authenticated kid request runs through get_current_patient below,
+# so without this a busy session would issue a DB write per request. Also
+# doubles as the "how out of date can it be and still count as logged in"
+# window the therapist dashboard checks against (#69).
+PRESENCE_UPDATE_INTERVAL = timedelta(minutes=1)
 from app.models.therapist import Therapist
 from app.models.breathquest_models import BreathQuestPatient, Parent
 from app.breathquest_core.security import decode_access_token, decode_kid_token, decode_parent_token
@@ -67,6 +76,12 @@ async def get_current_patient(
 
     if not patient or not patient.is_active:
         raise HTTPException(status_code=401, detail="Patient not found or inactive")
+
+    now = datetime.now(timezone.utc)
+    if patient.last_seen_at is None or now - patient.last_seen_at > PRESENCE_UPDATE_INTERVAL:
+        patient.last_seen_at = now
+        await db.commit()
+        await db.refresh(patient)
 
     return patient
 

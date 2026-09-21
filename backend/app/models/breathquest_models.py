@@ -103,6 +103,12 @@ class BreathQuestPatient(Base):
     # existing rows completed before this column existed have no value
     # here, treated as immediately eligible rather than blocked forever.
     assessment_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added 2026-09-21 (#69): bumped on every authenticated kid request (see
+    # breathquest_core/deps.py's get_current_patient), so the therapist
+    # dashboard can show a real "Logged in" status instead of the
+    # account-enabled is_active flag it was showing before. Nullable --
+    # a patient who has never played has no value here.
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Added 2026-08-12 for COPPA: POST /auth/kid-register (the only path with
     # no adult already in the loop -- see breathquest_core/parental_consent.py)
     # now requires a recently-verified parent email before it will create an

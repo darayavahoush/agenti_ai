@@ -52,7 +52,7 @@ from app.schemas.breathquest_schemas import (
     PatientAlert, WeeklySummaryOut, SoundProgressOut, PhonemeMasteryOut, FlashcardsProgressOut, SoundWeekPoint,
     HomePracticeIdeaOut, HistoryEntry, CrossGamePhonemeSummaryOut,
 )
-from app.breathquest_core.deps import get_current_therapist
+from app.breathquest_core.deps import get_current_therapist, PRESENCE_UPDATE_INTERVAL
 from app.routers.breathquest.assessment_lookup import get_latest_assessment
 from app.services.weekly_summary import generate_weekly_summary
 from app.services.phoneme_summary import get_cross_game_phoneme_summary
@@ -233,6 +233,13 @@ async def get_dashboard_summary(
         last_candidates = [d for d in (row.last, vhr_row_p.last, vm_last, fc_last) if d is not None]
         combined_last = max(last_candidates) if last_candidates else None
 
+        # "Logged in" means playing right now, not just account-enabled --
+        # see PRESENCE_UPDATE_INTERVAL in breathquest_core/deps.py, which is
+        # what actually keeps last_seen_at fresh (#69).
+        is_logged_in = (
+            p.last_seen_at is not None
+            and datetime.now(timezone.utc) - p.last_seen_at <= PRESENCE_UPDATE_INTERVAL
+        )
         patient_details.append(PatientDetailOut(
             id=str(p.id), first_name=p.first_name, avatar=p.avatar,
             avatar_photo_url=p.avatar_photo_url, player_code=p.player_code,
@@ -242,6 +249,7 @@ async def get_dashboard_summary(
             total_sessions=combined_total, total_stars=combined_stars,
             last_session_at=combined_last,
             needs_first_session=(p.assessment_patient_id is not None and combined_total == 0),
+            is_logged_in=is_logged_in,
         ))
 
     return DashboardSummary(
