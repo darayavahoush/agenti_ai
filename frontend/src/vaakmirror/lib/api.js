@@ -35,6 +35,12 @@ export function getGameSettings(patientId, game) {
   return api.get(`${VM}/patients/${patientId}/game-settings/${game}`).then(r => r.data)
 }
 
+// The Alphabet check's plan for this child (focus sounds, round size, starting
+// complexity). Token-scoped like createGameSession, so no patient id is sent.
+export function getAgentParams() {
+  return api.get(`${VM}/me/params`).then(r => r.data)
+}
+
 export function createGameSession(game) {
   // No patient id in the request — the backend derives it from the kid's
   // own token (attached automatically by client.js), so a kid can only

@@ -25,6 +25,8 @@ from app.models.breathquest_models import BreathQuestPatient
 from app.models.patient import Patient
 from app.breathquest_core.deps import get_current_patient
 from app.schemas.breathquest_schemas import AssessmentStartOut, AssessmentCompleteRequest
+from app.models.vaakmirror_models import VaakMirrorRoundSizeSetting, GameName
+from pydantic import BaseModel
 from app.routers.breathquest.assessment_lookup import get_latest_assessment
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
@@ -125,6 +127,10 @@ async def complete_assessment(
         "severity_classification": data.severity_classification,
         "word_results": data.word_results,
         "game_predictions": game_predictions,
+        # The Alphabet check is saved by its own endpoint; a word-assessment
+        # retake must not wipe it (or the VaakMirror plan built from it).
+        **({"alphabet": row.assessment_summary["alphabet"]}
+           if (row.assessment_summary or {}).get("alphabet") else {}),
     }
     await db.commit()
 
@@ -178,3 +184,78 @@ async def get_my_game_plan(
         db.add(patient)
         await db.commit()
     return prediction
+
+
+# ------------------------------------------------------------------ #
+#  Alphabet check -> VaakMirror parameters                             #
+# ------------------------------------------------------------------ #
+
+# Untouched VaakMirror round size (agent/round_size_heuristic.py:
+# DEFAULT_ROUND_SIZE). A row still at this value means nobody, therapist or
+# heuristic, has changed it, so the agent may set it; anything else is
+# someone's deliberate choice and is left alone.
+_UNTOUCHED_ROUND_SIZE = 10
+_ROUND_SIZE_GAMES = (GameName.mirror_mirror, GameName.lip_sync_hero)
+
+
+class AlphabetCompleteRequest(BaseModel):
+    # One entry per letter the child said, as returned by
+    # POST /assessment/alphabet/analyze. Only `letter`, `correct` and
+    # `heard_as` are used; sound ids and groups come from the server catalog.
+    letter_results: list[dict] = []
+
+
+def _plan_alphabet(letter_results: list[dict]) -> dict:
+    from app.graph.alphabet_graph import get_plan_graph
+    return get_plan_graph().invoke({"letter_results": letter_results})["plan"]
+
+
+@router.post("/alphabet/complete")
+async def complete_alphabet(
+    data: AlphabetCompleteRequest,
+    patient: BreathQuestPatient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """Runs the alphabet plan graph over the child's letter results, stores
+    the plan, and applies its round size to VaakMirror's per-game settings
+    (only where still at the default). VaakMirror's games then read the rest
+    of the parameters from GET /vaakmirror/me/params."""
+    from sqlalchemy import select
+
+    letter_results = data.letter_results[:30]
+    plan = await asyncio.to_thread(_plan_alphabet, letter_results)
+
+    summary = dict(patient.assessment_summary or {})
+    summary["alphabet"] = {
+        "plan": plan,
+        "letter_results": [
+            {k: r.get(k) for k in ("letter", "word", "correct", "heard_as", "status")}
+            for r in letter_results if isinstance(r, dict)
+        ],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    patient.assessment_summary = summary
+    db.add(patient)
+
+    params = plan["vaakmirror_params"]
+    if plan["ready"]:
+        for game in _ROUND_SIZE_GAMES:
+            row = (await db.execute(
+                select(VaakMirrorRoundSizeSetting).where(
+                    VaakMirrorRoundSizeSetting.patient_id == str(patient.id),
+                    VaakMirrorRoundSizeSetting.game == game,
+                )
+            )).scalar_one_or_none()
+            if row is None:
+                db.add(VaakMirrorRoundSizeSetting(
+                    patient_id=str(patient.id), game=game, round_size=params["round_size"]))
+            elif row.round_size == _UNTOUCHED_ROUND_SIZE:
+                row.round_size = params["round_size"]
+    await db.commit()
+    return plan
+
+
+@router.get("/me/alphabet")
+async def get_my_alphabet(patient: BreathQuestPatient = Depends(get_current_patient)):
+    """The stored alphabet plan (or null), for revisits."""
+    return (patient.assessment_summary or {}).get("alphabet")

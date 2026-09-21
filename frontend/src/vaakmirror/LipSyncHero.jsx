@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
 import { loadFaceLandmarker } from './lib/faceLandmarker.js'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
@@ -8,7 +9,9 @@ import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
 import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
 import { playChime, playFanfare, playMiss, speakSound, stopSound } from './lib/sound.js'
-import { createGameSession, logAttempt, endGameSession } from './lib/api.js'
+import { createGameSession, logAttempt, endGameSession, getGameSettings } from './lib/api.js'
+import { pickFocusedRound } from './lib/focusedRound.js'
+import { useAgentParams } from './lib/useAgentParams.js'
 import { useEndSessionOnLeave } from './lib/useEndSessionOnLeave.js'
 import CharacterFilterPicker, { FILTERS } from './components/CharacterFilterPicker.jsx'
 import ProgressRing from './components/ProgressRing.jsx'
@@ -25,9 +28,8 @@ const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
 
-function pickRound() {
-  const shuffled = [...SOUNDS].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, ROUND_SIZE)
+function pickRound(size = ROUND_SIZE, focus = []) {
+  return pickFocusedRound(SOUNDS, size, focus, SOUNDS)
 }
 
 const TIER_STYLES = {
@@ -55,6 +57,12 @@ export default function LipSyncHero() {
   const currentRef = useRef(null)
 
   const [status, setStatus] = useState('loading') // loading | ready | denied | error
+  const { patient } = useAuth()
+  const { params: agentParams } = useAgentParams()
+  const focusRef = useRef([])                       // agent's focus sounds
+  const roundSizeRef = useRef(ROUND_SIZE)           // read inside callbacks
+  const [roundSize, setRoundSizeState] = useState(ROUND_SIZE)
+  const setRoundSize = (n) => { roundSizeRef.current = n; setRoundSizeState(n) }
   const [round, setRound] = useState(() => pickRound())
   const [roundIndex, setRoundIndex] = useState(0)
   const [tier, setTier] = useState('red')
@@ -68,6 +76,30 @@ export default function LipSyncHero() {
   const [calibProgress, setCalibProgress] = useState(0)
   const [attempt, setAttempt] = useState(0)
   const [retryCount, setRetryCount] = useState(0)
+
+  // Round size: the per-patient setting (which the Alphabet check also writes
+  // when it makes a plan). Falls back silently to ROUND_SIZE on any error.
+  useEffect(() => {
+    if (!patient?.patient_id) return
+    let cancelled = false
+    getGameSettings(patient.patient_id, 'lip_sync_hero')
+      .then((settings) => {
+        if (cancelled || !settings.round_size) return
+        setRoundSize(settings.round_size)
+        setRound(pickRound(settings.round_size, focusRef.current))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [patient?.patient_id])
+
+  // Focus sounds from the Alphabet check's plan. Only before the child has
+  // started, so a plan arriving late never swaps notes mid-round.
+  useEffect(() => {
+    if (!agentParams?.has_plan) return
+    focusRef.current = agentParams.focus_sounds || []
+    if (roundIndex === 0) setRound(pickRound(roundSizeRef.current, focusRef.current))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentParams])
 
   const current = round[roundIndex]
   const target = current ? SHAPE_TARGETS[current.shape] : null
@@ -104,7 +136,7 @@ export default function LipSyncHero() {
         return
       }
       setRetryCount(0)
-      const isLast = roundIndex + 1 >= ROUND_SIZE
+      const isLast = roundIndex + 1 >= roundSizeRef.current
       if (isLast) {
         playFanfare()
         setComplete(true)
@@ -243,7 +275,7 @@ export default function LipSyncHero() {
               resolvedRef.current = true
               playChime()
               setCelebrate(true)
-              setStars((s) => Math.min(ROUND_SIZE, s + 1))
+              setStars((s) => Math.min(roundSizeRef.current, s + 1))
               setOutcome('caught')
               if (sessionIdRef.current && current) {
                 logAttempt(sessionIdRef.current, {
@@ -292,7 +324,7 @@ export default function LipSyncHero() {
   }, [status, target, filter, baselineSpread])
 
   function restart() {
-    setRound(pickRound())
+    setRound(pickRound(roundSizeRef.current, focusRef.current))
     setRoundIndex(0)
     setStars(0)
     setComplete(false)
@@ -333,7 +365,7 @@ export default function LipSyncHero() {
             <p className="font-mono text-xs uppercase tracking-widest text-mint mb-1">Game 3</p>
             <h1 className="font-display text-3xl font-bold text-paper">Lip Sync Hero</h1>
           </div>
-          <ProgressRing stars={stars} total={ROUND_SIZE} />
+          <ProgressRing stars={stars} total={roundSize} />
         </div>
 
         <div className="mb-6 rounded-2xl border border-mint/25 bg-mint/10 px-4 py-3 flex items-start gap-2.5">
@@ -439,7 +471,7 @@ export default function LipSyncHero() {
             ) : !complete && current ? (
               <>
                 <p className="font-mono text-xs uppercase tracking-widest text-paper/40 mb-3">
-                  Note {roundIndex + 1} of {ROUND_SIZE}
+                  Note {roundIndex + 1} of {roundSize}
                 </p>
                 <div className="flex items-center gap-5 mb-6">
                   <div className="w-36 h-36 shrink-0 rounded-2xl bg-ink border border-white/10 flex items-center justify-center p-4">
@@ -507,8 +539,8 @@ export default function LipSyncHero() {
             ) : (
               <div className="text-center py-6">
                 <p className="font-display text-2xl font-bold text-paper mb-2">Round complete! ✨</p>
-                <p className="text-paper/50 text-sm mb-6">You caught {stars} of {ROUND_SIZE} notes.</p>
-                <ProgressRing stars={stars} total={ROUND_SIZE} />
+                <p className="text-paper/50 text-sm mb-6">You caught {stars} of {roundSize} notes.</p>
+                <ProgressRing stars={stars} total={roundSize} />
                 <button
                   onClick={restart}
                   className="mt-8 px-6 py-3 rounded-full bg-coral text-paper font-semibold hover:bg-coral-dark transition-colors inline-flex items-center gap-2"

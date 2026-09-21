@@ -71,6 +71,13 @@ export default function AssessmentGate() {
     )
   }
 
+  // Sound Check (Alphabet): the backend's VaakMirror planner agent turns the
+  // letter results into game parameters and saves them on this child.
+  const handleAlphabetComplete = async (letterResults) => {
+    const { data } = await assessmentAPI.alphabetComplete(letterResults)
+    return data
+  }
+
   const handleFinish = async (summary) => {
     // Never block the kid from seeing their results over this -- if it
     // fails twice, log it for follow-up (a therapist/parent may see the
@@ -98,6 +105,7 @@ export default function AssessmentGate() {
             authedPatientId={state.data.assessment_patient_id}
             authedPatientName={state.data.first_name}
             onFinish={handleFinish}
+            onAlphabetComplete={handleAlphabetComplete}
           />
         </div>
       </div>

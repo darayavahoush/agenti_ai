@@ -9,6 +9,8 @@ import { drawMouthOutline, drawFaceFilter } from './lib/faceOverlay.js'
 import { emaUpdateObject, createTierStabilizer } from './lib/signalSmoothing.js'
 import { playChime, playFanfare, speakSound } from './lib/sound.js'
 import { createGameSession, logAttempt, endGameSession, getGameSettings, submitEventFeedback } from './lib/api.js'
+import { pickFocusedRound } from './lib/focusedRound.js'
+import { useAgentParams } from './lib/useAgentParams.js'
 import { useEndSessionOnLeave } from './lib/useEndSessionOnLeave.js'
 import { useAuth } from '../context/AuthContext'
 import CelebrationOverlay from './components/CelebrationOverlay.jsx'
@@ -55,11 +57,10 @@ function poolForAttempt(attempt) {
 // constant, since a therapist can now set a per-patient round size (fetched
 // async after mount) — this needs to be re-callable with whatever size is
 // current at the time, not a fixed value baked in at module load.
-function pickRound(size, attempt = 0) {
-  const pool = poolForAttempt(attempt)
-  const source = pool.length >= size ? pool : SOUNDS
-  const shuffled = [...source].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, size)
+// `focus` = sound ids the Alphabet check flagged as tricky for this child
+// (empty for anyone without a plan, which leaves the round a plain shuffle).
+function pickRound(size, attempt = 0, focus = []) {
+  return pickFocusedRound(poolForAttempt(attempt), size, focus, SOUNDS)
 }
 
 const TIER_STYLES = {
@@ -82,6 +83,8 @@ export default function MirrorMirror() {
 
   const [status, setStatus] = useState('loading') // loading | ready | denied | error
   const [roundSize, setRoundSize] = useState(DEFAULT_ROUND_SIZE)
+  const { params: agentParams } = useAgentParams()
+  const focusRef = useRef([]) // agent's focus sounds; read by every later pickRound
   // How many rounds this session has played, so pickRound can step through
   // the single -> blend -> blend+combo curriculum (see poolForAttempt).
   // Session-only by design — every fresh visit re-teaches singles first
@@ -121,13 +124,23 @@ export default function MirrorMirror() {
       .then((settings) => {
         if (cancelled || !settings.round_size) return
         setRoundSize(settings.round_size)
-        setRound(pickRound(settings.round_size, attemptRef.current))
+        setRound(pickRound(settings.round_size, attemptRef.current, focusRef.current))
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [patient?.patient_id])
+
+  // Apply the Alphabet check's plan (see useAgentParams). Only before the
+  // child has started, so a plan arriving late never swaps sounds mid-round.
+  useEffect(() => {
+    if (!agentParams?.has_plan) return
+    focusRef.current = agentParams.focus_sounds || []
+    if (agentParams.start_complexity === 'blend' && attemptRef.current === 0) attemptRef.current = 1
+    if (roundIndex === 0) setRound(pickRound(roundSize, attemptRef.current, focusRef.current))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentParams])
 
   // Speak the target sound aloud each time a new round item comes up —
   // same pattern LipSyncHero already established (speakSound on note
@@ -337,7 +350,7 @@ export default function MirrorMirror() {
 
   function restart() {
     attemptRef.current += 1
-    setRound(pickRound(roundSize, attemptRef.current))
+    setRound(pickRound(roundSize, attemptRef.current, focusRef.current))
     setRoundIndex(0)
     setStars(0)
     setComplete(false)

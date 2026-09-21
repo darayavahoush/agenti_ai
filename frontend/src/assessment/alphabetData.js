@@ -192,3 +192,61 @@ export const KEYBOARD_ROWS = [
   ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
   ["Z", "X", "C", "V", "B", "N", "M"],
 ];
+// ------------------------------------------------------------------ //
+// Sound Check (AlphabetCheck.jsx): how each letter is probed by voice.
+//
+// The child says a short keyword that starts with the letter's sound, and the
+// backend's alphabet agent scores just that sound. This mirrors
+// backend/app/services/alphabet_sounds.py, which is the source of truth for
+// scoring (tests/test_alphabet_agents.py fails if the two drift apart). Q and
+// X have no clean single-sound probe, so they stay explorable but aren't
+// scored.
+// ------------------------------------------------------------------ //
+export const LETTER_PROBES = {
+  A: { word: "apple",   emoji: "🍎", group: "vowel" },
+  B: { word: "ball",    emoji: "⚽", group: "lips" },
+  C: { word: "cat",     emoji: "🐱", group: "tongue-back" },
+  D: { word: "dog",     emoji: "🐶", group: "tongue-tip" },
+  E: { word: "egg",     emoji: "🥚", group: "vowel" },
+  F: { word: "fish",    emoji: "🐟", group: "teeth-lip" },
+  G: { word: "goat",    emoji: "🐐", group: "tongue-back" },
+  H: { word: "hat",     emoji: "🎩", group: "throat" },
+  I: { word: "insect",  emoji: "🐛", group: "vowel" },
+  J: { word: "jam",     emoji: "🍓", group: "tongue-tip" },
+  K: { word: "kite",    emoji: "🪁", group: "tongue-back" },
+  L: { word: "leaf",    emoji: "🍃", group: "tongue-tip" },
+  M: { word: "moon",    emoji: "🌙", group: "lips" },
+  N: { word: "nose",    emoji: "👃", group: "tongue-tip" },
+  O: { word: "octopus", emoji: "🐙", group: "vowel" },
+  P: { word: "pig",     emoji: "🐷", group: "lips" },
+  R: { word: "rabbit",  emoji: "🐰", group: "tongue-curl" },
+  S: { word: "sun",     emoji: "☀️", group: "tongue-tip" },
+  T: { word: "tiger",   emoji: "🐯", group: "tongue-tip" },
+  U: { word: "up",      emoji: "⬆️", group: "vowel" },
+  V: { word: "van",     emoji: "🚐", group: "teeth-lip" },
+  W: { word: "water",   emoji: "💧", group: "lips" },
+  Y: { word: "yellow",  emoji: "💛", group: "tongue-tip" },
+  Z: { word: "zebra",   emoji: "🦓", group: "tongue-tip" },
+};
+
+// A short first pass across every place/manner family.
+export const CORE_LETTERS = ["B", "T", "K", "S", "L", "R"];
+// Letters needed before the agent will set up the VaakMirror games.
+export const MIN_LETTERS_FOR_PLAN = 4;
+
+export const GROUPS = {
+  "lips":        { label: "Lips",             color: "#f06493" },
+  "teeth-lip":   { label: "Teeth & lip",      color: "#f59e0b" },
+  "tongue-tip":  { label: "Tongue tip",       color: "#7c5cff" },
+  "tongue-back": { label: "Back of tongue",   color: "#14a89a" },
+  "tongue-curl": { label: "Tongue curl",      color: "#3b82f6" },
+  "throat":      { label: "Throat",           color: "#64748b" },
+  "vowel":       { label: "Vowels",           color: "#d9a10b" },
+};
+
+// Where the "Play" button goes for each VaakMirror game the planner can pick.
+export const VAAKMIRROR_GAMES = {
+  mirror_mirror: { name: "Mirror, Mirror", path: "/play/vaakmirror/mirror-mirror", blurb: "Match the mouth shape you see." },
+  lip_sync_hero: { name: "Lip Sync Hero",  path: "/play/vaakmirror/lip-sync-hero",  blurb: "Catch each sound with the right lip shape." },
+  tongue_tamer:  { name: "Tongue Tamer",   path: "/play/vaakmirror/tongue-tamer",   blurb: "Put your tongue in the right place." },
+};
