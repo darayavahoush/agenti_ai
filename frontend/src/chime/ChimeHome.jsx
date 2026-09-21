@@ -10,7 +10,7 @@ import './chime-home.css'
 
 const GAMES = [
   { levelId: 'aa', to: LEVEL_ROUTES.aa, title: 'Rocket Launch',
-    blurb: 'Say a big loud "aaa" to launch your rocket as high as you can.',
+    blurb: 'Say a big loud "aaaa" to launch your rocket as high as you can.',
     accent: '#FF9B54', icon: Rocket },
   { levelId: 'oo', to: LEVEL_ROUTES.oo, title: 'Submarine Dive',
     blurb: 'A long, low "oooo" sends your submarine deeper.',
