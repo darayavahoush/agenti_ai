@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic import BaseModel, validator
 
 
@@ -42,8 +43,13 @@ class GoogleAuthRequest(BaseModel):
     """The frontend gets this token directly from Google Identity
     Services and hands it to us as-is -- see google_oauth.py for the
     server-side verification. Nothing else needed: on first sign-in we
-    pull full_name/email straight from the verified token."""
+    pull full_name/email straight from the verified token.
+
+    `intent` says which tab the person was on. "login" refuses to create a
+    brand-new account (404 instead); "register" (the default, and what
+    older clients implicitly get) is the original login-or-register."""
     id_token: str
+    intent: Literal["login", "register"] = "register"
 
 
 class TherapistTokenResponse(BaseModel):

@@ -1,9 +1,11 @@
 /* Chime homepage — shares the games' own visual language (glow, Baloo 2,
    per-phoneme color) instead of vaakmirror's flat SaaS-card look.
-   If Baloo 2 is already loaded elsewhere in the app (e.g. via a <link>
-   in index.html), this @import is a harmless no-op duplicate — feel free
-   to delete it and keep just the one global load. */
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap');
+   Baloo 2 is loaded globally via the <link> in index.html. Do NOT
+   @import it here: this stylesheet is code-split with the lazy Chime
+   routes, and if a font @import fails (school/corporate filters, privacy
+   extensions, flaky mobile data) the browser reports the whole stylesheet
+   as failed, Vite's CSS preloader rejects, and every Chime route crashes to
+   the error screen instead of just falling back to a system font. */
 
 .chime-display {
   font-family: 'Baloo 2', 'Poppins', ui-rounded, system-ui, sans-serif;

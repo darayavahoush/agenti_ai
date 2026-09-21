@@ -20,7 +20,7 @@ const ACCENT_CLASSES = {
 function RoleTabs({ role, setRole }) {
   return (
     <div className="fixed top-0 inset-x-0 z-30 flex justify-center pt-5 px-4 pointer-events-none">
-      <div className="pointer-events-auto flex gap-1 p-1 rounded-full bg-black/30 backdrop-blur-xl border border-white/15 shadow-xl shadow-black/30">
+      <div className="pointer-events-auto flex max-w-full gap-1 p-1 rounded-full bg-black/30 backdrop-blur-xl border border-white/15 shadow-xl shadow-black/30">
         {ROLES.map(({ key, label, icon: Icon, accent }) => {
           const a = ACCENT_CLASSES[accent]
           const active = role === key
@@ -29,7 +29,7 @@ function RoleTabs({ role, setRole }) {
               key={key}
               type="button"
               onClick={() => setRole(key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold
+              className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-full text-[13px] sm:text-sm font-semibold
                           transition-all whitespace-nowrap ${active ? a.active + ' shadow-sm' : a.idle}`}
             >
               <Icon className="w-3.5 h-3.5" />

@@ -28,8 +28,22 @@ from app.schemas.breathquest_schemas import AssessmentStartOut, AssessmentComple
 from app.routers.breathquest.assessment_lookup import get_latest_assessment
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
+import logging
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
+logger = logging.getLogger(__name__)
+
+
+def _predict_games(word_results: list[dict], first_name: str | None) -> dict | None:
+    """Sync (the agent may make an OpenAI call) -- always run via
+    asyncio.to_thread. Never raises: a failed prediction must not block
+    marking the assessment complete or showing the kid their results."""
+    try:
+        from app.agents.game_predictor_agent import GamePredictorAgent
+        return GamePredictorAgent().predict(word_results, first_name)
+    except Exception as exc:
+        logger.warning("Game prediction failed: %s", exc)
+        return None
 
 def _retake_available_at(patient: BreathQuestPatient) -> datetime | None:
     """Retired: retakes are no longer cooldown-gated, so this always
@@ -101,10 +115,16 @@ async def complete_assessment(
     row = result.scalar_one()
     row.assessment_completed = True
     row.assessment_completed_at = datetime.now(timezone.utc)
+    # After the words are analysed, the game-prediction agent looks ACROSS
+    # them (the per-word graph never does) and picks which games help most.
+    # Computed server-side from word_results so it can't be spoofed, and
+    # stored so the report, therapist views and revisits all read one answer.
+    game_predictions = await asyncio.to_thread(_predict_games, data.word_results, row.first_name)
     row.assessment_summary = {
         "words_attempted": data.words_attempted,
         "severity_classification": data.severity_classification,
         "word_results": data.word_results,
+        "game_predictions": game_predictions,
     }
     await db.commit()
 
@@ -132,4 +152,29 @@ async def get_my_latest_assessment(
     # Results" later, with no router state) still gets the same detailed
     # per-word breakdown as right after finishing.
     result["word_results"] = (patient.assessment_summary or {}).get("word_results", [])
+    result["game_predictions"] = (patient.assessment_summary or {}).get("game_predictions")
     return result
+
+
+@router.get("/me/game-plan")
+async def get_my_game_plan(
+    patient: BreathQuestPatient = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+):
+    """The game-prediction agent's answer for this kid's latest assessment.
+    Returns the stored prediction when there is one; for an assessment taken
+    before this existed (word_results saved, no prediction), computes it now
+    and saves it so the next read is instant. null when there is nothing to
+    predict from yet."""
+    summary = patient.assessment_summary or {}
+    if summary.get("game_predictions"):
+        return summary["game_predictions"]
+    word_results = summary.get("word_results") or []
+    if not word_results:
+        return None
+    prediction = await asyncio.to_thread(_predict_games, word_results, patient.first_name)
+    if prediction is not None:
+        patient.assessment_summary = {**summary, "game_predictions": prediction}
+        db.add(patient)
+        await db.commit()
+    return prediction

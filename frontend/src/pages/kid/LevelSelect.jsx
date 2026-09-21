@@ -71,7 +71,7 @@ export default function LevelSelect() {
         </div>
 
         {/* Level grid */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {LEVELS.map((level, i) => {
             const unlocked = isUnlocked(level.id, scores)
             const score    = scores[level.id]

@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
+import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
 const MAX_EXPECTED_PEAK_RMS_DEFAULT = 0.4
@@ -404,7 +406,6 @@ export default function BubbleWrapPop() {
         setFeedbackEventId(result.id)
         setFeedbackSubmitted(false)
         clearTimeout(feedbackTimeoutRef.current)
-        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
       }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
@@ -500,8 +501,13 @@ export default function BubbleWrapPop() {
   // it, a late result could flip a bubble on a sheet the child isn't even on.
   async function finishVerificationWindow(chunks, generation) {
     const s = stateRef.current
+    // windowPoppedIndices is the LIVE array gameLoop keeps pushing into, and
+    // the transcription await below can take several seconds (Whisper on a
+    // small CPU container). Snapshot exactly the pops this window recorded;
+    // anything pushed after that is a "late" pop, handled after the block.
     const windowIndices = s.windowPoppedIndices
     const addedThisWindow = windowIndices.length
+    const evaluated = windowIndices.slice()
 
     if (addedThisWindow > 0 && chunks.length > 0) {
       setVerifyToast({ status: 'checking', message: 'Checking your "ha"s...' })
@@ -536,14 +542,14 @@ export default function BubbleWrapPop() {
             // actually silence or noise. Stop retracting for the rest of
             // this sheet so a bad transcription pipeline can't strand a kid
             // who is audibly doing the exercise.
-            for (const idx of windowIndices) s.verifiedFlags[idx] = true
+            for (const idx of evaluated) s.verifiedFlags[idx] = true
             setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
             setVerifyToast(null)
           } else {
-            for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[windowIndices[i]] = true
+            for (let i = 0; i < confirmedCount; i++) s.verifiedFlags[evaluated[i]] = true
             if (toRetract > 0) {
-              for (let i = confirmedCount; i < windowIndices.length; i++) {
-                const idx = windowIndices[i]
+              for (let i = confirmedCount; i < evaluated.length; i++) {
+                const idx = evaluated[i]
                 s.poppedFlags[idx] = false
                 s.popPulse[idx] = 0
               }
@@ -561,11 +567,27 @@ export default function BubbleWrapPop() {
           // Unverifiable window (transcription failed or came back empty) --
           // trust the local burst detector rather than stranding a kid
           // mid-sheet because verification is down.
-          for (const idx of windowIndices) s.verifiedFlags[idx] = true
+          for (const idx of evaluated) s.verifiedFlags[idx] = true
           setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
           setVerifyToast(null)
         }
       }
+    }
+
+    // Pops that were never part of a recorded window are trusted to the local
+    // burst detector instead of being stranded (popped in poppedFlags but
+    // never verified, so the sheet can't reach targetPops):
+    //  - "late" pops: bubbles popped while the transcription above was in
+    //    flight -- no recorder was running then, so there is no audio to
+    //    check them against. startVerificationWindow() is about to reset
+    //    windowPoppedIndices, which used to silently drop them.
+    //  - a window that had pops but no recorded audio at all.
+    if (generation === s.sheetGeneration) {
+      const unchecked = (addedThisWindow > 0 && chunks.length > 0)
+        ? windowIndices.slice(addedThisWindow)
+        : windowIndices
+      for (const idx of unchecked) if (s.poppedFlags[idx]) s.verifiedFlags[idx] = true
+      if (unchecked.length > 0) setVerifiedCount(s.verifiedFlags.filter(Boolean).length)
     }
 
     if (generation === s.sheetGeneration && !s.hasFinished) startVerificationWindow()
@@ -588,7 +610,7 @@ export default function BubbleWrapPop() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToFillSeconds)
 
     s.targetPops = DIFFICULTY_AGENT.apply(s.targetPops, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   // Marks the level as passed independent of any single pop's score — the
@@ -901,7 +923,7 @@ export default function BubbleWrapPop() {
             <div className="bwp-mic-icon">🎉</div>
             <h1 className="bwp-title">Sheet complete!</h1>
             <p className="bwp-subtitle">You popped every bubble!</p>
-            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{agentFeedback}</p>
+            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{successScreenAgentMessage(agentFeedback)}</p>
             {getNextLevelRoute(LEVEL_ID) && (
               <button className="bwp-btn" onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}>Next Level →</button>
             )}
@@ -910,18 +932,15 @@ export default function BubbleWrapPop() {
         </div>
       )}
 
-      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
-          display: 'flex', alignItems: 'center', gap: 12,
-          background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 9999, padding: '10px 20px', backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 14, fontWeight: 700, color: '#fff',
-        }}>
-          <span>Did we score that right?</span>
-          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👍</button>
-          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👎</button>
-        </div>
+      {hudVisible && feedbackEventId != null && (
+        <ScoreFeedbackPrompt
+          key={feedbackEventId}
+          what="that"
+          variant="thumbs"
+          submitted={feedbackSubmitted}
+          onChoose={handleFeedback}
+          onExpire={() => setFeedbackEventId(null)}
+        />
       )}
 
       <div className="bwp-visually-hidden" aria-live="polite">{ariaMsg}</div>

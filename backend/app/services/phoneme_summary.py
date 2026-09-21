@@ -192,10 +192,29 @@ def _build_summary(patient_id, fc_tuples, vm_rows, chime_events) -> dict:
     total_attempts = sum(p["attempts"] for p in phonemes_out)
     total_correct = sum(p["correct"] for p in phonemes_out)
 
+    # ---- Roll up by game (at-a-glance strip: what each game contributed,
+    # independent of which phonemes it happened to touch) ------------------
+    game_acc: dict[str, list[int, int]] = {}
+    for p in phonemes_out:
+        for g in p["by_game"]:
+            bucket = game_acc.setdefault(g["game"], [0, 0])
+            bucket[0] += g["attempts"]
+            bucket[1] += g["correct"]
+    game_totals = [
+        {
+            "game": game,
+            "attempts": counts[0],
+            "correct": counts[1],
+            "accuracy": (counts[1] / counts[0]) if counts[0] else 0.0,
+        }
+        for game, counts in sorted(game_acc.items(), key=lambda kv: kv[1][0], reverse=True)
+    ]
+
     return {
         "patient_id": str(patient_id),
         "phonemes": phonemes_out,
         "by_category": by_category,
+        "game_totals": game_totals,
         "weakest": weakest,
         "total_attempts": total_attempts,
         "overall_accuracy": (total_correct / total_attempts) if total_attempts else 0.0,

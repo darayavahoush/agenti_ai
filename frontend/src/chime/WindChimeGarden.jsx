@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, transcribeAudio, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
+import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
 
 const LEVEL_ID = 'fa'
 const AGENT_POLICY = 'tabular_q'
@@ -395,7 +397,6 @@ export default function WindChimeGarden() {
         setFeedbackEventId(result.id)
         setFeedbackSubmitted(false)
         clearTimeout(feedbackTimeoutRef.current)
-        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
       }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
@@ -427,7 +428,7 @@ export default function WindChimeGarden() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToWinSeconds)
 
     s.targetBubbles = DIFFICULTY_AGENT.apply(s.targetBubbles, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   function spawnBubble(index) {
@@ -927,7 +928,7 @@ export default function WindChimeGarden() {
             <div className="text-6xl mb-3">🫧</div>
             <h1 className="font-['Baloo_2'] text-3xl font-extrabold mb-2">Garden full of bubbles!</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-1">You filled the evening sky with glowing bubbles!</p>
-            {agentFeedback && <p className="text-sm opacity-85 mb-5">{agentFeedback}</p>}
+            {agentFeedback && <p className="text-sm opacity-85 mb-5">{successScreenAgentMessage(agentFeedback)}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (
                 <button
@@ -945,13 +946,15 @@ export default function WindChimeGarden() {
         </div>
       )}
 
-      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-[rgba(42,26,62,0.75)] border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold">
-          <span>Did we score that right?</span>
-          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
-          <button onClick={() => handleFeedback('too_strict')} aria-label="No, too strict -- a good attempt should have scored higher" className="hover:scale-110 transition-transform">😖</button>
-          <button onClick={() => handleFeedback('too_generous')} aria-label="No, too generous -- a weak attempt scored too well" className="hover:scale-110 transition-transform">😅</button>
-        </div>
+      {hudVisible && feedbackEventId != null && (
+        <ScoreFeedbackPrompt
+          key={feedbackEventId}
+          what="that"
+          variant="strictness"
+          submitted={feedbackSubmitted}
+          onChoose={handleFeedback}
+          onExpire={() => setFeedbackEventId(null)}
+        />
       )}
 
       <div className="sr-only" aria-live="polite">{ariaMsg}</div>

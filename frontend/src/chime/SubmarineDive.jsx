@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
+import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
 
 const TARGET_F1_DEFAULT = 300.0
 const TARGET_F2_DEFAULT = 870.0
@@ -524,7 +526,6 @@ export default function SubmarineDive() {
         setFeedbackEventId(result.id)
         setFeedbackSubmitted(false)
         clearTimeout(feedbackTimeoutRef.current)
-        feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 6000)
       }
     } catch (err) {
       console.warn('Backend event logging unavailable:', err)
@@ -557,7 +558,7 @@ export default function SubmarineDive() {
     if (!decision) decision = DIFFICULTY_AGENT.decide(timeToDiveSeconds)
 
     s.difficultyConfig = DIFFICULTY_AGENT.apply(s.difficultyConfig, decision)
-    setAgentFeedback(decision.message)
+    setAgentFeedback(decision)
   }
 
   // Marks the level as passed independent of any single attempt's score — depth
@@ -1028,7 +1029,7 @@ export default function SubmarineDive() {
             <div className="sdv-mic-icon">🐚</div>
             <h1 className="sdv-title">You reached the deep!</h1>
             <p className="sdv-subtitle">Your submarine found the ocean floor!</p>
-            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{agentFeedback}</p>
+            <p style={{ fontSize: '0.95rem', opacity: 0.85, margin: '-14px 0 20px' }}>{successScreenAgentMessage(agentFeedback)}</p>
             {getNextLevelRoute(LEVEL_ID) && (
               <button className="sdv-btn" onClick={() => navigate(getNextLevelRoute(LEVEL_ID))}>Next Level →</button>
             )}
@@ -1037,19 +1038,15 @@ export default function SubmarineDive() {
         </div>
       )}
 
-      {hudVisible && feedbackEventId != null && !feedbackSubmitted && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
-          display: 'flex', alignItems: 'center', gap: 12,
-          background: 'rgba(0,20,40,0.75)', border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 9999, padding: '10px 20px', backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontSize: 14, fontWeight: 700, color: '#fff',
-        }}>
-          <span>Did we score that dive right?</span>
-          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>👍</button>
-          <button onClick={() => handleFeedback('too_strict')} aria-label="No, too strict -- a good attempt should have scored higher" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>😖</button>
-          <button onClick={() => handleFeedback('too_generous')} aria-label="No, too generous -- a weak attempt scored too well" style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}>😅</button>
-        </div>
+      {hudVisible && feedbackEventId != null && (
+        <ScoreFeedbackPrompt
+          key={feedbackEventId}
+          what="that dive"
+          variant="strictness"
+          submitted={feedbackSubmitted}
+          onChoose={handleFeedback}
+          onExpire={() => setFeedbackEventId(null)}
+        />
       )}
 
       <div className="sdv-visually-hidden" aria-live="polite">{ariaMsg}</div>

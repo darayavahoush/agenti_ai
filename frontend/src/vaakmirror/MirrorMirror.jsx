@@ -15,6 +15,7 @@ import CelebrationOverlay from './components/CelebrationOverlay.jsx'
 import CharacterFilterPicker, { FILTERS } from './components/CharacterFilterPicker.jsx'
 import ProgressRing from './components/ProgressRing.jsx'
 import MouthShapeGuide from './components/MouthShapeGuide.jsx'
+import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
 
 const DEFAULT_ROUND_SIZE = 8
 const HOLD_MS = 3000
@@ -372,7 +373,6 @@ export default function MirrorMirror() {
     setFeedbackEventId(result.rl_event_id)
     setFeedbackSubmitted(false)
     clearTimeout(feedbackTimeoutRef.current)
-    feedbackTimeoutRef.current = setTimeout(() => setFeedbackEventId(null), 4000)
   }
 
   async function handleFeedback(value) {
@@ -577,12 +577,15 @@ export default function MirrorMirror() {
         </div>
       </div>
 
-      {feedbackEventId != null && !feedbackSubmitted && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-ink/90 border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-md shadow-lg text-sm font-bold text-paper">
-          <span>Did we score that right?</span>
-          <button onClick={() => handleFeedback('up')} aria-label="Yes, that was scored correctly" className="hover:scale-110 transition-transform">👍</button>
-          <button onClick={() => handleFeedback('down')} aria-label="No, that was scored wrong" className="hover:scale-110 transition-transform">👎</button>
-        </div>
+      {feedbackEventId != null && (
+        <ScoreFeedbackPrompt
+          key={feedbackEventId}
+          what="that"
+          variant="thumbs"
+          submitted={feedbackSubmitted}
+          onChoose={handleFeedback}
+          onExpire={() => setFeedbackEventId(null)}
+        />
       )}
     </div>
   )

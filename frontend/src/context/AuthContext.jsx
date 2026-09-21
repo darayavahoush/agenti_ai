@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authAPI, assessmentAPI, patientsAPI } from '../api/client'
+import { authAPI, assessmentAPI, patientsAPI, meAPI } from '../api/client'
 import { listKnownAccounts, upsertKnownAccount, forgetKnownAccount, currentAccountKey, accountKey } from '../api/knownAccounts'
 
 const AuthContext = createContext(null)
@@ -55,7 +55,30 @@ export function AuthProvider({ children }) {
       try {
         const parsed = JSON.parse(userData)
         if (userType === 'therapist') setTherapist(parsed)
-        if (userType === 'patient')   setPatient(parsed)
+        if (userType === 'patient') {
+          setPatient(parsed)
+          // The cached blob above is only ever refreshed by an explicit
+          // loginKid/registerKid/markAssessmentComplete call in *this*
+          // browser. If assessment_completed (or anything else) changed
+          // through a different session -- a therapist-supervised session
+          // on another device, a manual DB fix -- this device would keep
+          // showing stale state (e.g. a permanently "locked" assessment
+          // gate) forever, since nothing else re-validates it. Reconcile
+          // with the live server value once on load. Best-effort: a
+          // failure here (offline, expired token -- the response
+          // interceptor handles that separately) just leaves the cached
+          // value in place rather than blocking hydration.
+          meAPI.profile()
+            .then(({ data }) => {
+              setPatient((prev) => {
+                if (!prev) return prev
+                const updated = { ...prev, ...data }
+                localStorage.setItem('bq_user_data', JSON.stringify(updated))
+                return updated
+              })
+            })
+            .catch(() => {})
+        }
         if (userType === 'parent')    setParent(parsed)
       } catch {
         // Corrupted bq_user_data (partial write, storage quirk) -- drop the
@@ -95,8 +118,8 @@ export function AuthProvider({ children }) {
   // /auth/google endpoint -- unlike password auth there's no separate
   // registerTherapistGoogle, since a therapist account needs nothing
   // beyond what the verified Google token already gives us.
-  const loginTherapistGoogle = async (idToken) => {
-    const { data } = await authAPI.googleAuthTherapist(idToken)
+  const loginTherapistGoogle = async (idToken, intent = 'register') => {
+    const { data } = await authAPI.googleAuthTherapist(idToken, intent)
     _persistSession('therapist', data)
     setTherapist(data); setPatient(null); setParent(null)
     return data

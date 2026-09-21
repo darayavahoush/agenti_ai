@@ -6,9 +6,9 @@ A speech-therapy platform for children, combining a real LangGraph-based pronunc
 
 **For kids:** a PIN-based login, an assessment flow that scores pronunciation against a word list in 8 Indian languages (English, Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Marathi), and four practice games — BreathQuest, VoiceHurdleRace, VaakMirror, and Chime (a rebuild of the earlier standalone PhonemeQuest mini-games — Bubble Wrap Pop, Drum Island, Rocket Launch — now integrated with shared kid-auth and the adaptive-difficulty agent instead of static HTML pages). Each game has its own adaptive-difficulty logic driven by a small RL agent that raises or lowers difficulty based on recent performance.
 
-**For therapists:** a dashboard across all four games for each patient, session history, assignments/goals/messages, home-practice logging, a home-practice-ideas library, weekly summaries, PDF export, and an AI-generated "today's recommendation" per patient pulled from the assessment/agent data.
+**For therapists:** a dashboard across all four games for each patient, session history, assignments/goals/messages, home-practice logging, a home-practice-ideas library, weekly summaries, a branded PDF export, a cross-game Phoneme Command Center (one accuracy number per phoneme, pooled across Flashcards/VaakMirror/Chime, with a per-game at-a-glance strip), and an AI-generated "today's recommendation" per patient pulled from the assessment/agent data.
 
-**For parents:** a lighter read-only view of their child's cross-game progress, gated behind email + phone verification and COPPA-style parental consent before a kid account can be created.
+**For parents:** a tabbed dashboard (Overview / Sounds / Games / Messages) covering weekly summaries, goals/assignments, a shareable weekly recap card, a parent-facing cut of the cross-game sound summary ("going well" / "worth practicing," no clinical jargon), per-game history, and two-way messaging with their child's therapist — gated behind email + phone verification and COPPA-style parental consent before a kid account can be created.
 
 ## Project structure
 
@@ -606,6 +606,10 @@ Then `alembic upgrade head` from `backend/` as above.
 - Flashcards' word images now come from the same ARASAAC-backed pictogram service Assessment and VaakMirror use, replacing a smaller hand-curated Wikimedia/OpenClipart cache
 - Fixed a Chime bug where the periodic "did they really make this sound" ASR verification would retract a child's already-earned progress (climb/depth/roars/fireflies/bubbles) whenever Whisper returned an empty transcript for a sustained non-lexical sound (eeee/aaaa/oooo/rrrr/ma/ya) — common even on a correct attempt — or whenever the transcription request itself failed; both cases are now treated as unverified rather than as a wrong sound, across Xylophone Tower, Rocket Launch, Submarine Dive, Wind Chime Garden, Lion's Roar, and Firefly Jar
 - Fixed 7 of 35 Flashcards phoneme mouth-diagrams (`DH`, `AH`, `UH`, `OW`, `EY`, `AY`, `ER`) silently falling back to the wrong diagram (`EH`'s "half-open mouth") because their `mouth_shape` keys had never been added to the diagram library; added real diagrams for each
+- Added a cross-game Phoneme Command Center (`services/phoneme_summary.py`) that pools Flashcards + VaakMirror + Chime attempts into one accuracy number per phoneme, with a per-game at-a-glance totals strip; wired into the therapist dashboard, the PDF report, and (parent-scoped, reframed without clinical jargon) the parent dashboard's new Sounds tab
+- Redesigned the ICF-style PDF report (cover band, KPI cards, color-coded severity badges, paginated footers) and gave it an actual brand identity — a wordmark/logo mark on the cover and the product name + site URL in the footer of every page, not just a generic export
+- Restructured the parent dashboard from one long scroll into four tabs (Overview / Sounds / Games / Messages), pulling messaging onto its own tab with an unread badge instead of burying it below goals/assignments
+- Switched the canonical staging-deploy repo from `darayavahoush/agenti_ai` to `lavanya2kowmar/agenti_ai` (both backend and frontend GitHub Actions workflows); the non-canonical repo's copy of the same workflow now shows "Skipped" by design, not as a failure
 
 ## Technologies
 

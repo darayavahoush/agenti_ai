@@ -155,7 +155,7 @@ export const verifyAPI = {
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login:    (data) => api.post('/auth/login', data),
-  googleAuthTherapist: (idToken) => api.post('/auth/google', { id_token: idToken }),
+  googleAuthTherapist: (idToken, intent = 'register') => api.post('/auth/google', { id_token: idToken, intent }),
   kidRegister: (data) => api.post('/auth/kid-register', data),
   kidLogin:    (data) => api.post('/auth/kid-login', data),
   parentRegister: (data) => api.post('/auth/parent-register', data),
@@ -345,6 +345,7 @@ export const vaakmirrorAPI = {
 // ------------------------------------------------------------------ //
 
 export const meAPI = {
+  profile:         () => api.get('/me'),
   progress:        () => api.get('/me/progress'),
   calendar:        () => api.get('/me/calendar'),
   quests:          () => api.get('/me/quests'),
@@ -358,6 +359,7 @@ export const meAPI = {
   recommendedPractice: () => api.get('/me/recommended-practice'),
   access:          () => api.get('/me/access'),
   latestAssessment: () => api.get('/assessment/me/latest'),
+  gamePlan:        () => api.get('/assessment/me/game-plan'),
   updateProfile:   (data) => api.patch('/breathquest/patients/me/profile', data),
   changePin:       (data) => api.patch('/breathquest/patients/me/change-pin', data),
   uploadProfilePhoto: (file) => {
@@ -388,6 +390,7 @@ export const parentAPI = {
   markMessageRead: (messageId) => api.post(`/parent/messages/${messageId}/read`),
   history: (category, item) => api.get(`/parent/history/${category}/${encodeURIComponent(item)}`),
   chimeWeeklyBreakdown: () => api.get('/parent/weekly-breakdown/chime'),
+  phonemeSummary: () => api.get('/parent/phoneme-summary'),
   getEmailPreferences: () => api.get('/parent/email-preferences'),
   updateEmailPreferences: (weekly_email_opt_out) => api.put('/parent/email-preferences', { weekly_email_opt_out }),
 }

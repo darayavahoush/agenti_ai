@@ -27,8 +27,9 @@ from app.models.vaakmirror_models import (
 )
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
-from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown, EmailPreferencesOut
+from app.schemas.breathquest_schemas import HistoryEntry, CategoryHistoryOut, ChimeWeeklyBreakdownOut, ChimeSoundBreakdown, EmailPreferencesOut, CrossGamePhonemeSummaryOut
 from app.services.weekly_summary import _week_chime_events
+from app.services.phoneme_summary import get_cross_game_phoneme_summary
 from sqlalchemy import func
 
 _VM_SUCCESS_OUTCOMES = (AttemptOutcome.passed, AttemptOutcome.caught)  # matches weekly_summary.py's definition
@@ -440,6 +441,25 @@ async def get_chime_weekly_breakdown(
         ) for sound_id, evs in sorted(by_sound.items(), key=lambda kv: -len(kv[1]))
     ]
     return ChimeWeeklyBreakdownOut(items=items)
+
+
+@router.get("/phoneme-summary", response_model=CrossGamePhonemeSummaryOut)
+async def get_parent_phoneme_summary(
+    parent: Parent = Depends(get_current_parent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Parent-facing cross-game phoneme summary -- same merge the
+    therapist's Phoneme Command Center and the ICF PDF report use
+    (services/phoneme_summary.get_cross_game_phoneme_summary), just scoped
+    to the parent's own linked child instead of a therapist-supplied
+    patient_id. Returned as-is (accuracy percentages are already shown to
+    parents elsewhere on this page, e.g. per-game CategoryProgress rows) --
+    the frontend is responsible for the friendlier framing (no raw IPA,
+    "sounds to celebrate"/"sounds to practice" instead of
+    strongest/weakest)."""
+    patient = await _get_linked_patient(parent, db)
+    result = await get_cross_game_phoneme_summary(db, str(patient.id), chime_db_path=CHIME_DB_PATH)
+    return CrossGamePhonemeSummaryOut(**result)
 
 
 # Sound ids used in VaakMirror/Chime don't always match a home-practice-idea

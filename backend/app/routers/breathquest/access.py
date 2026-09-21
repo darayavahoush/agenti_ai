@@ -21,6 +21,34 @@ from app.breathquest_core.entitlements import get_patient_entitlement
 router = APIRouter(prefix="/me", tags=["me"])
 
 
+@router.get("")
+async def get_my_profile(
+    patient: BreathQuestPatient = Depends(get_current_patient),
+):
+    """Kid-authenticated 'refresh my own state' lookup.
+
+    get_current_patient re-queries the DB fresh on every request (see
+    breathquest_core/deps.py), so this always reflects the live row --
+    unlike AuthContext's cached bq_user_data in localStorage, which is
+    only ever written at explicit login/register/markAssessmentComplete
+    time. Without this endpoint, a kid whose assessment_completed flips
+    to true through a *different* session (a therapist-supervised
+    session on another device, a manual DB fix, etc.) keeps seeing a
+    stale "locked" state on their own device indefinitely, since nothing
+    else ever re-fetches this after initial hydration from localStorage.
+    Call this once on app load (see AuthContext.jsx) and reconcile the
+    cached patient object with it.
+    """
+    return {
+        "patient_id": str(patient.id),
+        "first_name": patient.first_name,
+        "avatar": patient.avatar,
+        "avatar_photo_url": patient.avatar_photo_url,
+        "player_code": patient.player_code,
+        "assessment_completed": patient.assessment_completed,
+    }
+
+
 @router.get("/access")
 async def get_my_access(
     patient: BreathQuestPatient = Depends(get_current_patient),

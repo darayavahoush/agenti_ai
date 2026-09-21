@@ -25,7 +25,14 @@ jobs:
     # the same Azure Static Web App. Not secret-drift-prone the way the
     # backend's SMTP env vars were, but still two redundant builds racing
     # to deploy the same commit -- restrict to one canonical repo.
-    if: github.repository == 'darayavahoush/agenti_ai'
+    #
+    # Canonical repo switched from darayavahoush/agenti_ai to
+    # lavanya2kowmar/agenti_ai on 2026-09-18, matching deploy-staging.yml.
+    # lavanya2kowmar/agenti_ai needs its own AZURE_STATIC_WEB_APPS_API_TOKEN
+    # secret before this takes effect -- Actions secrets don't carry over
+    # between repos, so without it this job will run but fail at the
+    # deploy step rather than silently no-op.
+    if: github.repository == 'lavanya2kowmar/agenti_ai'
 
     steps:
       - name: Checkout staging branch

@@ -20,6 +20,10 @@ from app.config import settings
 
 logger = logging.getLogger("uvicorn.error")
 
+# smtplib has no default timeout: a stalled Gmail connection used to hang the
+# request (and a worker) indefinitely instead of failing with a clean error.
+SMTP_TIMEOUT_SECONDS = 15
+
 
 def send_otp_email(to_email: str, code: str) -> None:
     if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
@@ -49,7 +53,7 @@ def send_otp_email(to_email: str, code: str) -> None:
     message["To"] = to_email
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
@@ -81,7 +85,7 @@ def send_account_reminder_email(to_email: str, player_code: str) -> None:
     message["To"] = to_email
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
@@ -111,7 +115,7 @@ def send_player_code_email(to_email: str, player_code: str) -> None:
     message["To"] = to_email
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
@@ -168,7 +172,7 @@ def send_weekly_progress_email(
     message["To"] = to_email
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
@@ -206,7 +210,7 @@ def send_weekly_nudge_email(to_email: str, first_name: str, unsubscribe_url: str
     message["To"] = to_email
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
@@ -272,7 +276,7 @@ def send_kid_registered_welcome_email(to_email: str, first_name: str, player_cod
     message["To"] = to_email
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls(context=context)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.SMTP_USER, [to_email], message.as_string())
