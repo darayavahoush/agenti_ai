@@ -24,7 +24,7 @@ export function ThemeSelect({ onPick }) {
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
       <PlayfulBackdrop tint="#A78BFA" />
       <GlobalSelectionStyles />
-      <div style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
+      <div className="fc-clear-menu" style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={1} total={3} />
         <SectionHeader eyebrow="Step 1 of 3" title="What do you want to practice? 🎯" subtitle="Pick a topic for your cards" />
         {themeList === null ? (
@@ -88,7 +88,7 @@ export function WordSelect({ theme, onPick, onBack }) {
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
       <PlayfulBackdrop tint="#4ABFBF" />
       <GlobalSelectionStyles />
-      <div style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
+      <div className="fc-clear-menu" style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", cursor: "pointer", marginBottom: "12px", fontFamily: "Nunito, sans-serif" }}>
           ← Back to topics
         </button>

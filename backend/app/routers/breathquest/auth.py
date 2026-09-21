@@ -26,6 +26,7 @@ from app.models.breathquest_models import (
     GameSession,
 )
 from app.models.patient import Patient
+from app.models.therapist import Therapist
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
 from app.breathquest_core.weekly_update import maybe_send_weekly_update
@@ -45,6 +46,7 @@ from app.schemas.breathquest_schemas import (
     KidDeleteAccountRequest,
     ChildSummary, ParentChildrenResponse, AddChildRequest, LinkChildRequest,
     SwitchChildRequest, SwitchChildResponse,
+    LinkTherapistRequest, LinkTherapistResponse,
 )
 from app.breathquest_core.google_oauth import verify_google_id_token
 from app.breathquest_core.security import (
@@ -61,6 +63,7 @@ from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
 from app.breathquest_core.parental_consent import check_email_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient
+from app.breathquest_core.config import get_breathquest_settings
 from sqlalchemy import delete as sa_delete
 
 
@@ -161,6 +164,14 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     calls 422. That link-an-existing-Assessment-patient flow now lives at
     POST /auth/kid-pin-setup instead.
 
+    Gated off by default as of 2026-09-21 (see
+    KID_SELF_SERVICE_SIGNUP_ENABLED's comment in breathquest_core/config.py):
+    a brand-new player account should only be started by a parent
+    (parent-kid-register / parent/children) or a therapist (POST
+    /breathquest/patients), not by the kid alone. The frontend's "New
+    Player" button was removed alongside this; this 403 is the backstop
+    for any client still pointed at the old endpoint.
+
     COPPA: this is the only kid-account path with no adult already in the
     loop, so it's gated on a recently-verified parent email (see
     breathquest_core/parental_consent.py) before it will touch the DB at
@@ -173,6 +184,17 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     (.verified_at) since f0e135c -- so this path would have crashed with
     an AttributeError the moment both factors were ever actually
     granted."""
+    settings = get_breathquest_settings()
+    if not settings.KID_SELF_SERVICE_SIGNUP_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "New player accounts can only be created by a parent or a therapist. "
+                "Ask your parent to sign up (or add you as a child on their account), "
+                "or ask your therapist to set you up -- then come back here and log in "
+                "with your player code."
+            ),
+        )
     consent = await check_email_consent(data.parent_email, db)
     if not consent.granted:
         detail_by_reason = {
@@ -918,6 +940,56 @@ async def link_child(
         avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
         is_active=(child.id == parent.patient_id), is_primary=False,
         username=child.username,
+    )
+
+
+@router.post("/parent/link-therapist", response_model=LinkTherapistResponse)
+async def link_therapist(
+    data: LinkTherapistRequest,
+    db: AsyncSession = Depends(get_db),
+    parent: Parent = Depends(get_current_parent),
+):
+    """Attaches an EXISTING therapist account to the parent's currently
+    active child (parent.patient_id), by the therapist's email or
+    @username. This is the reverse of POST /breathquest/patients/link
+    (a therapist attaching themselves to an existing kid) -- both just
+    set BreathQuestPatient.therapist_id, from whichever side the
+    relationship is being started.
+
+    Scoped to the *active* child rather than taking a patient_id in the
+    body -- switch-child first if it's not the one you want, same as
+    every other "act on my current child" endpoint in this file."""
+    identifier = data.therapist_code.strip().lower()
+    result = await db.execute(
+        select(Therapist).where(
+            (func.lower(Therapist.email) == identifier) | (func.lower(Therapist.username) == identifier)
+        )
+    )
+    therapist = result.scalar_one_or_none()
+    if not therapist or not therapist.is_active:
+        raise HTTPException(
+            status_code=404,
+            detail="No therapist found with that email or username. Double-check it with them.",
+        )
+
+    child = (await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id)
+    )).scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=404, detail="Active child not found")
+
+    if child.therapist_id == therapist.id:
+        raise HTTPException(status_code=400, detail=f"{therapist.full_name} is already linked to {child.first_name}")
+
+    child.therapist_id = therapist.id
+    db.add(child)
+    await db.commit()
+    return LinkTherapistResponse(
+        patient_id=str(child.id),
+        child_first_name=child.first_name,
+        therapist_id=str(therapist.id),
+        therapist_name=therapist.full_name,
+        clinic_name=therapist.clinic_name,
     )
 
 

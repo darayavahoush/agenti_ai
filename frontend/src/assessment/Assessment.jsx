@@ -9,6 +9,21 @@ import AlphabetCheck from "./AlphabetCheck";
 // Finishing earlier is allowed; the plan just says it is a first guess.
 const ASSESSMENT_TARGET_WORDS = 5;
 
+// Same accuracy thresholds as the backend's ArticulationDiagnosticAgent
+// (app/agents/articulation_diagnostic_agent.py), applied to the whole
+// session's average instead of one word -- so "Early read" on the report
+// reflects the full check-in, not just whichever word happened to be
+// analyzed last.
+function sessionSeverity(wordResults) {
+  const accuracies = wordResults.map((w) => w.accuracy).filter((a) => typeof a === "number");
+  if (!accuracies.length) return null;
+  const avg = accuracies.reduce((sum, a) => sum + a, 0) / accuracies.length;
+  if (avg >= 85) return "Normal / Mild variant";
+  if (avg >= 65) return "Mild to Moderate Articulation Delay";
+  if (avg >= 45) return "Moderate Phonological Disorder";
+  return "Severe Speech Sound Disorder";
+}
+
 // Deliberately its own base URL, not api/client.js's axios instance --
 // this file predates that client and still uses plain fetch() throughout.
 // VITE_API_URL is shared with that axios client, though, which expects
@@ -618,6 +633,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
           phonemeMatches: data.phoneme_matches || [],
           errorPatterns: data.error_patterns || [],
           severityScore: data.severity_score ?? null,
+          diagnosticReport: data.diagnostic_report || null,
           language: langCode,
         },
       ]);
@@ -873,7 +889,7 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
               className="assessment-choice"
               onClick={() => onFinish({
                 wordsAttempted,
-                severityClassification: analysisResult?.severity_score || null,
+                severityClassification: sessionSeverity(wordResults),
                 wordResults,
               })}
               disabled={wordsAttempted === 0}

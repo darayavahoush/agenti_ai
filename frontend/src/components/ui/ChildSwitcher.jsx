@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Check, Plus, Link2, ArrowLeftRight } from 'lucide-react'
+import { X, Check, Plus, Link2, ArrowLeftRight, Stethoscope } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 import { getErrorMessage } from '../../api/client'
@@ -14,18 +14,20 @@ const AVATAR_OPTIONS = ['chick', 'dragon', 'bunny', 'fox', 'rocket', 'fish']
 // switcher-open boolean itself. Renders nothing for roles other than
 // parent, and nothing until childrenList has loaded at least once.
 export default function ChildSwitcher() {
-  const { parent, childrenList, switchChild, addChild, linkChild } = useAuth()
+  const { parent, childrenList, switchChild, addChild, linkChild, linkTherapist } = useAuth()
   const [open, setOpen] = useState(false)
-  const [view, setView] = useState('list') // 'list' | 'add' | 'link'
+  const [view, setView] = useState('list') // 'list' | 'add' | 'link' | 'linkTherapist'
   const [busy, setBusy] = useState(false)
   const [addForm, setAddForm] = useState({ firstName: '', avatar: 'chick', pin: '' })
   const [linkCode, setLinkCode] = useState('')
+  const [therapistCode, setTherapistCode] = useState('')
 
   const close = () => {
     setOpen(false)
     setView('list')
     setAddForm({ firstName: '', avatar: 'chick', pin: '' })
     setLinkCode('')
+    setTherapistCode('')
   }
 
   // Escape closes the modal, matching the click-outside-to-dismiss backdrop
@@ -95,6 +97,22 @@ export default function ChildSwitcher() {
     }
   }
 
+  const handleLinkTherapist = async (e) => {
+    e.preventDefault()
+    if (!therapistCode.trim()) return
+    setBusy(true)
+    try {
+      const res = await linkTherapist(therapistCode.trim())
+      toast.success(`${res.therapist_name} is now linked to ${res.child_first_name}`)
+      setTherapistCode('')
+      setView('list')
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't find that therapist"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <>
       <button
@@ -123,6 +141,7 @@ export default function ChildSwitcher() {
                 {view === 'list' && 'Your children'}
                 {view === 'add' && 'Add a child'}
                 {view === 'link' && 'Link a child'}
+                {view === 'linkTherapist' && 'Link a therapist'}
               </h2>
               <button onClick={close} className="text-paper/65 hover:text-paper transition-colors">
                 <X size={18} />
@@ -167,6 +186,13 @@ export default function ChildSwitcher() {
                                text-paper/60 hover:text-paper hover:border-white/30 transition-colors text-sm font-medium"
                   >
                     <Link2 size={16} /> I have a code for another child
+                  </button>
+                  <button
+                    onClick={() => setView('linkTherapist')}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-2xl border border-dashed border-white/15
+                               text-paper/60 hover:text-paper hover:border-white/30 transition-colors text-sm font-medium"
+                  >
+                    <Stethoscope size={16} /> Link {activeChild?.first_name || 'my child'}'s therapist
                   </button>
                 </div>
               </>
@@ -228,6 +254,31 @@ export default function ChildSwitcher() {
                   </button>
                   <button type="submit" disabled={busy} className="flex-1 px-4 py-2.5 rounded-xl bg-coral text-ink font-semibold text-sm disabled:opacity-50">
                     {busy ? 'Linking…' : 'Link child'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {view === 'linkTherapist' && (
+              <form onSubmit={handleLinkTherapist} className="flex flex-col gap-4">
+                <p className="text-paper/50 text-xs -mt-1">
+                  Seeing a speech therapist? Enter their email or @username to give
+                  them access to {activeChild?.first_name || 'this child'}'s progress and games.
+                  Ask your therapist for it if you're not sure.
+                </p>
+                <input
+                  value={therapistCode}
+                  onChange={(e) => setTherapistCode(e.target.value)}
+                  placeholder="Therapist's email or @username"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-paper
+                             placeholder:text-paper/30 focus:outline-none focus:border-coral/50"
+                />
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setView('list')} className="flex-1 px-4 py-2.5 rounded-xl text-paper/60 hover:text-paper text-sm font-medium">
+                    Back
+                  </button>
+                  <button type="submit" disabled={busy} className="flex-1 px-4 py-2.5 rounded-xl bg-coral text-ink font-semibold text-sm disabled:opacity-50">
+                    {busy ? 'Linking…' : 'Link therapist'}
                   </button>
                 </div>
               </form>

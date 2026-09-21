@@ -32,7 +32,7 @@ jobs:
     # secret before this takes effect -- Actions secrets don't carry over
     # between repos, so without it this job will run but fail at the
     # deploy step rather than silently no-op.
-    if: github.repository == 'lavanya2kowmar/agenti_ai'
+    if: github.repository == 'darayavahoush/agenti_ai'
 
     steps:
       - name: Checkout staging branch

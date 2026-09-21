@@ -39,7 +39,7 @@ jobs:
     # don't carry over between repos. Skipping that step reintroduces
     # exactly the stale/blank-secret bug this comment describes, just with
     # the two repos' roles reversed.
-    if: github.repository == 'lavanya2kowmar/agenti_ai'
+    if: github.repository == 'darayavahoush/agenti_ai'
 
     steps:
       - name: Checkout staging

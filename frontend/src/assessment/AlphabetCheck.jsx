@@ -193,8 +193,8 @@ export default function AlphabetCheck({
           </div>
 
           <div className="sc-keyboard">
-            {KEYBOARD_ROWS.map((row, i) => (
-              <div className="sc-row" key={row.join("")} style={{ paddingLeft: `${i * 4}%` }}>
+            {KEYBOARD_ROWS.map((row) => (
+              <div className="sc-row" key={row.join("")}>
                 {row.map((key) => {
                   const p = LETTER_PROBES[key];
                   const st = statusOf(results[key]);
