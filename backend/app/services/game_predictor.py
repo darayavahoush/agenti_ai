@@ -45,7 +45,7 @@ _ALL_SOUNDS = set(SOUND_LABEL)
 # with each), and what kind of practice it is.
 CATALOG: list[dict[str, Any]] = [
     {"id": "chime_aa", "name": "Rocket Launch", "family": "Chime", "path": "/play/chime/rocket-launch",
-     "sounds": {"AA"}, "weight": 1.0, "how": "a big open \"aaa\""},
+     "sounds": {"AA"}, "weight": 1.0, "how": "a big open \"aaaa\""},
     {"id": "chime_oo", "name": "Submarine Dive", "family": "Chime", "path": "/play/chime/submarine-dive",
      "sounds": {"UW"}, "weight": 1.0, "how": "a long round \"oooo\""},
     {"id": "chime_ee", "name": "Xylophone", "family": "Chime", "path": "/play/chime/xylophone-tower",
