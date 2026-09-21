@@ -109,6 +109,12 @@ class BreathQuestPatient(Base):
     # account-enabled is_active flag it was showing before. Nullable --
     # a patient who has never played has no value here.
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added 2026-09-21: the kid's own memorable, changeable @handle (unlike
+    # player_code, which is auto-generated). Nullable until they pick one --
+    # the frontend gates on null with a first-login picker. Stored lower-
+    # cased; unique across kids/parents/therapists together (see
+    # breathquest_core/username.py). Also accepted by POST /auth/kid-login.
+    username: Mapped[str | None] = mapped_column(String(30), unique=True, nullable=True, index=True)
     # Added 2026-08-12 for COPPA: POST /auth/kid-register (the only path with
     # no adult already in the loop -- see breathquest_core/parental_consent.py)
     # now requires a recently-verified parent email before it will create an
@@ -281,6 +287,8 @@ class Parent(Base):
     is_active:        Mapped[bool]          = mapped_column(Boolean, default=True)
     created_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login:       Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Added 2026-09-21 -- see BreathQuestPatient.username.
+    username:         Mapped[str | None]    = mapped_column(String(30), unique=True, nullable=True, index=True)
 
     patient: Mapped["BreathQuestPatient"] = relationship(back_populates="parent")
 

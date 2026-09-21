@@ -94,7 +94,7 @@ async def create_patient(
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
-        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+        username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
 
 @router.post("/{patient_id}/start-session", response_model=KidTokenResponse)
@@ -151,6 +151,7 @@ async def start_session(
         avatar=patient.avatar,
         player_code=patient.player_code,
         assessment_completed=patient.assessment_completed,
+        username=patient.username,
     )
 
 
@@ -215,7 +216,7 @@ async def get_patient(
     return PatientDetailOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
-        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+        username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
         diagnosis_notes=patient.diagnosis_notes,
         total_sessions=row.total or 0, total_stars=int(row.stars or 0),
         last_session_at=row.last,
@@ -245,7 +246,7 @@ async def update_patient(
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
-        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+        username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
 
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -321,7 +322,7 @@ async def update_my_profile(
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
-        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+        username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
 
 
@@ -384,5 +385,12 @@ async def upload_my_profile_photo(
     return PatientOut(
         id=str(patient.id), first_name=patient.first_name, avatar=patient.avatar,
         avatar_photo_url=patient.avatar_photo_url, player_code=patient.player_code,
-        age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
+        username=patient.username, age=patient.age, is_active=patient.is_active, created_at=patient.created_at,
     )
+
+# Editable @username (GET / check / suggestions / PATCH) -- see routers/username_routes.py.
+from app.routers.username_routes import make_username_router  # noqa: E402
+router.include_router(
+    make_username_router(get_current_patient, "patient", seed_attr="avatar"),
+    prefix="/me/username",
+)

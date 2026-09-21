@@ -70,7 +70,7 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
     return TherapistTokenResponse(
         access_token=token, refresh_token=refresh_token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
-        phone=therapist.phone,
+        phone=therapist.phone, username=therapist.username,
     )
 
 
@@ -105,7 +105,7 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
     return TherapistTokenResponse(
         access_token=token, refresh_token=refresh_token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
-        phone=therapist.phone,
+        phone=therapist.phone, username=therapist.username,
     )
 
 
@@ -252,5 +252,12 @@ async def google_login_or_register_therapist(
     return TherapistTokenResponse(
         access_token=token, refresh_token=refresh_token, therapist_id=str(therapist.id),
         full_name=therapist.full_name, email=therapist.email,
-        phone=therapist.phone,
+        phone=therapist.phone, username=therapist.username,
     )
+
+# Editable @username (GET / check / suggestions / PATCH) -- see routers/username_routes.py.
+from app.routers.username_routes import make_username_router  # noqa: E402
+router.include_router(
+    make_username_router(get_current_therapist, "therapist"),
+    prefix="/therapist/username",
+)
