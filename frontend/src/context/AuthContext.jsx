@@ -456,6 +456,12 @@ export function AuthProvider({ children }) {
   // Merges partial patient updates (e.g. from MyAccount.jsx's profile
   // edit) into both React state and the localStorage blob AuthContext
   // itself reads on mount, so a refresh doesn't lose the new name/avatar.
+  // Also re-upserts the device switcher's roster entry (bq_known_accounts),
+  // not just bq_user_data -- same reason switchChild does this above:
+  // without it, quick-switching away via the profile picker and back into
+  // this same kid reuses the roster's stale cached blob, which still has
+  // the OLD field value (e.g. username: null), so something like
+  // UsernameGate fires again even though the field is saved server-side.
   const updatePatient = (fields) => {
     setPatient((prev) => {
       const next = { ...prev, ...fields }
@@ -465,6 +471,8 @@ export function AuthProvider({ children }) {
       } catch {
         // ignore malformed existing storage
       }
+      const refreshToken = localStorage.getItem('bq_refresh_token')
+      setKnownAccounts(upsertKnownAccount('patient', next, refreshToken))
       return next
     })
   }
@@ -473,6 +481,7 @@ export function AuthProvider({ children }) {
   // UsernameGate and each role's Settings page need to merge a freshly
   // saved username into both React state and the localStorage blob
   // without a full re-login.
+  // See updatePatient's comment above -- same roster-staleness fix.
   const updateTherapist = (fields) => {
     setTherapist((prev) => {
       const next = { ...prev, ...fields }
@@ -480,10 +489,13 @@ export function AuthProvider({ children }) {
         const stored = JSON.parse(localStorage.getItem('bq_user_data') || '{}')
         localStorage.setItem('bq_user_data', JSON.stringify({ ...stored, ...fields }))
       } catch { /* ignore malformed existing storage */ }
+      const refreshToken = localStorage.getItem('bq_refresh_token')
+      setKnownAccounts(upsertKnownAccount('therapist', next, refreshToken))
       return next
     })
   }
 
+  // See updatePatient's comment above -- same roster-staleness fix.
   const updateParent = (fields) => {
     setParent((prev) => {
       const next = { ...prev, ...fields }
@@ -491,6 +503,8 @@ export function AuthProvider({ children }) {
         const stored = JSON.parse(localStorage.getItem('bq_user_data') || '{}')
         localStorage.setItem('bq_user_data', JSON.stringify({ ...stored, ...fields }))
       } catch { /* ignore malformed existing storage */ }
+      const refreshToken = localStorage.getItem('bq_refresh_token')
+      setKnownAccounts(upsertKnownAccount('parent', next, refreshToken))
       return next
     })
   }

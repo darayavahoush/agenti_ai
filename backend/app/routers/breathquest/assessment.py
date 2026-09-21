@@ -159,6 +159,14 @@ async def get_my_latest_assessment(
     # per-word breakdown as right after finishing.
     result["word_results"] = (patient.assessment_summary or {}).get("word_results", [])
     result["game_predictions"] = (patient.assessment_summary or {}).get("game_predictions")
+    result["alphabet_completed"] = bool((patient.assessment_summary or {}).get("alphabet"))
+    # severity_classification above comes from SessionModel, which only
+    # ever reflects the single most-recently-analyzed WORD (see
+    # assessment_lookup.py) -- override with the whole-session read
+    # stored by POST /assessment/complete when we have one.
+    session_severity = (patient.assessment_summary or {}).get("severity_classification")
+    if session_severity:
+        result["severity_classification"] = session_severity
     return result
 
 
