@@ -4,6 +4,7 @@ import { PartyPopper, Sparkles, Lock, CheckCircle2, RotateCcw } from 'lucide-rea
 import { useAuth } from '../../context/AuthContext'
 import { Button, Card } from '../../components/ui'
 import { meAPI } from '../../api/client'
+import GamePlanCard from '../../components/kid/GamePlanCard'
 
 // Shown right after a kid finishes their first assessment
 // (pages/kid/AssessmentGate.jsx's onFinish) -- and also whatever this kid
@@ -19,6 +20,7 @@ export default function AssessmentReport() {
 
   const [access, setAccess] = useState(null) // null = loading
   const [latest, setLatest] = useState(null) // fallback when no router state
+  const [gamePlan, setGamePlan] = useState(null) // game-prediction agent's plan for these words
 
   useEffect(() => {
     let cancelled = false
@@ -39,6 +41,16 @@ export default function AssessmentReport() {
       .catch(() => { if (!cancelled) setLatest(null) })
     return () => { cancelled = true }
   }, [routedSummary])
+
+  // The plan is computed server-side when the assessment is completed, so
+  // it is always fetched rather than carried in router state.
+  useEffect(() => {
+    let cancelled = false
+    meAPI.gamePlan()
+      .then(({ data }) => { if (!cancelled) setGamePlan(data) })
+      .catch(() => { if (!cancelled) setGamePlan(null) })
+    return () => { cancelled = true }
+  }, [])
 
   // wordsAttempted only exists on the just-finished-assessment path -- the
   // stored session record doesn't track it, so it's unknown on revisit.
@@ -196,6 +208,8 @@ export default function AssessmentReport() {
             </div>
           )}
         </Card>
+
+        <GamePlanCard plan={gamePlan} className="mb-6 animate-[cardIn_0.5s_ease-out_0.25s_backwards]" />
 
         {access !== null && !access.has_access && (
           <Button
