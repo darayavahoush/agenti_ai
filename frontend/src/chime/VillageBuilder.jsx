@@ -4,6 +4,7 @@ import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { scoreWord, transcribeAudio, logEvent, getAgentDecision } from './lib/api'
 import { sampleWordList } from './data/wordBank.js'
 import { useSpokenInstruction } from '../lib/speech'
+import CountdownOverlay from './CountdownOverlay'
 
 // Canonical short code — LEVEL_ORDER in lib/levelProgress.js expects
 // 'village-builder', not the prototype's original 'word_village'. Same
@@ -784,11 +785,22 @@ export default function VillageBuilder() {
     const micOk = await initMic()
     if (!micOk) return
 
-    setPhase('playing')
+    // Same "ready, set, go" beat the other Chime games got: the mic used to
+    // start listening for the first word the instant permission was
+    // granted, with no cue at all. Village Builder doesn't have a
+    // calibration step to hang this off of the way the others do, so it
+    // goes here instead -- once, before the very first word, not before
+    // every word (matching how Play Again below skips straight back into
+    // listening with no countdown, same as every other game's replay).
+    setPhase('countdown')
     setTargetWordIndex(0)
     resizeCanvas()
+  }, [customInput, initMic, s, setTargetWordIndex, resizeCanvas])
+
+  const beginPlaying = useCallback(() => {
+    setPhase('playing')
     setTimeout(() => startListenCycle(), 0)
-  }, [customInput, initMic, s, setTargetWordIndex, resizeCanvas, startListenCycle])
+  }, [startListenCycle])
 
   const playAgain = () => {
     setFinished(false)
@@ -864,6 +876,8 @@ export default function VillageBuilder() {
           </div>
         </div>
       )}
+
+      {phase === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {phase === 'playing' && (
         <>

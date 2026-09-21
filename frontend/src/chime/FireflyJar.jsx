@@ -6,6 +6,7 @@ import { getNextLevelRoute } from './lib/levelProgress'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 
 const MIN_PEAK_RMS_DEFAULT = 0.05
@@ -329,6 +330,10 @@ export default function FireflyJar() {
   }
 
   function finishCalibration() {
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     const s = stateRef.current
@@ -830,6 +835,8 @@ export default function FireflyJar() {
           </div>
         </div>
       )}
+
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {hudVisible && (
         <div className="fjar-hud">
