@@ -30,7 +30,7 @@ const GAMES = {
     levels: [
       { id: 'aa', label: 'Rocket Launch' }, { id: 'oo', label: 'Submarine Dive' },
       { id: 'ma', label: 'Firefly Jar' }, { id: 'fa', label: 'Bubble Garden' },
-      { id: 'ha', label: 'Bubble Wrap Pop' }, { id: 'ee', label: 'Xylophone Tower' },
+      { id: 'ha', label: 'Bubble Wrap Pop' }, { id: 'ee', label: 'Xylophone' },
       { id: 'r', label: "Lion's Roar" }, { id: 'village-builder', label: 'Village Builder' },
     ],
   },

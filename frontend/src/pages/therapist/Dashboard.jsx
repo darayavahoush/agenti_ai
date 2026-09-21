@@ -351,7 +351,12 @@ function PatientCard({ patient, alert, onClick, style }) {
           <p className="font-semibold text-white truncate">{patient.first_name}</p>
           {patient.age && <p className="text-white/40 text-xs">Age {patient.age}</p>}
         </div>
-        {alert ? (
+        {patient.is_logged_in ? (
+          <Badge color="green">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
+            Logged in
+          </Badge>
+        ) : alert ? (
           <Badge color="amber">
             {alert.flag === 'plateau' ? 'Plateau'
               : alert.flag === 'frustration_rising' ? 'Frustration rising'

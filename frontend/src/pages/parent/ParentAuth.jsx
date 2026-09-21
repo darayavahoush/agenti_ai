@@ -50,8 +50,7 @@ function ParentAuthForm() {
   const kidTrialName = searchParams.get('kid') || ''
   const { loginParent, registerParent, loginParentGoogle, registerParentGoogle } = useAuth()
   const [mode, setMode] = useState('login')
-  const [codeType, setCodeType] = useState('player_code')
-  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '', kidFirstName: '', kidAvatar: 'chick', kidPin: '' })
+  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -82,31 +81,11 @@ function ParentAuthForm() {
     return () => clearInterval(t)
   }, [forgotCooldown])
 
-  // Restore an in-progress new_child registration after the /verify
-  // round-trip (see handleSubmit's 403 branch below, which saves this
-  // before redirecting). Password is intentionally never persisted here
-  // -- see this file's patch-script docstring -- so the parent re-enters
-  // just that one field; everything else comes back pre-filled.
+  // "New child, no therapist" registration was removed (parents now only
+  // link to a child via the player code a therapist gives them); drop any
+  // stale entry left over from that flow so it doesn't linger forever.
   useEffect(() => {
-    const raw = localStorage.getItem('bq_pending_parent_kid_register')
-    if (!raw) return
-    if (!NEW_CHILD_SIGNUP_ENABLED) {
-      // Option is hidden: restoring it would show child-name fields with no
-      // toggle to get back to the code form. Drop the stale entry instead.
-      localStorage.removeItem('bq_pending_parent_kid_register')
-      return
-    }
-    try {
-      const pending = JSON.parse(raw)
-      setMode('register')
-      setCodeType('new_child')
-      setForm((f) => ({ ...f, ...pending, password: '' }))
-      setResumedAfterVerify(true)
-    } catch {
-      // Malformed/stale entry -- ignore rather than block the page.
-    } finally {
-      localStorage.removeItem('bq_pending_parent_kid_register')
-    }
+    localStorage.removeItem('bq_pending_parent_kid_register')
   }, [])
 
   function update(field) {
@@ -122,27 +101,13 @@ function ParentAuthForm() {
         await loginParent(form.email, form.password)
       } else {
         await registerParent({
-          code: form.code, codeType, email: form.email, password: form.password,
+          code: form.code, codeType: 'player_code', email: form.email, password: form.password,
           fullName: form.fullName, phone: form.phone,
-          kidFirstName: form.kidFirstName, kidAvatar: form.kidAvatar, kidPin: form.kidPin,
         })
       }
       localStorage.removeItem('bq_pending_parent_kid_register')
       navigate('/parent/dashboard')
     } catch (err) {
-      // A 403 here specifically means parent_kid_register's email-consent
-      // gate rejected us (see backend's TEMPORARY 2026-08-28 comment on
-      // that route) -- rather than showing a dead-end error, send the
-      // parent to the existing /verify page to actually prove the email,
-      // then bring them back here to finish registering. Any other error
-      // status (400 dup email, 500, network) falls through to the normal
-      // inline message instead, since those aren't fixed by verifying.
-      if (err?.response?.status === 403 && mode === 'register' && codeType === 'new_child') {
-        const { password, ...toPersist } = form
-        localStorage.setItem('bq_pending_parent_kid_register', JSON.stringify(toPersist))
-        navigate(`/verify?dest=${encodeURIComponent('/auth?role=parent')}&email=${encodeURIComponent(form.email)}`)
-        return
-      }
       setError(getErrorMessage(err, 'Something went wrong — please try again.'))
     } finally {
       setBusy(false)
@@ -347,71 +312,30 @@ function ParentAuthForm() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               {mode === 'register' && (
                 <>
-                  {/* Top-level choice: link to an existing child vs. create
-                      a brand-new one with no therapist involved. The
-                      player_code/invite sub-choice only matters within
-                      "existing child", so it's nested below rather than
-                      flattened into one 3-way row. */}
-                  {NEW_CHILD_SIGNUP_ENABLED && (
-                  <div className="flex rounded-full bg-ink p-1 border border-white/10 text-xs font-semibold">
-                    <button type="button" onClick={() => setCodeType('player_code')}
-                      className={`flex-1 rounded-full py-2 transition-colors ${codeType !== 'new_child' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
-                      I have a code
-                    </button>
-                    <button type="button" onClick={() => setCodeType('new_child')}
-                      className={`flex-1 rounded-full py-2 transition-colors ${codeType === 'new_child' ? 'bg-coral text-paper' : 'text-paper/50'}`}>
-                      New child, no therapist
-                    </button>
+                  <p className="text-paper/40 text-xs leading-relaxed px-1">
+                    Ask your child's therapist for their player code — it looks something like
+                    <span className="text-paper/60 font-medium"> CHICK42</span>. Entering it here
+                    connects your account to your child's, so you can see their progress.
+                  </p>
+                  <Field icon={KeyRound} type="text" required
+                    placeholder="Child's player code"
+                    value={form.code} onChange={update('code')} />
+
+                  <GoogleAuthButton
+                    onIdToken={handleGoogle}
+                    onError={setError}
+                    disabled={busy || !form.code.trim()}
+                  />
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-paper/30 text-xs font-medium">or set a password</span>
+                    <div className="flex-1 h-px bg-white/10" />
                   </div>
-                  )}
-
-                  {codeType === 'new_child' ? (
-                    <>
-                      <Field icon={User} type="text" required placeholder="Your child's first name"
-                        value={form.kidFirstName} onChange={update('kidFirstName')} />
-                      <Field icon={KeyRound} type="text" required inputMode="numeric"
-                        pattern="\d{4}" maxLength={4} title="PIN must be exactly 4 digits"
-                        placeholder="Set a 4-digit PIN for your child"
-                        value={form.kidPin}
-                        onChange={(e) => setForm((f) => ({ ...f, kidPin: e.target.value.replace(/\D/g, '').slice(0, 4) }))} />
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-paper/40 text-xs leading-relaxed px-1">
-                        Ask your child's therapist for their player code — it looks something like
-                        <span className="text-paper/60 font-medium"> CHICK42</span>. Entering it here
-                        connects your account to your child's, so you can see their progress.
-                      </p>
-                      <Field icon={KeyRound} type="text" required
-                        placeholder="Child's player code"
-                        value={form.code} onChange={update('code')} />
-
-                      {/* Google-register only covers the code-linked path
-                          above, not "new child, no therapist" (that one
-                          needs phone OTP consent with no Google-auth
-                          equivalent yet) -- so the button lives here,
-                          gated on a code actually being entered, rather
-                          than at the top of the form. */}
-                      <GoogleAuthButton
-                        onIdToken={handleGoogle}
-                        onError={setError}
-                        disabled={busy || !form.code.trim()}
-                      />
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-px bg-white/10" />
-                        <span className="text-paper/30 text-xs font-medium">or set a password</span>
-                        <div className="flex-1 h-px bg-white/10" />
-                      </div>
-                    </>
-                  )}
 
                   <Field icon={User} type="text" placeholder="Your name (optional)" autoComplete="name"
                     value={form.fullName} onChange={update('fullName')} />
-                  {/* Required for new_child (dual-factor parental consent) --
-                      optional otherwise, since no SMS provider is wired up
-                      yet for those paths and phone was never enforced. */}
-                  <Field icon={Phone} type="tel" required={codeType === 'new_child'} autoComplete="tel"
-                    placeholder={codeType === 'new_child' ? 'Your phone number' : 'Phone (optional)'}
+                  <Field icon={Phone} type="tel" autoComplete="tel"
+                    placeholder="Phone (optional)"
                     value={form.phone} onChange={update('phone')} />
                 </>
               )}
@@ -562,13 +486,6 @@ function ParentAuthForm() {
     </div>
   )
 }
-
-// "New child, no therapist" (parent creates the child + account in one step,
-// POST /auth/parent-kid-register) is switched off for now: parents only link to
-// a child through the player code a therapist gives them. Flip to true to bring
-// the option back -- the toggle, the resume-after-verify restore below, and the
-// form fields are all still here, just hidden.
-const NEW_CHILD_SIGNUP_ENABLED = false
 
 export default function ParentAuth() {
   return (

@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Settings, Volume2 } from 'lucide-react'
 import { logEvent, getAgentDecision, scorePhoneme, submitEventFeedback } from './lib/api'
 import { getNextLevelRoute } from './lib/levelProgress'
+import { createRecorder, recordingFilename } from './lib/recorder'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 const LEVEL_ID = 'ee'
 const AGENT_POLICY = 'tabular_q'
@@ -58,7 +60,7 @@ function computeLoudnessScore(rms, noiseFloor, maxExpected) {
 }
 
 const SCORE_THRESHOLD = 0.22
-const RISE_RATE = 0.34          // fraction of tower climbed per second at full voice
+const RISE_RATE = 0.34          // fraction of the xylophone played per second at full voice
 const FALL_RATE = 0.14          // fraction lost per second when voicing stops
 // Rewards holding the "eeee" rather than short bursts: climb speed ramps up
 // the longer the sound is sustained without a break, capping at
@@ -79,8 +81,8 @@ const DIFFICULTY_AGENT = {
   FAST_S: 6,
   SLOW_S: 20,
   decide(timeToTopSeconds) {
-    if (timeToTopSeconds < this.FAST_S) return { action: 'harder', message: "Amazing climb! Let's make the tower a little taller next time 🔔" }
-    if (timeToTopSeconds > this.SLOW_S) return { action: 'easier', message: 'Great sustain! A shorter tower next time so it feels achievable 🌟' }
+    if (timeToTopSeconds < this.FAST_S) return { action: 'harder', message: "Amazing playing! Let's make the next song a little longer 🔔" }
+    if (timeToTopSeconds > this.SLOW_S) return { action: 'easier', message: 'Great sustain! A slightly shorter song next time so it feels achievable 🌟' }
     return { action: 'hold', message: 'Beautiful and bright! Keeping this the same for now 💛' }
   },
   apply(requiredSeconds, decision) {
@@ -101,6 +103,9 @@ export default function XylophoneTower() {
   const [calibLabel, setCalibLabel] = useState({ title: "Let's find quiet...", subtitle: 'Stay nice and quiet for a moment', emoji: '🤫' })
   const [calibProgress, setCalibProgress] = useState(0)
   const [hudVisible, setHudVisible] = useState(false)
+  // True while the goal is reached provisionally and the server is still
+  // confirming the sound -- so a brief wait reads as "checking", not "frozen".
+  const [checking, setChecking] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [reduceMotion, setReduceMotion] = useState(() => localStorage.getItem('chime_reduce_motion') === 'true')
   const [muted, setMuted] = useState(() => localStorage.getItem('chime_muted') === 'true')
@@ -133,7 +138,7 @@ export default function XylophoneTower() {
   useEffect(() => { mutedRef.current = muted; localStorage.setItem('chime_muted', muted) }, [muted])
 
   const replayInstruction = useSpokenInstruction(
-    'Hold a long, bright eeee to ring the bells and climb all the way to the top!',
+    'Hold a long, bright eeee to play every note on the xylophone, from low to high!',
     { enabled: screen === 'start' && !muted },
   )
 
@@ -265,7 +270,7 @@ export default function XylophoneTower() {
       runCalibration()
     } catch (err) {
       setMicErrorMsg(err.name === 'NotAllowedError'
-        ? 'Please allow microphone access so the tower can hear your "eeee".'
+        ? 'Please allow microphone access so the xylophone can hear your "eeee".'
         : 'Something went wrong reaching the microphone. Please try again.')
       setScreen('micError')
     }
@@ -321,13 +326,17 @@ export default function XylophoneTower() {
   }
 
   function finishCalibration() {
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     const s = stateRef.current
     s.height = 0; s.barsRung = 0; s.hasFinished = false; s.sustainedSeconds = 0
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
-    setAriaMsg('Ready! Take a breath and let out a long, bright "eeee" to climb the tower.')
+    setAriaMsg('Ready! Take a breath and let out a long, bright "eeee" to play the xylophone.')
     rafRef.current = requestAnimationFrame(gameLoop)
     startVerificationWindow()
   }
@@ -353,9 +362,21 @@ export default function XylophoneTower() {
     const chunks = []
     let recorder
     try {
-      recorder = new MediaRecorder(s.mediaStream, { mimeType: 'audio/webm;codecs=opus' })
+      recorder = createRecorder(s.mediaStream)
     } catch (err) {
-      console.warn('MediaRecorder unavailable, skipping speech verification for this window:', err)
+      // No usable recorder in this browser, so there is nothing to verify --
+      // but the goal check in finishVerificationWindow MUST still run on the
+      // usual cadence. It used to be reachable only from a recorder's onstop,
+      // so with no recorder the game filled up and then never finished.
+      if (!s.recorderWarned) {
+        console.warn('MediaRecorder unavailable, speech verification skipped (provisional progress stands):', err)
+        s.recorderWarned = true
+      }
+      s.verifyTimer = setTimeout(() => {
+        if (s.hasFinished) return
+        startVerificationWindow()
+        finishVerificationWindow([], 0)
+      }, VERIFY_WINDOW_MS)
       return
     }
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
@@ -375,10 +396,10 @@ export default function XylophoneTower() {
     const s = stateRef.current
 
     if (gained > 0 && chunks.length > 0) {
-      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+      const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' })
       let result = null
       try {
-        result = await scorePhoneme(LEVEL_ID, blob)
+        result = await scorePhoneme(LEVEL_ID, blob, recordingFilename(blob.type))
       } catch (err) {
         console.warn('Backend phoneme scoring unavailable — window left unverified, provisional climb stands:', err)
       }
@@ -410,6 +431,8 @@ export default function XylophoneTower() {
     // gate anything else.
     if (s.height >= 0.999 && !s.hasFinished) {
       s.hasFinished = true
+      s.checkingShown = false
+      setChecking(false)
       onTowerComplete()
     }
   }
@@ -480,9 +503,11 @@ export default function XylophoneTower() {
     const s = stateRef.current
     playBarNote(barIndex)
     const count = reduceMotionRef.current ? 4 : 14
+    s.lastRingAt = performance.now()
+    const bar = xyloLayout(s).bars[barIndex]
     for (let i = 0; i < count; i++) {
       s.notes.push({
-        x: s.W * 0.5 + (Math.random() - 0.5) * 60, y: s.H * (0.85 - (barIndex / N_BARS) * 0.6),
+        x: bar.x + bar.w / 2 + (Math.random() - 0.5) * bar.w, y: bar.y,
         vx: (Math.random() - 0.5) * 1.5, vy: -Math.random() * 2 - 1,
         life: 1, color: BAR_COLORS[barIndex], glyph: Math.random() > 0.5 ? '♪' : '♫',
       })
@@ -545,6 +570,9 @@ export default function XylophoneTower() {
     if (rawScore < 0.08) s.quietStreak += dt; else s.quietStreak = 0
     setEncourageVisible(s.quietStreak > 3 && s.barsRung < 1)
 
+    const goalReached = s.height >= 0.999 && !s.hasFinished
+    if (goalReached !== !!s.checkingShown) { s.checkingShown = goalReached; setChecking(goalReached) }
+
     render()
 
     if (!s.hasFinished) rafRef.current = requestAnimationFrame(gameLoop)
@@ -569,7 +597,7 @@ export default function XylophoneTower() {
     }
     if (s.barsRung < N_BARS) ringBar(N_BARS - 1)
     playSuccessChime()
-    setAriaMsg('The tower is fully lit — every bell rang! Wonderful, bright "eeee"!')
+    setAriaMsg('The xylophone is fully lit — every note rang! Wonderful, bright "eeee"!')
     const count = reduceMotionRef.current ? 20 : 60
     for (let i = 0; i < count; i++) {
       s.particles.push({
@@ -686,7 +714,7 @@ export default function XylophoneTower() {
       ctx.stroke()
     }
 
-    drawTower(ctx, s)
+    drawXylophone(ctx, s)
 
     // Fireflies glowing in the mist at the tower's base (drawn over the ground)
     for (const f of s.fireflies) {
@@ -725,110 +753,124 @@ export default function XylophoneTower() {
     }
   }
 
-  function drawTower(ctx, s) {
-    const towerX = s.W * 0.5
+  // Shared geometry so the picture, the note particles and the mallet all agree
+  // on where each bar is. Bars are vertical, tallest (lowest note) on the left,
+  // shortening toward the right like a real xylophone, standing on two rails.
+  function xyloLayout(s) {
     const groundY = s.H * 0.92
-    const towerTop = s.H * 0.15
-    const towerWidth = 70
+    const gap = 8
+    const usableW = Math.min(s.W * 0.88, 520)
+    const barW = (usableW - gap * (N_BARS - 1)) / N_BARS
+    const left = (s.W - usableW) / 2
+    const tallest = Math.min(s.H * 0.44, 340)
+    const shortest = tallest * 0.55
+    const barBottom = groundY - 70
+    const bars = Array.from({ length: N_BARS }, (_, i) => {
+      const h = tallest - (tallest - shortest) * (i / (N_BARS - 1))
+      return { x: left + i * (barW + gap), y: barBottom - h, w: barW, h }
+    })
+    return { groundY, left, usableW, barW, barBottom, shortest, bars }
+  }
 
-    // Stone tower shaft
-    const shaft = ctx.createLinearGradient(towerX - towerWidth / 2, 0, towerX + towerWidth / 2, 0)
-    shaft.addColorStop(0, '#5B4A6E')
-    shaft.addColorStop(0.5, '#7A6A94')
-    shaft.addColorStop(1, '#4A3A5E')
-    ctx.fillStyle = shaft
-    ctx.fillRect(towerX - towerWidth / 2, towerTop, towerWidth, groundY - towerTop)
+  function drawXylophone(ctx, s) {
+    const L = xyloLayout(s)
+    const now = performance.now()
 
-    // Stone brick courses so the shaft reads as masonry, not a flat slab
-    ctx.strokeStyle = 'rgba(20,12,40,0.22)'
-    ctx.lineWidth = 1
-    for (let y = towerTop + 22, row = 0; y < groundY - 6; y += 22, row++) {
-      ctx.beginPath(); ctx.moveTo(towerX - towerWidth / 2, y); ctx.lineTo(towerX + towerWidth / 2, y); ctx.stroke()
-      const off = row % 2 ? 12 : 0
-      for (let x = towerX - towerWidth / 2 + 12 + off; x < towerX + towerWidth / 2; x += 24) {
-        ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x, y); ctx.stroke()
-      }
+    // Soft shadow on the ground under the instrument
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'
+    ctx.beginPath()
+    ctx.ellipse(s.W / 2, L.groundY - 4, L.usableW * 0.56, 12, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Frame: two legs and two wooden rails the bars rest on
+    const wood = ctx.createLinearGradient(0, L.barBottom - L.shortest, 0, L.groundY)
+    wood.addColorStop(0, '#B7834F')
+    wood.addColorStop(1, '#7A5230')
+    ctx.fillStyle = wood
+    const railL = L.left - 16
+    const railW = L.usableW + 32
+    const upperRailY = L.barBottom - L.shortest * 0.75
+    const lowerRailY = L.barBottom - L.shortest * 0.2
+    for (const lx of [railL + 6, railL + railW - 22]) {
+      ctx.beginPath(); ctx.roundRect(lx, upperRailY, 16, L.groundY - upperRailY, 6); ctx.fill()
+    }
+    for (const ry of [upperRailY, lowerRailY]) {
+      ctx.beginPath(); ctx.roundRect(railL, ry, railW, 14, 7); ctx.fill()
     }
 
-    // Arched doorway at the base with a warm glow that brightens as you climb
-    const doorW = 22, doorH = 34
-    ctx.fillStyle = `rgba(255,214,140,${0.35 + s.height * 0.5})`
-    ctx.beginPath()
-    ctx.moveTo(towerX - doorW / 2, groundY - 8)
-    ctx.lineTo(towerX - doorW / 2, groundY - 8 - doorH + doorW / 2)
-    ctx.arc(towerX, groundY - 8 - doorH + doorW / 2, doorW / 2, Math.PI, 0)
-    ctx.lineTo(towerX + doorW / 2, groundY - 8)
-    ctx.closePath(); ctx.fill()
-
-    // Small arched windows glowing on either side of the bell stack
-    const winCount = 3
-    for (let i = 0; i < winCount; i++) {
-      const wy = towerTop + 40 + i * ((groundY - towerTop - 120) / winCount)
-      const lit = s.height * winCount > i
-      ctx.fillStyle = lit ? 'rgba(255,225,150,0.75)' : 'rgba(255,255,255,0.08)'
-      for (const wx of [towerX - 26, towerX + 26]) {
-        ctx.beginPath()
-        ctx.moveTo(wx - 4, wy + 12)
-        ctx.lineTo(wx - 4, wy + 4)
-        ctx.arc(wx, wy + 4, 4, Math.PI, 0)
-        ctx.lineTo(wx + 4, wy + 12)
-        ctx.closePath(); ctx.fill()
-      }
-    }
-
-    // Roof
-    ctx.beginPath()
-    ctx.moveTo(towerX - towerWidth / 2 - 14, towerTop)
-    ctx.lineTo(towerX, towerTop - 46)
-    ctx.lineTo(towerX + towerWidth / 2 + 14, towerTop)
-    ctx.closePath(); ctx.fill()
-
-    // Little pennant fluttering from the roof peak
-    const flutter = Math.sin(performance.now() / 260) * 3
-    ctx.strokeStyle = '#D8C9F5'
-    ctx.lineWidth = 2
-    ctx.beginPath(); ctx.moveTo(towerX, towerTop - 46); ctx.lineTo(towerX, towerTop - 66); ctx.stroke()
-    ctx.fillStyle = '#F0997B'
-    ctx.beginPath()
-    ctx.moveTo(towerX, towerTop - 66)
-    ctx.quadraticCurveTo(towerX + 10, towerTop - 66 + flutter, towerX + 20, towerTop - 61)
-    ctx.quadraticCurveTo(towerX + 10, towerTop - 58 - flutter, towerX, towerTop - 56)
-    ctx.closePath(); ctx.fill()
-
-    // Bells/bars stacked up the tower, one per pentatonic note. Bar i lights
-    // up once the climb has passed i/N_BARS of the tower height.
+    // Bars. A rung bar glows in its colour; an unrung one stays a muted tint so
+    // the whole rainbow is visible (and reads as a xylophone) from the start.
+    const nextIdx = Math.min(s.barsRung, N_BARS - 1)
+    const charge = s.barsRung >= N_BARS ? 0 : Math.max(0, Math.min(1, s.height * N_BARS - s.barsRung))
     for (let i = 0; i < N_BARS; i++) {
-      const barY = groundY - 40 - i * ((groundY - towerTop - 60) / N_BARS)
+      const b = L.bars[i]
       const lit = i < s.barsRung
       const justRung = lit && i === s.barsRung - 1
-      const pulse = justRung ? 1 + Math.max(0, 1 - (performance.now() % 700) / 700) * 0.15 : 1
+      const wobble = justRung ? Math.max(0, 1 - (now % 700) / 700) * 0.05 : 0
 
       ctx.save()
-      ctx.translate(towerX, barY)
-      ctx.scale(pulse, pulse)
-      ctx.fillStyle = lit ? BAR_COLORS[i] : 'rgba(255,255,255,0.15)'
-      if (lit) { ctx.shadowColor = BAR_COLORS[i]; ctx.shadowBlur = 18 }
-      ctx.beginPath()
-      ctx.roundRect(-38, -7, 76, 14, 7)
+      ctx.translate(b.x + b.w / 2, L.barBottom)
+      ctx.scale(1 + wobble, 1 + wobble)
+      ctx.translate(-(b.x + b.w / 2), -L.barBottom)
+
+      ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9)
+      // Solid backing first, so the scenery behind never shows through an
+      // unrung (translucent) bar and muddies its colour.
+      if (!lit) { ctx.fillStyle = '#231B45'; ctx.fill() }
+      ctx.globalAlpha = lit ? 1 : 0.5
+      ctx.fillStyle = BAR_COLORS[i]
+      if (lit) { ctx.shadowColor = BAR_COLORS[i]; ctx.shadowBlur = 20 }
       ctx.fill()
       ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+
+      // The bar being "charged" fills upward from its base as the sound is held
+      if (!lit && i === nextIdx && charge > 0) {
+        ctx.save()
+        ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.clip()
+        ctx.globalAlpha = 0.85
+        ctx.fillStyle = BAR_COLORS[i]
+        ctx.fillRect(b.x, b.y + b.h * (1 - charge), b.w, b.h * charge)
+        ctx.restore()
+      }
+
+      // Gloss stripe and the two bolts holding the bar to the rails
+      ctx.fillStyle = 'rgba(255,255,255,0.28)'
+      ctx.beginPath(); ctx.roundRect(b.x + 5, b.y + 8, 5, b.h - 16, 3); ctx.fill()
+      ctx.fillStyle = 'rgba(40,24,10,0.55)'
+      for (const by of [upperRailY + 7, lowerRailY + 7]) {
+        ctx.beginPath(); ctx.arc(b.x + b.w / 2, by, 3, 0, Math.PI * 2); ctx.fill()
+      }
       ctx.restore()
     }
 
-    // Rising climb-indicator glow inside the tower shaft
-    const climbY = groundY - (groundY - towerTop) * s.height
-    const glow = ctx.createLinearGradient(0, groundY, 0, climbY)
-    glow.addColorStop(0, 'rgba(250,199,117,0.55)')
-    glow.addColorStop(1, 'rgba(250,199,117,0)')
-    ctx.fillStyle = glow
-    ctx.fillRect(towerX - towerWidth / 2 + 6, climbY, towerWidth - 12, groundY - climbY)
+    // Mallet: winds up as the current bar charges, then strikes the bar that
+    // just rang before moving on to the next one.
+    const sinceRing = now - (s.lastRingAt || 0)
+    const striking = s.barsRung > 0 && sinceRing < 260
+    const target = L.bars[striking ? s.barsRung - 1 : nextIdx]
+    const lift = striking ? 4 + (sinceRing / 260) * 26 : 8 + charge * 40 + Math.sin(now / 420) * 2.5
+    const hx = target.x + target.w / 2
+    const hy = target.y - 12 - lift
+    const angle = -0.55
+    ctx.strokeStyle = '#E9D5B0'
+    ctx.lineWidth = 5
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(hx, hy)
+    ctx.lineTo(hx + Math.sin(-angle) * 62, hy - Math.cos(-angle) * 62)
+    ctx.stroke()
+    ctx.fillStyle = '#FDE68A'
+    ctx.strokeStyle = '#B45309'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(hx, hy, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
 
     // Ground / mist
-    const ground = ctx.createLinearGradient(0, groundY - 10, 0, s.H)
+    const ground = ctx.createLinearGradient(0, L.groundY - 10, 0, s.H)
     ground.addColorStop(0, 'rgba(20,15,40,0.9)')
     ground.addColorStop(1, 'rgba(10,10,25,1)')
     ctx.fillStyle = ground
-    ctx.fillRect(0, groundY - 10, s.W, s.H - groundY + 10)
+    ctx.fillRect(0, L.groundY - 10, s.W, s.H - L.groundY + 10)
   }
 
   function handlePlayAgain() {
@@ -855,6 +897,12 @@ export default function XylophoneTower() {
     <div className="fixed inset-0 bg-[#12122A] text-[#FFF8EC] overflow-hidden select-none" style={{ fontFamily: "'Quicksand', sans-serif" }}>
       <canvas ref={canvasRef} className="fixed inset-0 w-full h-full block" aria-hidden="true" />
 
+      {hudVisible && checking && (
+        <div role="status" className="fixed top-24 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/50 px-4 py-2 text-sm font-bold text-white backdrop-blur-md">
+          🎵 Checking your notes…
+        </div>
+      )}
+
       <button
         onClick={() => navigate('/play/chime')}
         className="fixed top-4 left-4 z-30 flex items-center gap-2 text-white/50 hover:text-white/80 text-sm transition-colors bg-black/20 rounded-full px-3 py-2"
@@ -866,9 +914,9 @@ export default function XylophoneTower() {
         <div className="fixed inset-0 flex flex-col items-center justify-center text-center px-6 z-10">
           <div className="bg-[rgba(30,24,60,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full backdrop-blur-md shadow-2xl">
             <div className="text-6xl mb-3">🔔</div>
-            <h1 className="text-4xl font-extrabold mb-2">Xylophone Tower</h1>
+            <h1 className="text-4xl font-extrabold mb-2">Xylophone</h1>
             <p className="text-lg font-bold text-[#FACC15] mb-7 leading-relaxed flex items-center justify-center gap-2 flex-wrap">
-              Hold a long, bright "eeee" to ring the bells and climb all the way to the top!
+              Hold a long, bright "eeee" to play every note on the xylophone, from low to high!
               <button onClick={replayInstruction} className="text-[#FACC15]/60 hover:text-[#FACC15] transition-colors" aria-label="Hear this again">
                 <Volume2 size={18} />
               </button>
@@ -913,6 +961,8 @@ export default function XylophoneTower() {
         </div>
       )}
 
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
+
       {hudVisible && (
         <div className="fixed top-0 left-0 right-0 flex justify-between items-start px-5 py-4 z-20">
           <div
@@ -952,7 +1002,7 @@ export default function XylophoneTower() {
           <div className="bg-[rgba(30,24,60,0.65)] border border-white/10 rounded-[28px_28px_40px_28px] p-10 max-w-md w-full text-center backdrop-blur-md shadow-2xl">
             <div className="text-6xl mb-3">🔔</div>
             <h1 className="text-3xl font-extrabold mb-2">Ding! You reached the top!</h1>
-            <p className="text-lg font-bold text-[#FACC15] mb-1">Every bell in the tower is ringing!</p>
+            <p className="text-lg font-bold text-[#FACC15] mb-1">Every note on the xylophone is ringing!</p>
             {agentFeedback && <p className="text-sm opacity-85 mb-5">{successScreenAgentMessage(agentFeedback)}</p>}
             <div className="flex flex-col gap-3 items-center">
               {getNextLevelRoute(LEVEL_ID) && (

@@ -6,6 +6,7 @@ import { getNextLevelRoute } from './lib/levelProgress'
 import { successScreenAgentMessage } from './lib/agentMessage'
 import { useSpokenInstruction, stopSpeaking } from '../lib/speech'
 import ScoreFeedbackPrompt from '../components/ui/ScoreFeedbackPrompt'
+import CountdownOverlay from './CountdownOverlay'
 
 const LEVEL_ID = 'aa'
 const AGENT_POLICY = 'tabular_q'
@@ -233,8 +234,13 @@ export default function RocketLaunch() {
   // Speak the start-screen instruction once each time it's (re-)shown —
   // held off if the game's own mute toggle is on, matching how that
   // toggle already gates every other sound in this game.
+  //
+  // The SPOKEN line says "ahhh", not "aaaa": a speech engine reads "aaaa" (and
+  // especially capitals) as the letter's name -- "ay, ay, ay" -- rather than the
+  // open /ah/ sound the game listens for. The written text below keeps the
+  // lowercase "aaaa" used by every other Chime game's on-screen instructions.
   const replayInstruction = useSpokenInstruction(
-    'Say a big, loud AAAA to blast your rocket into space!',
+    'Say a big, loud ahhh to blast your rocket into space!',
     { enabled: screen === 'start' && !muted },
   )
 
@@ -374,7 +380,7 @@ export default function RocketLaunch() {
     }
 
     function startLoudPhase() {
-      setCalibLabel({ title: 'Now say "AAAA"!', subtitle: 'As loud as you can, for a few seconds', emoji: '📣' })
+      setCalibLabel({ title: 'Now say "aaaa"!', subtitle: 'As loud as you can, for a few seconds', emoji: '📣' })
       setCalibProgress(0)
       const loudStart = performance.now()
       function loudStep(now) {
@@ -400,6 +406,14 @@ export default function RocketLaunch() {
   }
 
   function finishCalibration() {
+    // Give the kid a beat -- calibration used to hand off straight into
+    // scoring/recording on the very next frame, with no cue that the mic
+    // was now live. A quick 3-2-1-Go here doesn't change any of the
+    // scoring below; it just delays the same beginPlaying() by ~2.8s.
+    setScreen('countdown')
+  }
+
+  function beginPlaying() {
     setScreen('playing')
     setHudVisible(true)
     const s = stateRef.current
@@ -407,7 +421,7 @@ export default function RocketLaunch() {
     s.hasLaunched = false
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
-    setAriaMsg('Ready! Say aaa to launch your rocket.')
+    setAriaMsg('Ready! Say a big, loud "aaaa" to launch your rocket.')
     rafRef.current = requestAnimationFrame(gameLoop)
     startVerificationWindow()
   }
@@ -980,7 +994,7 @@ export default function RocketLaunch() {
             <div className="text-6xl mb-3">🚀</div>
             <h1 className="text-4xl font-extrabold mb-2">Rocket Launch</h1>
             <p className="text-lg font-bold text-[#FFD166] mb-7 leading-relaxed flex items-center justify-center gap-2 flex-wrap">
-              Say a big, loud "AAAA" to blast your rocket into space!
+              Say a big, loud "aaaa" to blast your rocket into space!
               <button onClick={replayInstruction} className="text-[#FFD166]/60 hover:text-[#FFD166] transition-colors" aria-label="Hear this again">
                 <Volume2 size={18} />
               </button>
@@ -1024,6 +1038,8 @@ export default function RocketLaunch() {
           </div>
         </div>
       )}
+
+      {screen === 'countdown' && <CountdownOverlay onDone={beginPlaying} />}
 
       {hudVisible && (
         <div className="fixed top-0 left-0 right-0 flex justify-between items-start px-5 py-4 z-20">

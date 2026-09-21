@@ -10,7 +10,7 @@ import './chime-home.css'
 
 const GAMES = [
   { levelId: 'aa', to: LEVEL_ROUTES.aa, title: 'Rocket Launch',
-    blurb: 'Say a big loud "aaa" to launch your rocket as high as you can.',
+    blurb: 'Say a big loud "aaaa" to launch your rocket as high as you can.',
     accent: '#FF9B54', icon: Rocket },
   { levelId: 'oo', to: LEVEL_ROUTES.oo, title: 'Submarine Dive',
     blurb: 'A long, low "oooo" sends your submarine deeper.',
@@ -24,8 +24,8 @@ const GAMES = [
   { levelId: 'ha', to: LEVEL_ROUTES.ha, title: 'Bubble Wrap Pop',
     blurb: 'A sharp "ha!" pops the bubbles one by one.',
     accent: '#7850DC', icon: Droplets },
-  { levelId: 'ee', to: LEVEL_ROUTES.ee, title: 'Xylophone Tower',
-    blurb: 'A long, bright "eeee" rings the bells and climbs you to the top.',
+  { levelId: 'ee', to: LEVEL_ROUTES.ee, title: 'Xylophone',
+    blurb: 'A long, bright "eeee" plays every note on the xylophone.',
     accent: '#FACC15', icon: Bell },
   { levelId: 'r', to: LEVEL_ROUTES.r, title: "Lion's Roar",
     blurb: 'A strong, growly "rrrr" makes your lion roar louder.',

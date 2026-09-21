@@ -13,6 +13,9 @@ const SCROLL    = 60     // very slow
 const FALL_SPD  = 55     // very slow sink
 const RING_R    = 72     // very big rings
 const FLOOR_Y   = 500
+const RING_START_X = 350   // world x of the first ring
+const RING_SPACING = 280   // world distance between rings
+const LEAD_OUT  = 240      // px of clear sky between the LAST ring reaching the kite and the finish flag
 const CEIL_Y    = 70
 
 // difficulty (0..1, from the adaptive agent) scales how fast the kite rises
@@ -31,13 +34,19 @@ export function createFloatRiderLevel(difficulty = DEFAULT_DIFFICULTY) {
 
   // Generate rings spread across the level
   const rings = Array.from({ length: N_RINGS }, (_, i) => ({
-    x: 350 + i * 280,
+    x: RING_START_X + i * RING_SPACING,
     y: rand(160, 400),
     hit: false,
     pulse: rand(0, Math.PI * 2),
   }))
 
-  const FINISH_X = 350 + N_RINGS * 280 + 200
+  // The finish used to be `350 + N_RINGS * 280 + 200`. That counts one ring-gap
+  // too many (the last ring's index is N_RINGS - 1) and ignores that a ring
+  // reaches the kite at screen x = KITE_X, not 0 -- so the flag came ~10 s after
+  // the final ring, with nothing but empty sky in between. Measure from the last
+  // ring reaching the kite instead, so the flag is on screen as it passes.
+  const LAST_RING_REACHES_KITE = RING_START_X + (N_RINGS - 1) * RING_SPACING - KITE_X
+  const FINISH_X = LAST_RING_REACHES_KITE + LEAD_OUT
 
   // Clouds for parallax
   const clouds = Array.from({ length: 8 }, () => ({

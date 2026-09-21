@@ -125,9 +125,27 @@ async def therapist_candidates(db: AsyncSession = Depends(get_db)):
 
 @router.get("/kid-candidates")
 async def kid_candidates(db: AsyncSession = Depends(get_db)):
-    """Return children already created through Assessment for PIN setup."""
+    """Return children created through Assessment who still need PIN setup.
+
+    Fixed 2026-09-21 (account-takeover bug): this used to return EVERY
+    active Patient in the whole database, with no check for whether they
+    already had a linked, PIN-set BreathQuestPatient -- so a kid who was
+    already fully set up (whether by a therapist via AddPatientModal, which
+    sets their PIN immediately, or by having done this flow before) still
+    showed up here forever. Combined with kid_pin_setup below silently
+    overwriting an existing linked patient's PIN, anyone could open "My
+    Therapist Set Me Up," pick any child's name, and take over their
+    account with no authentication. Now excludes anyone who already has a
+    linked BreathQuestPatient row -- see kid_pin_setup's matching fix,
+    which refuses to touch one even if a stale client still sends its id.
+    """
+    already_linked = select(BreathQuestPatient.assessment_patient_id).where(
+        BreathQuestPatient.assessment_patient_id.isnot(None)
+    )
     result = await db.execute(
-        select(Patient).where(Patient.is_active.is_(True)).order_by(Patient.name)
+        select(Patient)
+        .where(Patient.is_active.is_(True), Patient.id.not_in(already_linked))
+        .order_by(Patient.name)
     )
     patients = result.scalars().all()
     return [{"id": str(patient.id), "name": patient.name} for patient in patients]
@@ -341,37 +359,37 @@ async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Registered child not found")
 
     player_code = f"P{str(main_patient.id).replace('-', '')[:9].upper()}"
-    # Dedup (2026-09-19): a therapist-created patient (POST /patients) already
-    # has a BreathQuestPatient linked via assessment_patient_id but with a
-    # *different* player_code than the one derived here, so the code-only
-    # lookup below missed it and minted a second row for the same child.
-    # Prefer an existing linked row (completed assessment first, then oldest).
+    # Fixed 2026-09-21 (account-takeover bug): this used to overwrite an
+    # already-linked patient's pin_hash/avatar unconditionally and hand
+    # back a valid token -- no auth, no PIN check, nothing. Since this
+    # route is unauthenticated by design (that's the point: it's how a
+    # kid gets credentials for the very first time), touching an existing
+    # account here would let anyone who can see the child's name (or
+    # guess/replay a stale patient_id) take it over. kid_candidates above
+    # no longer lists already-linked patients, so this should only be
+    # reachable for genuine first-time setup; treat an existing link as a
+    # sign of a stale client/replay and refuse rather than "fix it up" the
+    # way the pre-2026-09-19 dedup code did.
     result = await db.execute(
-        select(BreathQuestPatient)
-        .where(BreathQuestPatient.assessment_patient_id == main_patient.id)
-        .order_by(BreathQuestPatient.assessment_completed.desc(), BreathQuestPatient.created_at)
+        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == main_patient.id)
     )
-    patient = result.scalars().first()
-    if patient is None:
-        result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.player_code == player_code))
-        patient = result.scalar_one_or_none()
-
-    if patient:
-        patient.first_name = main_patient.name
-        patient.avatar = data.avatar
-        patient.pin_hash = hash_pin(data.pin)
-        patient.is_active = True
-    else:
-        patient = BreathQuestPatient(
-            therapist_id=None,
-            first_name=main_patient.name,
-            avatar=data.avatar,
-            pin_hash=hash_pin(data.pin),
-            player_code=player_code,
-            assessment_patient_id=main_patient.id,
-            assessment_completed=True,  # they already have an Assessment record
+    existing = result.scalars().first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This child already has an account. Use their player code to log in, or Forgot PIN if it's been lost.",
         )
-        db.add(patient)
+
+    patient = BreathQuestPatient(
+        therapist_id=None,
+        first_name=main_patient.name,
+        avatar=data.avatar,
+        pin_hash=hash_pin(data.pin),
+        player_code=player_code,
+        assessment_patient_id=main_patient.id,
+        assessment_completed=True,  # they already have an Assessment record
+    )
+    db.add(patient)
 
     await db.commit()
     await db.refresh(patient)

@@ -287,6 +287,11 @@ class PatientDetailOut(PatientOut):
     # patient who was assessed and is ready to start but just hasn't yet --
     # an opportunity to follow up on, not a red flag.
     needs_first_session: bool = False
+    # True when last_seen_at (bumped on every authenticated kid request --
+    # see breathquest_core/deps.py) is within PRESENCE_UPDATE_INTERVAL.
+    # Distinct from is_active (account enabled/disabled) -- this is "playing
+    # right now", not "allowed to play" (#69).
+    is_logged_in: bool = False
 
 
 class PatientExportOut(BaseModel):
