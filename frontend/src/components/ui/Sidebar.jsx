@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, LogOut, Wind, Lock, Users, X, Plus, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogOut, Wind, Lock, Users, X, Plus, Check, Menu } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { ROLE_HOME_PATH } from '../../api/knownAccounts'
 import { Avatar } from './Avatar'
@@ -300,10 +300,27 @@ export default function Sidebar({
 
   return (
     <>
-    {/* On phones the aside is fixed (so opening it can overlay the page), so
-        keep a 72px spacer in the layout for the icon rail, plus a tap-away
-        backdrop while it's expanded. */}
-    {narrow && <div className="shrink-0 w-[72px]" aria-hidden="true" />}
+    {/* On phones the sidebar no longer reserves any layout space at all --
+        it used to sit as a permanently-visible 72px icon rail (plus a
+        matching 72px spacer pushing every page's content over), which on a
+        360-400px-wide phone was ~20% of the screen gone before a kid or
+        parent had done anything. Now it's fully off-canvas by default and
+        only a small floating hamburger button marks where it lives; opening
+        it slides the full 256px drawer in over the page (same overlay
+        behavior as before), and it slides back out on close instead of
+        shrinking to a rail. Desktop/tablet keeps the old icon-rail
+        collapse -- that one wasn't the complaint and a permanent 72px rail
+        makes sense with the extra width to spare. */}
+    {narrow && collapsed && (
+      <button
+        onClick={() => setCollapsed(false)}
+        aria-label="Open menu"
+        className="fixed top-4 left-4 z-40 w-11 h-11 rounded-full flex items-center justify-center
+                   bg-[rgba(27,20,64,0.7)] border border-white/15 text-white backdrop-blur-md shadow-lg"
+      >
+        <Menu size={20} />
+      </button>
+    )}
     {overlayOpen && (
       <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setCollapsed(true)} aria-hidden="true" />
     )}
@@ -311,16 +328,23 @@ export default function Sidebar({
       style={{ background: LANDING_GRADIENT }}
       className={`${narrow ? 'fixed left-0 top-0 z-50' : 'sticky top-0'} h-dvh shrink-0 flex flex-col border-r border-white/[0.08]
                   shadow-[4px_0_24px_-8px_rgba(0,0,0,0.5)]
-                  transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}
+                  ${narrow
+                    ? `w-64 transition-transform duration-200 ${collapsed ? '-translate-x-full pointer-events-none' : 'translate-x-0'}`
+                    : `transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}`}
     >
       <div className="flex items-center gap-3 px-4 py-5">
         <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${t.glow}`}>
           <Wind size={18} />
         </div>
         {!collapsed && (
-          <span className="font-display text-lg font-bold text-white truncate">
+          <span className="font-display text-lg font-bold text-white truncate flex-1">
             Vaak<span className="text-brand-green">Games</span>
           </span>
+        )}
+        {narrow && !collapsed && (
+          <button onClick={() => setCollapsed(true)} aria-label="Close menu" className="text-white/60 hover:text-white p-1 shrink-0">
+            <X size={18} />
+          </button>
         )}
       </div>
 
@@ -361,12 +385,18 @@ export default function Sidebar({
           <NavItem label="Switch profile" Icon={Users} collapsed={collapsed} t={t} onClick={() => setSwitcherOpen(true)} />
         )}
         <NavItem label="Log out" Icon={LogOut} collapsed={collapsed} t={t} onClick={onLogout} />
+        {/* On a phone this button only ever renders while the drawer is
+            open (collapsed=false, since collapsed=true means off-canvas
+            with the floating hamburger as the only entry point instead),
+            so it always reads as "Close" there rather than toggling
+            between two labels a mobile user would never see the other
+            half of. */}
         <button
           onClick={() => setCollapsed((c) => !c)}
           className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl transition-colors ${t.inactiveText}`}
         >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          {!collapsed && <span className="text-xs">Collapse</span>}
+          {narrow ? <X size={16} /> : collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {!collapsed && <span className="text-xs">{narrow ? 'Close' : 'Collapse'}</span>}
         </button>
       </div>
       {switcherOpen && <ProfileSwitcherModal onClose={() => setSwitcherOpen(false)} />}
