@@ -337,7 +337,7 @@ export default function LionsRoar() {
     setHudVisible(true)
     const s = stateRef.current
     s.roarsDone = 0; s.hasFinished = false; s.sustainedSeconds = 0; s.holdSeconds = 0
-    s.cooldown = 0; s.inRoar = false; s.shockwaves = []
+    s.cooldown = 0; s.inRoar = false; s.shockwaves = []; s.pendingConfirm = false
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     setAriaMsg('Ready! Give a big, growly "rrrr" to make the lion roar.')
@@ -434,6 +434,7 @@ export default function LionsRoar() {
 
   async function finishVerificationWindow(chunks, addedThisWindow) {
     const s = stateRef.current
+    let windowFailed = false
 
     if (addedThisWindow > 0 && chunks.length > 0) {
       const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' })
@@ -454,6 +455,7 @@ export default function LionsRoar() {
         s.roarsDone = Math.max(0, s.roarsDone - addedThisWindow)
         s.holdSeconds = 0
         s.inRoar = false
+        windowFailed = true
         playRetract()
         setAriaMsg('That didn\'t quite sound like a roar — try a strong, growly "rrrr"!')
       }
@@ -465,11 +467,29 @@ export default function LionsRoar() {
     // could still get retracted moments later. The next window is already
     // recording by the time this runs (started in onstop above), so this
     // check doesn't gate anything else.
+    //
+    // A single passing window isn't enough to lock the win in, though --
+    // rhotic.py's formant-quality gate has deliberately wide tolerances
+    // (widened earlier so a real but immature child "r" wouldn't get
+    // rejected), which also lets an occasional loud non-growl sound sneak
+    // through one window's check. So the target count has to survive two
+    // *consecutive* windows -- one that reaches it (pendingConfirm) and a
+    // following one that doesn't retract it -- before the pride is counted
+    // as gathered. A one-off wrong sound rarely clears two windows in a
+    // row; a real sustained "rrrr" naturally spans more than one anyway.
     if (s.roarsDone >= s.targetRoars && !s.hasFinished) {
-      s.hasFinished = true
-      s.checkingShown = false
-      setChecking(false)
-      onPrideSuccess()
+      if (windowFailed) {
+        s.pendingConfirm = false
+      } else if (s.pendingConfirm) {
+        s.hasFinished = true
+        s.checkingShown = false
+        setChecking(false)
+        onPrideSuccess()
+      } else {
+        s.pendingConfirm = true
+      }
+    } else {
+      s.pendingConfirm = false
     }
   }
 
@@ -833,10 +853,17 @@ export default function LionsRoar() {
     const s = stateRef.current
     setSuccessVisible(false)
     s.roarsDone = 0; s.hasFinished = false; s.sustainedSeconds = 0; s.holdSeconds = 0
-    s.cooldown = 0; s.inRoar = false; s.shockwaves = []; s.particles = []
+    s.cooldown = 0; s.inRoar = false; s.shockwaves = []; s.particles = []; s.pendingConfirm = false
     s.lastFrameTime = performance.now()
     s.attemptStartTime = performance.now()
     rafRef.current = requestAnimationFrame(gameLoop)
+    // The verification loop (startVerificationWindow -> onstop -> ...) stops
+    // for good once hasFinished is set on a win -- nothing restarts it
+    // afterward except here. Without this, a replay's roars keep completing
+    // provisionally (completeRoar/gameLoop) but finishVerificationWindow
+    // never runs again to confirm them, so the win condition can never be
+    // checked and the dots fill up with no way to finish.
+    startVerificationWindow()
   }
 
   function handleRecalibrate() {
