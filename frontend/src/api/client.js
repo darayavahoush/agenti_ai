@@ -17,16 +17,41 @@ const ROOT_URL = BASE_URL.replace(/\/api\/v1\/?$/, '')
 // force a full logout even though the session is actually still good.
 let _refreshPromise = null
 
+// Bumped on every point where the ACTIVE session identity changes under
+// bq_token -- login, startSupervisedSession's swap to the patient, its
+// restore back to the therapist, switchAccount, and logout (see
+// bumpSessionGeneration's call sites in AuthContext.jsx). Comparing the
+// exact token string (the older guard below) breaks down for a specific
+// race: a background request from session A gets a legitimate 401, kicks
+// off _attemptSilentRefresh, session A ends (e.g. startSupervisedSession
+// swaps in session B) *while that refresh is still in flight*, and the
+// refresh then resolves and writes session A's freshly-rotated token over
+// session B's -- a token string comparison done *before* the refresh started
+// can't catch a swap that happens *during* it. The generation captured at
+// send time and re-checked after every async hop (refresh included) closes
+// that gap regardless of whether the tokens involved happen to coincide.
+let _sessionGeneration = 0
+export function bumpSessionGeneration() {
+  _sessionGeneration += 1
+}
+
 async function _attemptSilentRefresh() {
   if (_refreshPromise) return _refreshPromise
   const refreshToken = localStorage.getItem('bq_refresh_token')
   if (!refreshToken) return null
+  const generationAtCall = _sessionGeneration
 
   // Plain axios, not the `api` instance below -- avoids recursing back
   // through this file's own interceptors, and /auth/refresh doesn't need
   // (or want) the expired access token attached as an Authorization header.
   _refreshPromise = axios.post(`${BASE_URL}/auth/refresh`, { refresh_token: refreshToken })
     .then(({ data }) => {
+      // The session moved on (supervised-session swap, restore, switch,
+      // logout) while this refresh was in flight -- the tokens it just
+      // rotated belong to a session that's no longer active. Applying them
+      // now would clobber whatever session actually replaced it, so drop
+      // the result on the floor instead of persisting or returning it.
+      if (_sessionGeneration !== generationAtCall) return null
       localStorage.setItem('bq_token', data.access_token)
       localStorage.setItem('bq_refresh_token', data.refresh_token)
       // Refresh rotates the refresh token (old one revoked server-side) --
@@ -72,10 +97,14 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach token automatically
+// Attach token automatically -- also stamps the session generation this
+// request was sent under (see bumpSessionGeneration above), so the response
+// interceptor can tell a request apart from a *later* session even in the
+// (rare) case the two happen to carry the same token string.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('bq_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  config._sessionGen = _sessionGeneration
   return config
 })
 
@@ -112,8 +141,10 @@ api.interceptors.response.use(
     // drop it rather than acting on it.
     const sentToken = originalRequest?.headers?.Authorization
     const currentToken = localStorage.getItem('bq_token')
-    const isStaleRequest = sentToken && sentToken !== `Bearer ${currentToken}`
-    if (isStaleRequest) {
+    const isStaleGeneration = typeof originalRequest?._sessionGen === 'number'
+      && originalRequest._sessionGen !== _sessionGeneration
+    const isStaleToken = sentToken && sentToken !== `Bearer ${currentToken}`
+    if (isStaleGeneration || isStaleToken) {
       return Promise.reject(error)
     }
 
@@ -130,6 +161,14 @@ api.interceptors.response.use(
       }
       // Refresh itself failed (no refresh token stored, or it's also
       // expired/revoked) -- fall through to the hard-logout path below.
+      //
+      // The refresh attempt just awaited is itself an async gap the session
+      // could have moved on during (e.g. startSupervisedSession's swap
+      // landing while this exact refresh was in flight) -- re-check rather
+      // than trusting the pre-await isStaleGeneration result above.
+      if (_sessionGeneration !== originalRequest._sessionGen) {
+        return Promise.reject(error)
+      }
     }
 
     if (error.response?.status === 401 && !isAuthEndpoint) {

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authAPI, assessmentAPI, patientsAPI, meAPI } from '../api/client'
+import { authAPI, assessmentAPI, patientsAPI, meAPI, bumpSessionGeneration } from '../api/client'
 import { listKnownAccounts, upsertKnownAccount, forgetKnownAccount, currentAccountKey, accountKey } from '../api/knownAccounts'
 
 const AuthContext = createContext(null)
@@ -33,6 +33,11 @@ export function AuthProvider({ children }) {
   // clears it (a therapist/kid session has no meaning for "which child is
   // active" the way a parent one does).
   const _persistSession = (userType, data) => {
+    // Every path that lands here (login, register, parent-google flows,
+    // switchAccount) is a real change of which session bq_token belongs
+    // to -- bump first so any in-flight request/refresh from the session
+    // being replaced gets recognized as stale by client.js.
+    bumpSessionGeneration()
     localStorage.setItem('bq_token',         data.access_token)
     localStorage.setItem('bq_refresh_token', data.refresh_token)
     localStorage.setItem('bq_user_type',     userType)
@@ -199,6 +204,12 @@ export function AuthProvider({ children }) {
     }
     const { data } = await patientsAPI.startSession(breathQuestPatientId)
 
+    // This swap is exactly the kind of session change client.js's stale-
+    // request guard exists for -- bump before touching bq_token so any
+    // request/refresh still in flight from the therapist session gets
+    // recognized as belonging to a superseded generation.
+    bumpSessionGeneration()
+
     localStorage.setItem('bq_supervisor_backup', JSON.stringify(backup))
     setSupervisorBackup(backup)
 
@@ -216,6 +227,11 @@ export function AuthProvider({ children }) {
   // error is worse than a harmless no-op.
   const endSupervisedSession = () => {
     if (!supervisorBackup) return
+    // Same reasoning as the swap in startSupervisedSession above -- this is
+    // the session moving on again (back to the therapist), so any request
+    // still in flight from the just-ending patient session needs to be
+    // recognized as stale rather than acting on the therapist's storage.
+    bumpSessionGeneration()
     const { token, refreshToken, userType, userData } = supervisorBackup
     if (token)        localStorage.setItem('bq_token', token)
     if (refreshToken) localStorage.setItem('bq_refresh_token', refreshToken)
@@ -403,6 +419,7 @@ export function AuthProvider({ children }) {
   }
 
   const _clearSession = () => {
+    bumpSessionGeneration()
     const key = currentAccountKey()
     if (key) forgetKnownAccount(key)
     setKnownAccounts(listKnownAccounts())
@@ -535,6 +552,7 @@ export function AuthProvider({ children }) {
     // it from the switcher too, matching what a person expects "log out"
     // to mean rather than leaving a ghost entry that still quick-switches
     // back in with no password.
+    bumpSessionGeneration()
     const key = currentAccountKey()
     if (key) forgetKnownAccount(key)
     setKnownAccounts(listKnownAccounts())
