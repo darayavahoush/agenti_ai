@@ -8,11 +8,9 @@ don't get a second login just for this section.
 import tempfile
 import os
 import uuid
-import json
 import random
 import base64
 import logging
-from pathlib import Path
 
 import asyncio
 from typing import Literal
@@ -43,24 +41,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-_DATA_DIR = Path(__file__).resolve().parents[3] / 'data' / 'flashcard_images'
-_INDEX_PATH = _DATA_DIR / 'index.json'
-
 router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
 
 
 def _word_payload(word: str, language: str) -> dict:
-    # Used to read raw bytes straight out of data/flashcard_images/index.json --
-    # a small, hand-curated cache of old Wikimedia/OpenClipart scrapes, separate
-    # from (and lower quality than) the ARASAAC-backed image service Assessment's
-    # alphabet screen and VaakMirror already use. get_image_for_phrase gives real
-    # pictogram matches (with a semantic-similarity fallback for anything not
-    # pre-downloaded yet), same as everywhere else in the app -- this index.json
-    # lookup here is now only for confirming `word` is a real flashcard word;
-    # themes.py still owns the actual word list.
-    with open(_INDEX_PATH) as f:
-        index = json.load(f)
-    if word not in index:
+    # `word` is validated against themes.py (the real source of truth for
+    # which words are flashcards), not the old data/flashcard_images/index.json
+    # cache -- that index only ever had 132 entries, so gating on it silently
+    # 404'd every word added to a theme without also pre-downloading a picture
+    # for it. get_image_for_phrase does the actual image lookup and already
+    # falls through to ARASAAC/Pixabay/etc. for anything not locally cached,
+    # same as Assessment's alphabet screen and VaakMirror.
+    if word not in themes_module.all_words():
         raise KeyError(word)
     result = get_image_for_phrase(word)
     image_b64 = base64.b64encode(result["image_bytes"]).decode() if result.get("found") and result.get("image_bytes") else None
@@ -90,12 +82,9 @@ def random_word(
     word: str = None,
     patient_id: str = Depends(get_current_patient_id),
 ):
-    with open(_INDEX_PATH) as f:
-        index = json.load(f)
-
     # Exact word requested (card-level selection). Falls through to
-    # theme/full-random only if the word somehow isn't in the index.
-    if word and word in index:
+    # theme/full-random only if the word somehow isn't a real flashcard word.
+    if word and word in themes_module.all_words():
         return _word_payload(word, language)
 
     if theme:
@@ -105,7 +94,9 @@ def random_word(
         # Unknown/empty theme -- degrade to fully random rather than 404,
         # same approach kid_progress.py takes for a missing VaakMirrorSession.
 
-    chosen = random.choice(list(index.keys()))
+    # Full-random across every theme word, not just the 132 with a locally
+    # cached picture -- get_image_for_phrase fetches the rest live.
+    chosen = random.choice(themes_module.all_words())
     return _word_payload(chosen, language)
 
 
