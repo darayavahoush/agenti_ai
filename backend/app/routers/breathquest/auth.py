@@ -44,7 +44,7 @@ from app.schemas.breathquest_schemas import (
     ParentResetPasswordRequest,
     ParentDeleteAccountRequest,
     KidDeleteAccountRequest,
-    ChildSummary, ParentChildrenResponse, AddChildRequest, LinkChildRequest,
+    ChildSummary, ParentChildrenResponse, AddChildRequest, UpdateChildRequest, LinkChildRequest,
     SwitchChildRequest, SwitchChildResponse,
     LinkTherapistRequest, LinkTherapistResponse,
 )
@@ -61,6 +61,9 @@ from app.breathquest_core.login_throttle import check_throttle, record_failure, 
 # attempts against one account, so this is the right tool here instead.
 from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
+# Reused rather than re-declared so the parent's avatar-edit endpoint below
+# can never drift from the therapist's/kid's own idea of a valid avatar.
+from app.routers.breathquest.patients import VALID_AVATARS
 from app.breathquest_core.parental_consent import check_email_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient
 from app.breathquest_core.config import get_breathquest_settings
@@ -906,6 +909,44 @@ async def add_child(
         patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
         avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
         is_active=(child.id == parent.patient_id), is_primary=False,
+        username=child.username,
+    )
+
+
+@router.patch("/parent/children/{patient_id}", response_model=ChildSummary)
+async def update_child(
+    patient_id: str,
+    data: UpdateChildRequest,
+    db: AsyncSession = Depends(get_db),
+    parent: Parent = Depends(get_current_parent),
+):
+    """Avatar-only edit for an existing child (#68 -- previously a parent
+    could only pick an avatar once, at add/register time, with no way to
+    change it after; only the kid could, via /patients/me/profile).
+    Scoped through ParentChild the same way switch_child is, so a parent
+    can only edit a child actually linked to their account."""
+    link = (await db.execute(
+        select(ParentChild).where(ParentChild.parent_id == parent.id, ParentChild.patient_id == patient_id)
+    )).scalar_one_or_none()
+    if not link:
+        raise HTTPException(status_code=404, detail="That child isn't linked to your account")
+
+    if data.avatar not in VALID_AVATARS:
+        raise HTTPException(status_code=400, detail="Invalid avatar choice")
+
+    child = (await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id)
+    )).scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    child.avatar = data.avatar
+    db.add(child)
+    await db.commit()
+    return ChildSummary(
+        patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
+        avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
+        is_active=(child.id == parent.patient_id), is_primary=link.is_primary,
         username=child.username,
     )
 
