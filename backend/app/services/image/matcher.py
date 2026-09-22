@@ -236,10 +236,14 @@ def find_image(word: str) -> dict:
     if filename:
         return {"path": str(DATA_DIR / filename), "word": word, "confidence": 75, "match_type": "web"}
 
-    # 4. Semantic match fallback (reuse the closest existing indexed image)
-    matched = semantic_match(word)
-    if matched:
-        return {"path": str(DATA_DIR / _index[matched]), "word": matched, "confidence": 70, "match_type": "semantic"}
+    # 4. Semantic match fallback removed: general-purpose sentence embeddings
+    #    put most short, unrelated common nouns in the 0.5-0.6 similarity band,
+    #    so this used to serve a plausible-but-wrong cached image (e.g. a
+    #    "door" pictogram showing up under Vegetables) whenever the live
+    #    fetches above missed. For an AAC app a wrong picture is worse than
+    #    no picture, so a miss now falls straight through to the plain
+    #    generated text card below. semantic_match() is kept defined but
+    #    unused in case a future higher-threshold version is wanted.
 
     # Final fallback: generate a simple text image locally
     img = _make_text_image(word)
