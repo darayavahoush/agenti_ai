@@ -22,11 +22,11 @@ export function ThemeSelect({ onPick }) {
 
   return (
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
-      <PlayfulBackdrop tint="#A78BFA" />
+      <PlayfulBackdrop tint="#C084FC" />
       <GlobalSelectionStyles />
       <div className="fc-clear-menu" style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={1} total={3} />
-        <SectionHeader eyebrow="Step 1 of 3" title="What do you want to practice? 🎯" subtitle="Pick a topic for your cards" />
+        <SectionHeader title="What do you want to practice? 🎯" subtitle="Pick a topic for your cards" />
         {themeList === null ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} index={i} />)}
@@ -39,7 +39,7 @@ export function ThemeSelect({ onPick }) {
             action={themeLoadFailed && (
               <button
                 onClick={loadThemes}
-                style={{ background: "#A78BFA", border: "none", borderRadius: "14px", padding: "10px 22px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif", marginTop: "4px" }}
+                style={{ background: "#C084FC", border: "none", borderRadius: "14px", padding: "10px 22px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif", marginTop: "4px" }}
               >
                 Try again
               </button>
@@ -62,7 +62,7 @@ export function ThemeSelect({ onPick }) {
               emoji={surpriseEmoji}
               title="Surprise me"
               subtitle="Any topic"
-              color="#A78BFA"
+              color="#C084FC"
               index={themeList.length}
               featured
               onClick={() => onPick(null)}
@@ -86,14 +86,14 @@ export function WordSelect({ theme, onPick, onBack }) {
 
   return (
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
-      <PlayfulBackdrop tint="#4ABFBF" />
+      <PlayfulBackdrop tint="#4CD3A5" />
       <GlobalSelectionStyles />
       <div className="fc-clear-menu" style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", cursor: "pointer", marginBottom: "12px", fontFamily: "Nunito, sans-serif" }}>
           ← Back to topics
         </button>
         <StepDots current={2} total={3} />
-        <SectionHeader eyebrow="Step 2 of 3" title="Pick a word, or let us choose ✨" />
+        <SectionHeader title="Pick a word, or let us choose ✨" />
         {words === null ? (
           <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center" }}>Loading words…</p>
         ) : (
@@ -102,17 +102,17 @@ export function WordSelect({ theme, onPick, onBack }) {
               onClick={() => onPick(null)}
               style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                background: "#A78BFA1f", border: "1.5px solid #A78BFA66",
+                background: "#C084FC26", border: "2px solid #C084FC88",
                 borderRadius: "14px", padding: "14px", cursor: "pointer", marginBottom: "14px",
-                color: "#A78BFA", fontWeight: 800, fontFamily: "Nunito, sans-serif", fontSize: "0.85rem",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.22)",
+                color: "#FFF7ED", fontWeight: 700, fontFamily: "'Baloo 2', 'Nunito', sans-serif", fontSize: "0.85rem",
+                boxShadow: "0 4px 0 #C084FC59, 0 8px 18px rgba(0,0,0,0.35)",
                 opacity: 0, animation: "popIn 0.35s cubic-bezier(0.22,1,0.36,1) forwards",
               }}
             >
               <span>{surpriseEmoji}</span>
               Surprise me within this topic
             </button>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", maxHeight: "320px", overflowY: "auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", maxHeight: "420px", overflowY: "auto", padding: "4px" }}>
               {words.map((w, i) => (
                 <WordPill key={w} label={w} color={FUN_COLORS[i % FUN_COLORS.length]} index={i} onClick={() => onPick(w)} />
               ))}
