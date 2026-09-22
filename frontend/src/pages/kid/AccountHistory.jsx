@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ClipboardCheck, Wind, Gauge, Sparkles, Music, CloudOff, PartyPopper, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Wind, Gauge, Sparkles, Music, BookOpen, CloudOff, PartyPopper, ChevronRight } from 'lucide-react'
 import { meAPI } from '../../api/client'
 import { Button } from '../../components/ui'
 
@@ -13,6 +13,7 @@ const GAME_STYLE = {
   VoiceHurdleRace: { icon: Gauge,          color: 'text-ember', bg: 'bg-ember/15' },
   VaakMirror:      { icon: Sparkles,       color: 'text-brand-purple', bg: 'bg-brand-purple/15' },
   Chime:           { icon: Music,          color: 'text-brand-amber', bg: 'bg-brand-amber/15' },
+  Flashcards:      { icon: BookOpen,       color: 'text-brand-coral', bg: 'bg-brand-coral/15' },
 }
 
 function styleFor(entry) {
