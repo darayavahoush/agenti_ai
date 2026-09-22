@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { Sidebar, StarRating, AboutModal } from "../../components/ui";
 import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
@@ -19,11 +19,11 @@ import PhonemeHelp from "../../flashcards/PhonemeHelp";
 function CharacterSelect({ onPick }) {
   return (
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
-      <PlayfulBackdrop tint="#A78BFA" />
+      <PlayfulBackdrop tint="#C084FC" />
       <GlobalSelectionStyles />
       <div className="fc-clear-menu" style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={3} total={3} />
-        <SectionHeader eyebrow="Step 3 of 3" title="Who's helping you today? 🚀" subtitle="Pick a friend to practice words with" />
+        <SectionHeader title="Who's helping you today? 🚀" subtitle="Pick a friend to practice words with" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
           {Object.values(CHARACTERS).map((c, i) => (
             <PlayCard
@@ -129,9 +129,25 @@ export default function Flashcards() {
   // Runs once, right when the setup flow finishes and character gets set
   // for the first time. `pendingFirstWord` (closed over via ref-like state
   // below) is only honoured for this very first card.
+  //
+  // `practiceStartedRef` guards against re-firing: this effect depends on
+  // `character` (needed for the initial entry into practice), but the
+  // in-session "Switch character" panel also calls setCharacter() while
+  // already on the practice stage. Without the guard, every character
+  // switch re-ran this effect and silently loaded a brand-new random
+  // word out from under the kid -- switching voices was quietly also
+  // switching flashcards. The ref resets whenever we leave practice (e.g.
+  // back to the theme/word/character setup screens) so a fresh setup
+  // flow still triggers the initial load correctly.
   const [pendingFirstWord, setPendingFirstWord] = useState(null);
+  const practiceStartedRef = useRef(false);
   useEffect(() => {
-    if (character && stage === "practice") {
+    if (stage !== "practice") {
+      practiceStartedRef.current = false;
+      return;
+    }
+    if (character && !practiceStartedRef.current) {
+      practiceStartedRef.current = true;
       loadNextWord(pendingFirstWord);
       setPendingFirstWord(null);
     }

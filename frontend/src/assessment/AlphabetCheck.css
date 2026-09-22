@@ -33,9 +33,15 @@
 
 .sc-keyboard { display: flex; flex-direction: column; gap: 8px; }
 .sc-row { display: flex; gap: 6px; justify-content: center; }
-.sc-key { position: relative; flex: 1 1 0; max-width: 52px; min-height: 46px; aspect-ratio: 1 / 1.05; border-radius: 12px;
+.sc-key { position: relative; flex: 1 1 0; min-width: 0; max-width: 52px; min-height: 46px; aspect-ratio: 1 / 1.05; border-radius: 12px;
   border: 2px solid var(--kc); background: color-mix(in srgb, var(--kc) 12%, #fff); color: #2d2252;
   font-weight: 800; font-size: 17px; cursor: pointer; transition: transform .12s, box-shadow .12s; touch-action: manipulation; }
+/* min-width: 0 overrides the flex item's default "auto" floor, which
+   aspect-ratio + min-height otherwise set to ~44px per key -- with 10 keys
+   in the top row plus 9 gaps, that floor is wider than the card gets in the
+   two-column desktop layout, so the row pushed its last key (P) past the
+   card's edge instead of shrinking to fit. This lets flex-shrink actually
+   work down to max-width's ceiling on either side. */
 .sc-key:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 14px color-mix(in srgb, var(--kc) 35%, transparent); }
 .sc-key:disabled { opacity: .55; cursor: not-allowed; }
 .sc-key.active { background: var(--kc); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--kc) 45%, transparent); }
