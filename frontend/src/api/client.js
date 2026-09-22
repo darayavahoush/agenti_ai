@@ -235,11 +235,12 @@ export const patientsAPI = {
   update: (id, data)   => api.patch(`/breathquest/patients/${id}`, data),
   delete: (id)         => api.delete(`/breathquest/patients/${id}`),
   generateParentInviteCode: (id) => api.post(`/breathquest/patients/${id}/parent-invite-code`),
-  // Attaches the calling therapist to an existing kid account by player
-  // code -- for a child who self/parent-registered before this therapist
-  // was in the picture. See routers/breathquest/patients.py's
-  // link_existing_patient -- the reverse direction of authAPI.linkTherapist.
-  link: (playerCode) => api.post('/breathquest/patients/link', { player_code: playerCode }),
+  // Attaches the calling therapist to an existing kid account by
+  // @username or player code -- for a child who self/parent-registered
+  // before this therapist was in the picture. See
+  // routers/breathquest/patients.py's link_existing_patient -- the
+  // reverse direction of authAPI.linkTherapist.
+  link: (identifier) => api.post('/breathquest/patients/link', { identifier }),
   // Therapist-launched entry point into Assessment/Live Therapy (see
   // AuthContext.jsx's startSupervisedSession) -- mints a real kid token
   // for this patient without needing their PIN.
