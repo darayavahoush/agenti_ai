@@ -1,22 +1,33 @@
 import { useState, useEffect, useMemo } from "react";
 
-// Shared playful/animated primitives for the Flashcards selection flow
+// Shared "scrapbook page" primitives for the Flashcards selection flow
 // (ThemeSelect, WordSelect in SelectionFlow.jsx; CharacterSelect in
 // Flashcards.jsx). Kept in one place so the three screens read as one
 // cohesive flow instead of drifting apart visually over time.
 //
-// "Sticker card" design pass: solid color-tinted fills and a hard offset
-// shadow instead of a near-invisible white wash + soft blur, so cards
-// read as physical stickers rather than generic dark-mode SaaS cards.
-// Titles use Baloo 2 (already loaded app-wide, just unused here) so
-// headings carry real personality instead of sharing Nunito with every
-// label and eyebrow. WordTile gives the word-select grid the same
-// card weight as the theme/character screens -- it used to be a step
-// down to plain pills, which is a big part of why it read as flatter
-// and more "clinical" than the rest of the flow.
+// Design direction: a warm paper page, not a dark-mode grid of uniform
+// tiles. Cards are cream cardstock rectangles taped down at a slight
+// per-card tilt (not a perfect grid of identical circles-in-boxes --
+// that read as a video-call participant grid), with a torn-corner
+// "photo" inset, a strip of washi tape, and a handwritten caption
+// (Caveat) instead of everything sharing one body font. Matches the
+// warm cream/ink palette the rest of the app (themes.js LIGHT_THEMES,
+// the Chime home page) already uses, rather than the previous
+// dark-purple "SaaS" background that clashed with it.
 
-export const FUN_COLORS = ["#FF6F59", "#FFB238", "#4CD3A5", "#4FA8FF", "#C084FC", "#FF6FB0"];
+export const FUN_COLORS = ["#E8825A", "#E8B84B", "#6BBF8A", "#5B9BD5", "#B57ED5", "#E87BA8"];
 const DISPLAY_FONT = "'Baloo 2', 'Nunito', sans-serif";
+const HAND_FONT = "'Caveat', cursive";
+const INK = "#4A3826";
+const INK_SOFT = "#9A7F68";
+
+// Deterministic per-index tilt so the grid doesn't jitter between
+// re-renders but also doesn't line up into identical rows like a
+// meeting grid. A handful of hand-picked angles repeating is enough --
+// real scrapbook pages don't need truly random angles, just "not zero".
+const CARD_ROTATIONS = [-3, 2.5, -2, 3, -3.5, 1.5, -1.5, 2, -2.5, 3.5, -1, 2.8];
+const TAPE_ROTATIONS = [-9, 7, -13, 10, -6, 12, -8, 6];
+const rotFor = (i, arr) => arr[((i % arr.length) + arr.length) % arr.length];
 
 export function useCyclingEmoji(emojis, intervalMs = 1500) {
   const [i, setI] = useState(0);
@@ -29,74 +40,97 @@ export function useCyclingEmoji(emojis, intervalMs = 1500) {
 }
 
 // Heading + optional subtitle above every selection screen's card grid.
-// No uppercase tracked-out eyebrow chip -- StepDots already carries
-// progress, so a second "STEP X OF 3" label was redundant chrome. Title
-// is set in Baloo 2 so it reads as a real headline, not body text at a
-// bigger size.
+// Title is handwritten (Caveat) with a highlighter-marker swipe behind
+// it instead of a plain headline -- reads as a page title scrawled on
+// the scrapbook page rather than app chrome. No uppercase tracked-out
+// eyebrow chip -- StepDots already carries progress.
 export function SectionHeader({ title, subtitle }) {
   return (
-    <div style={{ textAlign: "center", marginBottom: "24px" }}>
-      <h2 style={{ color: "#FFF7ED", fontFamily: DISPLAY_FONT, fontSize: "1.7rem", fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
-        {title}
+    <div style={{ textAlign: "center", marginBottom: "22px" }}>
+      <h2 style={{ position: "relative", display: "inline-block", margin: 0 }}>
+        <span aria-hidden style={{
+          position: "absolute", left: "-6%", right: "-6%", bottom: "6%", height: "40%",
+          background: "#FFD86B", opacity: 0.55, transform: "rotate(-1deg)", borderRadius: "3px", zIndex: 0,
+        }} />
+        <span style={{ position: "relative", zIndex: 1, color: INK, fontFamily: HAND_FONT, fontSize: "2.3rem", fontWeight: 700, letterSpacing: "0.01em" }}>
+          {title}
+        </span>
       </h2>
-      {subtitle && <p style={{ color: "rgba(255,247,237,0.5)", fontFamily: "Nunito, sans-serif", fontSize: "0.85rem", margin: "6px 0 0" }}>{subtitle}</p>}
+      {subtitle && <p style={{ color: INK_SOFT, fontFamily: "Quicksand, sans-serif", fontWeight: 600, fontSize: "0.88rem", margin: "8px 0 0" }}>{subtitle}</p>}
     </div>
   );
 }
 
+// Little brass "brads" (paper fasteners) linked by a dashed stitch line
+// instead of a row of plain dots -- ties the progress indicator to the
+// same tactile paper-craft language as the cards.
 export function StepDots({ current, total = 3 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginBottom: "18px" }}>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "16px" }}>
       {Array.from({ length: total }).map((_, i) => {
         const active = i + 1 === current;
         const done = i + 1 < current;
+        const filled = active || done;
         return (
-          <div
-            key={i}
-            style={{
-              width: active ? "22px" : "8px",
-              height: "8px",
-              borderRadius: "999px",
-              background: active ? "#C084FC" : done ? "#C084FC88" : "rgba(255,255,255,0.15)",
+          <div key={i} style={{ display: "flex", alignItems: "center" }}>
+            <div style={{
+              width: active ? "17px" : "11px", height: active ? "17px" : "11px", borderRadius: "50%",
+              background: filled ? "radial-gradient(circle at 32% 28%, #F0A868, #C9662E 75%)" : "rgba(74,56,38,0.14)",
+              boxShadow: active ? "0 0 0 3px rgba(201,102,46,0.22), inset 0 1px 1px rgba(255,255,255,0.5)" : filled ? "inset 0 1px 1px rgba(255,255,255,0.4)" : "none",
               transition: "all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
-              animation: active ? "dotPulse 1.4s ease-in-out infinite" : "none",
-            }}
-          />
+              animation: active ? "brassPulse 1.6s ease-in-out infinite" : "none",
+            }} />
+            {i < total - 1 && <div style={{ width: "22px", height: 0, borderTop: "2px dashed rgba(74,56,38,0.22)", margin: "0 2px" }} />}
+          </div>
         );
       })}
     </div>
   );
 }
 
-export function PlayfulBackdrop({ tint = "#C084FC" }) {
-  const stars = useMemo(() => Array.from({ length: 10 }).map((_, i) => ({
+// Small strip of scattered doodles + two corner washi-tape strips
+// "pinning" the page content down. Replaces the previous blurred glow
+// blobs + twinkling starfield, which read as ambient tech glow rather
+// than anything paper-like.
+const DOODLES = ["✨", "⭐", "❤️", "〰️", "✂️", "🌟"];
+export function PlayfulBackdrop({ tint = "#B57ED5" }) {
+  const dots = useMemo(() => Array.from({ length: 7 }).map((_, i) => ({
     id: i,
-    top: Math.random() * 100,
-    left: Math.random() * 100,
-    size: 1 + Math.random() * 2,
-    delay: Math.random() * 4,
-    duration: 3 + Math.random() * 3,
+    top: 6 + Math.random() * 86,
+    left: 3 + Math.random() * 92,
+    rot: -25 + Math.random() * 50,
+    size: 13 + Math.random() * 10,
+    emoji: DOODLES[i % DOODLES.length],
   })), []);
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-      <div style={{ position: "absolute", top: "-10%", left: "-10%", width: "50%", height: "50%", borderRadius: "50%", background: tint, opacity: 0.07, filter: "blur(70px)", animation: "driftA 20s ease-in-out infinite" }} />
-      <div style={{ position: "absolute", bottom: "-15%", right: "-10%", width: "55%", height: "55%", borderRadius: "50%", background: "#4CD3A5", opacity: 0.06, filter: "blur(80px)", animation: "driftB 24s ease-in-out infinite" }} />
-      {stars.map(s => (
-        <div key={s.id} style={{
-          position: "absolute", top: `${s.top}%`, left: `${s.left}%`,
-          width: `${s.size}px`, height: `${s.size}px`, borderRadius: "50%",
-          background: "#fff", animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
-        }} />
+      <div style={{
+        position: "absolute", top: "16px", left: "6%", width: "64px", height: "22px",
+        background: `repeating-linear-gradient(45deg, ${tint}99, ${tint}99 5px, ${tint}55 5px, ${tint}55 10px)`,
+        transform: "rotate(-8deg)", boxShadow: "0 2px 4px rgba(74,56,38,0.18)", opacity: 0.6, borderRadius: "1px",
+      }} />
+      <div style={{
+        position: "absolute", top: "12px", right: "7%", width: "56px", height: "20px",
+        background: "repeating-linear-gradient(-45deg, #6BBF8A99, #6BBF8A99 5px, #6BBF8A55 5px, #6BBF8A55 10px)",
+        transform: "rotate(7deg)", boxShadow: "0 2px 4px rgba(74,56,38,0.18)", opacity: 0.55, borderRadius: "1px",
+      }} />
+      {dots.map(d => (
+        <span key={d.id} style={{
+          position: "absolute", top: `${d.top}%`, left: `${d.left}%`,
+          fontSize: `${d.size}px`, opacity: 0.16, transform: `rotate(${d.rot}deg)`,
+        }}>{d.emoji}</span>
       ))}
     </div>
   );
 }
 
-// Subtle radial gradient instead of flat black -- adds depth at zero
-// motion cost. Shared so all three selection screens use one background
-// definition rather than each hardcoding '#0d0d1a'.
-export const SELECTION_BG = "radial-gradient(ellipse 1100px 650px at 50% -10%, #251a3f 0%, #140f24 60%)";
+// Warm cream paper gradient (matches themes.js LIGHT_THEMES.DEFAULT) with
+// a faint dotted grain layered on top, so it reads as paper texture
+// rather than a flat fill -- and, critically, isn't the near-black
+// purple background that made the sticker cards read as dark-mode
+// SaaS/video-call tiles.
+export const SELECTION_BG = `radial-gradient(circle at 1px 1px, rgba(74,56,38,0.07) 1px, transparent 0) 0 0/24px 24px, linear-gradient(160deg, #FDEDEA 0%, #FDF3DD 30%, #FBFAE0 55%, #E9F6EA 75%, #E2F5F2 100%)`;
 
 export function GlobalSelectionStyles() {
   return (
@@ -114,29 +148,17 @@ export function GlobalSelectionStyles() {
         .fc-head-actions { flex-wrap: wrap; }
       }
       @keyframes popIn {
-        0% { opacity: 0; transform: scale(0.92) translateY(10px); }
-        100% { opacity: 1; transform: scale(1) translateY(0); }
+        0% { opacity: 0; transform: scale(0.92) translateY(10px) rotate(var(--pop-rot, 0deg)); }
+        100% { opacity: 1; transform: scale(1) translateY(0) rotate(var(--pop-rot, 0deg)); }
       }
       @keyframes wiggle {
         0%, 100% { transform: rotate(0deg); }
-        25% { transform: rotate(-3deg); }
-        75% { transform: rotate(3deg); }
+        25% { transform: rotate(-6deg); }
+        75% { transform: rotate(6deg); }
       }
-      @keyframes twinkle {
-        0%, 100% { opacity: 0.12; }
-        50% { opacity: 0.7; }
-      }
-      @keyframes driftA {
-        0%, 100% { transform: translate(0, 0); }
-        50% { transform: translate(24px, 16px); }
-      }
-      @keyframes driftB {
-        0%, 100% { transform: translate(0, 0); }
-        50% { transform: translate(-20px, -12px); }
-      }
-      @keyframes dotPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(192,132,252,0.4); }
-        50% { box-shadow: 0 0 0 5px rgba(192,132,252,0); }
+      @keyframes brassPulse {
+        0%, 100% { box-shadow: 0 0 0 3px rgba(201,102,46,0.22), inset 0 1px 1px rgba(255,255,255,0.5); }
+        50% { box-shadow: 0 0 0 6px rgba(201,102,46,0), inset 0 1px 1px rgba(255,255,255,0.5); }
       }
       @keyframes pulseGlow {
         0%, 100% { opacity: 0.5; }
@@ -146,107 +168,147 @@ export function GlobalSelectionStyles() {
   );
 }
 
-// Circular sticker-style badge behind the icon/emoji/letter -- solid
-// color fill with a soft gloss highlight and a light ring, so it reads
-// as a proper badge rather than a faint tinted outline. Static at rest;
-// PlayCard/WordTile handle the hover wiggle on this element via the
-// .pc-visual class.
-function PlayCardBadge({ image, imageAlt, emoji, letter, title, color, size = 68 }) {
+// Small diagonal-stripe washi-tape strip, tilted independently of the
+// card it sits on -- the detail that most says "stuck onto a page"
+// rather than "rendered in a component library".
+function Tape({ color, index, width = 46 }) {
+  const rot = rotFor(index, TAPE_ROTATIONS);
+  return (
+    <div aria-hidden style={{
+      position: "absolute", top: "-9px", left: "50%", width: `${width}px`, height: "17px",
+      background: `repeating-linear-gradient(45deg, ${color}cc, ${color}cc 4px, ${color}70 4px, ${color}70 8px)`,
+      transform: `translateX(-50%) rotate(${rot}deg)`,
+      boxShadow: "0 1px 2px rgba(74,56,38,0.25)",
+      opacity: 0.92, borderRadius: "2px", zIndex: 2,
+    }} />
+  );
+}
+
+// Small folded-corner "dog ear" for the smaller word tiles, standing in
+// for the tape on the bigger cards without crowding a denser grid.
+function FoldedCorner({ color }) {
+  return (
+    <div aria-hidden style={{
+      position: "absolute", top: 0, right: 0, width: 0, height: 0,
+      borderStyle: "solid", borderWidth: "0 18px 18px 0",
+      borderColor: `transparent ${color}77 transparent transparent`,
+      filter: "drop-shadow(-1px 1px 1px rgba(74,56,38,0.2))",
+    }} />
+  );
+}
+
+// "Photo" inset behind the icon/emoji/letter -- a soft-cornered square
+// with a tinted background and a real border, like a small photo tucked
+// into a scrapbook slot, rather than a circular avatar (the circle was
+// most of what made the grid read as video-call participant tiles).
+function PlayCardBadge({ image, imageAlt, emoji, letter, title, color, size = 72 }) {
   return (
     <div
       style={{
-        width: `${size}px`, height: `${size}px`, borderRadius: "50%", flexShrink: 0,
+        width: `${size}px`, height: `${size}px`, borderRadius: "10px", flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: `linear-gradient(150deg, ${color} 0%, ${color}cc 100%)`,
-        border: "3px solid rgba(255,255,255,0.3)",
-        boxShadow: `inset 0 2px 4px rgba(255,255,255,0.35), inset 0 -6px 10px rgba(0,0,0,0.18)`,
+        background: `${color}2e`,
+        border: `2px solid ${color}`,
+        boxShadow: "inset 0 1px 3px rgba(74,56,38,0.12)",
       }}
     >
       {image ? (
-        <img src={image} alt={imageAlt || title} className="pc-visual" style={{ width: `${size * 0.58}px`, height: `${size * 0.58}px`, objectFit: "contain" }} />
+        <img src={image} alt={imageAlt || title} className="pc-visual" style={{ width: `${size * 0.62}px`, height: `${size * 0.62}px`, objectFit: "contain" }} />
       ) : emoji ? (
-        <span className="pc-visual" style={{ fontSize: `${size * 0.42}px`, display: "inline-block" }}>{emoji}</span>
+        <span className="pc-visual" style={{ fontSize: `${size * 0.44}px`, display: "inline-block" }}>{emoji}</span>
       ) : (
-        <span className="pc-visual" style={{ fontSize: `${size * 0.4}px`, fontWeight: 700, color: "#fff", fontFamily: DISPLAY_FONT, textShadow: "0 2px 2px rgba(0,0,0,0.2)" }}>{letter}</span>
+        <span className="pc-visual" style={{ fontSize: `${size * 0.4}px`, fontWeight: 700, color: INK, fontFamily: HAND_FONT }}>{letter}</span>
       )}
     </div>
   );
 }
 
-// Hard offset "sticker" shadow instead of a soft blurred SaaS shadow --
-// colored so it reads as the card's own edge lifting off the page
-// rather than generic ambient elevation.
-const stickerShadow = (color, lift = false) =>
-  `0 ${lift ? 6 : 4}px 0 ${color}59, 0 ${lift ? 14 : 8}px ${lift ? 26 : 18}px rgba(0,0,0,0.35)`;
+// Soft warm "paper lifted off the page" shadow instead of a hard SaaS
+// drop shadow -- ink-brown tinted rather than pure black, so it reads
+// as a shadow cast on cream paper.
+const paperShadow = (lift = false) => lift
+  ? "0 12px 20px rgba(74,56,38,0.22), 0 3px 7px rgba(74,56,38,0.14)"
+  : "0 5px 11px rgba(74,56,38,0.15), 0 2px 4px rgba(74,56,38,0.10)";
 
-export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#C084FC", index = 0, featured = false, onClick }) {
+export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#B57ED5", index = 0, featured = false, onClick }) {
+  const rot = rotFor(index, CARD_ROTATIONS);
   return (
     <button
       onClick={onClick}
       style={{
         position: "relative",
         display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
-        background: `${color}26`,
-        border: `2px solid ${color}${featured ? "cc" : "88"}`,
-        borderRadius: "22px", padding: "24px 12px",
-        boxShadow: stickerShadow(color),
+        background: "#FFFDF7",
+        border: `1.5px solid ${featured ? color : "rgba(74,56,38,0.14)"}`,
+        borderRadius: "6px 16px 6px 16px",
+        padding: "24px 12px 16px",
+        boxShadow: paperShadow(),
+        transform: `rotate(${rot}deg)`,
+        "--pop-rot": `${rot}deg`,
         opacity: 0, animation: `popIn 0.4s cubic-bezier(0.22,1,0.36,1) ${index * 0.05}s forwards`,
-        transition: "border-color 0.2s, box-shadow 0.15s, transform 0.15s, background 0.2s",
+        transition: "box-shadow 0.18s, transform 0.18s",
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.boxShadow = stickerShadow(color, true);
-        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = paperShadow(true);
+        e.currentTarget.style.transform = "rotate(0deg) translateY(-4px) scale(1.03)";
         const visual = e.currentTarget.querySelector(".pc-visual");
         if (visual) visual.style.animation = "wiggle 0.5s ease-in-out";
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.boxShadow = stickerShadow(color);
-        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = paperShadow();
+        e.currentTarget.style.transform = `rotate(${rot}deg)`;
         const visual = e.currentTarget.querySelector(".pc-visual");
         if (visual) visual.style.animation = "none";
       }}
-      onMouseDown={e => { e.currentTarget.style.transform = "translateY(2px)"; e.currentTarget.style.boxShadow = `0 1px 0 ${color}59, 0 2px 6px rgba(0,0,0,0.3)`; }}
-      onMouseUp={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = stickerShadow(color, true); }}
+      onMouseDown={e => { e.currentTarget.style.transform = `rotate(${rot * 0.4}deg) translateY(1px) scale(0.98)`; }}
+      onMouseUp={e => { e.currentTarget.style.transform = "rotate(0deg) translateY(-4px) scale(1.03)"; }}
     >
+      <Tape color={color} index={index} />
       <PlayCardBadge image={image} imageAlt={imageAlt} emoji={emoji} title={title} color={color} />
-      <span style={{ color: "#FFF7ED", fontSize: "0.95rem", fontWeight: 700, fontFamily: DISPLAY_FONT }}>{title}</span>
-      {subtitle && <span style={{ color: "rgba(255,247,237,0.55)", fontSize: "0.65rem", textAlign: "center", lineHeight: 1.3, fontFamily: "Nunito, sans-serif" }}>{subtitle}</span>}
+      <span style={{ color: INK, fontSize: "1.1rem", fontWeight: 700, fontFamily: HAND_FONT, lineHeight: 1 }}>{title}</span>
+      {subtitle && <span style={{ color: INK_SOFT, fontSize: "0.68rem", textAlign: "center", lineHeight: 1.3, fontFamily: "Quicksand, sans-serif", fontWeight: 600 }}>{subtitle}</span>}
     </button>
   );
 }
 
-// Word-grid tile -- same sticker-card weight as PlayCard (badge + label,
-// stacked) instead of the old flat horizontal pill, so step 2 of the
-// flow doesn't read as a downgrade from steps 1 and 3.
-export function WordPill({ label, color = "#C084FC", index = 0, onClick }) {
+// Word-grid tile -- a smaller sticky-note sibling of PlayCard (badge +
+// handwritten label, same tilt language, folded corner instead of
+// tape) so step 2 of the flow carries the same weight as steps 1 and 3
+// instead of downgrading to bare pills.
+export function WordPill({ label, color = "#B57ED5", index = 0, onClick }) {
+  const rot = rotFor(index, CARD_ROTATIONS);
   return (
     <button
       onClick={onClick}
       style={{
+        position: "relative", overflow: "hidden",
         display: "flex", flexDirection: "column", alignItems: "center", gap: "8px",
-        background: `${color}26`, border: `2px solid ${color}88`,
-        borderRadius: "18px", padding: "14px 8px",
-        boxShadow: stickerShadow(color),
+        background: `${color}20`, border: `1.5px solid ${color}70`,
+        borderRadius: "4px 12px 4px 12px", padding: "14px 8px 10px",
+        boxShadow: paperShadow(),
+        transform: `rotate(${rot}deg)`,
+        "--pop-rot": `${rot}deg`,
         opacity: 0, animation: `popIn 0.35s cubic-bezier(0.22,1,0.36,1) ${Math.min(index, 24) * 0.02}s forwards`,
         transition: "box-shadow 0.15s, transform 0.15s",
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.boxShadow = stickerShadow(color, true);
-        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = paperShadow(true);
+        e.currentTarget.style.transform = "rotate(0deg) translateY(-3px) scale(1.03)";
         const visual = e.currentTarget.querySelector(".pc-visual");
         if (visual) visual.style.animation = "wiggle 0.5s ease-in-out";
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.boxShadow = stickerShadow(color);
-        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = paperShadow();
+        e.currentTarget.style.transform = `rotate(${rot}deg)`;
         const visual = e.currentTarget.querySelector(".pc-visual");
         if (visual) visual.style.animation = "none";
       }}
-      onMouseDown={e => { e.currentTarget.style.transform = "translateY(2px)"; e.currentTarget.style.boxShadow = `0 1px 0 ${color}59, 0 2px 6px rgba(0,0,0,0.3)`; }}
-      onMouseUp={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = stickerShadow(color, true); }}
+      onMouseDown={e => { e.currentTarget.style.transform = `rotate(${rot * 0.4}deg) translateY(1px) scale(0.98)`; }}
+      onMouseUp={e => { e.currentTarget.style.transform = "rotate(0deg) translateY(-3px) scale(1.03)"; }}
     >
-      <PlayCardBadge letter={label[0].toUpperCase()} title={label} color={color} size={48} />
-      <span style={{ color: "#FFF7ED", fontSize: "0.8rem", fontWeight: 700, fontFamily: DISPLAY_FONT, textTransform: "capitalize" }}>
+      <FoldedCorner color={color} />
+      <PlayCardBadge letter={label[0].toUpperCase()} title={label} color={color} size={44} />
+      <span style={{ color: INK, fontSize: "0.9rem", fontWeight: 700, fontFamily: HAND_FONT, textTransform: "capitalize" }}>
         {label}
       </span>
     </button>
@@ -255,18 +317,19 @@ export function WordPill({ label, color = "#C084FC", index = 0, onClick }) {
 
 // Pulsing placeholder tile shaped like a real PlayCard, so the grid
 // doesn't visually jump when real data arrives -- used in place of a
-// bare "Loading…" line.
+// bare "Loading…" line. Warm paper-neutral tones instead of white-on-
+// dark, to match the new light background.
 export function SkeletonCard({ index = 0 }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
-      background: "rgba(255,255,255,0.04)", border: "2px solid rgba(255,255,255,0.07)",
-      borderRadius: "22px", padding: "24px 12px",
+      background: "rgba(74,56,38,0.05)", border: "1.5px solid rgba(74,56,38,0.08)",
+      borderRadius: "6px 16px 6px 16px", padding: "24px 12px 16px",
       animation: `pulseGlow 1.6s ease-in-out ${index * 0.08}s infinite`,
     }}>
-      <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-      <div style={{ width: "70%", height: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.08)" }} />
-      <div style={{ width: "45%", height: "8px", borderRadius: "6px", background: "rgba(255,255,255,0.06)" }} />
+      <div style={{ width: "72px", height: "72px", borderRadius: "10px", background: "rgba(74,56,38,0.09)" }} />
+      <div style={{ width: "70%", height: "10px", borderRadius: "6px", background: "rgba(74,56,38,0.09)" }} />
+      <div style={{ width: "45%", height: "8px", borderRadius: "6px", background: "rgba(74,56,38,0.07)" }} />
     </div>
   );
 }
@@ -281,8 +344,8 @@ export function EmptyState({ emoji = "🔍", title, subtitle, action }) {
       animation: "popIn 0.4s cubic-bezier(0.22,1,0.36,1) forwards",
     }}>
       <span style={{ fontSize: "2.2rem" }}>{emoji}</span>
-      <p style={{ color: "#FFF7ED", fontWeight: 700, fontFamily: DISPLAY_FONT, fontSize: "1.05rem", margin: 0 }}>{title}</p>
-      {subtitle && <p style={{ color: "rgba(255,247,237,0.5)", fontFamily: "Nunito, sans-serif", fontSize: "0.8rem", margin: 0, maxWidth: "320px" }}>{subtitle}</p>}
+      <p style={{ color: INK, fontWeight: 700, fontFamily: HAND_FONT, fontSize: "1.3rem", margin: 0 }}>{title}</p>
+      {subtitle && <p style={{ color: INK_SOFT, fontFamily: "Quicksand, sans-serif", fontSize: "0.8rem", margin: 0, maxWidth: "320px" }}>{subtitle}</p>}
       {action}
     </div>
   );

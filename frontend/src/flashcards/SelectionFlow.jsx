@@ -39,7 +39,7 @@ export function ThemeSelect({ onPick }) {
             action={themeLoadFailed && (
               <button
                 onClick={loadThemes}
-                style={{ background: "#C084FC", border: "none", borderRadius: "14px", padding: "10px 22px", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "Nunito, sans-serif", marginTop: "4px" }}
+                style={{ background: "#C9662E", border: "none", borderRadius: "14px", padding: "10px 22px", color: "#FFF8EC", fontWeight: 800, cursor: "pointer", fontFamily: "Quicksand, sans-serif", marginTop: "4px" }}
               >
                 Try again
               </button>
@@ -89,23 +89,23 @@ export function WordSelect({ theme, onPick, onBack }) {
       <PlayfulBackdrop tint="#4CD3A5" />
       <GlobalSelectionStyles />
       <div className="fc-clear-menu" style={{ maxWidth: "580px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", cursor: "pointer", marginBottom: "12px", fontFamily: "Nunito, sans-serif" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: "#9A7F68", fontSize: "0.8rem", cursor: "pointer", marginBottom: "12px", fontFamily: "Quicksand, sans-serif", fontWeight: 700 }}>
           ← Back to topics
         </button>
         <StepDots current={2} total={3} />
         <SectionHeader title="Pick a word, or let us choose ✨" />
         {words === null ? (
-          <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center" }}>Loading words…</p>
+          <p style={{ color: "#9A7F68", textAlign: "center", fontFamily: "Quicksand, sans-serif" }}>Loading words…</p>
         ) : (
           <>
             <button
               onClick={() => onPick(null)}
               style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                background: "#C084FC26", border: "2px solid #C084FC88",
-                borderRadius: "14px", padding: "14px", cursor: "pointer", marginBottom: "14px",
-                color: "#FFF7ED", fontWeight: 700, fontFamily: "'Baloo 2', 'Nunito', sans-serif", fontSize: "0.85rem",
-                boxShadow: "0 4px 0 #C084FC59, 0 8px 18px rgba(0,0,0,0.35)",
+                background: "#FFFDF7", border: "1.5px solid #B57ED5",
+                borderRadius: "4px 12px 4px 12px", padding: "14px", cursor: "pointer", marginBottom: "14px",
+                color: "#4A3826", fontWeight: 700, fontFamily: "'Caveat', cursive", fontSize: "1.05rem",
+                boxShadow: "0 5px 11px rgba(74,56,38,0.15), 0 2px 4px rgba(74,56,38,0.10)",
                 opacity: 0, animation: "popIn 0.35s cubic-bezier(0.22,1,0.36,1) forwards",
               }}
             >
