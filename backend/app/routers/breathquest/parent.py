@@ -291,6 +291,7 @@ async def get_parent_progress(
         goals=goals_out,
         assignments=assignments_out,
         player_code=patient.player_code,
+        username=patient.username,
     )
 
 

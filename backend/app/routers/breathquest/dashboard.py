@@ -339,6 +339,7 @@ async def get_patient_progress(
         first_name=patient.first_name,
         avatar=patient.avatar,
         player_code=patient.player_code,
+        username=patient.username,
         total_sessions=len(sessions),
         total_stars=total_stars,
         max_possible_stars=max_possible,

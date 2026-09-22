@@ -493,6 +493,10 @@ class PatientProgress(BaseModel):
     # a parent/kid on request instead of pointing them at the pre-login
     # forgot-player-code email flow for something they could just be told.
     player_code: Optional[str] = None
+    # The kid's own chosen handle (see UsernameGate/username_routes.py) --
+    # the dashboard header should show this once set instead of the
+    # player_code, which is really just a recovery code, not an identity.
+    username: Optional[str] = None
 
 
 class DashboardSummary(BaseModel):
@@ -1109,6 +1113,9 @@ class ParentProgressOut(BaseModel):
     goals: List[GoalOut] = []
     assignments: List[AssignmentOut] = []
     player_code: Optional[str] = None
+    # See PatientProgress.username above -- same reasoning for the parent
+    # dashboard header.
+    username: Optional[str] = None
 
 
 # ------------------------------------------------------------------ #

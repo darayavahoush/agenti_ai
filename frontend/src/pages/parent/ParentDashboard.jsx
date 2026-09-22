@@ -651,7 +651,14 @@ export default function ParentDashboard() {
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <PlayerCodeChip code={data.player_code} />
+                {/* Same reasoning as the therapist dashboard: once the kid
+                    has a username, that's their identity -- player_code is
+                    just the recovery code, not worth leading with. */}
+                {data.username ? (
+                  <Badge color="gray">@{data.username}</Badge>
+                ) : (
+                  <PlayerCodeChip code={data.player_code} />
+                )}
                 <Link
                   to="/parent/settings"
                   className="w-9 h-9 rounded-full flex items-center justify-center text-paper/40

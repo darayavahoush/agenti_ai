@@ -998,7 +998,14 @@ export default function PatientDetail() {
               <Badge color="green">{data.total_sessions} sessions</Badge>
               <Badge color="amber">{data.total_stars} / {data.max_possible_stars} stars</Badge>
               <span className={`text-sm font-semibold ${trendColor}`}>Trend: {trendLabel}</span>
-              <PlayerCodeChip code={data.player_code} />
+              {/* Once a kid has picked a username it's the real identifier --
+                  player_code is just the account-recovery code underneath,
+                  not something worth leading with once there's a name. */}
+              {data.username ? (
+                <Badge color="gray">@{data.username}</Badge>
+              ) : (
+                <PlayerCodeChip code={data.player_code} />
+              )}
             </div>
           </div>
         </div>
