@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 import requests
 import cv2
@@ -10,6 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]")
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "images"
 INDEX_PATH = DATA_DIR / "index.json"
@@ -207,12 +209,27 @@ def find_image(word: str) -> dict:
     if word in _index:
         return {"path": str(DATA_DIR / _index[word]), "word": word, "confidence": 100, "match_type": "exact"}
 
-    # 2. Fuzzy match from existing index (highly confident)
+    # 2. Fuzzy match from existing index (highly confident).
+    #    token_sort_ratio alone isn't safe here: unrelated words that
+    #    happen to share most of their letters can still score above the
+    #    threshold (e.g. "tree" vs "three" = 88.9%), which silently
+    #    returned the wrong picture (a kid picks the "tree" flashcard and
+    #    gets the cached number-3 image). Real near-matches this step is
+    #    meant to catch -- plurals ("ear"/"ears"), typos in a cached
+    #    filename ("penguin"/"penguine"), punctuation variants
+    #    ("yoyo"/"yo-yo") -- are always a prefix of one another once
+    #    non-alphanumeric characters are stripped; coincidental
+    #    letter-overlap like tree/three never is. Require that in
+    #    addition to the score, so this step only fires on genuine
+    #    near-matches instead of any high-scoring word.
     if words_in_index:
         result = process.extractOne(word, words_in_index, scorer=fuzz.token_sort_ratio)
         if result and result[1] >= 85:
             matched_word = result[0]
-            return {"path": str(DATA_DIR / _index[matched_word]), "word": matched_word, "confidence": result[1], "match_type": "fuzzy"}
+            norm_word = _NON_ALNUM_RE.sub("", word)
+            norm_matched = _NON_ALNUM_RE.sub("", matched_word)
+            if norm_word == norm_matched or norm_word.startswith(norm_matched) or norm_matched.startswith(norm_word):
+                return {"path": str(DATA_DIR / _index[matched_word]), "word": matched_word, "confidence": result[1], "match_type": "fuzzy"}
 
     # 3. Live fetch from external image sources — each has a bounded
     #    request timeout (6-8s), unlike semantic_match below which lazily
