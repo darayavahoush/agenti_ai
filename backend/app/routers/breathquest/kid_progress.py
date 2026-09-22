@@ -358,6 +358,18 @@ async def get_my_history(
     # --- Assessments (Assessment side's `sessions` table, session_type
     # "word_practice" -- see assessment_lookup.py's own note on why this
     # table/query shape). Sync SessionLocal to match that file's pattern.
+    #
+    # routes/assessment.py's /assessment/analyze writes one `sessions` row
+    # per WORD analyzed, not one per assessment taken -- so a raw 1:1
+    # mapping to history entries showed a typical 5-8 word assessment as
+    # 5-8 duplicate "Pronunciation Assessment" rows (worse on every
+    # retake). There's no run/session id linking a word's rows together
+    # (no migration here to add one), so consecutive rows are grouped into
+    # one "run" by time gap instead. Assessment.jsx's own copy says a
+    # full assessment takes about 5 minutes, so a 20-minute gap is room
+    # enough for a kid taking their time without merging two genuinely
+    # separate attempts into one.
+    ASSESSMENT_RUN_GAP = timedelta(minutes=20)
     if patient.assessment_patient_id:
         def _fetch_assessments():
             sync_db = SessionLocal()
@@ -368,19 +380,30 @@ async def get_my_history(
                         AssessmentSession.patient_id == patient.assessment_patient_id,
                         AssessmentSession.session_type == "word_practice",
                     )
-                    .order_by(AssessmentSession.created_at.desc())
+                    .order_by(AssessmentSession.created_at.asc())
                     .all()
                 )
             finally:
                 sync_db.close()
 
-        for s in await asyncio.to_thread(_fetch_assessments):
+        run: list = []
+
+        def _flush_run():
+            if not run:
+                return
             entries.append(KidHistoryEntry(
                 kind="assessment",
                 title="Pronunciation Assessment",
-                detail="Completed",
-                date=s.created_at,
+                detail=f"{len(run)} word{'s' if len(run) != 1 else ''} practiced",
+                date=run[-1].created_at,
             ))
+
+        for s in await asyncio.to_thread(_fetch_assessments):
+            if run and s.created_at and run[-1].created_at and (s.created_at - run[-1].created_at) > ASSESSMENT_RUN_GAP:
+                _flush_run()
+                run = []
+            run.append(s)
+        _flush_run()
 
     # --- BreathQuest
     bq_rows = (await db.execute(
