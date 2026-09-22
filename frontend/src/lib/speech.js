@@ -44,6 +44,39 @@ function respellIfBareLetter(text) {
   return text
 }
 
+// Chime's spoken instructions say a target sound as a plain respelling —
+// "Say a big, loud aaaa to blast your rocket into space!" — matching the
+// lowercase convention already used in every game's on-screen instructions
+// and calibration labels. Read verbatim through Web Speech API, a repeated
+// vowel cluster with no real dictionary match tends to get read as the
+// letter's own *name* rather than sounded out phonetically, and capitals
+// make this worse (a stronger trigger for that letter-name fallback).
+// "aaaa" is the confirmed bad case: it comes out "ay, ay, ay, ay" instead
+// of the open /ah/ sound the games are asking for, since the letter A's
+// name doesn't match the target vowel at all (unlike, say, E or O, whose
+// letter names already sound close to the target vowel).
+//
+// This used to be worked around inside RocketLaunch.jsx alone (hand-typed
+// "ahhh" in its spoken line, kept as "aaaa" in the matching on-screen
+// text) -- moved here so every Chime game's instruction gets the fix
+// automatically from its normal lowercase phonetic text, without each one
+// needing to know about or duplicate the workaround.
+const PHONETIC_WORD_RESPELL = { aaaa: 'ahhh' }
+
+function respellPhoneticWords(text) {
+  if (!text) return text
+  return text.replace(/\b[a-zA-Z]{2,}\b/g, (word) => {
+    const lower = word.toLowerCase()
+    if (PHONETIC_WORD_RESPELL[lower]) return PHONETIC_WORD_RESPELL[lower]
+    // An all-caps, non-dictionary vowel-only cluster (OOOO, EEEE, ...) risks
+    // the same letter-name misreading, worse than lowercase would -- at
+    // minimum normalize its case so it reads the same as every other
+    // game's already-fine lowercase instruction text.
+    if (word === word.toUpperCase() && /^[aeiou]{3,}$/.test(lower)) return lower
+    return word
+  })
+}
+
 let cachedVoices = null
 if (typeof window !== 'undefined' && window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = () => {
@@ -89,7 +122,7 @@ export function speak(text, { rate = 0.95, pitch = 1.0, onEnd } = {}) {
     // speak() call lands.
     pendingSpeakTimer = setTimeout(() => {
       pendingSpeakTimer = null
-      const utter = new SpeechSynthesisUtterance(respellIfBareLetter(text))
+      const utter = new SpeechSynthesisUtterance(respellPhoneticWords(respellIfBareLetter(text)))
       utter.rate = rate
       utter.pitch = pitch
       // Hint the language even when no exact-match voice object is found —
