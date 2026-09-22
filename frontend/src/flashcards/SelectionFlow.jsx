@@ -1,11 +1,32 @@
 import { useState, useEffect } from "react";
-import { getThemes, getWordsForTheme } from "./lib/api";
+import { getThemes, getWordsForTheme, getWordImage } from "./lib/api";
 import { PlayCard, WordPill, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, FUN_COLORS, SkeletonCard, EmptyState, SELECTION_BG } from "./SelectionUI";
 
 // Selection flow -- staggered pop-in cards, twinkling starfield, per-card
 // color cycling, wiggle-on-hover. Shared primitives live in SelectionUI.jsx
 // so this file and Flashcards.jsx's CharacterSelect stay visually
 // consistent instead of drifting apart.
+
+// Fetches each word's picture with a capped number of requests in
+// flight -- a 30-40 word theme firing that many image lookups at once
+// (several of which fall through to ARASAAC/Pixabay/DuckDuckGo on a
+// cache miss, see matcher.py) would both hammer the backend and not
+// actually render any faster than a handful at a time. `isStale` lets
+// an in-flight batch bail out once the theme changes again rather than
+// racing its results into the next theme's word list.
+function loadWordImages(words, concurrency, onImage, isStale) {
+  let next = 0;
+  async function worker() {
+    while (next < words.length) {
+      const word = words[next++];
+      if (isStale()) return;
+      const image = await getWordImage(word);
+      if (isStale()) return;
+      onImage(word, image);
+    }
+  }
+  Array.from({ length: Math.min(concurrency, words.length) }, worker);
+}
 
 export function ThemeSelect({ onPick }) {
   const [themeList, setThemeList] = useState(null);
@@ -76,13 +97,27 @@ export function ThemeSelect({ onPick }) {
 
 export function WordSelect({ theme, onPick, onBack }) {
   const [words, setWords] = useState(null);
+  const [images, setImages] = useState({});
   const surpriseEmoji = useCyclingEmoji(["🎲", "✨", "🎉", "🌈"]);
 
   useEffect(() => {
     if (!theme) { setWords([]); return; }
     setWords(null);
+    setImages({});
     getWordsForTheme(theme).then(d => setWords(d.words)).catch(() => setWords([]));
   }, [theme]);
+
+  // Separate from the word-list load above so a fast re-render (e.g.
+  // switching themes twice quickly) doesn't restart the image batch
+  // before `words` has actually settled.
+  useEffect(() => {
+    if (!words || words.length === 0) return;
+    let stale = false;
+    loadWordImages(words, 5, (word, image) => {
+      setImages(prev => (prev[word] === image ? prev : { ...prev, [word]: image }));
+    }, () => stale);
+    return () => { stale = true; };
+  }, [words]);
 
   return (
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
@@ -114,7 +149,7 @@ export function WordSelect({ theme, onPick, onBack }) {
             </button>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", maxHeight: "420px", overflowY: "auto", padding: "4px" }}>
               {words.map((w, i) => (
-                <WordPill key={w} label={w} color={FUN_COLORS[i % FUN_COLORS.length]} index={i} onClick={() => onPick(w)} />
+                <WordPill key={w} label={w} image={images[w] ? `data:image/png;base64,${images[w]}` : undefined} color={FUN_COLORS[i % FUN_COLORS.length]} index={i} onClick={() => onPick(w)} />
               ))}
             </div>
           </>
