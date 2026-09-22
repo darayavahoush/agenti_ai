@@ -174,6 +174,26 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !isAuthEndpoint) {
       const userType = localStorage.getItem('bq_user_type')
       const deadKey = currentAccountKey()
+
+      // TEMP DIAGNOSTIC (2026-09-22) -- window.__lastCrash doesn't survive
+      // the window.location.href reload two lines below, so the previous
+      // capture attempt always came back undefined. localStorage does
+      // survive a full navigation, so stash exactly what tripped this
+      // branch before clearing anything, and read it back after landing on
+      // the login page. Remove once the actual 401 source is confirmed.
+      try {
+        localStorage.setItem('bq_debug_last_hard_logout', JSON.stringify({
+          at: new Date().toISOString(),
+          url: originalRequest?.url,
+          method: originalRequest?.method,
+          sessionGenAtSend: originalRequest?._sessionGen,
+          currentSessionGen: _sessionGeneration,
+          userTypeAtLogout: userType,
+          retried: !!originalRequest?._retried,
+          responseDetail: error.response?.data?.detail,
+        }))
+      } catch { /* best-effort */ }
+
       localStorage.removeItem('bq_token')
       localStorage.removeItem('bq_refresh_token')
       localStorage.removeItem('bq_user_type')
