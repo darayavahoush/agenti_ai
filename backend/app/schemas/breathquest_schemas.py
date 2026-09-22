@@ -272,17 +272,19 @@ class PatientOut(BaseModel):
 class LinkPatientRequest(BaseModel):
     """Therapist-initiated: attach the calling therapist to an EXISTING
     kid account (one that registered itself, or was created by a parent)
-    by player_code -- the same lookup parents already use in
-    LinkChildRequest, just from the therapist side. Sets
-    BreathQuestPatient.therapist_id; does not touch anything on the
-    Assessment/Patient side."""
-    player_code: str
+    by @username or player_code -- same dual lookup kid_login already
+    supports, just from the therapist side. Renamed from a player_code-
+    only field: most kids never share their player code with anyone but
+    a parent, but @username is the thing they'd actually hand a
+    therapist. Sets BreathQuestPatient.therapist_id; does not touch
+    anything on the Assessment/Patient side."""
+    identifier: str
 
-    @validator("player_code")
-    def player_code_present(cls, v):
+    @validator("identifier")
+    def identifier_present(cls, v):
         v = v.strip()
         if not v:
-            raise ValueError("Enter the child's player code")
+            raise ValueError("Enter the child's username or player code")
         return v
 
 

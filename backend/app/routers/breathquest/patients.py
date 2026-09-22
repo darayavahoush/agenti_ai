@@ -108,7 +108,8 @@ async def link_existing_patient(
     exists -- self-registered by the kid before signups were adult-only,
     created by a parent (parent-kid-register / add-child), or created by
     a *different* therapist -- rather than creating a new patient row.
-    Looked up by player_code, same as parent/link-child.
+    Looked up by @username or player_code, same dual lookup kid_login
+    already supports.
 
     Deliberately allows re-pointing therapist_id when the patient
     currently has a different therapist (rather than refusing outright):
@@ -118,14 +119,16 @@ async def link_existing_patient(
     win in turn -- acceptable for now given there's exactly one
     therapist_id slot on a patient (see BreathQuestPatient's schema);
     revisit if that becomes a real support complaint."""
+    identifier = data.identifier.strip()
     result = await db.execute(
         select(BreathQuestPatient).where(
-            BreathQuestPatient.player_code == data.player_code.strip().upper()
+            (BreathQuestPatient.player_code == identifier.upper())
+            | (BreathQuestPatient.username == identifier.lstrip("@").lower())
         )
     )
     patient = result.scalar_one_or_none()
     if not patient:
-        raise HTTPException(status_code=404, detail="No child found with that player code")
+        raise HTTPException(status_code=404, detail="No child found with that username or player code")
 
     if patient.therapist_id == therapist.id:
         raise HTTPException(status_code=400, detail=f"{patient.first_name} is already linked to you")

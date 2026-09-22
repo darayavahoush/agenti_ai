@@ -7,8 +7,10 @@ import { useEscapeKey } from '../../hooks/useEscapeKey'
 // this one attaches the logged-in therapist to a kid account that
 // already exists -- self-registered before signups went adult-only,
 // created by a parent (parent-kid-register / add-child), or previously
-// linked to a different therapist. Looked up by the same player_code a
-// parent would use in ChildSwitcher's "I have a code" flow.
+// linked to a different therapist. Looked up by @username or player
+// code, same dual lookup kid_login supports -- most kids only ever
+// hand out their @username, not their player code (that's really a
+// parent-facing recovery code), so the field leads with that.
 export default function LinkPatientModal({ onClose, onLinked }) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
@@ -18,7 +20,7 @@ export default function LinkPatientModal({ onClose, onLinked }) {
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!code.trim()) { setError("Enter the child's player code"); return }
+    if (!code.trim()) { setError("Enter the child's username or player code"); return }
     setError(''); setLoading(true)
     try {
       const { data } = await patientsAPI.link(code.trim())
@@ -38,20 +40,20 @@ export default function LinkPatientModal({ onClose, onLinked }) {
           <button onClick={onClose} className="text-white/65 hover:text-white text-2xl leading-none">×</button>
         </div>
         <p className="text-white/50 text-sm mb-6">
-          Already have a player code from a family whose child signed up on their own,
-          or with a parent's account? Enter it here to add them to your patient list --
+          Already know a family whose child signed up on their own, or with a parent's account?
+          Enter their @username (or player code) here to add them to your patient list --
           no need to create a second, duplicate profile.
         </p>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-white/70">Player Code</label>
+            <label className="text-sm font-medium text-white/70">Username or Player Code</label>
             <input
               autoFocus
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="e.g. FOX4821"
-              className="input uppercase tracking-widest"
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="e.g. @sunny.otter or FOX4821"
+              className="input tracking-wide"
             />
           </div>
 
