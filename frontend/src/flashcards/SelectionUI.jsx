@@ -275,7 +275,7 @@ export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#B5
 // handwritten label, same tilt language, folded corner instead of
 // tape) so step 2 of the flow carries the same weight as steps 1 and 3
 // instead of downgrading to bare pills.
-export function WordPill({ label, color = "#B57ED5", index = 0, onClick }) {
+export function WordPill({ label, image, color = "#B57ED5", index = 0, onClick }) {
   const rot = rotFor(index, CARD_ROTATIONS);
   return (
     <button
@@ -307,7 +307,7 @@ export function WordPill({ label, color = "#B57ED5", index = 0, onClick }) {
       onMouseUp={e => { e.currentTarget.style.transform = "rotate(0deg) translateY(-3px) scale(1.03)"; }}
     >
       <FoldedCorner color={color} />
-      <PlayCardBadge letter={label[0].toUpperCase()} title={label} color={color} size={44} />
+      <PlayCardBadge image={image} imageAlt={label} letter={label[0].toUpperCase()} title={label} color={color} size={44} />
       <span style={{ color: INK, fontSize: "0.9rem", fontWeight: 700, fontFamily: HAND_FONT, textTransform: "capitalize" }}>
         {label}
       </span>

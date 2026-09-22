@@ -55,6 +55,16 @@ export function getImageForPhrase(phrase) {
   return api.post(`${FC}/image`, form, { responseType: 'blob', headers: { 'Content-Type': undefined } }).then(r => r.data)
 }
 
+// Thumbnail for a specific, known word (word-select grid) -- reuses
+// random-word's exact-word path (same image matcher/cache chain the
+// practice screen already relies on) rather than a separate endpoint,
+// so cache hits behave identically. Returns null rather than throwing
+// on a miss, since a tile without a picture should just keep showing
+// its letter badge, not break the grid.
+export function getWordImage(word) {
+  return getRandomWord({ word }).then(d => d.image_base64 || null).catch(() => null)
+}
+
 // Mouth-shape diagram + tip for a single phoneme, e.g. getPhonemeCard('SH').
 // Used by the result screen's "How to fix this sound" panel -- called once
 // per wrong phoneme after an attempt comes back, not during recording.
