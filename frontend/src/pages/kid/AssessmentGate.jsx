@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { History, RotateCcw, Sparkles, Star, Gift, Lock } from 'lucide-react'
+import { History, RotateCcw, Sparkles, Star, Gift, Lock, FileText } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { assessmentAPI, getErrorMessage } from '../../api/client'
 import { PageLoader, Button, Avatar, Sidebar, AboutModal } from '../../components/ui'
@@ -212,6 +212,24 @@ export default function AssessmentGate() {
               <RotateCcw size={18} className="inline mr-1.5 -mt-0.5" />
               {alreadyCompleted ? 'Retake Assessment' : 'Start Assessment'}
             </Button>
+          )}
+
+          {/* Returning here (this is a permanent sidebar item -- see
+              kidSidebarItems.js) with no way back to an already-finished
+              report used to leave a kid with only "retake" (which
+              overwrites their results) or "view history" (whose entries
+              aren't clickable) -- neither actually shows the report again.
+              /assessment/report reads meAPI.latestAssessment() as a
+              fallback when there's no router state, so this works on a
+              cold revisit too, not just right after finishing. */}
+          {alreadyCompleted && (
+            <button
+              onClick={() => navigate('/assessment/report')}
+              className="w-full flex items-center justify-center gap-2 text-white/70 hover:text-white
+                         hover:scale-105 text-base font-semibold transition-all mb-3 py-2"
+            >
+              <FileText size={17} /> View my report
+            </button>
           )}
 
           {/* No "back to games" affordance here on purpose -- assessment

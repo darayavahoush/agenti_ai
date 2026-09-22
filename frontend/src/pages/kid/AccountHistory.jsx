@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ClipboardCheck, Wind, Gauge, Sparkles, Music, CloudOff, PartyPopper } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Wind, Gauge, Sparkles, Music, CloudOff, PartyPopper, ChevronRight } from 'lucide-react'
 import { meAPI } from '../../api/client'
 import { Button } from '../../components/ui'
 
@@ -132,10 +132,25 @@ export default function AccountHistory() {
                 <div className="space-y-2">
                   {group.items.map((entry, ei) => {
                     const { icon: Icon, color, bg } = styleFor(entry)
+                    // Assessment entries are the only ones that link
+                    // anywhere -- /assessment/report reads
+                    // meAPI.latestAssessment() as a fallback with no
+                    // router state, so tapping one here (rather than just
+                    // the most recent assessment) still shows that same
+                    // latest report; there's no per-run report to deep
+                    // link to yet. Game entries stay inert -- there's no
+                    // per-session replay view to send them to.
+                    const isAssessment = entry.kind === 'assessment'
                     return (
                       <div
                         key={ei}
-                        className="rounded-2xl p-4 border border-white/10 bg-white/5 flex items-center gap-4"
+                        onClick={isAssessment ? () => navigate('/assessment/report') : undefined}
+                        role={isAssessment ? 'button' : undefined}
+                        tabIndex={isAssessment ? 0 : undefined}
+                        onKeyDown={isAssessment ? (e) => { if (e.key === 'Enter') navigate('/assessment/report') } : undefined}
+                        className={`rounded-2xl p-4 border border-white/10 bg-white/5 flex items-center gap-4 ${
+                          isAssessment ? 'cursor-pointer hover:bg-white/10 transition-colors' : ''
+                        }`}
                       >
                         <div className={`w-10 h-10 rounded-full ${bg} flex items-center justify-center flex-shrink-0`}>
                           <Icon className={`w-5 h-5 ${color}`} />
@@ -146,6 +161,9 @@ export default function AccountHistory() {
                             <p className="text-white/40 text-xs mt-0.5">{entry.detail}</p>
                           )}
                         </div>
+                        {isAssessment && (
+                          <ChevronRight className="w-4 h-4 text-white/25 flex-shrink-0" />
+                        )}
                       </div>
                     )
                   })}
