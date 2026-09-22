@@ -98,6 +98,25 @@ api.interceptors.response.use(
     const originalRequest = error.config
     const isAuthEndpoint = originalRequest?.url?.startsWith('/auth/')
 
+    // A 401 here can arrive long after it was sent -- PatientDetail alone
+    // fires a dozen+ background requests on mount, any of which can still
+    // be in flight when a therapist clicks Launch Assessment/Live Therapy.
+    // startSupervisedSession swaps bq_token/bq_user_type to the patient's
+    // mid-flight, so a stale therapist-scoped request that only 401s
+    // *after* that swap would otherwise still read the (by then wrong)
+    // bq_user_type and hard-redirect the freshly-launched patient session
+    // back to /therapist/login -- exactly the "Launch Assessment kicks you
+    // to the therapist login/profile switcher" symptom. If the token this
+    // request was actually sent with no longer matches the live token, the
+    // session has already moved on and this response is irrelevant --
+    // drop it rather than acting on it.
+    const sentToken = originalRequest?.headers?.Authorization
+    const currentToken = localStorage.getItem('bq_token')
+    const isStaleRequest = sentToken && sentToken !== `Bearer ${currentToken}`
+    if (isStaleRequest) {
+      return Promise.reject(error)
+    }
+
     // First 401 on a non-auth request: try one silent refresh-and-retry
     // before treating this as a dead session. _retried guards against a
     // request that 401s AGAIN even after a successful refresh (a real dead
