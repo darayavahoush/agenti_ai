@@ -191,6 +191,9 @@ export const authAPI = {
   // state / switchChild for how these get used.
   getChildren:  () => api.get('/auth/parent/children'),
   addChild:     (data) => api.post('/auth/parent/children', data),
+  // Avatar-only edit for a child already in the parent's account (#68) --
+  // see routers/breathquest/auth.py's update_child.
+  updateChild:  (patientId, data) => api.patch(`/auth/parent/children/${patientId}`, data),
   linkChild:    (data) => api.post('/auth/parent/link-child', data),
   switchChild:  (patientId) => api.post('/auth/parent/switch-child', { patient_id: patientId }),
   // Attaches an existing therapist (by email or @username) to the

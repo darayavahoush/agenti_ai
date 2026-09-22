@@ -694,6 +694,15 @@ class AddChildRequest(BaseModel):
         return v
 
 
+class UpdateChildRequest(BaseModel):
+    """Lets the parent change their own child's avatar after creation --
+    the parent-side counterpart to PatientUpdate (therapist) and
+    UpdateMyProfileRequest (kid). Avatar-only for now, since that's the
+    one thing #68 flagged as missing; not first_name/PIN, which have
+    their own dedicated flows (kid-account settings) already."""
+    avatar: str
+
+
 class LinkChildRequest(BaseModel):
     """Adds an EXISTING child (already created via kid-register, a
     therapist, or another parent's AddChildRequest) to this parent's

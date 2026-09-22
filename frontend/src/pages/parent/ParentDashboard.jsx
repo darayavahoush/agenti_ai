@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   TrendingUp, TrendingDown, Calendar, Star, Sparkles, Heart, LogOut, CreditCard, Settings,
   MessageCircle, Send, CloudOff, ChevronDown, Gamepad2, Waves, Mic, Layers, Bell, Wind,
-  Target, ListChecks, Share2, Loader2,
+  Target, ListChecks, Share2, Loader2, Pencil,
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar, Card, StatCard, Sidebar, ChildSwitcher, AboutModal, Badge, PlayerCodeChip } from '../../components/ui'
+import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { useNavigate, Link } from 'react-router-dom'
-import { parentAPI, getErrorMessage } from '../../api/client'
+import { parentAPI, authAPI, getErrorMessage } from '../../api/client'
 import { generateWeeklyRecapCard, shareOrDownloadRecapCard } from '../../lib/weeklyRecapCard'
 import toast from 'react-hot-toast'
 
@@ -493,6 +494,8 @@ export default function ParentDashboard() {
   const [tab, setTab] = useState('overview')
   const [phonemeSummary, setPhonemeSummary] = useState(null)
   const [phonemeStatus, setPhonemeStatus] = useState('loading')
+  const [pickingAvatar, setPickingAvatar] = useState(false)
+  const [savingAvatar, setSavingAvatar] = useState(false)
 
   const loadPhonemeSummary = () => {
     setPhonemeStatus('loading')
@@ -507,6 +510,24 @@ export default function ParentDashboard() {
     parentAPI.progress()
       .then(({ data }) => { if (!cancelledRef?.current) { setData(data); setStatus('ready') } })
       .catch(() => { if (!cancelledRef?.current) setStatus('error') })
+
+  // #68 -- lets the parent change the active child's avatar after the
+  // fact, same as the kid can from their own account page. Scoped to
+  // parent.patient_id (the active child) since that's the only child
+  // this header is showing; switch child first to edit a different one.
+  async function pickAvatar(species) {
+    if (species === data?.avatar || savingAvatar) { setPickingAvatar(false); return }
+    setSavingAvatar(true)
+    try {
+      await authAPI.updateChild(parent.patient_id, { avatar: species })
+      setData(d => ({ ...d, avatar: species }))
+      setPickingAvatar(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
 
   useEffect(() => {
     const cancelledRef = { current: false }
@@ -639,7 +660,35 @@ export default function ParentDashboard() {
                 or stats card with no title of its own -- the only thing
                 naming the child was the sidebar, which collapses. */}
             <header className="flex items-center gap-4 mb-8">
-              <Avatar avatar={data.avatar} photoUrl={data.avatar_photo_url} size="lg" name={data.child_first_name} />
+              <div className="relative shrink-0">
+                <Avatar avatar={data.avatar} photoUrl={data.avatar_photo_url} size="lg" name={data.child_first_name} />
+                {!data.avatar_photo_url && (
+                  <button
+                    onClick={() => setPickingAvatar(p => !p)}
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white/10 border border-white/20
+                               flex items-center justify-center hover:bg-white/20 transition-colors"
+                    aria-label="Change avatar"
+                  >
+                    <Pencil size={11} className="text-white/70" />
+                  </button>
+                )}
+                {pickingAvatar && (
+                  <div className="absolute top-full left-0 mt-2 z-20 flex gap-1.5 p-2 rounded-2xl bg-ink border border-white/10 shadow-xl flex-wrap w-48">
+                    {Object.keys(CREATURE_ACCENTS).map((species) => (
+                      <button
+                        key={species}
+                        onClick={() => pickAvatar(species)}
+                        disabled={savingAvatar}
+                        className={`w-9 h-9 rounded-full p-0.5 transition-all ${
+                          species === data.avatar ? 'ring-2 ring-white/60' : 'opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <Creature species={species} className="w-full h-full" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="min-w-0 flex-1">
                 <h1 className="font-display text-2xl font-bold text-paper tracking-tight truncate">
                   {data.child_first_name}'s progress
