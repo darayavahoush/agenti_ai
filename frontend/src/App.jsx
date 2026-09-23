@@ -6,7 +6,6 @@ import { meAPI } from './api/client'
 import { Toaster } from 'react-hot-toast'
 import { PageLoader, SupervisedBanner, OfflineBanner, UsernameGate } from './components/ui'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
-import { pushRingBuffer } from './debugDiagnostics'
 
 // Route-level code splitting -- previously every page (all four apps:
 // BreathQuest, VaakMirror, Chime, VoiceHurdleRace, plus therapist/parent
@@ -103,17 +102,26 @@ function ProtectedTherapist({ children }) {
   const { isTherapist, loading } = useAuth()
   if (loading) return <PageLoader />
   if (!isTherapist) {
-    // TEMP DIAGNOSTIC (2026-09-23) -- pinpointing the Launch Assessment/
-    // Live Therapy bounce that survived the startSupervisedSession onReady
-    // batching fix. Logs exactly what this component saw the instant it
-    // decided to redirect: what the URL bar actually said (vs what React
-    // Router had matched to render THIS component), and a stack so we can
-    // see which route render path got here.
-    pushRingBuffer('bq_debug_protected_therapist_bail', {
-      isTherapist, loading,
-      pathname: window.location.pathname,
-      stack: new Error().stack,
-    })
+    // ROOT CAUSE CONFIRMED (2026-09-23) via bq_debug_protected_therapist_bail:
+    // this component re-renders (isTherapist flips false when startSupervisedSession
+    // swaps to the patient) in the SAME tick that a competing navigate('/play' or
+    // '/assessment') from PatientDetail's onReady has already moved the real
+    // browser URL off /therapist/* -- confirmed directly: window.location.pathname
+    // read "/play" at the exact render where this used to unconditionally fire
+    // <Navigate to="/therapist/login">, fighting the newer, correct navigation
+    // instead of yielding to it. That fight is what produced the visible
+    // flash/bounce through /therapist/login even after the onReady batching fix
+    // (which fixed a different gap and is still needed).
+    //
+    // This component's job is to protect /therapist/* routes specifically -- if
+    // the real URL has already moved elsewhere, a more recent navigation has
+    // already superseded this render and this component is about to unmount on
+    // its own; redirecting here would just be a third, unnecessary navigation
+    // stomping on top of it. Only redirect when we're genuinely still looking at
+    // a route this component is meant to protect.
+    if (!window.location.pathname.startsWith('/therapist')) {
+      return null
+    }
     return <Navigate to="/therapist/login" replace />
   }
   return <UsernameGate role="therapist">{children}</UsernameGate>
@@ -214,15 +222,9 @@ function AppRoutes() {
         } />
 
         {/* Kid */}
-        <Route path="/play" element={(() => {
-          // TEMP DIAGNOSTIC (2026-09-23) -- see ProtectedTherapist's bail
-          // log above for context. Only logs when the URL actually is
-          // /play, so this doesn't spam every render of AppRoutes.
-          if (window.location.pathname === '/play') {
-            pushRingBuffer('bq_debug_play_route_render', { isTherapist, isKid, isParent, loading })
-          }
-          return isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
-        })()} />
+        <Route path="/play" element={
+          isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
+        } />
         <Route path="/assessment" element={
           <ProtectedKid requireEntitlement={false}><AssessmentGate /></ProtectedKid>
         } />
