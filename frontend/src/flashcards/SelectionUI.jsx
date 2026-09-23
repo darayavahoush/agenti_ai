@@ -18,6 +18,14 @@ import { useState, useEffect, useMemo, useRef, Children } from "react";
 export const FUN_COLORS = ["#E8825A", "#E8B84B", "#6BBF8A", "#5B9BD5", "#B57ED5", "#E87BA8"];
 const DISPLAY_FONT = "'Baloo 2', 'Nunito', sans-serif";
 const HAND_FONT = "'Caveat', cursive";
+// Caveat (script) reads fine as a big decorative headline, but it's the
+// wrong choice for anything a kid actually has to read and recognize --
+// a single cursive letter or a short word at card size loses the clear
+// print shapes that make letters/words identifiable, which is the whole
+// point of this screen. CONTENT_FONT (the same rounded sans as the rest
+// of the app) is for real content: theme titles, word labels, the
+// letter-badge fallback. HAND_FONT stays for pure flavor text.
+const CONTENT_FONT = DISPLAY_FONT;
 const INK = "#4A3826";
 const INK_SOFT = "#9A7F68";
 
@@ -312,7 +320,7 @@ function PlayCardBadge({ image, imageAlt, emoji, letter, title, color, size = 72
       ) : emoji ? (
         <span className="pc-visual" style={{ fontSize: `${size * 0.44}px`, display: "inline-block" }}>{emoji}</span>
       ) : (
-        <span className="pc-visual" style={{ fontSize: `${size * 0.4}px`, fontWeight: 700, color: INK, fontFamily: HAND_FONT }}>{letter}</span>
+        <span className="pc-visual" style={{ fontSize: `${size * 0.4}px`, fontWeight: 800, color: INK, fontFamily: CONTENT_FONT }}>{letter}</span>
       )}
     </div>
   );
@@ -360,7 +368,7 @@ export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#B5
     >
       <Tape color={color} index={index} />
       <PlayCardBadge image={image} imageAlt={imageAlt} emoji={emoji} title={title} color={color} />
-      <span style={{ color: INK, fontSize: "1.1rem", fontWeight: 700, fontFamily: HAND_FONT, lineHeight: 1 }}>{title}</span>
+      <span style={{ color: INK, fontSize: "1.1rem", fontWeight: 800, fontFamily: CONTENT_FONT, lineHeight: 1.15, letterSpacing: "0.01em" }}>{title}</span>
       {subtitle && <span style={{ color: INK_SOFT, fontSize: "0.68rem", textAlign: "center", lineHeight: 1.3, fontFamily: "Quicksand, sans-serif", fontWeight: 600 }}>{subtitle}</span>}
     </button>
   );
@@ -403,7 +411,7 @@ export function WordPill({ label, image, color = "#B57ED5", index = 0, onClick }
     >
       <FoldedCorner color={color} />
       <PlayCardBadge image={image} imageAlt={label} letter={label[0].toUpperCase()} title={label} color={color} size={44} />
-      <span style={{ color: INK, fontSize: "0.9rem", fontWeight: 700, fontFamily: HAND_FONT, textTransform: "capitalize" }}>
+      <span style={{ color: INK, fontSize: "0.92rem", fontWeight: 800, fontFamily: CONTENT_FONT, letterSpacing: "0.01em", textTransform: "capitalize" }}>
         {label}
       </span>
     </button>
