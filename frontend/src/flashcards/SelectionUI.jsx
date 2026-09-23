@@ -374,6 +374,72 @@ export function PlayCard({ emoji, image, imageAlt, title, subtitle, color = "#B5
   );
 }
 
+// Character-select card -- these are full illustrated portraits (each
+// with its own name badge, pose, and color identity), not icons, so
+// cramming them into the same 45px PlayCardBadge square as a theme
+// emoji wasted the actual art. This gives each character a proper
+// photo-stage: the full image at real size, sitting on a soft glow in
+// that character's own color instead of the shared cream badge tint,
+// so BOLT reads as cyan-lit, ZARA as violet-lit, etc, rather than
+// every character sharing one generic frame. Same tape/tilt/paper-card
+// language as PlayCard so it still reads as the same flow, just given
+// the bigger stage this content earns. Reuses the "pc-badge"/
+// "pc-visual" class names so DockMagnifyGrid's glow-on-approach effect
+// applies here for free.
+export function CharacterCard({ image, imageAlt, name, tagline, color = "#B57ED5", index = 0, onClick }) {
+  const rot = rotFor(index, CARD_ROTATIONS);
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        position: "relative",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: "8px",
+        background: "#FFFDF7",
+        border: `1.5px solid ${color}55`,
+        borderRadius: "8px 20px 8px 20px",
+        padding: "22px 14px 16px",
+        boxShadow: paperShadow(),
+        transform: `rotate(${rot}deg)`,
+        "--pop-rot": `${rot}deg`,
+        opacity: 0, animation: `popIn 0.4s cubic-bezier(0.22,1,0.36,1) ${index * 0.06}s forwards`,
+        transition: "box-shadow 0.18s, transform 0.18s",
+        width: "100%",
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.boxShadow = paperShadow(true);
+        e.currentTarget.style.transform = "rotate(0deg) translateY(-4px) scale(1.02)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.boxShadow = paperShadow();
+        e.currentTarget.style.transform = `rotate(${rot}deg)`;
+      }}
+      onMouseDown={e => { e.currentTarget.style.transform = `rotate(${rot * 0.4}deg) translateY(1px) scale(0.98)`; }}
+      onMouseUp={e => { e.currentTarget.style.transform = "rotate(0deg) translateY(-4px) scale(1.02)"; }}
+    >
+      <Tape color={color} index={index} width={56} />
+      <div
+        className="pc-badge"
+        style={{
+          width: "100%", aspectRatio: "16 / 11", borderRadius: "10px", overflow: "hidden",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: `radial-gradient(circle at 50% 38%, ${color}30 0%, ${color}0a 55%, transparent 75%)`,
+          border: `2px solid ${color}`,
+          boxShadow: "inset 0 1px 3px rgba(74,56,38,0.12)",
+        }}
+      >
+        <img
+          src={image}
+          alt={imageAlt || name}
+          className="pc-visual"
+          style={{ width: "94%", height: "94%", objectFit: "contain", filter: `drop-shadow(0 4px 10px ${color}40)` }}
+        />
+      </div>
+      <span style={{ color: INK, fontSize: "1.2rem", fontWeight: 800, fontFamily: CONTENT_FONT, lineHeight: 1.1, letterSpacing: "0.01em" }}>{name}</span>
+      {tagline && <span style={{ color: INK_SOFT, fontSize: "0.74rem", textAlign: "center", lineHeight: 1.3, fontFamily: "Quicksand, sans-serif", fontWeight: 600 }}>{tagline}</span>}
+    </button>
+  );
+}
+
 // Word-grid tile -- a smaller sticky-note sibling of PlayCard (badge +
 // handwritten label, same tilt language, folded corner instead of
 // tape) so step 2 of the flow carries the same weight as steps 1 and 3
