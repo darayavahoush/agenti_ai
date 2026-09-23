@@ -59,6 +59,12 @@ export function Card({ children, className = '', as: Tag = 'div', ...props }) {
 }
 
 export function Input({ label, error, icon: Icon, rightElement, className = '', ...props }) {
+  // Mobile keyboards commonly auto-capitalize the first letter of a text
+  // field, which silently turns "jane@gmail.com" into "Jane@gmail.com" as
+  // someone types -- the real-world trigger behind the email-case bug
+  // class (see backend email normalization fix). Default it off for
+  // email inputs; callers can still override via props.
+  const autoCapDefault = props.type === 'email' ? { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } : {}
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-white/70">{label}</label>}
@@ -70,6 +76,7 @@ export function Input({ label, error, icon: Icon, rightElement, className = '', 
           className={`w-full bg-white/5 border ${error ? 'border-brand-coral' : 'border-white/15'}
             rounded-xl px-4 py-3 ${Icon ? 'pl-10' : ''} ${rightElement ? 'pr-10' : ''} text-white placeholder-white/30
             focus:outline-none focus:border-brand-green transition-colors ${className}`}
+          {...autoCapDefault}
           {...props}
         />
         {rightElement && (

@@ -445,10 +445,17 @@ async def get_my_history(
             date=m.started_at,
         ))
 
-    # --- Chime/Flashcards. One row per attempted word -- grouped by
-    # session_id into one history entry per playthrough, same as a kid
-    # would think of "a round" rather than seeing one line per word.
-    chime_rows = (await db.execute(
+    # --- Flashcards. One row per attempted word -- grouped by session_id
+    # into one history entry per playthrough, same as a kid would think of
+    # "a round" rather than seeing one line per word. NOTE: this table
+    # (flashcard_attempts) belongs solely to the standalone Flashcards
+    # feature (pages/kid/Flashcards.jsx -> POST /flashcards/evaluate) --
+    # Chime is a separate set of mini-games with its own endpoints
+    # (routers/chime/*) and never writes here, so these entries must be
+    # labeled "Flashcards", not "Chime" (previously mislabeled below,
+    # which is why Flashcards plays showed up as "Chime" in a kid's
+    # history).
+    flashcard_rows = (await db.execute(
         select(
             FlashcardAttempt.session_id,
             func.min(FlashcardAttempt.created_at).label("started_at"),
@@ -458,10 +465,10 @@ async def get_my_history(
         .where(FlashcardAttempt.patient_id == patient.id)
         .group_by(FlashcardAttempt.session_id)
     )).all()
-    for session_id, started_at, theme_id, word_count in chime_rows:
+    for session_id, started_at, theme_id, word_count in flashcard_rows:
         entries.append(KidHistoryEntry(
-            kind="game", game="Chime",
-            title=f"Chime — {theme_id or 'Practice'}",
+            kind="game", game="Flashcards",
+            title=f"Flashcards — {theme_id or 'Practice'}",
             detail=f"{word_count} word{'s' if word_count != 1 else ''} practiced",
             date=started_at,
         ))

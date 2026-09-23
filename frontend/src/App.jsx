@@ -101,7 +101,29 @@ function adoptHubHandoffIfPresent() {
 function ProtectedTherapist({ children }) {
   const { isTherapist, loading } = useAuth()
   if (loading) return <PageLoader />
-  if (!isTherapist) return <Navigate to="/therapist/login" replace />
+  if (!isTherapist) {
+    // ROOT CAUSE CONFIRMED (2026-09-23) via bq_debug_protected_therapist_bail:
+    // this component re-renders (isTherapist flips false when startSupervisedSession
+    // swaps to the patient) in the SAME tick that a competing navigate('/play' or
+    // '/assessment') from PatientDetail's onReady has already moved the real
+    // browser URL off /therapist/* -- confirmed directly: window.location.pathname
+    // read "/play" at the exact render where this used to unconditionally fire
+    // <Navigate to="/therapist/login">, fighting the newer, correct navigation
+    // instead of yielding to it. That fight is what produced the visible
+    // flash/bounce through /therapist/login even after the onReady batching fix
+    // (which fixed a different gap and is still needed).
+    //
+    // This component's job is to protect /therapist/* routes specifically -- if
+    // the real URL has already moved elsewhere, a more recent navigation has
+    // already superseded this render and this component is about to unmount on
+    // its own; redirecting here would just be a third, unnecessary navigation
+    // stomping on top of it. Only redirect when we're genuinely still looking at
+    // a route this component is meant to protect.
+    if (!window.location.pathname.startsWith('/therapist')) {
+      return null
+    }
+    return <Navigate to="/therapist/login" replace />
+  }
   return <UsernameGate role="therapist">{children}</UsernameGate>
 }
 

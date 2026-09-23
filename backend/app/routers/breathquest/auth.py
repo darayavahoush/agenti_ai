@@ -44,7 +44,7 @@ from app.schemas.breathquest_schemas import (
     ParentResetPasswordRequest,
     ParentDeleteAccountRequest,
     KidDeleteAccountRequest,
-    ChildSummary, ParentChildrenResponse, AddChildRequest, LinkChildRequest,
+    ChildSummary, ParentChildrenResponse, AddChildRequest, UpdateChildRequest, LinkChildRequest,
     SwitchChildRequest, SwitchChildResponse,
     LinkTherapistRequest, LinkTherapistResponse,
 )
@@ -61,6 +61,9 @@ from app.breathquest_core.login_throttle import check_throttle, record_failure, 
 # attempts against one account, so this is the right tool here instead.
 from app.breathquest_core.rate_limit import check_ip_rate_limit
 from app.schemas.breathquest_schemas import RefreshTokenRequest, RefreshTokenResponse
+# Reused rather than re-declared so the parent's avatar-edit endpoint below
+# can never drift from the therapist's/kid's own idea of a valid avatar.
+from app.routers.breathquest.patients import VALID_AVATARS
 from app.breathquest_core.parental_consent import check_email_consent
 from app.breathquest_core.deps import get_current_parent, get_current_patient
 from app.breathquest_core.config import get_breathquest_settings
@@ -296,9 +299,23 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
         detail = detail_by_reason.get(consent.reason, "Please verify your email before registering")
         raise HTTPException(status_code=403, detail=detail)
 
-    existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
+    existing_parent_email = await db.execute(select(Parent).where(func.lower(Parent.email) == data.email))
     if existing_parent_email.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
+        raise HTTPException(
+            status_code=400,
+            detail="An account already exists for this email. Sign in instead, or tap "
+                   "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+        )
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Therapist-side check in therapist_auth.py.
+    existing_therapist = await db.execute(select(Therapist.id).where(func.lower(Therapist.email) == data.email).limit(1))
+    if existing_therapist.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a therapist account, not a parent account. Go to "
+                   "the therapist sign-in page to continue, or use \"Forgot your password?\" there if you "
+                   "don't remember it. [cross_role:therapist]",
+        )
 
     player_code = await generate_unique_player_code(db, data.avatar)
     patient = BreathQuestPatient(
@@ -459,7 +476,7 @@ async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db
     enumerate registered parent emails."""
     check_ip_rate_limit(request)
     email = data.email.strip().lower()
-    result = await db.execute(select(Parent).where(Parent.email == email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == email))
     parent = result.scalar_one_or_none()
     if parent:
         patient_result = await db.execute(
@@ -685,9 +702,23 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
     if not child:
         raise HTTPException(status_code=404, detail="No child found with that player code")
 
-    existing_email = await db.execute(select(Parent).where(Parent.email == data.email))
+    existing_email = await db.execute(select(Parent).where(func.lower(Parent.email) == data.email))
     if existing_email.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
+        raise HTTPException(
+            status_code=400,
+            detail="An account already exists for this email. Sign in instead, or tap "
+                   "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+        )
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Therapist-side check in therapist_auth.py.
+    existing_therapist = await db.execute(select(Therapist.id).where(func.lower(Therapist.email) == data.email).limit(1))
+    if existing_therapist.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a therapist account, not a parent account. Go to "
+                   "the therapist sign-in page to continue, or use \"Forgot your password?\" there if you "
+                   "don't remember it. [cross_role:therapist]",
+        )
     existing_link = await db.execute(select(Parent).where(Parent.patient_id == child.id))
     if existing_link.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="This child already has a linked parent account")
@@ -729,7 +760,7 @@ async def reset_parent_password(request: Request, data: ParentResetPasswordReque
         detail = detail_by_reason.get(consent.reason, "Please verify this email before resetting the password")
         raise HTTPException(status_code=403, detail=detail)
 
-    result = await db.execute(select(Parent).where(Parent.email == email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == email))
     parent = result.scalar_one_or_none()
     if parent:
         parent.hashed_password = hash_password(data.new_password)
@@ -747,7 +778,7 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
             headers={"Retry-After": str(throttle.retry_after_seconds)},
         )
 
-    result = await db.execute(select(Parent).where(Parent.email == data.email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == data.email))
     parent = result.scalar_one_or_none()
     if not parent or not verify_password(data.password, parent.hashed_password):
         await record_failure(data.email, db)
@@ -785,7 +816,7 @@ async def _find_parent_by_google(db: AsyncSession, google_user):
     if parent is not None or not google_user.email:
         return parent
 
-    result = await db.execute(select(Parent).where(Parent.email == google_user.email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == google_user.email.strip().lower()))
     existing = result.scalar_one_or_none()
     if existing is None:
         return None
@@ -844,10 +875,19 @@ async def register_parent_google(request: Request, data: ParentGoogleRegisterReq
     existing_link = await db.execute(select(Parent).where(Parent.patient_id == child.id))
     if existing_link.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="This child already has a linked parent account")
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Therapist-side check in therapist_auth.py.
+    existing_therapist = await db.execute(select(Therapist.id).where(func.lower(Therapist.email) == google_user.email.strip().lower()).limit(1))
+    if existing_therapist.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a therapist account, not a parent account. Go to "
+                   "the therapist sign-in page and continue with Google there instead. [cross_role:therapist]",
+        )
 
     parent = Parent(
         patient_id=child.id,
-        email=google_user.email,
+        email=google_user.email.strip().lower(),
         hashed_password=None,
         full_name=google_user.name,
         phone=data.phone,
@@ -906,6 +946,44 @@ async def add_child(
         patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
         avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
         is_active=(child.id == parent.patient_id), is_primary=False,
+        username=child.username,
+    )
+
+
+@router.patch("/parent/children/{patient_id}", response_model=ChildSummary)
+async def update_child(
+    patient_id: str,
+    data: UpdateChildRequest,
+    db: AsyncSession = Depends(get_db),
+    parent: Parent = Depends(get_current_parent),
+):
+    """Avatar-only edit for an existing child (#68 -- previously a parent
+    could only pick an avatar once, at add/register time, with no way to
+    change it after; only the kid could, via /patients/me/profile).
+    Scoped through ParentChild the same way switch_child is, so a parent
+    can only edit a child actually linked to their account."""
+    link = (await db.execute(
+        select(ParentChild).where(ParentChild.parent_id == parent.id, ParentChild.patient_id == patient_id)
+    )).scalar_one_or_none()
+    if not link:
+        raise HTTPException(status_code=404, detail="That child isn't linked to your account")
+
+    if data.avatar not in VALID_AVATARS:
+        raise HTTPException(status_code=400, detail="Invalid avatar choice")
+
+    child = (await db.execute(
+        select(BreathQuestPatient).where(BreathQuestPatient.id == patient_id)
+    )).scalar_one_or_none()
+    if not child:
+        raise HTTPException(status_code=404, detail="Child not found")
+
+    child.avatar = data.avatar
+    db.add(child)
+    await db.commit()
+    return ChildSummary(
+        patient_id=str(child.id), first_name=child.first_name, avatar=child.avatar,
+        avatar_photo_url=child.avatar_photo_url, player_code=child.player_code,
+        is_active=(child.id == parent.patient_id), is_primary=link.is_primary,
         username=child.username,
     )
 

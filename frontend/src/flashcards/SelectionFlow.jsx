@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getThemes, getWordsForTheme, getWordImage } from "./lib/api";
-import { PlayCard, WordPill, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, FUN_COLORS, SkeletonCard, EmptyState, SELECTION_BG } from "./SelectionUI";
+import { PlayCard, WordPill, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, FUN_COLORS, SkeletonCard, EmptyState, SELECTION_BG, DockMagnifyGrid } from "./SelectionUI";
 
 // Selection flow -- staggered pop-in cards, twinkling starfield, per-card
 // color cycling, wiggle-on-hover. Shared primitives live in SelectionUI.jsx
@@ -67,7 +67,7 @@ export function ThemeSelect({ onPick }) {
             )}
           />
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
+          <DockMagnifyGrid gap="14px">
             {themeList.map((t, i) => (
               <PlayCard
                 key={t.id}
@@ -80,6 +80,7 @@ export function ThemeSelect({ onPick }) {
               />
             ))}
             <PlayCard
+              key="surprise"
               emoji={surpriseEmoji}
               title="Surprise me"
               subtitle="Any topic"
@@ -88,7 +89,7 @@ export function ThemeSelect({ onPick }) {
               featured
               onClick={() => onPick(null)}
             />
-          </div>
+          </DockMagnifyGrid>
         )}
       </div>
     </div>
@@ -147,11 +148,11 @@ export function WordSelect({ theme, onPick, onBack }) {
               <span>{surpriseEmoji}</span>
               Surprise me within this topic
             </button>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", maxHeight: "420px", overflowY: "auto", padding: "4px" }}>
+            <DockMagnifyGrid gap="10px" radius={110} maxScale={1.25} style={{ maxHeight: "420px", overflowY: "auto", padding: "4px" }}>
               {words.map((w, i) => (
                 <WordPill key={w} label={w} image={images[w] ? `data:image/png;base64,${images[w]}` : undefined} color={FUN_COLORS[i % FUN_COLORS.length]} index={i} onClick={() => onPick(w)} />
               ))}
-            </div>
+            </DockMagnifyGrid>
           </>
         )}
       </div>

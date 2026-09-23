@@ -133,17 +133,24 @@ function PinPad({ onDigit, onDelete }) {
 function KidPlayForm({ onSwitchRole }) {
   const [searchParams] = useSearchParams()
   const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
-  // Normally kids land on the marketing chooser first -- but if we're here
-  // because a dead session bounced them back (see client.js's interceptor),
-  // jumping straight to the login step (with an explanation, below) beats
-  // dropping them on a chooser screen that doesn't acknowledge anything
-  // happened.
+  // Normally kids land on the marketing chooser first -- but two cases
+  // should skip straight to the login (player code + PIN) step instead of
+  // making them tap "I have a code" a second time:
+  //   - a dead session bounced them back here (see client.js's interceptor)
+  //   - they already tapped "Sign in" on the landing page, which links here
+  //     with ?mode=signin (see Landing.jsx's onStart("play-select?mode=signin"))
+  //     -- AuthPage doesn't otherwise look at `mode` at all, so this was
+  //     previously silently ignored and everyone landed on the chooser
+  //     regardless, making "Sign in" functionally identical to "Start
+  //     Assessment" and forcing an extra, redundant tap before the actual
+  //     login form.
+  const [skipToLogin] = useState(() => sessionExpired || searchParams.get('mode') === 'signin')
   // 'register' (self-signup) is no longer reachable from the choose screen
   // (see the "New here?" panel below) -- the mode and its form/parentContact/
   // verifyEmail steps are left in place rather than deleted, since the
   // backend flag gating POST /auth/kid-register is meant to be reversible.
   // Nothing currently calls setMode('register').
-  const [mode, setMode]         = useState(() => sessionExpired ? 'login' : 'choose')   // choose | register | login
+  const [mode, setMode]         = useState(() => skipToLogin ? 'login' : 'choose')   // choose | register | login
   const [avatar, setAvatar]     = useState('chick')
   const [firstName, setFirstName] = useState('')
   const [playerCode, setPlayerCode] = useState('')
@@ -707,7 +714,7 @@ function KidPlayForm({ onSwitchRole }) {
           </p>
           <div className="mb-5">
             <label className="text-sm text-white/50 block mb-1">Parent's email</label>
-            <input type="email" autoComplete="email" className="input text-lg" placeholder="parent@example.com"
+            <input type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input text-lg" placeholder="parent@example.com"
                    value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
           </div>
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
@@ -797,7 +804,7 @@ function KidPlayForm({ onSwitchRole }) {
               <p className="text-white/50 text-xs text-center mb-2">
                 A parent can look up the player code by email:
               </p>
-              <input type="email" autoComplete="email" className="input text-sm mb-2" placeholder="parent@example.com"
+              <input type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input text-sm mb-2" placeholder="parent@example.com"
                      value={lookupEmail} onChange={e => setLookupEmail(e.target.value)} />
               <button onClick={handleLookupPlayerCode} disabled={loading}
                       className="w-full text-center text-sm text-brand-green hover:text-white transition-colors">
@@ -842,7 +849,7 @@ function KidPlayForm({ onSwitchRole }) {
               </div>
               <div className="mb-4">
                 <label className="text-sm text-white/50 block mb-1">Parent's Email</label>
-                <input type="email" autoComplete="email" className="input" placeholder="parent@example.com"
+                <input type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input" placeholder="parent@example.com"
                        value={forgotPinEmail} onChange={e => setForgotPinEmail(e.target.value)} />
               </div>
               {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}

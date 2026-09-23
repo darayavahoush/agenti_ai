@@ -17,16 +17,41 @@ const ROOT_URL = BASE_URL.replace(/\/api\/v1\/?$/, '')
 // force a full logout even though the session is actually still good.
 let _refreshPromise = null
 
+// Bumped on every point where the ACTIVE session identity changes under
+// bq_token -- login, startSupervisedSession's swap to the patient, its
+// restore back to the therapist, switchAccount, and logout (see
+// bumpSessionGeneration's call sites in AuthContext.jsx). Comparing the
+// exact token string (the older guard below) breaks down for a specific
+// race: a background request from session A gets a legitimate 401, kicks
+// off _attemptSilentRefresh, session A ends (e.g. startSupervisedSession
+// swaps in session B) *while that refresh is still in flight*, and the
+// refresh then resolves and writes session A's freshly-rotated token over
+// session B's -- a token string comparison done *before* the refresh started
+// can't catch a swap that happens *during* it. The generation captured at
+// send time and re-checked after every async hop (refresh included) closes
+// that gap regardless of whether the tokens involved happen to coincide.
+let _sessionGeneration = 0
+export function bumpSessionGeneration() {
+  _sessionGeneration += 1
+}
+
 async function _attemptSilentRefresh() {
   if (_refreshPromise) return _refreshPromise
   const refreshToken = localStorage.getItem('bq_refresh_token')
   if (!refreshToken) return null
+  const generationAtCall = _sessionGeneration
 
   // Plain axios, not the `api` instance below -- avoids recursing back
   // through this file's own interceptors, and /auth/refresh doesn't need
   // (or want) the expired access token attached as an Authorization header.
   _refreshPromise = axios.post(`${BASE_URL}/auth/refresh`, { refresh_token: refreshToken })
     .then(({ data }) => {
+      // The session moved on (supervised-session swap, restore, switch,
+      // logout) while this refresh was in flight -- the tokens it just
+      // rotated belong to a session that's no longer active. Applying them
+      // now would clobber whatever session actually replaced it, so drop
+      // the result on the floor instead of persisting or returning it.
+      if (_sessionGeneration !== generationAtCall) return null
       localStorage.setItem('bq_token', data.access_token)
       localStorage.setItem('bq_refresh_token', data.refresh_token)
       // Refresh rotates the refresh token (old one revoked server-side) --
@@ -72,10 +97,14 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach token automatically
+// Attach token automatically -- also stamps the session generation this
+// request was sent under (see bumpSessionGeneration above), so the response
+// interceptor can tell a request apart from a *later* session even in the
+// (rare) case the two happen to carry the same token string.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('bq_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  config._sessionGen = _sessionGeneration
   return config
 })
 
@@ -98,6 +127,27 @@ api.interceptors.response.use(
     const originalRequest = error.config
     const isAuthEndpoint = originalRequest?.url?.startsWith('/auth/')
 
+    // A 401 here can arrive long after it was sent -- PatientDetail alone
+    // fires a dozen+ background requests on mount, any of which can still
+    // be in flight when a therapist clicks Launch Assessment/Live Therapy.
+    // startSupervisedSession swaps bq_token/bq_user_type to the patient's
+    // mid-flight, so a stale therapist-scoped request that only 401s
+    // *after* that swap would otherwise still read the (by then wrong)
+    // bq_user_type and hard-redirect the freshly-launched patient session
+    // back to /therapist/login -- exactly the "Launch Assessment kicks you
+    // to the therapist login/profile switcher" symptom. If the token this
+    // request was actually sent with no longer matches the live token, the
+    // session has already moved on and this response is irrelevant --
+    // drop it rather than acting on it.
+    const sentToken = originalRequest?.headers?.Authorization
+    const currentToken = localStorage.getItem('bq_token')
+    const isStaleGeneration = typeof originalRequest?._sessionGen === 'number'
+      && originalRequest._sessionGen !== _sessionGeneration
+    const isStaleToken = sentToken && sentToken !== `Bearer ${currentToken}`
+    if (isStaleGeneration || isStaleToken) {
+      return Promise.reject(error)
+    }
+
     // First 401 on a non-auth request: try one silent refresh-and-retry
     // before treating this as a dead session. _retried guards against a
     // request that 401s AGAIN even after a successful refresh (a real dead
@@ -111,11 +161,39 @@ api.interceptors.response.use(
       }
       // Refresh itself failed (no refresh token stored, or it's also
       // expired/revoked) -- fall through to the hard-logout path below.
+      //
+      // The refresh attempt just awaited is itself an async gap the session
+      // could have moved on during (e.g. startSupervisedSession's swap
+      // landing while this exact refresh was in flight) -- re-check rather
+      // than trusting the pre-await isStaleGeneration result above.
+      if (_sessionGeneration !== originalRequest._sessionGen) {
+        return Promise.reject(error)
+      }
     }
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
       const userType = localStorage.getItem('bq_user_type')
       const deadKey = currentAccountKey()
+
+      // TEMP DIAGNOSTIC (2026-09-22) -- window.__lastCrash doesn't survive
+      // the window.location.href reload two lines below, so the previous
+      // capture attempt always came back undefined. localStorage does
+      // survive a full navigation, so stash exactly what tripped this
+      // branch before clearing anything, and read it back after landing on
+      // the login page. Remove once the actual 401 source is confirmed.
+      try {
+        localStorage.setItem('bq_debug_last_hard_logout', JSON.stringify({
+          at: new Date().toISOString(),
+          url: originalRequest?.url,
+          method: originalRequest?.method,
+          sessionGenAtSend: originalRequest?._sessionGen,
+          currentSessionGen: _sessionGeneration,
+          userTypeAtLogout: userType,
+          retried: !!originalRequest?._retried,
+          responseDetail: error.response?.data?.detail,
+        }))
+      } catch { /* best-effort */ }
+
       localStorage.removeItem('bq_token')
       localStorage.removeItem('bq_refresh_token')
       localStorage.removeItem('bq_user_type')
@@ -172,6 +250,9 @@ export const authAPI = {
   // state / switchChild for how these get used.
   getChildren:  () => api.get('/auth/parent/children'),
   addChild:     (data) => api.post('/auth/parent/children', data),
+  // Avatar-only edit for a child already in the parent's account (#68) --
+  // see routers/breathquest/auth.py's update_child.
+  updateChild:  (patientId, data) => api.patch(`/auth/parent/children/${patientId}`, data),
   linkChild:    (data) => api.post('/auth/parent/link-child', data),
   switchChild:  (patientId) => api.post('/auth/parent/switch-child', { patient_id: patientId }),
   // Attaches an existing therapist (by email or @username) to the
@@ -213,11 +294,12 @@ export const patientsAPI = {
   update: (id, data)   => api.patch(`/breathquest/patients/${id}`, data),
   delete: (id)         => api.delete(`/breathquest/patients/${id}`),
   generateParentInviteCode: (id) => api.post(`/breathquest/patients/${id}/parent-invite-code`),
-  // Attaches the calling therapist to an existing kid account by player
-  // code -- for a child who self/parent-registered before this therapist
-  // was in the picture. See routers/breathquest/patients.py's
-  // link_existing_patient -- the reverse direction of authAPI.linkTherapist.
-  link: (playerCode) => api.post('/breathquest/patients/link', { player_code: playerCode }),
+  // Attaches the calling therapist to an existing kid account by
+  // @username or player code -- for a child who self/parent-registered
+  // before this therapist was in the picture. See
+  // routers/breathquest/patients.py's link_existing_patient -- the
+  // reverse direction of authAPI.linkTherapist.
+  link: (identifier) => api.post('/breathquest/patients/link', { identifier }),
   // Therapist-launched entry point into Assessment/Live Therapy (see
   // AuthContext.jsx's startSupervisedSession) -- mints a real kid token
   // for this patient without needing their PIN.
@@ -455,6 +537,24 @@ export function getErrorMessage(err, fallback = 'Something went wrong') {
     return messages.length ? messages.join('; ') : fallback
   }
   return fallback
+}
+
+// Registration endpoints that hit a cross-role email conflict (a parent
+// email used to register as a therapist, or vice versa -- see
+// therapist_auth.py/breathquest/auth.py's cross-table checks) tag their
+// detail string with this marker so the two auth pages can redirect to
+// each other without parsing prose. Strip it before showing the message.
+const CROSS_ROLE_TAG = /\s*\[cross_role:(parent|therapist)\]\s*$/
+
+export function getCrossRoleRedirect(err) {
+  const detail = err?.response?.data?.detail
+  if (typeof detail !== 'string') return null
+  const match = detail.match(CROSS_ROLE_TAG)
+  return match ? match[1] : null
+}
+
+export function stripCrossRoleTag(message) {
+  return typeof message === 'string' ? message.replace(CROSS_ROLE_TAG, '') : message
 }
 
 export default api

@@ -233,14 +233,12 @@ export default function RocketLaunch() {
 
   // Speak the start-screen instruction once each time it's (re-)shown —
   // held off if the game's own mute toggle is on, matching how that
-  // toggle already gates every other sound in this game.
-  //
-  // The SPOKEN line says "ahhh", not "aaaa": a speech engine reads "aaaa" (and
-  // especially capitals) as the letter's name -- "ay, ay, ay" -- rather than the
-  // open /ah/ sound the game listens for. The written text below keeps the
-  // lowercase "aaaa" used by every other Chime game's on-screen instructions.
+  // toggle already gates every other sound in this game. Plain lowercase
+  // "aaaa" here, matching the written text and every other Chime game's
+  // instructions -- lib/speech.js now respells it to "ahhh" for the TTS
+  // engine itself, so this game doesn't need its own hand-typed workaround.
   const replayInstruction = useSpokenInstruction(
-    'Say a big, loud ahhh to blast your rocket into space!',
+    'Say a big, loud aaaa to blast your rocket into space!',
     { enabled: screen === 'start' && !muted },
   )
 

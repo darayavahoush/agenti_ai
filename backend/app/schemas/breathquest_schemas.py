@@ -32,6 +32,14 @@ def _id_to_str(v):
 StrId = Annotated[str, BeforeValidator(_id_to_str)]
 
 
+def _normalize_email(v):
+    """strip + lowercase so `Jane@Gmail.com` and `jane@gmail.com` are
+    treated as the same account everywhere -- register, login, reset
+    and the verify/consent layer all go through this now instead of
+    only the reset/forgot paths."""
+    return v.strip().lower() if isinstance(v, str) else v
+
+
 # ------------------------------------------------------------------ #
 #  Auth                                                                #
 # ------------------------------------------------------------------ #
@@ -87,6 +95,10 @@ class KidRegisterRequest(BaseModel):
     pin: str
     parent_email: EmailStr
     parent_phone: Optional[str] = None
+
+    @validator("parent_email")
+    def normalize_parent_email(cls, v):
+        return _normalize_email(v)
 
     @validator("first_name")
     def first_name_present(cls, v):
@@ -272,17 +284,19 @@ class PatientOut(BaseModel):
 class LinkPatientRequest(BaseModel):
     """Therapist-initiated: attach the calling therapist to an EXISTING
     kid account (one that registered itself, or was created by a parent)
-    by player_code -- the same lookup parents already use in
-    LinkChildRequest, just from the therapist side. Sets
-    BreathQuestPatient.therapist_id; does not touch anything on the
-    Assessment/Patient side."""
-    player_code: str
+    by @username or player_code -- same dual lookup kid_login already
+    supports, just from the therapist side. Renamed from a player_code-
+    only field: most kids never share their player code with anyone but
+    a parent, but @username is the thing they'd actually hand a
+    therapist. Sets BreathQuestPatient.therapist_id; does not touch
+    anything on the Assessment/Patient side."""
+    identifier: str
 
-    @validator("player_code")
-    def player_code_present(cls, v):
+    @validator("identifier")
+    def identifier_present(cls, v):
         v = v.strip()
         if not v:
-            raise ValueError("Enter the child's player code")
+            raise ValueError("Enter the child's username or player code")
         return v
 
 
@@ -493,6 +507,10 @@ class PatientProgress(BaseModel):
     # a parent/kid on request instead of pointing them at the pre-login
     # forgot-player-code email flow for something they could just be told.
     player_code: Optional[str] = None
+    # The kid's own chosen handle (see UsernameGate/username_routes.py) --
+    # the dashboard header should show this once set instead of the
+    # player_code, which is really just a recovery code, not an identity.
+    username: Optional[str] = None
 
 
 class DashboardSummary(BaseModel):
@@ -550,6 +568,10 @@ class ParentKidRegisterRequest(BaseModel):
     full_name: Optional[str] = None
     phone: str
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
     @validator("first_name")
     def first_name_present(cls, v):
         v = v.strip()
@@ -589,10 +611,18 @@ class ParentRegisterRequest(BaseModel):
     # Collected, not verified -- see Parent.phone's comment.
     phone: Optional[str] = None
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
 
 class ParentLoginRequest(BaseModel):
     email: str
     password: str
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
 
 class ParentGoogleLoginRequest(BaseModel):
@@ -688,6 +718,15 @@ class AddChildRequest(BaseModel):
         if v not in valid:
             raise ValueError(f"Avatar must be one of {valid}")
         return v
+
+
+class UpdateChildRequest(BaseModel):
+    """Lets the parent change their own child's avatar after creation --
+    the parent-side counterpart to PatientUpdate (therapist) and
+    UpdateMyProfileRequest (kid). Avatar-only for now, since that's the
+    one thing #68 flagged as missing; not first_name/PIN, which have
+    their own dedicated flows (kid-account settings) already."""
+    avatar: str
 
 
 class LinkChildRequest(BaseModel):
@@ -925,6 +964,10 @@ class ParentResetPasswordRequest(BaseModel):
     email: EmailStr
     new_password: str
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
     @validator("new_password")
     def password_strength(cls, v):
         if len(v) < 8:
@@ -954,6 +997,10 @@ class ForgotEmailRequest(BaseModel):
 class ForgotPlayerCodeRequest(BaseModel):
     email: EmailStr
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
 
 class ForgotPinRequest(BaseModel):
     """Self-registered kids (POST /auth/kid-register) have no Patient row
@@ -965,6 +1012,10 @@ class ForgotPinRequest(BaseModel):
     parent_email: EmailStr
     new_pin: str
 
+    @validator("parent_email")
+    def normalize_parent_email(cls, v):
+        return _normalize_email(v)
+
     @validator("new_pin")
     def pin_format(cls, v):
         if not re.match(r"^\d{4}$", v):
@@ -975,21 +1026,29 @@ class ForgotPinRequest(BaseModel):
 class VerifyRequestIn(BaseModel):
     """Ask for a 6-digit code by email.
 
-    `purpose` is set only by the two REGISTRATION screens, so the server can
-    say "that account already exists" up front instead of mailing a code
-    that leads nowhere. It is deliberately absent from forgot-password /
-    forgot-PIN, which must keep sending codes to existing accounts.
+    `purpose` is set only by the three REGISTRATION screens, so the server
+    can say "that account already exists" up front instead of mailing a
+    code that leads nowhere. It is deliberately absent from forgot-password
+    / forgot-PIN, which must keep sending codes to existing accounts.
     Accepted trade-off: because of this, a registration screen can be used
     to check whether an email (or a kid's name + parent email) has an
     account -- mitigated by the per-IP auth rate limit."""
     email: EmailStr
-    purpose: Literal["register_therapist", "register_kid"] | None = None
+    purpose: Literal["register_therapist", "register_kid", "register_parent"] | None = None
     first_name: str | None = None  # register_kid only
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
 
 class VerifyConfirmIn(BaseModel):
     email: EmailStr
     code: str
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
 
 class VerifyConfirmOut(BaseModel):
@@ -1109,6 +1168,9 @@ class ParentProgressOut(BaseModel):
     goals: List[GoalOut] = []
     assignments: List[AssignmentOut] = []
     player_code: Optional[str] = None
+    # See PatientProgress.username above -- same reasoning for the parent
+    # dashboard header.
+    username: Optional[str] = None
 
 
 # ------------------------------------------------------------------ #

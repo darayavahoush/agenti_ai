@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { authAPI, getErrorMessage, verifyAPI } from '../../api/client'
+import { authAPI, getErrorMessage, getCrossRoleRedirect, stripCrossRoleTag, verifyAPI } from '../../api/client'
 import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
 import { SavedProfilesGate, Avatar } from '../../components/ui'
 import {
@@ -18,10 +18,14 @@ const VALUE_PROPS = [
 ]
 
 function Field({ icon: Icon, rightElement, ...props }) {
+  // Same reasoning as the shared Input component in components/ui --
+  // stop mobile keyboards auto-capitalizing the first letter of an email.
+  const autoCapDefault = props.type === 'email' ? { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } : {}
   return (
     <div className="relative">
       <Icon className="w-4 h-4 text-paper/30 absolute left-4 top-1/2 -translate-y-1/2" />
       <input
+        {...autoCapDefault}
         {...props}
         className="w-full bg-ink border border-white/10 rounded-xl pl-11 pr-11 py-3 text-paper
                    placeholder:text-paper/30 focus:outline-none focus:border-coral/50 transition-colors"
@@ -52,7 +56,12 @@ function ParentAuthForm() {
   const kidTrialName = searchParams.get('kid') || ''
   const { loginParent, registerParent, loginParentGoogle, registerParentGoogle } = useAuth()
   const [mode, setMode] = useState('login')
-  const [form, setForm] = useState({ code: '', email: '', password: '', fullName: '', phone: '' })
+  // Prefilled when redirected here from the therapist login page after a
+  // cross-role email conflict (see client.js's getCrossRoleRedirect) --
+  // no reason to make them retype an email we already have.
+  const [form, setForm] = useState({
+    code: '', email: searchParams.get('email') || '', password: '', confirmPassword: '', fullName: '', phone: '',
+  })
   // 'code': the existing flow, entering a player/invite code from a
   // therapist or a self-registered kid. 'newChild': no code yet --
   // create the parent AND child account together (POST
@@ -109,6 +118,12 @@ function ParentAuthForm() {
     localStorage.removeItem('bq_pending_parent_kid_register')
   }, [])
 
+  // Same pattern as therapist/Login.jsx's ALREADY_EXISTS -- match the
+  // message it uses for a same-role duplicate specifically, so this
+  // doesn't also fire on the (differently-worded) cross-role message,
+  // which is handled separately via getCrossRoleRedirect below.
+  const ALREADY_EXISTS = /account already exists/i
+
   function update(field) {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
   }
@@ -116,6 +131,10 @@ function ParentAuthForm() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (mode === 'register') {
+      if (!form.password || form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+      if (form.password !== form.confirmPassword) { setError("Passwords don't match"); return }
+    }
     setBusy(true)
     try {
       if (mode === 'login') {
@@ -129,7 +148,15 @@ function ParentAuthForm() {
       localStorage.removeItem('bq_pending_parent_kid_register')
       navigate('/parent/dashboard')
     } catch (err) {
-      setError(getErrorMessage(err, 'Something went wrong — please try again.'))
+      if (getCrossRoleRedirect(err) === 'therapist') {
+        navigate(`/therapist/login?email=${encodeURIComponent(form.email.trim())}`)
+        return
+      }
+      const msg = getErrorMessage(err, 'Something went wrong — please try again.')
+      if (mode === 'register' && ALREADY_EXISTS.test(msg)) {
+        setMode('login')
+      }
+      setError(stripCrossRoleTag(msg))
     } finally {
       setBusy(false)
     }
@@ -153,6 +180,10 @@ function ParentAuthForm() {
       }
       navigate('/parent/dashboard')
     } catch (err) {
+      if (getCrossRoleRedirect(err) === 'therapist') {
+        navigate('/therapist/login')
+        return
+      }
       setError(getErrorMessage(err, 'Something went wrong — please try again.'))
     } finally {
       setBusy(false)
@@ -244,6 +275,7 @@ function ParentAuthForm() {
     if (!/^\d{4}$/.test(newChildForm.pin)) { setError('PIN must be exactly 4 digits'); return }
     if (!form.email.trim()) { setError('Enter your email'); return }
     if (!form.password || form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (form.password !== form.confirmPassword) { setError("Passwords don't match"); return }
     if (!form.phone.trim()) { setError('Enter your phone number'); return }
     setError(''); setBusy(true)
     try {
@@ -251,6 +283,10 @@ function ParentAuthForm() {
       setNewChildStep('verifyEmail')
       setNewChildCooldown(60)
     } catch (err) {
+      if (getCrossRoleRedirect(err) === 'therapist') {
+        navigate(`/therapist/login?email=${encodeURIComponent(form.email.trim())}`)
+        return
+      }
       setError(getErrorMessage(err, "Couldn't send the verification code — try again"))
     } finally {
       setBusy(false)
@@ -264,6 +300,10 @@ function ParentAuthForm() {
       setNewChildResendMsg('Code resent!')
       setNewChildCooldown(60)
     } catch (err) {
+      if (getCrossRoleRedirect(err) === 'therapist') {
+        navigate(`/therapist/login?email=${encodeURIComponent(form.email.trim())}`)
+        return
+      }
       setError(getErrorMessage(err, "Couldn't resend the code — try again"))
     } finally {
       setBusy(false)
@@ -290,6 +330,10 @@ function ParentAuthForm() {
       })
       navigate('/parent/dashboard')
     } catch (err) {
+      if (getCrossRoleRedirect(err) === 'therapist') {
+        navigate(`/therapist/login?email=${encodeURIComponent(form.email.trim())}`)
+        return
+      }
       setError(getErrorMessage(err, "Couldn't create your account — try again"))
     } finally {
       setBusy(false)
@@ -468,6 +512,15 @@ function ParentAuthForm() {
                       </button>
                     }
                   />
+                  <Field
+                    icon={Lock}
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    placeholder="Confirm password"
+                    value={form.confirmPassword}
+                    onChange={update('confirmPassword')}
+                  />
 
                   {error && (
                     <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-coral-light text-sm">
@@ -567,6 +620,17 @@ function ParentAuthForm() {
                   </button>
                 }
               />
+              {mode === 'register' && (
+                <Field
+                  icon={Lock}
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  placeholder="Confirm password"
+                  value={form.confirmPassword}
+                  onChange={update('confirmPassword')}
+                />
+              )}
 
               {error && (
                 <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-coral-light text-sm">

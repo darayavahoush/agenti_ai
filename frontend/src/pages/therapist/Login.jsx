@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { getErrorMessage, authAPI, verifyAPI } from '../../api/client'
+import { getErrorMessage, getCrossRoleRedirect, stripCrossRoleTag, authAPI, verifyAPI } from '../../api/client'
 import { Button, Input, Card, SavedProfilesGate } from '../../components/ui'
 import GoogleAuthButton from '../../components/ui/GoogleAuthButton'
 import {
@@ -20,13 +20,18 @@ const VALUE_PROPS = [
 // continuing" picker instead of this form -- see SavedProfilesGate.jsx.
 function TherapistLoginForm() {
   const [mode, setMode] = useState('login')
-  const [form, setForm] = useState({ email: '', password: '', full_name: '', clinic_name: '', phone: '' })
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Prefilled when redirected here from the parent login page after a
+  // cross-role email conflict (see client.js's getCrossRoleRedirect) --
+  // no reason to make them retype an email we already have.
+  const [form, setForm] = useState({
+    email: searchParams.get('email') || '', password: '', confirmPassword: '', full_name: '', clinic_name: '', phone: '',
+  })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { loginTherapist, registerTherapist, loginTherapistGoogle } = useAuth()
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const [sessionExpired] = useState(() => searchParams.get('session_expired') === '1')
 
   // Forgot-password: request -> verify. Same OTP round-trip as forgot-PIN
@@ -133,7 +138,13 @@ function TherapistLoginForm() {
       if (mode === 'login') {
         await loginTherapist(form.email, form.password)
       } else if (regStep === 'form') {
-        // Step 1: email the code. Nothing is created yet.
+        // Step 1: email the code. Nothing is created yet -- so check
+        // everything that would make step 2 fail *before* sending it,
+        // not after. The verify-code screen has no password field, so
+        // a rejection there used to be a dead end but for "change
+        // email", which also threw away name/clinic/phone.
+        if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+        if (form.password !== form.confirmPassword) { setError("Passwords don't match"); return }
         await verifyAPI.request({ email: form.email.trim(), purpose: 'register_therapist' })
         setRegStep('verify'); setRegCode(''); setResendMsg(''); setResendCooldown(60)
         return
@@ -145,12 +156,20 @@ function TherapistLoginForm() {
       navigate('/therapist/dashboard')
     } catch (err) {
       const msg = getErrorMessage(err)
+      const crossRole = getCrossRoleRedirect(err)
+      if (crossRole === 'parent') {
+        // This email is a parent's, not a therapist's -- no sense retrying
+        // here at all, send them straight to the right portal with the
+        // email carried over so they don't have to retype it.
+        navigate(`/parent/login?email=${encodeURIComponent(form.email.trim())}`)
+        return
+      }
       if (mode === 'register' && ALREADY_EXISTS.test(msg)) {
         // Verified and still turned away: this email already has an account.
         // Put them on Sign in with their email kept, instead of a dead end.
         setMode('login'); setRegStep('form'); setRegCode('')
       }
-      setError(msg)
+      setError(stripCrossRoleTag(msg))
     } finally {
       setLoading(false)
     }
@@ -163,6 +182,10 @@ function TherapistLoginForm() {
       await loginTherapistGoogle(idToken, mode === 'login' ? 'login' : 'register')
       navigate('/therapist/dashboard')
     } catch (err) {
+      if (getCrossRoleRedirect(err) === 'parent') {
+        navigate('/parent/login')
+        return
+      }
       setError(getErrorMessage(err))
     } finally {
       setLoading(false)
@@ -346,7 +369,7 @@ function TherapistLoginForm() {
                   </button>
                   <button type="button" onClick={() => { setRegStep('form'); setRegCode(''); setError(''); setResendMsg('') }}
                           className="text-white/50 hover:text-white transition-colors">
-                    ← Change email
+                    ← Edit details
                   </button>
                 </div>
               </form>
@@ -382,6 +405,19 @@ function TherapistLoginForm() {
                   </button>
                 }
               />
+
+              {mode === 'register' && (
+                <Input
+                  icon={Lock}
+                  label="Confirm password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  value={form.confirmPassword}
+                  onChange={set('confirmPassword')}
+                  required
+                />
+              )}
 
               {mode === 'login' && (
                 <button type="button" onClick={() => { setMode('forgot'); resetForgotFlow() }}

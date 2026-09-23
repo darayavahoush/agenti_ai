@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { dashboardAPI, chimeAPI, vaakmirrorAPI, getErrorMessage } from '../../api/client'
+import { dashboardAPI, chimeAPI, vaakmirrorAPI, patientsAPI, getErrorMessage } from '../../api/client'
 import { voiceHurdleRaceApi } from '../../api/voiceHurdleRaceApi'
 import { Card, Badge, Avatar, StarRating, Button, Spinner, PageLoader, Sidebar, AmbientGlow, ProgressRing, AboutModal, LevelIcon, PlayerCodeChip } from '../../components/ui'
+import { Creature, CREATURE_ACCENTS } from '../../components/ui/Creatures'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend } from 'recharts'
-import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind, Clock } from 'lucide-react'
+import { Download, BarChart3, Gamepad2, Dog, Bell, Waves, HeartPulse, FileText, LayoutDashboard, X, Check, ChevronLeft, ChevronRight, Brain, ClipboardCheck, Play, Lightbulb, Settings, Target, ListChecks, MessageSquare, Activity, CloudOff, ChevronDown, Wind, Clock, Pencil } from 'lucide-react'
 
 // Labeling Queue badge colors, keyed by the only three tiers MirrorMirror.jsx's
 // scoreAgainstTarget ever assigns to an attempt (see mouthMetrics.js) --
@@ -482,6 +483,8 @@ export default function PatientDetail() {
   const [tab, setTab]         = useState('progress')   // progress | sessions | voicehurdlerace | chime | vaakmirror | care | notes
   const [downloadingReport, setDownloadingReport] = useState(false)
   const [reportError, setReportError] = useState('')
+  const [pickingAvatar, setPickingAvatar] = useState(false)
+  const [savingAvatar, setSavingAvatar] = useState(false)
   const [launchingSession, setLaunchingSession] = useState(null) // null | 'assessment' | 'play'
   const [soundProgress, setSoundProgress] = useState(null)
   const [soundProgressLoading, setSoundProgressLoading] = useState(true)
@@ -672,13 +675,31 @@ export default function PatientDetail() {
   const handleLaunchSession = async (dest) => {
     setLaunchingSession(dest)
     try {
-      await startSupervisedSession(id)
-      navigate(dest === 'assessment' ? '/assessment' : '/play')
+      await startSupervisedSession(id, {
+        onReady: () => navigate(dest === 'assessment' ? '/assessment' : '/play'),
+      })
     } catch (err) {
       console.error('Failed to launch session:', err)
       setReportError("Couldn't launch the session — please try again.")
     } finally {
       setLaunchingSession(null)
+    }
+  }
+
+  // #68 -- lets the therapist change a patient's avatar after intake, same
+  // as the kid can from their own account page. Backend already supported
+  // this (PATCH /patients/{id}); only the UI to trigger it was missing.
+  async function pickAvatar(species) {
+    if (species === data?.avatar || savingAvatar) { setPickingAvatar(false); return }
+    setSavingAvatar(true)
+    try {
+      await patientsAPI.update(id, { avatar: species })
+      setData(d => ({ ...d, avatar: species }))
+      setPickingAvatar(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setSavingAvatar(false)
     }
   }
 
@@ -991,6 +1012,32 @@ export default function PatientDetail() {
           <div className="relative">
             <div className="absolute inset-0 rounded-full bg-brand-green/20 blur-xl" />
             <Avatar avatar={data.avatar} photoUrl={data.avatar_photo_url} size="xl" />
+            {!data.avatar_photo_url && (
+              <button
+                onClick={() => setPickingAvatar(p => !p)}
+                className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-white/10 border border-white/20
+                           flex items-center justify-center hover:bg-white/20 transition-colors"
+                aria-label="Change avatar"
+              >
+                <Pencil size={12} className="text-white/70" />
+              </button>
+            )}
+            {pickingAvatar && (
+              <div className="absolute top-full left-0 mt-2 z-20 flex gap-1.5 p-2 rounded-2xl bg-ink border border-white/10 shadow-xl flex-wrap w-52">
+                {Object.keys(CREATURE_ACCENTS).map((species) => (
+                  <button
+                    key={species}
+                    onClick={() => pickAvatar(species)}
+                    disabled={savingAvatar}
+                    className={`w-10 h-10 rounded-full p-0.5 transition-all ${
+                      species === data.avatar ? 'ring-2 ring-white/60' : 'opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <Creature species={species} className="w-full h-full" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1">
             <h1 className="font-display text-3xl font-bold text-white">{data.first_name}</h1>
@@ -998,7 +1045,14 @@ export default function PatientDetail() {
               <Badge color="green">{data.total_sessions} sessions</Badge>
               <Badge color="amber">{data.total_stars} / {data.max_possible_stars} stars</Badge>
               <span className={`text-sm font-semibold ${trendColor}`}>Trend: {trendLabel}</span>
-              <PlayerCodeChip code={data.player_code} />
+              {/* Once a kid has picked a username it's the real identifier --
+                  player_code is just the account-recovery code underneath,
+                  not something worth leading with once there's a name. */}
+              {data.username ? (
+                <Badge color="gray">@{data.username}</Badge>
+              ) : (
+                <PlayerCodeChip code={data.player_code} />
+              )}
             </div>
           </div>
         </div>
