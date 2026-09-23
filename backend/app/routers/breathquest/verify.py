@@ -61,7 +61,19 @@ async def _refuse_if_account_exists(data: VerifyRequestIn, db: AsyncSession) -> 
         if found is not None:
             raise HTTPException(
                 status_code=409,
-                detail="An account with this email already exists. Please sign in instead.",
+                detail="An account already exists for this email. Sign in instead, or tap "
+                       "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+            )
+        # Fail before sending an OTP at all -- same cross-table check the
+        # real register endpoints run, see their docstrings/comments.
+        found_parent = (await db.execute(
+            select(Parent.id).where(func.lower(Parent.email) == email).limit(1)
+        )).scalar_one_or_none()
+        if found_parent is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="This email is already registered as a parent account, not a therapist account. Go "
+                       "to the parent sign-in page to continue. [cross_role:parent]",
             )
 
     elif data.purpose == "register_kid" and data.first_name and data.first_name.strip():
@@ -93,7 +105,19 @@ async def _refuse_if_account_exists(data: VerifyRequestIn, db: AsyncSession) -> 
         if found is not None:
             raise HTTPException(
                 status_code=409,
-                detail="An account with this email already exists. Please sign in instead.",
+                detail="An account already exists for this email. Sign in instead, or tap "
+                       "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+            )
+        # Fail before sending an OTP at all -- same cross-table check the
+        # real register endpoints run, see their docstrings/comments.
+        found_therapist = (await db.execute(
+            select(Therapist.id).where(func.lower(Therapist.email) == email).limit(1)
+        )).scalar_one_or_none()
+        if found_therapist is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="This email is already registered as a therapist account, not a parent account. Go "
+                       "to the therapist sign-in page to continue. [cross_role:therapist]",
             )
 
 

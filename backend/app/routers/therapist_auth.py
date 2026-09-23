@@ -52,7 +52,25 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
 
     existing = await db.execute(select(Therapist).where(Therapist.email == data.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
+        raise HTTPException(
+            status_code=400,
+            detail="An account already exists for this email. Sign in instead, or tap "
+                   "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+        )
+
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Parent-side check in breathquest/auth.py's
+    # register_parent/parent_kid_register/register_parent_google, and the
+    # google_login_or_register_therapist docstring above for why the
+    # Google-login path already guarded against this one-sided.
+    existing_parent = await db.execute(select(Parent.id).where(Parent.email == data.email).limit(1))
+    if existing_parent.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a parent account, not a therapist account. Go to "
+                   "the parent sign-in page to continue, or use \"Forgot your password?\" there if you "
+                   "don't remember it. [cross_role:parent]",
+        )
 
     therapist = Therapist(
         email=data.email,
@@ -233,6 +251,13 @@ async def google_login_or_register_therapist(
             )
         if not google_user.email_verified:
             raise HTTPException(status_code=403, detail="Google account email isn't verified")
+        existing_parent = await db.execute(select(Parent.id).where(Parent.email == google_user.email).limit(1))
+        if existing_parent.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail="This email is already registered as a parent account, not a therapist account. Go to "
+                       "the parent sign-in page and continue with Google there instead. [cross_role:parent]",
+            )
         therapist = Therapist(
             email=google_user.email,
             hashed_password=None,
