@@ -26,7 +26,7 @@ function TherapistLoginForm() {
   // cross-role email conflict (see client.js's getCrossRoleRedirect) --
   // no reason to make them retype an email we already have.
   const [form, setForm] = useState({
-    email: searchParams.get('email') || '', password: '', full_name: '', clinic_name: '', phone: '',
+    email: searchParams.get('email') || '', password: '', confirmPassword: '', full_name: '', clinic_name: '', phone: '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -138,7 +138,13 @@ function TherapistLoginForm() {
       if (mode === 'login') {
         await loginTherapist(form.email, form.password)
       } else if (regStep === 'form') {
-        // Step 1: email the code. Nothing is created yet.
+        // Step 1: email the code. Nothing is created yet -- so check
+        // everything that would make step 2 fail *before* sending it,
+        // not after. The verify-code screen has no password field, so
+        // a rejection there used to be a dead end but for "change
+        // email", which also threw away name/clinic/phone.
+        if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+        if (form.password !== form.confirmPassword) { setError("Passwords don't match"); return }
         await verifyAPI.request({ email: form.email.trim(), purpose: 'register_therapist' })
         setRegStep('verify'); setRegCode(''); setResendMsg(''); setResendCooldown(60)
         return
@@ -363,7 +369,7 @@ function TherapistLoginForm() {
                   </button>
                   <button type="button" onClick={() => { setRegStep('form'); setRegCode(''); setError(''); setResendMsg('') }}
                           className="text-white/50 hover:text-white transition-colors">
-                    ← Change email
+                    ← Edit details
                   </button>
                 </div>
               </form>
@@ -399,6 +405,19 @@ function TherapistLoginForm() {
                   </button>
                 }
               />
+
+              {mode === 'register' && (
+                <Input
+                  icon={Lock}
+                  label="Confirm password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  value={form.confirmPassword}
+                  onChange={set('confirmPassword')}
+                  required
+                />
+              )}
 
               {mode === 'login' && (
                 <button type="button" onClick={() => { setMode('forgot'); resetForgotFlow() }}

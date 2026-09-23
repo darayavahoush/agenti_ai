@@ -60,7 +60,7 @@ function ParentAuthForm() {
   // cross-role email conflict (see client.js's getCrossRoleRedirect) --
   // no reason to make them retype an email we already have.
   const [form, setForm] = useState({
-    code: '', email: searchParams.get('email') || '', password: '', fullName: '', phone: '',
+    code: '', email: searchParams.get('email') || '', password: '', confirmPassword: '', fullName: '', phone: '',
   })
   // 'code': the existing flow, entering a player/invite code from a
   // therapist or a self-registered kid. 'newChild': no code yet --
@@ -131,6 +131,10 @@ function ParentAuthForm() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (mode === 'register') {
+      if (!form.password || form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+      if (form.password !== form.confirmPassword) { setError("Passwords don't match"); return }
+    }
     setBusy(true)
     try {
       if (mode === 'login') {
@@ -271,6 +275,7 @@ function ParentAuthForm() {
     if (!/^\d{4}$/.test(newChildForm.pin)) { setError('PIN must be exactly 4 digits'); return }
     if (!form.email.trim()) { setError('Enter your email'); return }
     if (!form.password || form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (form.password !== form.confirmPassword) { setError("Passwords don't match"); return }
     if (!form.phone.trim()) { setError('Enter your phone number'); return }
     setError(''); setBusy(true)
     try {
@@ -507,6 +512,15 @@ function ParentAuthForm() {
                       </button>
                     }
                   />
+                  <Field
+                    icon={Lock}
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    placeholder="Confirm password"
+                    value={form.confirmPassword}
+                    onChange={update('confirmPassword')}
+                  />
 
                   {error && (
                     <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-coral-light text-sm">
@@ -606,6 +620,17 @@ function ParentAuthForm() {
                   </button>
                 }
               />
+              {mode === 'register' && (
+                <Field
+                  icon={Lock}
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  placeholder="Confirm password"
+                  value={form.confirmPassword}
+                  onChange={update('confirmPassword')}
+                />
+              )}
 
               {error && (
                 <div className="bg-coral/10 border border-coral/30 rounded-xl px-4 py-3 text-coral-light text-sm">
