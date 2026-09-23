@@ -195,7 +195,21 @@ export function AuthProvider({ children }) {
   // without a fresh login round-trip. Deliberately a separate localStorage
   // key rather than reusing bq_token itself, since the whole point is to
   // recover the therapist's session after the patient's overwrites it.
-  const startSupervisedSession = async (breathQuestPatientId) => {
+  // `onReady`, if given, fires synchronously in the same tick as the
+  // setPatient/setTherapist/setParent calls below -- NOT after an
+  // additional `await` back in the caller. Awaiting this function's own
+  // returned promise always costs one extra microtask hop (even when
+  // already resolved), and a caller that does
+  // `await startSupervisedSession(id); navigate(...)` lets React commit a
+  // render in that gap where isTherapist has already flipped false but
+  // the route location hasn't moved off a ProtectedTherapist-guarded path
+  // yet -- which fires ProtectedTherapist's own `<Navigate to=
+  // "/therapist/login">` and bounces the therapist to the login screen
+  // for a frame (recoverable via SavedProfilesGate's saved-profile
+  // picker, but confusing) before the intended /play or /assessment
+  // navigation ever happens. Passing the navigation in as `onReady`
+  // keeps it in the same batch as the state swap instead.
+  const startSupervisedSession = async (breathQuestPatientId, { onReady } = {}) => {
     const backup = {
       token:        localStorage.getItem('bq_token'),
       refreshToken: localStorage.getItem('bq_refresh_token'),
@@ -218,6 +232,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('bq_user_type',     'patient')
     localStorage.setItem('bq_user_data',     JSON.stringify(data))
     setPatient(data); setTherapist(null); setParent(null)
+    onReady?.(data)
     return data
   }
 

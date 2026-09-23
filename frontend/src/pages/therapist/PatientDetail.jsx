@@ -675,8 +675,9 @@ export default function PatientDetail() {
   const handleLaunchSession = async (dest) => {
     setLaunchingSession(dest)
     try {
-      await startSupervisedSession(id)
-      navigate(dest === 'assessment' ? '/assessment' : '/play')
+      await startSupervisedSession(id, {
+        onReady: () => navigate(dest === 'assessment' ? '/assessment' : '/play'),
+      })
     } catch (err) {
       console.error('Failed to launch session:', err)
       setReportError("Couldn't launch the session — please try again.")
