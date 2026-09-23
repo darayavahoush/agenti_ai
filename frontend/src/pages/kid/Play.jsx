@@ -714,7 +714,7 @@ function KidPlayForm({ onSwitchRole }) {
           </p>
           <div className="mb-5">
             <label className="text-sm text-white/50 block mb-1">Parent's email</label>
-            <input type="email" autoComplete="email" className="input text-lg" placeholder="parent@example.com"
+            <input type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input text-lg" placeholder="parent@example.com"
                    value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
           </div>
           {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
@@ -804,7 +804,7 @@ function KidPlayForm({ onSwitchRole }) {
               <p className="text-white/50 text-xs text-center mb-2">
                 A parent can look up the player code by email:
               </p>
-              <input type="email" autoComplete="email" className="input text-sm mb-2" placeholder="parent@example.com"
+              <input type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input text-sm mb-2" placeholder="parent@example.com"
                      value={lookupEmail} onChange={e => setLookupEmail(e.target.value)} />
               <button onClick={handleLookupPlayerCode} disabled={loading}
                       className="w-full text-center text-sm text-brand-green hover:text-white transition-colors">
@@ -849,7 +849,7 @@ function KidPlayForm({ onSwitchRole }) {
               </div>
               <div className="mb-4">
                 <label className="text-sm text-white/50 block mb-1">Parent's Email</label>
-                <input type="email" autoComplete="email" className="input" placeholder="parent@example.com"
+                <input type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input" placeholder="parent@example.com"
                        value={forgotPinEmail} onChange={e => setForgotPinEmail(e.target.value)} />
               </div>
               {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}

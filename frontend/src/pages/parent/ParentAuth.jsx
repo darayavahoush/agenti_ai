@@ -18,10 +18,14 @@ const VALUE_PROPS = [
 ]
 
 function Field({ icon: Icon, rightElement, ...props }) {
+  // Same reasoning as the shared Input component in components/ui --
+  // stop mobile keyboards auto-capitalizing the first letter of an email.
+  const autoCapDefault = props.type === 'email' ? { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } : {}
   return (
     <div className="relative">
       <Icon className="w-4 h-4 text-paper/30 absolute left-4 top-1/2 -translate-y-1/2" />
       <input
+        {...autoCapDefault}
         {...props}
         className="w-full bg-ink border border-white/10 rounded-xl pl-11 pr-11 py-3 text-paper
                    placeholder:text-paper/30 focus:outline-none focus:border-coral/50 transition-colors"

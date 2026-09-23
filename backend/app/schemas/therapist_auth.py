@@ -2,6 +2,15 @@ from typing import Literal
 from pydantic import BaseModel, validator
 
 
+def _normalize_email(v: str) -> str:
+    """strip + lowercase so `Jane@Gmail.com` and `jane@gmail.com` are
+    treated as the same account everywhere -- register, login, and
+    reset all go through this now instead of only the reset/forgot
+    paths, which is what let case-variant duplicates slip past the
+    cross-role check in the first place."""
+    return v.strip().lower() if isinstance(v, str) else v
+
+
 class TherapistRegister(BaseModel):
     email: str
     password: str
@@ -10,10 +19,18 @@ class TherapistRegister(BaseModel):
     # Collected, not verified -- see Therapist.phone's comment.
     phone: str | None = None
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
 
 class TherapistLogin(BaseModel):
     email: str
     password: str
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
 
 class TherapistResetPasswordRequest(BaseModel):
@@ -23,6 +40,10 @@ class TherapistResetPasswordRequest(BaseModel):
     matching the pattern used for parent password reset."""
     email: str
     new_password: str
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
     @validator("new_password")
     def password_strength(cls, v):
