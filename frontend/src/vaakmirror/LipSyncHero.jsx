@@ -73,9 +73,15 @@ export default function LipSyncHero() {
   const [complete, setComplete] = useState(false)
   const [celebrate, setCelebrate] = useState(false)
   const [baselineSpread, setBaselineSpread] = useState(null)
+  // Second calibration baseline: this player's own max mouth-open distance.
+  // See mouthMetrics.js resolveOpenness() — every 'openness' target is
+  // scored against this instead of a fixed constant, once it's set.
+  const [baselineOpenMax, setBaselineOpenMax] = useState(null)
   const [calibProgress, setCalibProgress] = useState(0)
   const [attempt, setAttempt] = useState(0)
   const [retryCount, setRetryCount] = useState(0)
+  const calibOpenSamplesRef = useRef([])
+  const calibDone = !!(baselineSpread && baselineOpenMax)
 
   // Round size: the per-patient setting (which the Alphabet check also writes
   // when it makes a plan). Falls back silently to ROUND_SIZE on any error.
@@ -108,7 +114,7 @@ export default function LipSyncHero() {
   // (Re)start the timer/audio for whichever note is current, whenever
   // `attempt` bumps — from calibration finishing, advancing, or replaying.
   useEffect(() => {
-    if (!baselineSpread || complete) return
+    if (!calibDone || complete) return
     const sound = currentRef.current
     if (!sound) return
     noteStartRef.current = performance.now()
@@ -122,7 +128,7 @@ export default function LipSyncHero() {
     tierStabilizerRef.current.reset()
     speakSound(getSpokenForm(sound.id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt, baselineSpread, complete])
+  }, [attempt, calibDone, complete])
 
   // Once a note resolves (caught or missed), pause briefly then either
   // retry the same note (up to MAX_ATTEMPTS) or move on.
@@ -229,6 +235,21 @@ export default function LipSyncHero() {
             if (elapsed >= CALIB_MS && calibSamplesRef.current.length >= 6) {
               const sorted = [...calibSamplesRef.current].sort((a, b) => a - b)
               setBaselineSpread(sorted[Math.floor(sorted.length / 2)])
+              calibStartRef.current = null
+              setCalibProgress(0)
+            }
+          }
+        } else if (!baselineOpenMax) {
+          // Second phase — this player's own max mouth-open distance, the
+          // reference every 'openness' target gets scored against.
+          if (metrics) {
+            if (!calibStartRef.current) calibStartRef.current = performance.now()
+            calibOpenSamplesRef.current.push(metrics.mouthOpenRaw)
+            const elapsed = performance.now() - calibStartRef.current
+            setCalibProgress(Math.min(1, elapsed / CALIB_MS))
+            if (elapsed >= CALIB_MS && calibOpenSamplesRef.current.length >= 6) {
+              const sorted = [...calibOpenSamplesRef.current].sort((a, b) => a - b)
+              setBaselineOpenMax(sorted[Math.floor(sorted.length / 2)])
               setAttempt((a) => a + 1)
             }
           }
@@ -261,8 +282,8 @@ export default function LipSyncHero() {
               }
             }
 
-            smoothedRef.current = emaUpdateObject(smoothedRef.current, metrics, ['openness', 'spread'], 0.3)
-            const { score, tier: rawTier } = scoreAgainstTarget(smoothedRef.current, target, baselineSpread)
+            smoothedRef.current = emaUpdateObject(smoothedRef.current, metrics, ['openness', 'mouthOpenRaw', 'spread'], 0.3)
+            const { score, tier: rawTier } = scoreAgainstTarget(smoothedRef.current, target, baselineSpread, baselineOpenMax)
             // Require actual movement from rest before a match can register —
             // a resting mouth that geometrically overlaps a closed-lip target
             // (m/p/b) shouldn't score as a correct attempt on its own.
@@ -321,7 +342,7 @@ export default function LipSyncHero() {
     rafRef.current = requestAnimationFrame(loop)
     return () => rafRef.current && cancelAnimationFrame(rafRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, target, filter, baselineSpread])
+  }, [status, target, filter, baselineSpread, baselineOpenMax])
 
   function restart() {
     setRound(pickRound(roundSizeRef.current, focusRef.current))
@@ -340,8 +361,10 @@ export default function LipSyncHero() {
 
   function recalibrate() {
     setBaselineSpread(null)
+    setBaselineOpenMax(null)
     setCalibProgress(0)
     calibSamplesRef.current = []
+    calibOpenSamplesRef.current = []
     calibStartRef.current = null
     noteStartRef.current = null
     resolvedRef.current = false
@@ -432,7 +455,7 @@ export default function LipSyncHero() {
 
             <div className="mt-4 flex items-center justify-between gap-3">
               <CharacterFilterPicker value={filter} onChange={setFilter} />
-              {status === 'ready' && baselineSpread && (
+              {status === 'ready' && calibDone && (
                 <button
                   onClick={recalibrate}
                   className="text-xs text-paper/40 hover:text-paper/70 shrink-0 flex items-center gap-1"
@@ -443,23 +466,28 @@ export default function LipSyncHero() {
               )}
             </div>
             {status === 'ready' && (
-              <p className="mt-2 text-sm font-medium" style={{ color: baselineSpread ? tierStyle.ring : '#2FB8A6' }}>
-                {baselineSpread ? tierStyle.text : 'Calibrating — relax your mouth for a second…'}
+              <p className="mt-2 text-sm font-medium" style={{ color: calibDone ? tierStyle.ring : '#2FB8A6' }}>
+                {calibDone
+                  ? tierStyle.text
+                  : !baselineSpread
+                    ? 'Calibrating — relax your mouth for a second…'
+                    : 'Calibrating — now open your mouth as wide as you can…'}
               </p>
             )}
           </div>
 
           {/* Target panel */}
           <div className="rounded-3xl bg-ink-light border border-white/10 p-8">
-            {status === 'ready' && !baselineSpread ? (
+            {status === 'ready' && !calibDone ? (
               <div className="py-6">
                 <p className="font-mono text-xs uppercase tracking-widest text-mint mb-3">One-time setup</p>
                 <p className="font-display text-xl font-bold text-paper mb-3">
-                  Getting your resting mouth shape…
+                  {!baselineSpread ? 'Getting your resting mouth shape…' : 'Now open your mouth as wide as you can…'}
                 </p>
                 <p className="text-paper/55 text-sm leading-relaxed mb-6">
-                  Relax your face for a second so the game matches shapes to your
-                  own face.
+                  {!baselineSpread
+                    ? 'Relax your face for a second so the game matches shapes to your own face.'
+                    : 'Open wide, like a big yawn — this tells the game how far you can open.'}
                 </p>
                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div

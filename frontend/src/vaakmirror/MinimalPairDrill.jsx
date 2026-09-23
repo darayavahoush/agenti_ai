@@ -73,11 +73,17 @@ export default function MinimalPairDrill() {
   const [complete, setComplete] = useState(false)
   const [celebrate, setCelebrate] = useState(false)
   const [baselineSpread, setBaselineSpread] = useState(null)
+  // Second calibration baseline: this player's own max mouth-open distance.
+  // See mouthMetrics.js resolveOpenness() — every 'openness' target is
+  // scored against this instead of a fixed constant, once it's set.
+  const [baselineOpenMax, setBaselineOpenMax] = useState(null)
   const [calibProgress, setCalibProgress] = useState(0)
   const calibSamplesRef = useRef([])
+  const calibOpenSamplesRef = useRef([])
   const calibStartRef = useRef(null)
   const soundStartRef = useRef(null)
   const [showCue, setShowCue] = useState(false)
+  const calibDone = !!(baselineSpread && baselineOpenMax)
 
   const current = round[roundIndex]
   const target = current ? SHAPE_TARGETS[current.shape] : null
@@ -117,9 +123,9 @@ export default function MinimalPairDrill() {
   // here than in Mirror Mirror, since discrimination drills are partly an
   // ear-training exercise, not just mouth-shape production.
   useEffect(() => {
-    if (!baselineSpread || complete || !current) return
+    if (!calibDone || complete || !current) return
     speakSound(getSpokenForm(current.id))
-  }, [current, baselineSpread, complete])
+  }, [current, calibDone, complete])
 
   const advance = useCallback((opts = {}) => {
     const { skipped = false } = opts
@@ -221,12 +227,27 @@ export default function MinimalPairDrill() {
             if (elapsed >= CALIB_MS && calibSamplesRef.current.length >= 6) {
               const sorted = [...calibSamplesRef.current].sort((a, b) => a - b)
               setBaselineSpread(sorted[Math.floor(sorted.length / 2)])
+              calibStartRef.current = null
+              setCalibProgress(0)
+            }
+          }
+        } else if (!baselineOpenMax) {
+          // Second phase — this player's own max mouth-open distance, the
+          // reference every 'openness' target gets scored against.
+          if (metrics) {
+            if (!calibStartRef.current) calibStartRef.current = performance.now()
+            calibOpenSamplesRef.current.push(metrics.mouthOpenRaw)
+            const elapsed = performance.now() - calibStartRef.current
+            setCalibProgress(Math.min(1, elapsed / CALIB_MS))
+            if (elapsed >= CALIB_MS && calibOpenSamplesRef.current.length >= 6) {
+              const sorted = [...calibOpenSamplesRef.current].sort((a, b) => a - b)
+              setBaselineOpenMax(sorted[Math.floor(sorted.length / 2)])
             }
           }
         } else if (metrics && target) {
           if (!soundStartRef.current) soundStartRef.current = performance.now()
-          smoothedRef.current = emaUpdateObject(smoothedRef.current, metrics, ['openness', 'spread'], 0.3)
-          const { score, tier: rawTier } = scoreAgainstTarget(smoothedRef.current, target, baselineSpread)
+          smoothedRef.current = emaUpdateObject(smoothedRef.current, metrics, ['openness', 'mouthOpenRaw', 'spread'], 0.3)
+          const { score, tier: rawTier } = scoreAgainstTarget(smoothedRef.current, target, baselineSpread, baselineOpenMax)
           const t = tierStabilizerRef.current.update(rawTier)
           frameTier = t
           setTier(t)
@@ -283,7 +304,7 @@ export default function MinimalPairDrill() {
               landmarks,
               canvas.width,
               canvas.height,
-              baselineSpread ? TIER_STYLES[frameTier].ring : '#2FB8A6',
+              baselineSpread && baselineOpenMax ? TIER_STYLES[frameTier].ring : '#2FB8A6',
             )
           }
         }
@@ -294,7 +315,7 @@ export default function MinimalPairDrill() {
     rafRef.current = requestAnimationFrame(loop)
     return () => rafRef.current && cancelAnimationFrame(rafRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, target, advance, filter, baselineSpread])
+  }, [status, target, advance, filter, baselineSpread, baselineOpenMax])
 
   function restartWith(nextPair) {
     setRound(pickRound(nextPair, ROUND_SIZE))
@@ -317,8 +338,10 @@ export default function MinimalPairDrill() {
 
   function recalibrate() {
     setBaselineSpread(null)
+    setBaselineOpenMax(null)
     setCalibProgress(0)
     calibSamplesRef.current = []
+    calibOpenSamplesRef.current = []
     calibStartRef.current = null
     holdStartRef.current = null
     setHoldProgress(0)
@@ -424,8 +447,8 @@ export default function MinimalPairDrill() {
                   <div
                     className="h-full transition-[width] duration-75"
                     style={{
-                      width: `${(baselineSpread ? holdProgress : calibProgress) * 100}%`,
-                      backgroundColor: baselineSpread ? tierStyle.ring : '#2FB8A6',
+                      width: `${(calibDone ? holdProgress : calibProgress) * 100}%`,
+                      backgroundColor: calibDone ? tierStyle.ring : '#2FB8A6',
                     }}
                   />
                 </div>
@@ -435,7 +458,7 @@ export default function MinimalPairDrill() {
 
             <div className="mt-4 flex items-center justify-between gap-3">
               <CharacterFilterPicker value={filter} onChange={setFilter} />
-              {status === 'ready' && baselineSpread && (
+              {status === 'ready' && calibDone && (
                 <button
                   onClick={recalibrate}
                   className="text-xs text-paper/40 hover:text-paper/70 shrink-0 flex items-center gap-1"
@@ -446,21 +469,28 @@ export default function MinimalPairDrill() {
               )}
             </div>
             {status === 'ready' && (
-              <p className="mt-2 text-sm font-medium" style={{ color: baselineSpread ? tierStyle.ring : '#2FB8A6' }}>
-                {baselineSpread ? tierStyle.text : 'Calibrating — relax your mouth for a second…'}
+              <p className="mt-2 text-sm font-medium" style={{ color: calibDone ? tierStyle.ring : '#2FB8A6' }}>
+                {calibDone
+                  ? tierStyle.text
+                  : !baselineSpread
+                    ? 'Calibrating — relax your mouth for a second…'
+                    : 'Calibrating — now open your mouth as wide as you can…'}
               </p>
             )}
           </div>
 
           {/* Target panel */}
           <div className="rounded-3xl bg-ink-light border border-white/10 p-8">
-            {status === 'ready' && !baselineSpread ? (
+            {status === 'ready' && !calibDone ? (
               <div className="py-6">
                 <p className="font-mono text-xs uppercase tracking-widest text-mint mb-3">One-time setup</p>
-                <p className="font-display text-xl font-bold text-paper mb-3">Getting your resting mouth shape…</p>
+                <p className="font-display text-xl font-bold text-paper mb-3">
+                  {!baselineSpread ? 'Getting your resting mouth shape…' : 'Now open your mouth as wide as you can…'}
+                </p>
                 <p className="text-paper/55 text-sm leading-relaxed mb-6">
-                  Just relax your face for a second — this lets the game match shapes to your own
-                  face instead of a generic one.
+                  {!baselineSpread
+                    ? 'Just relax your face for a second — this lets the game match shapes to your own face instead of a generic one.'
+                    : 'Open wide, like a big yawn — this tells the game how far you can open.'}
                 </p>
                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div
