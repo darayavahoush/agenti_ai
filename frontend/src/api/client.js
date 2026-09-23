@@ -539,4 +539,22 @@ export function getErrorMessage(err, fallback = 'Something went wrong') {
   return fallback
 }
 
+// Registration endpoints that hit a cross-role email conflict (a parent
+// email used to register as a therapist, or vice versa -- see
+// therapist_auth.py/breathquest/auth.py's cross-table checks) tag their
+// detail string with this marker so the two auth pages can redirect to
+// each other without parsing prose. Strip it before showing the message.
+const CROSS_ROLE_TAG = /\s*\[cross_role:(parent|therapist)\]\s*$/
+
+export function getCrossRoleRedirect(err) {
+  const detail = err?.response?.data?.detail
+  if (typeof detail !== 'string') return null
+  const match = detail.match(CROSS_ROLE_TAG)
+  return match ? match[1] : null
+}
+
+export function stripCrossRoleTag(message) {
+  return typeof message === 'string' ? message.replace(CROSS_ROLE_TAG, '') : message
+}
+
 export default api

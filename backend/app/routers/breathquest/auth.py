@@ -301,7 +301,21 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
 
     existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
     if existing_parent_email.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
+        raise HTTPException(
+            status_code=400,
+            detail="An account already exists for this email. Sign in instead, or tap "
+                   "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+        )
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Therapist-side check in therapist_auth.py.
+    existing_therapist = await db.execute(select(Therapist.id).where(Therapist.email == data.email).limit(1))
+    if existing_therapist.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a therapist account, not a parent account. Go to "
+                   "the therapist sign-in page to continue, or use \"Forgot your password?\" there if you "
+                   "don't remember it. [cross_role:therapist]",
+        )
 
     player_code = await generate_unique_player_code(db, data.avatar)
     patient = BreathQuestPatient(
@@ -690,7 +704,21 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
 
     existing_email = await db.execute(select(Parent).where(Parent.email == data.email))
     if existing_email.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
+        raise HTTPException(
+            status_code=400,
+            detail="An account already exists for this email. Sign in instead, or tap "
+                   "\"Forgot your password?\" on the sign-in screen if you don't remember it.",
+        )
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Therapist-side check in therapist_auth.py.
+    existing_therapist = await db.execute(select(Therapist.id).where(Therapist.email == data.email).limit(1))
+    if existing_therapist.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a therapist account, not a parent account. Go to "
+                   "the therapist sign-in page to continue, or use \"Forgot your password?\" there if you "
+                   "don't remember it. [cross_role:therapist]",
+        )
     existing_link = await db.execute(select(Parent).where(Parent.patient_id == child.id))
     if existing_link.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="This child already has a linked parent account")
@@ -847,6 +875,15 @@ async def register_parent_google(request: Request, data: ParentGoogleRegisterReq
     existing_link = await db.execute(select(Parent).where(Parent.patient_id == child.id))
     if existing_link.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="This child already has a linked parent account")
+    # Same email can't hold both a parent and a therapist account -- see
+    # the matching Therapist-side check in therapist_auth.py.
+    existing_therapist = await db.execute(select(Therapist.id).where(Therapist.email == google_user.email).limit(1))
+    if existing_therapist.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="This email is already registered as a therapist account, not a parent account. Go to "
+                   "the therapist sign-in page and continue with Google there instead. [cross_role:therapist]",
+        )
 
     parent = Parent(
         patient_id=child.id,
