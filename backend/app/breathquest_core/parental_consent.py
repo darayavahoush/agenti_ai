@@ -97,4 +97,9 @@ async def _check_factor_consent(model, field_name: str, value: str, db: AsyncSes
 
 
 async def check_email_consent(email: str, db: AsyncSession) -> ConsentStatus:
+    # Normalize here too, not just in the schemas -- this is the shared
+    # gate every register/reset flow calls, and callers have historically
+    # been inconsistent about lowercasing before calling it. Defense in
+    # depth so a future caller that forgets can't reopen the gap.
+    email = email.strip().lower() if email else email
     return await _check_factor_consent(EmailVerification, "email", email, db)

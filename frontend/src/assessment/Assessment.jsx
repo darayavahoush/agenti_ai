@@ -1144,6 +1144,9 @@ export default function Assessment({ authedPatientName, authedPatientId, onFinis
               <input
                 type="email"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={emailAddress}
                 onChange={(e) => {
                   setEmailAddress(e.target.value);

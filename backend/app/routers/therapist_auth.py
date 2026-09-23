@@ -6,11 +6,11 @@ from the retiring breathquest_therapists table.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.database import get_db
 from app.models.therapist import Therapist
-from app.models.breathquest_models import BreathQuestPatient, Subscription, TherapistNote
+from app.models.breathquest_models import BreathQuestPatient, Parent, Subscription, TherapistNote
 from app.models.patient import Patient
 from app.schemas.therapist_auth import TherapistRegister, TherapistLogin, TherapistTokenResponse, GoogleAuthRequest, TherapistResetPasswordRequest, TherapistDeleteAccountRequest
 from app.breathquest_core.security import hash_password, verify_password, create_access_token
@@ -50,7 +50,7 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
         detail = detail_by_reason.get(consent.reason, "Please verify your email before registering")
         raise HTTPException(status_code=403, detail=detail)
 
-    existing = await db.execute(select(Therapist).where(Therapist.email == data.email))
+    existing = await db.execute(select(Therapist).where(func.lower(Therapist.email) == data.email))
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -63,7 +63,7 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
     # register_parent/parent_kid_register/register_parent_google, and the
     # google_login_or_register_therapist docstring above for why the
     # Google-login path already guarded against this one-sided.
-    existing_parent = await db.execute(select(Parent.id).where(Parent.email == data.email).limit(1))
+    existing_parent = await db.execute(select(Parent.id).where(func.lower(Parent.email) == data.email).limit(1))
     if existing_parent.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -106,7 +106,7 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
             headers={"Retry-After": str(throttle.retry_after_seconds)},
         )
 
-    result = await db.execute(select(Therapist).where(Therapist.email == data.email))
+    result = await db.execute(select(Therapist).where(func.lower(Therapist.email) == data.email))
     therapist = result.scalar_one_or_none()
 
     if not therapist or not verify_password(data.password, therapist.hashed_password):
@@ -146,7 +146,7 @@ async def reset_therapist_password(request: Request, data: TherapistResetPasswor
         detail = detail_by_reason.get(consent.reason, "Please verify this email before resetting the password")
         raise HTTPException(status_code=403, detail=detail)
 
-    result = await db.execute(select(Therapist).where(Therapist.email == email))
+    result = await db.execute(select(Therapist).where(func.lower(Therapist.email) == email))
     therapist = result.scalar_one_or_none()
     if therapist:
         therapist.hashed_password = hash_password(data.new_password)
@@ -227,7 +227,7 @@ async def google_login_or_register_therapist(
     therapist = result.scalar_one_or_none()
 
     if therapist is None and google_user.email:
-        result = await db.execute(select(Therapist).where(Therapist.email == google_user.email))
+        result = await db.execute(select(Therapist).where(func.lower(Therapist.email) == google_user.email.strip().lower()))
         existing = result.scalar_one_or_none()
         if existing is not None:
             if not google_user.email_verified:
@@ -251,7 +251,7 @@ async def google_login_or_register_therapist(
             )
         if not google_user.email_verified:
             raise HTTPException(status_code=403, detail="Google account email isn't verified")
-        existing_parent = await db.execute(select(Parent.id).where(Parent.email == google_user.email).limit(1))
+        existing_parent = await db.execute(select(Parent.id).where(func.lower(Parent.email) == google_user.email.strip().lower()).limit(1))
         if existing_parent.scalar_one_or_none():
             raise HTTPException(
                 status_code=400,
@@ -259,7 +259,7 @@ async def google_login_or_register_therapist(
                        "the parent sign-in page and continue with Google there instead. [cross_role:parent]",
             )
         therapist = Therapist(
-            email=google_user.email,
+            email=google_user.email.strip().lower(),
             hashed_password=None,
             full_name=google_user.name or google_user.email.split("@")[0],
             google_sub=google_user.sub,

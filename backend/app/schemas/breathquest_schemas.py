@@ -32,6 +32,14 @@ def _id_to_str(v):
 StrId = Annotated[str, BeforeValidator(_id_to_str)]
 
 
+def _normalize_email(v):
+    """strip + lowercase so `Jane@Gmail.com` and `jane@gmail.com` are
+    treated as the same account everywhere -- register, login, reset
+    and the verify/consent layer all go through this now instead of
+    only the reset/forgot paths."""
+    return v.strip().lower() if isinstance(v, str) else v
+
+
 # ------------------------------------------------------------------ #
 #  Auth                                                                #
 # ------------------------------------------------------------------ #
@@ -87,6 +95,10 @@ class KidRegisterRequest(BaseModel):
     pin: str
     parent_email: EmailStr
     parent_phone: Optional[str] = None
+
+    @validator("parent_email")
+    def normalize_parent_email(cls, v):
+        return _normalize_email(v)
 
     @validator("first_name")
     def first_name_present(cls, v):
@@ -556,6 +568,10 @@ class ParentKidRegisterRequest(BaseModel):
     full_name: Optional[str] = None
     phone: str
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
     @validator("first_name")
     def first_name_present(cls, v):
         v = v.strip()
@@ -595,10 +611,18 @@ class ParentRegisterRequest(BaseModel):
     # Collected, not verified -- see Parent.phone's comment.
     phone: Optional[str] = None
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
 
 class ParentLoginRequest(BaseModel):
     email: str
     password: str
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
 
 class ParentGoogleLoginRequest(BaseModel):
@@ -940,6 +964,10 @@ class ParentResetPasswordRequest(BaseModel):
     email: EmailStr
     new_password: str
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
     @validator("new_password")
     def password_strength(cls, v):
         if len(v) < 8:
@@ -969,6 +997,10 @@ class ForgotEmailRequest(BaseModel):
 class ForgotPlayerCodeRequest(BaseModel):
     email: EmailStr
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
 
 class ForgotPinRequest(BaseModel):
     """Self-registered kids (POST /auth/kid-register) have no Patient row
@@ -979,6 +1011,10 @@ class ForgotPinRequest(BaseModel):
     player_code: str
     parent_email: EmailStr
     new_pin: str
+
+    @validator("parent_email")
+    def normalize_parent_email(cls, v):
+        return _normalize_email(v)
 
     @validator("new_pin")
     def pin_format(cls, v):
@@ -1001,10 +1037,18 @@ class VerifyRequestIn(BaseModel):
     purpose: Literal["register_therapist", "register_kid", "register_parent"] | None = None
     first_name: str | None = None  # register_kid only
 
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
+
 
 class VerifyConfirmIn(BaseModel):
     email: EmailStr
     code: str
+
+    @validator("email")
+    def normalize_email(cls, v):
+        return _normalize_email(v)
 
 
 class VerifyConfirmOut(BaseModel):

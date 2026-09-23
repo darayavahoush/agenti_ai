@@ -103,7 +103,8 @@ def create_patient_for_therapist(data: ServicePatientCreate):
     calls, which would fail at request time despite compiling fine."""
     db = SessionLocal()
     try:
-        therapist = db.query(Therapist).filter(Therapist.email == data.therapist_email).first()
+        therapist_email = (data.therapist_email or "").strip().lower()
+        therapist = db.query(Therapist).filter(func.lower(Therapist.email) == therapist_email).first()
         if not therapist:
             raise HTTPException(
                 status_code=404,

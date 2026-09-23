@@ -543,6 +543,9 @@ export default function PatientLogin({ onLogin, onRegister, error: propError }: 
             <Input
               label="Email Address"
               type="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               placeholder="therapist@clinic.com"
               value={therapistEmail}
               onChange={(e: any) => setTherapistEmail(e.target.value)}

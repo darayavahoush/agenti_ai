@@ -299,7 +299,7 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
         detail = detail_by_reason.get(consent.reason, "Please verify your email before registering")
         raise HTTPException(status_code=403, detail=detail)
 
-    existing_parent_email = await db.execute(select(Parent).where(Parent.email == data.email))
+    existing_parent_email = await db.execute(select(Parent).where(func.lower(Parent.email) == data.email))
     if existing_parent_email.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -308,7 +308,7 @@ async def parent_kid_register(request: Request, data: ParentKidRegisterRequest, 
         )
     # Same email can't hold both a parent and a therapist account -- see
     # the matching Therapist-side check in therapist_auth.py.
-    existing_therapist = await db.execute(select(Therapist.id).where(Therapist.email == data.email).limit(1))
+    existing_therapist = await db.execute(select(Therapist.id).where(func.lower(Therapist.email) == data.email).limit(1))
     if existing_therapist.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -476,7 +476,7 @@ async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db
     enumerate registered parent emails."""
     check_ip_rate_limit(request)
     email = data.email.strip().lower()
-    result = await db.execute(select(Parent).where(Parent.email == email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == email))
     parent = result.scalar_one_or_none()
     if parent:
         patient_result = await db.execute(
@@ -702,7 +702,7 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
     if not child:
         raise HTTPException(status_code=404, detail="No child found with that player code")
 
-    existing_email = await db.execute(select(Parent).where(Parent.email == data.email))
+    existing_email = await db.execute(select(Parent).where(func.lower(Parent.email) == data.email))
     if existing_email.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -711,7 +711,7 @@ async def register_parent(request: Request, data: ParentRegisterRequest, db: Asy
         )
     # Same email can't hold both a parent and a therapist account -- see
     # the matching Therapist-side check in therapist_auth.py.
-    existing_therapist = await db.execute(select(Therapist.id).where(Therapist.email == data.email).limit(1))
+    existing_therapist = await db.execute(select(Therapist.id).where(func.lower(Therapist.email) == data.email).limit(1))
     if existing_therapist.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -760,7 +760,7 @@ async def reset_parent_password(request: Request, data: ParentResetPasswordReque
         detail = detail_by_reason.get(consent.reason, "Please verify this email before resetting the password")
         raise HTTPException(status_code=403, detail=detail)
 
-    result = await db.execute(select(Parent).where(Parent.email == email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == email))
     parent = result.scalar_one_or_none()
     if parent:
         parent.hashed_password = hash_password(data.new_password)
@@ -778,7 +778,7 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
             headers={"Retry-After": str(throttle.retry_after_seconds)},
         )
 
-    result = await db.execute(select(Parent).where(Parent.email == data.email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == data.email))
     parent = result.scalar_one_or_none()
     if not parent or not verify_password(data.password, parent.hashed_password):
         await record_failure(data.email, db)
@@ -816,7 +816,7 @@ async def _find_parent_by_google(db: AsyncSession, google_user):
     if parent is not None or not google_user.email:
         return parent
 
-    result = await db.execute(select(Parent).where(Parent.email == google_user.email))
+    result = await db.execute(select(Parent).where(func.lower(Parent.email) == google_user.email.strip().lower()))
     existing = result.scalar_one_or_none()
     if existing is None:
         return None
@@ -877,7 +877,7 @@ async def register_parent_google(request: Request, data: ParentGoogleRegisterReq
         raise HTTPException(status_code=400, detail="This child already has a linked parent account")
     # Same email can't hold both a parent and a therapist account -- see
     # the matching Therapist-side check in therapist_auth.py.
-    existing_therapist = await db.execute(select(Therapist.id).where(Therapist.email == google_user.email).limit(1))
+    existing_therapist = await db.execute(select(Therapist.id).where(func.lower(Therapist.email) == google_user.email.strip().lower()).limit(1))
     if existing_therapist.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
@@ -887,7 +887,7 @@ async def register_parent_google(request: Request, data: ParentGoogleRegisterReq
 
     parent = Parent(
         patient_id=child.id,
-        email=google_user.email,
+        email=google_user.email.strip().lower(),
         hashed_password=None,
         full_name=google_user.name,
         phone=data.phone,
