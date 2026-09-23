@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, ArrowUpCircle, Volume2 } from 'lucide-react'
 import { loadFaceLandmarker } from './lib/faceLandmarker.js'
+import { sampleBrightness, getDetectionSource, requestBrighterExposure, LOW_LIGHT_THRESHOLD } from './lib/lowLight.js'
 import { TONGUE_MOVES } from './data/tongueMoves.js'
 import { computeMouthMetrics } from './lib/mouthMetrics.js'
 import { computeTongueMetrics, scoreTongueMove, computeElevationOffset, computeLateralOffset, computeCavityDarknessOffset } from './lib/tongueTracking.js'
@@ -53,6 +54,8 @@ export default function TongueTamer() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const analysisCanvasRef = useRef(null)
+  const sampleCanvasRef = useRef(null) // scratchpad for whole-frame brightness sampling
+  const brightCanvasRef = useRef(null) // scratchpad for the boosted detection frame in low light
   const landmarkerRef = useRef(null)
   const rafRef = useRef(null)
   const holdStartRef = useRef(null)
@@ -146,6 +149,9 @@ export default function TongueTamer() {
           }
         }
         analysisCanvasRef.current = document.createElement('canvas')
+        sampleCanvasRef.current = document.createElement('canvas')
+        brightCanvasRef.current = document.createElement('canvas')
+        requestBrighterExposure(stream.getVideoTracks()[0])
         setStatus('ready')
         createGameSession('tongue_tamer')
           .then((s) => {
@@ -177,7 +183,10 @@ export default function TongueTamer() {
       const landmarker = landmarkerRef.current
       const canvas = canvasRef.current
       if (video && landmarker && video.readyState >= 2) {
-        const result = landmarker.detectForVideo(video, performance.now())
+        const brightness = sampleBrightness(video, sampleCanvasRef.current)
+        setLowLight(brightness !== null && brightness < LOW_LIGHT_THRESHOLD)
+        const detectionSource = getDetectionSource(video, brightCanvasRef.current, brightness)
+        const result = landmarker.detectForVideo(detectionSource, performance.now())
         const landmarks = result?.faceLandmarks?.[0]
         const mouth = computeMouthMetrics(landmarks)
         smoothedOpenRef.current = emaUpdate(smoothedOpenRef.current, mouth?.openness ?? null, 0.3)
@@ -188,7 +197,7 @@ export default function TongueTamer() {
 
         if (openEnough && landmarks && !calibrated) {
           const calibMetrics = computeTongueMetrics(
-            video, landmarks, analysisCanvasRef.current, canvas.width, canvas.height,
+            detectionSource, landmarks, analysisCanvasRef.current, canvas.width, canvas.height,
           )
           if (calibMetrics && calibMetrics.elevation != null) {
             if (!calibStartRef.current) calibStartRef.current = performance.now()
@@ -213,14 +222,13 @@ export default function TongueTamer() {
           }
         } else if (openEnough && landmarks && current) {
           const tongueMetrics = computeTongueMetrics(
-            video,
+            detectionSource,
             landmarks,
             analysisCanvasRef.current,
             canvas.width,
             canvas.height,
           )
           if (tongueMetrics) {
-            setLowLight(tongueMetrics.brightness < 55)
             smoothedTongueRef.current = emaUpdateObject(
               smoothedTongueRef.current,
               tongueMetrics,
@@ -354,7 +362,7 @@ export default function TongueTamer() {
                     : undefined,
               }}
             >
-              <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1]" playsInline muted />
+              <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1]" style={lowLight ? { filter: 'brightness(1.3)' } : undefined} playsInline muted />
               <canvas
                 ref={canvasRef}
                 className="absolute inset-0 w-full h-full object-cover scale-x-[-1] pointer-events-none"

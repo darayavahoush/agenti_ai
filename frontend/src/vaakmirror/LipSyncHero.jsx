@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
 import { loadFaceLandmarker } from './lib/faceLandmarker.js'
+import { sampleBrightness, getDetectionSource, requestBrighterExposure, LOW_LIGHT_THRESHOLD } from './lib/lowLight.js'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
 import { getPhonemeCue, getSpokenForm, getDisplayLabel } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
@@ -41,6 +42,8 @@ const TIER_STYLES = {
 export default function LipSyncHero() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
+  const sampleCanvasRef = useRef(null) // scratchpad for whole-frame brightness sampling
+  const brightCanvasRef = useRef(null) // scratchpad for the boosted detection frame in low light
   const landmarkerRef = useRef(null)
   const rafRef = useRef(null)
   const noteStartRef = useRef(null)
@@ -57,6 +60,7 @@ export default function LipSyncHero() {
   const currentRef = useRef(null)
 
   const [status, setStatus] = useState('loading') // loading | ready | denied | error
+  const [lowLight, setLowLight] = useState(false)
   const { patient } = useAuth()
   const { params: agentParams } = useAgentParams()
   const focusRef = useRef([])                       // agent's focus sounds
@@ -186,6 +190,9 @@ export default function LipSyncHero() {
             canvasRef.current.height = videoRef.current.videoHeight
           }
         }
+        sampleCanvasRef.current = document.createElement('canvas')
+        brightCanvasRef.current = document.createElement('canvas')
+        requestBrighterExposure(stream.getVideoTracks()[0])
         setStatus('ready')
         createGameSession('lip_sync_hero')
           .then((s) => {
@@ -218,7 +225,10 @@ export default function LipSyncHero() {
       const landmarker = landmarkerRef.current
       const canvas = canvasRef.current
       if (video && landmarker && video.readyState >= 2) {
-        const result = landmarker.detectForVideo(video, performance.now())
+        const brightness = sampleBrightness(video, sampleCanvasRef.current)
+        setLowLight(brightness !== null && brightness < LOW_LIGHT_THRESHOLD)
+        const detectionSource = getDetectionSource(video, brightCanvasRef.current, brightness)
+        const result = landmarker.detectForVideo(detectionSource, performance.now())
         const landmarks = result?.faceLandmarks?.[0]
         const metrics = computeMouthMetrics(landmarks)
 
@@ -415,7 +425,13 @@ export default function LipSyncHero() {
                     : undefined,
               }}
             >
-              <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1]" playsInline muted />
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover scale-x-[-1]"
+                style={lowLight ? { filter: 'brightness(1.3)' } : undefined}
+                playsInline
+                muted
+              />
               <canvas
                 ref={canvasRef}
                 className="absolute inset-0 w-full h-full object-cover scale-x-[-1] pointer-events-none"
@@ -472,6 +488,12 @@ export default function LipSyncHero() {
                   : !baselineSpread
                     ? 'Calibrating — relax your mouth for a second…'
                     : 'Calibrating — now open your mouth as wide as you can…'}
+              </p>
+            )}
+            {lowLight && status === 'ready' && (
+              <p className="mt-2 text-xs text-gold/80">
+                Lighting looks a little low — try facing a light source for more
+                reliable tracking.
               </p>
             )}
           </div>

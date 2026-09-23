@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CameraOff, RefreshCw, Volume2, Lightbulb } from 'lucide-react'
 import { loadFaceLandmarker } from './lib/faceLandmarker.js'
+import { sampleBrightness, getDetectionSource, requestBrighterExposure, LOW_LIGHT_THRESHOLD } from './lib/lowLight.js'
 import { SOUNDS, SHAPE_TARGETS } from './data/soundTaxonomy.js'
 import { getPhonemeCue, getSpokenForm, getDisplayLabel } from './data/phonemeCues.js'
 import { computeMouthMetrics, scoreAgainstTarget } from './lib/mouthMetrics.js'
@@ -73,6 +74,8 @@ export default function MirrorMirror() {
   const { patient } = useAuth()
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
+  const sampleCanvasRef = useRef(null) // scratchpad for whole-frame brightness sampling
+  const brightCanvasRef = useRef(null) // scratchpad for the boosted detection frame in low light
   const landmarkerRef = useRef(null)
   const rafRef = useRef(null)
   const holdStartRef = useRef(null)
@@ -82,6 +85,7 @@ export default function MirrorMirror() {
   useEndSessionOnLeave(sessionIdRef)
 
   const [status, setStatus] = useState('loading') // loading | ready | denied | error
+  const [lowLight, setLowLight] = useState(false)
   const [roundSize, setRoundSize] = useState(DEFAULT_ROUND_SIZE)
   const { params: agentParams } = useAgentParams()
   const focusRef = useRef([]) // agent's focus sounds; read by every later pickRound
@@ -212,6 +216,11 @@ export default function MirrorMirror() {
             canvasRef.current.height = videoRef.current.videoHeight
           }
         }
+        sampleCanvasRef.current = document.createElement('canvas')
+        brightCanvasRef.current = document.createElement('canvas')
+        // Fire-and-forget: most devices don't support this, and it's
+        // wrapped in its own try/catch, so it never delays 'ready'.
+        requestBrighterExposure(stream.getVideoTracks()[0])
         setStatus('ready')
         createGameSession('mirror_mirror')
           .then((s) => {
@@ -246,7 +255,10 @@ export default function MirrorMirror() {
       const landmarker = landmarkerRef.current
       const canvas = canvasRef.current
       if (video && landmarker && video.readyState >= 2) {
-        const result = landmarker.detectForVideo(video, performance.now())
+        const brightness = sampleBrightness(video, sampleCanvasRef.current)
+        setLowLight(brightness !== null && brightness < LOW_LIGHT_THRESHOLD)
+        const detectionSource = getDetectionSource(video, brightCanvasRef.current, brightness)
+        const result = landmarker.detectForVideo(detectionSource, performance.now())
         const landmarks = result?.faceLandmarks?.[0]
         const metrics = computeMouthMetrics(landmarks)
 
@@ -460,6 +472,7 @@ export default function MirrorMirror() {
               <video
                 ref={videoRef}
                 className="w-full h-full object-cover scale-x-[-1]"
+                style={lowLight ? { filter: 'brightness(1.3)' } : undefined}
                 playsInline
                 muted
               />
@@ -531,6 +544,12 @@ export default function MirrorMirror() {
                   : !baselineSpread
                     ? 'Calibrating — relax your mouth for a second…'
                     : 'Calibrating — now open your mouth as wide as you can…'}
+              </p>
+            )}
+            {lowLight && status === 'ready' && (
+              <p className="mt-2 text-xs text-gold/80">
+                Lighting looks a little low — try facing a light source for more
+                reliable tracking.
               </p>
             )}
           </div>
