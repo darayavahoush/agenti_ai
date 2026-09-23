@@ -990,15 +990,15 @@ class ForgotPinRequest(BaseModel):
 class VerifyRequestIn(BaseModel):
     """Ask for a 6-digit code by email.
 
-    `purpose` is set only by the two REGISTRATION screens, so the server can
-    say "that account already exists" up front instead of mailing a code
-    that leads nowhere. It is deliberately absent from forgot-password /
-    forgot-PIN, which must keep sending codes to existing accounts.
+    `purpose` is set only by the three REGISTRATION screens, so the server
+    can say "that account already exists" up front instead of mailing a
+    code that leads nowhere. It is deliberately absent from forgot-password
+    / forgot-PIN, which must keep sending codes to existing accounts.
     Accepted trade-off: because of this, a registration screen can be used
     to check whether an email (or a kid's name + parent email) has an
     account -- mitigated by the per-IP auth rate limit."""
     email: EmailStr
-    purpose: Literal["register_therapist", "register_kid"] | None = None
+    purpose: Literal["register_therapist", "register_kid", "register_parent"] | None = None
     first_name: str | None = None  # register_kid only
 
 
