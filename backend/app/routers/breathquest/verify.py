@@ -24,7 +24,7 @@ import logging
 
 from app.database import get_db
 from app.breathquest_core.rate_limit import check_ip_rate_limit
-from app.models.breathquest_models import BreathQuestPatient, EmailVerification
+from app.models.breathquest_models import BreathQuestPatient, EmailVerification, Parent
 from app.models.therapist import Therapist
 from app.schemas.breathquest_schemas import (
     VerifyRequestIn, VerifyConfirmIn, VerifyConfirmOut,
@@ -84,6 +84,16 @@ async def _refuse_if_account_exists(data: VerifyRequestIn, db: AsyncSession) -> 
                     "Tap \u201cI have a code\u201d to log in. If the player code is lost, "
                     "enter the parent's email there and we'll email it."
                 ),
+            )
+
+    elif data.purpose == "register_parent":
+        found = (await db.execute(
+            select(Parent.id).where(func.lower(Parent.email) == email).limit(1)
+        )).scalar_one_or_none()
+        if found is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="An account with this email already exists. Please sign in instead.",
             )
 
 
