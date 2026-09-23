@@ -6,6 +6,7 @@ import { meAPI } from './api/client'
 import { Toaster } from 'react-hot-toast'
 import { PageLoader, SupervisedBanner, OfflineBanner, UsernameGate } from './components/ui'
 import RequireLevelUnlocked from './chime/lib/RequireLevelUnlocked'
+import { pushRingBuffer } from './debugDiagnostics'
 
 // Route-level code splitting -- previously every page (all four apps:
 // BreathQuest, VaakMirror, Chime, VoiceHurdleRace, plus therapist/parent
@@ -101,7 +102,20 @@ function adoptHubHandoffIfPresent() {
 function ProtectedTherapist({ children }) {
   const { isTherapist, loading } = useAuth()
   if (loading) return <PageLoader />
-  if (!isTherapist) return <Navigate to="/therapist/login" replace />
+  if (!isTherapist) {
+    // TEMP DIAGNOSTIC (2026-09-23) -- pinpointing the Launch Assessment/
+    // Live Therapy bounce that survived the startSupervisedSession onReady
+    // batching fix. Logs exactly what this component saw the instant it
+    // decided to redirect: what the URL bar actually said (vs what React
+    // Router had matched to render THIS component), and a stack so we can
+    // see which route render path got here.
+    pushRingBuffer('bq_debug_protected_therapist_bail', {
+      isTherapist, loading,
+      pathname: window.location.pathname,
+      stack: new Error().stack,
+    })
+    return <Navigate to="/therapist/login" replace />
+  }
   return <UsernameGate role="therapist">{children}</UsernameGate>
 }
 
@@ -200,9 +214,15 @@ function AppRoutes() {
         } />
 
         {/* Kid */}
-        <Route path="/play" element={
-          isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
-        } />
+        <Route path="/play" element={(() => {
+          // TEMP DIAGNOSTIC (2026-09-23) -- see ProtectedTherapist's bail
+          // log above for context. Only logs when the URL actually is
+          // /play, so this doesn't spam every render of AppRoutes.
+          if (window.location.pathname === '/play') {
+            pushRingBuffer('bq_debug_play_route_render', { isTherapist, isKid, isParent, loading })
+          }
+          return isKid ? <ProtectedKid requireEntitlement={false}><GamePicker /></ProtectedKid> : <KidPlay />
+        })()} />
         <Route path="/assessment" element={
           <ProtectedKid requireEntitlement={false}><AssessmentGate /></ProtectedKid>
         } />

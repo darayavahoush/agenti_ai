@@ -25,7 +25,7 @@
 //                        away), which is the one signal that tells us a
 //                        real reload happened vs. a same-page SPA change.
 
-function pushRingBuffer(key, entry, max = 10) {
+export function pushRingBuffer(key, entry, max = 10) {
   try {
     const raw = localStorage.getItem(key)
     const list = raw ? JSON.parse(raw) : []
