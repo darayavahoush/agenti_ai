@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, Children } from "react";
 
 // Shared "scrapbook page" primitives for the Flashcards selection flow
 // (ThemeSelect, WordSelect in SelectionFlow.jsx; CharacterSelect in
@@ -164,7 +164,101 @@ export function GlobalSelectionStyles() {
         0%, 100% { opacity: 0.5; }
         50% { opacity: 0.85; }
       }
+      /* Smooths the dock-magnify effect below -- both the card wrapper
+         and the photo inset ease into their scaled/glowing state
+         instead of snapping, since DockMagnifyGrid drives them via
+         direct style writes on every mousemove for performance rather
+         than React state. */
+      .dock-item { transition: transform 0.16s cubic-bezier(0.22,1,0.36,1); }
+      .pc-badge { transition: transform 0.16s cubic-bezier(0.22,1,0.36,1), box-shadow 0.16s ease-out; }
+      .pc-visual { transition: filter 0.16s ease-out; }
+      @media (hover: none) {
+        /* Touch devices have no cursor to magnify toward -- don't reserve
+           any transition budget for an effect that never fires. */
+        .dock-item, .pc-badge, .pc-visual { transition: none; }
+      }
     `}</style>
+  );
+}
+
+// macOS-dock-style magnification: cards near the cursor grow smoothly
+// (falling off with distance) instead of the grid sitting at one flat
+// size, and the photo inset on the nearest card gets an extra pop plus
+// a warm glow -- "bigger and shine" -- rather than just scaling
+// everything uniformly. Wraps a plain CSS grid of PlayCard/WordPill
+// children; each gets its own scaling wrapper div so PlayCard's own
+// rotate/translateY hover transform (set directly via onMouseEnter)
+// keeps working unmodified on the inner element while this component
+// only ever touches the outer wrapper's transform.
+//
+// Driven by direct DOM style writes (not React state) inside a
+// rAF-throttled mousemove handler -- re-rendering the whole grid on
+// every pixel of mouse movement would be needlessly expensive for a
+// purely cosmetic effect.
+export function DockMagnifyGrid({ children, columns = 3, gap = "14px", radius = 150, maxScale = 1.3, style }) {
+  const itemRefs = useRef([]);
+  const rafRef = useRef(null);
+  const kids = Children.toArray(children);
+  itemRefs.current.length = kids.length;
+
+  const applyScales = (mouseX, mouseY) => {
+    itemRefs.current.forEach((el) => {
+      if (!el) return;
+      const badge = el.querySelector(".pc-badge");
+      const visual = el.querySelector(".pc-visual");
+      if (mouseX == null) {
+        el.style.transform = "scale(1)";
+        el.style.zIndex = 0;
+        if (badge) { badge.style.transform = "scale(1)"; badge.style.boxShadow = ""; }
+        if (visual) visual.style.filter = "none";
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dist = Math.hypot(mouseX - cx, mouseY - cy);
+      const t = Math.max(0, 1 - dist / radius);
+      const eased = t * t * (3 - 2 * t); // smoothstep -- dock icons ease in/out, don't snap
+      const scale = 1 + eased * (maxScale - 1);
+      el.style.transform = `scale(${scale})`;
+      el.style.zIndex = eased > 0.04 ? 5 : 0;
+      if (badge) {
+        badge.style.transform = `scale(${1 + eased * 0.2})`;
+        badge.style.boxShadow = eased > 0.04
+          ? `inset 0 1px 3px rgba(74,56,38,0.12), 0 0 ${Math.round(6 + eased * 20)}px ${Math.round(2 + eased * 6)}px rgba(255,216,107,${(0.18 + eased * 0.55).toFixed(2)})`
+          : "";
+      }
+      if (visual) {
+        visual.style.filter = eased > 0.04 ? `brightness(${(1 + eased * 0.22).toFixed(2)})` : "none";
+      }
+    });
+  };
+
+  const handleMouseMove = (e) => {
+    const x = e.clientX, y = e.clientY;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => applyScales(x, y));
+  };
+
+  const handleMouseLeave = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    applyScales(null, null);
+  };
+
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+
+  return (
+    <div
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, 1fr)`, gap, ...style }}
+    >
+      {kids.map((child, i) => (
+        <div key={child.key ?? i} ref={(el) => (itemRefs.current[i] = el)} className="dock-item" style={{ transformOrigin: "center center" }}>
+          {child}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -204,6 +298,7 @@ function FoldedCorner({ color }) {
 function PlayCardBadge({ image, imageAlt, emoji, letter, title, color, size = 72 }) {
   return (
     <div
+      className="pc-badge"
       style={{
         width: `${size}px`, height: `${size}px`, borderRadius: "10px", flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
