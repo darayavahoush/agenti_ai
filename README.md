@@ -4,11 +4,17 @@ A speech-therapy platform for children, combining a real LangGraph-based pronunc
 
 ## What's in here
 
-**For kids:** a PIN-based login, an assessment flow that scores pronunciation against a word list in 8 Indian languages (English, Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Marathi), and four practice games — BreathQuest, VoiceHurdleRace, VaakMirror, and Chime (a rebuild of the earlier standalone PhonemeQuest mini-games — Bubble Wrap Pop, Drum Island, Rocket Launch — now integrated with shared kid-auth and the adaptive-difficulty agent instead of static HTML pages). Each game has its own adaptive-difficulty logic driven by a small RL agent that raises or lowers difficulty based on recent performance.
+**For kids:** a login with a player code or a chosen `@username` plus a 4-digit PIN. New kid accounts are always started by an adult — a parent (when they add a child) or a therapist (from the dashboard); kids can't self-register (`KID_SELF_SERVICE_SIGNUP_ENABLED` is off by default), and the kid-side "My Therapist Set Me Up" name picker was removed from the login screen on 2026-09-24. Once in, kids get:
 
-**For therapists:** a dashboard across all four games for each patient, session history, assignments/goals/messages, home-practice logging, a home-practice-ideas library, weekly summaries, a branded PDF export, a cross-game Phoneme Command Center (one accuracy number per phoneme, pooled across Flashcards/VaakMirror/Chime, with a per-game at-a-glance strip), and an AI-generated "today's recommendation" per patient pulled from the assessment/agent data.
+- an assessment flow that scores pronunciation against a word list in 8 Indian languages (English, Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Marathi), including an Alphabet "Sound Check" that scores each letter's initial sound, and a "Your game plan" card (`services/game_predictor.py`) that ranks which practice games to start with based on the sounds they missed;
+- four practice games — **BreathQuest**, **VoiceHurdleRace**, **VaakMirror** (shown to kids as "Orpheus": Mirror Mirror, Tongue Tamer, Lip Sync Hero, Minimal Pair Drill) and **Chime** (a rebuild of the earlier standalone PhonemeQuest mini-games, now integrated with shared kid-auth and the adaptive-difficulty agent: Rocket Launch, Submarine Dive, Firefly Jar, Wind Chime Garden, Bubble Wrap Pop, Xylophone, Lion's Roar, Village Builder). Each has its own adaptive-difficulty logic driven by a small RL agent that raises or lowers difficulty based on recent performance;
+- **Flashcards**, a standalone practice section separate from the four games (phoneme mouth-diagrams, a 25-category picture vocabulary with ARASAAC pictograms, and character cards), and a cosmetic companion whose accessories unlock with practice streaks.
 
-**For parents:** a tabbed dashboard (Overview / Sounds / Games / Messages) covering weekly summaries, goals/assignments, a shareable weekly recap card, a parent-facing cut of the cross-game sound summary ("going well" / "worth practicing," no clinical jargon), per-game history, and two-way messaging with their child's therapist — gated behind email + phone verification and COPPA-style parental consent before a kid account can be created.
+**For therapists:** a dashboard across all four games for each patient (with a real "Logged in" status per patient card), session history, assignments/goals/messages, home-practice logging, a home-practice-ideas library, weekly summaries, a branded PDF export, a cross-game Phoneme Command Center (one accuracy number per phoneme, pooled across Flashcards/VaakMirror/Chime, with a per-game at-a-glance strip), and an AI-generated "today's recommendation" per patient pulled from the assessment/agent data. Therapists can add a patient directly, link an existing one by player code or `@username`, launch Assessment/Live Therapy sessions, and edit a kid's avatar.
+
+**For parents:** a tabbed dashboard (Overview / Sounds / Games / Messages) covering weekly summaries, goals/assignments, a shareable weekly recap card, a parent-facing cut of the cross-game sound summary ("going well" / "worth practicing," no clinical jargon), per-game history, and two-way messaging with their child's therapist — gated behind email verification and COPPA-style parental consent (a recently confirmed emailed code) before a kid account can be created. One parent account can hold several children and switch between them; parents can also edit a child's avatar, and the weekly progress email carries a one-click unsubscribe link.
+
+**Accounts & sign-in:** therapists and parents sign in with email + password or Google (needs `GOOGLE_CLIENT_ID` on the backend and `VITE_GOOGLE_CLIENT_ID` on the frontend — see Environment variables). Registration verifies the email with a one-time code (SMTP). Phone numbers are collected on therapist and parent accounts but not verified — phone OTP was removed from the consent flow on 2026-08-29, leaving email as the only consent factor. Emails are case-normalized, and one email can't be registered as both a parent and a therapist — the second registration is refused with a message pointing to the right role. Kids, parents and therapists can each pick an editable, unique `@username` (unique across all three account tables; `app/breathquest_core/username.py`).
 
 ## Project structure
 
@@ -19,31 +25,46 @@ agenti_ai/
 │   │   ├── main.py                  # FastAPI entry point, all router mounts
 │   │   ├── routes/assessment.py     # LangGraph-based pronunciation assessment (word list, image, TTS audio, analyze)
 │   │   ├── routers/
-│   │   │   ├── therapist_auth.py, therapist_patients.py   # canonical therapist identity + patient CRUD
-│   │   │   └── breathquest/         # kid auth, per-game routers (breath_agent, voicehurdlerace,
-│   │   │                            #   chime, dashboard, patients, sessions, billing, access, verify)
+│   │   │   ├── therapist_auth.py, therapist_patients.py, username_routes.py   # canonical therapist identity, patient CRUD, @usernames
+│   │   │   ├── breathquest/         # kid/parent auth + per-game routers (breath_agent, voicehurdlerace, chime,
+│   │   │   │                        #   dashboard, patients, sessions, parent, kid_progress, email_prefs,
+│   │   │   │                        #   assessment_lookup, billing, access, verify)
+│   │   │   ├── vaakmirror/          # VaakMirror sessions, dashboard, exercises, labeling, round size, agent, params
+│   │   │   ├── flashcards/          # Flashcards: phoneme drill/eval, mastery, TTS, image lookup
+│   │   │   └── phonemequest.py, audio.py, event_feedback.py
 │   │   ├── models/                  # SQLAlchemy models (one Patient/Therapist identity, shared across games)
-│   │   ├── breathquest_core/        # JWT auth, rate limiting, parental consent, phone/SMS + email providers
-│   │   └── agent/, retraining/      # RL adaptive-difficulty agent (Q-tables) + event logging for retraining
+│   │   ├── services/                # phoneme summary/crosswalk, recommendations, game predictor, weekly summary/
+│   │   │                            #   email, PDF report, companion unlocks, image/audio/voice helpers
+│   │   ├── graph/, agents/          # LangGraph pipelines (assessment, alphabet Sound Check)
+│   │   ├── breathquest_core/        # JWT auth, Google OAuth, usernames, rate limiting, parental consent,
+│   │   │                            #   email provider, feature flags (config.py)
+│   │   └── retraining/              # event logging + scheduler for RL retraining
+│   ├── agent/                       # RL adaptive-difficulty agent (Q-tables, PPO training, baselines, safety)
 │   ├── alembic/                     # schema migrations (introduced 2026-08-13; earlier tables via create_all())
-│   └── data/images, assets/audio    # (unused by the live assessment flow — images and TTS audio are
-│                                     #  generated on demand, not served from disk; kept for reference)
+│   ├── scripts/                     # one-off ops scripts (backfill assessment links, find/deactivate duplicate
+│   │                                #   or orphaned patients, reset a kid PIN, demo seed data)
+│   ├── tests/                       # pytest suite (needs Postgres — see Running tests)
+│   └── data/, assets/audio          # assessment word images (copied into the Docker image at deploy),
+│                                    #   flashcard images, static audio
 ├── frontend/
 │   └── src/
-│       ├── pages/kid/                # login, game picker, level select, gameplay, assessment gate/report, progress
-│       ├── pages/therapist/          # login, dashboard, patient detail, agent insight
-│       ├── pages/parent/             # auth, dashboard
-│       ├── assessment/Assessment.jsx # the LangGraph-backed assessment UI
-│       ├── voiceHurdleRace/, vaakmirror/, chime/, game/  # the four practice games
+│       ├── pages/kid/                # login, game picker, level select, gameplay, flashcards, assessment gate/report, progress
+│       ├── pages/therapist/          # login, dashboard, patient detail, agent insight, settings
+│       ├── pages/parent/             # auth, dashboard, settings
+│       ├── assessment/               # the LangGraph-backed assessment UI, including the Alphabet Sound Check
+│       ├── voiceHurdleRace/, vaakmirror/, chime/, game/, flashcards/  # practice games and Flashcards
 │       └── api/client.js             # shared axios instance (bearer token, one base URL)
-└── data/images/                      # legacy seed assets for app/routes/assessment.py's AssessmentWord table
+├── data/images/                      # assessment word images (see the deploy workflow's "Copy assessment word images" step)
+├── docs/DATA_MODEL.md                # read before touching anything patient-related (Patient vs BreathQuestPatient IDs)
+├── setup.sh, setup.bat               # one-shot local setup
+└── .github/workflows/                # staging deploys (backend → Azure Container Apps, frontend → Azure Static Web Apps)
 ```
 
 One frontend, one backend — this used to be split across separate `breathquest`/`vaakmirror`/`quest-games` app trees and a standalone port-8001 backend; those have been consolidated.
 
 ## Database structure
 
-23 tables across two "eras" of the codebase — a legacy `breathquest_*`-prefixed set (BreathQuest's original standalone app) and a newer unprefixed set (Assessment/therapist-portal, added during consolidation). Both eras share identity tables where it made sense (one `Patient`, one canonical `Therapist`) rather than duplicating them per-game.
+31 tables across two "eras" of the codebase — a legacy `breathquest_*`-prefixed set (BreathQuest's original standalone app) and a newer unprefixed set (Assessment/therapist-portal, added during consolidation). Both eras share identity tables where it made sense (one `Patient`, one canonical `Therapist`) rather than duplicating them per-game.
 
 **Schema is Alembic-managed** (`backend/alembic/`) as of 2026-08-13 — `alembic upgrade head` is required to bootstrap a fresh database; `Base.metadata.create_all()` alone will not, by design (see the comment block above `_ensure_patient_therapist_link_column()` in `app/main.py`).
 
@@ -54,9 +75,10 @@ One frontend, one backend — this used to be split across separate `breathquest
 | **`therapists`** | The canonical, going-forward therapist identity (`app/models/therapist.py`). `hashed_password` is nullable (Google-only accounts have none); `google_sub` links a Google identity. |
 | **`patients`** | The canonical patient/child identity (`app/models/patient.py`), optionally linked to a registering therapist via `registered_therapist_id`. |
 | **`breathquest_patients`** | BreathQuest's own patient row (`app/models/breathquest_models.py`) — the row every game actually foreign-keys against for gameplay data. Links back to the canonical `patients` row via `assessment_patient_id`, and to a `therapists` row via `therapist_id`. In effect: `patients`/`therapists` are the identity of record; `breathquest_patients` is where the games' data actually hangs. |
-| **`breathquest_parents`** | Parent accounts (`Parent`), one-to-one with `breathquest_patients`. `hashed_password` nullable for the same Google-only reason as `therapists`. |
+| **`breathquest_parents`** | Parent accounts (`Parent`). `patient_id` is the parent's currently active child. `hashed_password` nullable for the same Google-only reason as `therapists`. |
+| **`breathquest_parent_children`** | The set of children a parent may switch between (multi-child support, 2026-09-10). Only `POST /auth/parent/switch-child` ever reassigns `Parent.patient_id`, and it checks membership here first. |
 
-> **`breathquest_therapists`** also exists as a defined table (`Therapist` class inside `breathquest_models.py`) but is dead: nothing queries or writes it. It's still imported in `chime.py`/`voicehurdlerace.py`, but only as a (now-inaccurate) type hint on `Depends(get_current_therapist)` — the dependency itself resolves against the real `therapists` table. Safe to remove the import; the table itself can be dropped in a future migration once confirmed empty. See `app/models/therapist.py`'s own docstring, which already flags this as "retiring."
+> **`breathquest_therapists`** also exists as a defined table (`Therapist` class inside `breathquest_models.py`) but is dead: nothing queries or writes it. It's still imported in `routers/flashcards/router.py`, but only as a (now-inaccurate) type hint on `Depends(get_current_therapist)` — the dependency itself resolves against the real `therapists` table. Safe to remove the import; the table itself can be dropped in a future migration once confirmed empty. See `app/models/therapist.py`'s own docstring, which already flags this as "retiring."
 
 ### Auth & consent
 
@@ -64,12 +86,14 @@ One frontend, one backend — this used to be split across separate `breathquest
 |---|---|
 | **`breathquest_refresh_tokens`** | Revocable long-lived credentials (SHA-256-hashed, never raw) for therapist/parent/kid sessions — `owner_kind` + `owner_id` instead of three nullable FK columns, since a token belongs to exactly one of three different tables. |
 | **`breathquest_kid_login_throttle`** | Brute-force tracking for kid PIN login, keyed by the lowercased identifier string attempted (name/player code), not by patient — an attempt against a nonexistent identifier still counts. |
-| **`breathquest_email_verifications`**, **`breathquest_phone_verifications`** | The two consent factors backing COPPA-style verifiable parental consent on self-serve kid signup. |
+| **`breathquest_email_verifications`** | Emailed one-time codes; a code confirmed within the consent window is the COPPA-style verifiable-consent factor, and it also gates therapist/parent registration. |
+| **`breathquest_phone_verifications`** | Legacy: the former second consent factor. Phone OTP was removed on 2026-08-29 and no route reads or writes this table now (nor is `breathquest_core/phone_provider.py`'s Azure SMS provider called anywhere). Safe to drop in a future migration. |
 
 ### Gameplay & progress
 
 | Table | Purpose |
 |---|---|
+| **`breathquest_companion_unlocks`** | Permanent record of each cosmetic companion accessory a kid has earned (unique per patient + item), so an unlock survives a later streak reset. |
 | **`breathquest_game_sessions`** → **`breathquest_session_events`** | One row per BreathQuest play session, with granular per-event child rows (cascade-deletes with the session). |
 | **`breathquest_voicehurdlerace_sessions`** | VoiceHurdleRace's own session table, FK'd to `breathquest_patients`. |
 | **`vaakmirror_sessions`** → **`attempts`** | VaakMirror's session/attempt pair, same one-to-many pattern as BreathQuest's. |
@@ -83,6 +107,7 @@ One frontend, one backend — this used to be split across separate `breathquest
 | **`breathquest_therapist_notes`** | Freeform notes per patient, optionally tagged to a specific `breathquest_game_sessions` row. |
 | **`breathquest_assignments`**, **`breathquest_goals`**, **`breathquest_messages`**, **`breathquest_home_practice_logs`** | Assignment/goal tracking, therapist↔parent messaging, and home-practice logging — all FK'd to `breathquest_patients`, all `assigned_by`/`created_by` FK'd to `therapists`. |
 | **`exercise_templates`** → **`exercise_assignments`** | VaakMirror's reusable exercise library and per-patient assignment of those templates. |
+| **`vaakmirror_round_size_settings`** | Per-patient, per-game round size for VaakMirror (unique per patient + game; defaults to 10). |
 
 ### Billing, assessment, and RL retraining
 
@@ -116,6 +141,7 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `last_login` | TIMESTAMP | yes | — |
 | `phone` | VARCHAR | yes | — |
 | `google_sub` | VARCHAR | yes | unique |
+| `username` | VARCHAR(30) | yes | unique |
 
 `breathquest_therapists`
 
@@ -157,6 +183,7 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `therapist_id` | UUID | yes | FK → `therapists.id`, indexed |
 | `first_name` | VARCHAR(100) | no | — |
 | `avatar` | VARCHAR(50) | no | — |
+| `equipped_companion_item` | VARCHAR(50) | yes | — |
 | `avatar_photo_url` | VARCHAR(255) | yes | — |
 | `pin_hash` | VARCHAR(64) | no | — |
 | `player_code` | VARCHAR(10) | no | unique |
@@ -166,10 +193,16 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `assessment_patient_id` | UUID | yes | FK → `patients.id`, indexed |
 | `assessment_completed` | BOOLEAN | no | — |
 | `assessment_summary` | JSON | yes | — |
+| `assessment_completed_at` | DATETIME | yes | — |
+| `last_seen_at` | DATETIME | yes | — |
+| `username` | VARCHAR(30) | yes | unique |
 | `parent_email` | VARCHAR(255) | yes | — |
 | `parent_consent_verified_at` | DATETIME | yes | — |
 | `parent_phone` | VARCHAR(32) | yes | — |
 | `parent_phone_consent_verified_at` | DATETIME | yes | — |
+| `last_weekly_email_sent_at` | DATETIME | yes | — |
+| `weekly_email_opt_out` | BOOLEAN | no | — |
+| `archived_at` | DATETIME | yes | — |
 | `created_at` | DATETIME | no | — |
 
 `breathquest_parents`
@@ -186,6 +219,17 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `is_active` | BOOLEAN | no | — |
 | `created_at` | DATETIME | no | — |
 | `last_login` | DATETIME | yes | — |
+| `username` | VARCHAR(30) | yes | unique |
+
+`breathquest_parent_children`
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | UUID | no | PK |
+| `parent_id` | UUID | no | FK → `breathquest_parents.id`, indexed |
+| `patient_id` | UUID | no | FK → `breathquest_patients.id`, indexed |
+| `is_primary` | BOOLEAN | no | — |
+| `created_at` | DATETIME | no | — |
 
 **Auth & consent**
 
@@ -309,6 +353,13 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `outcome` | VARCHAR(6) | no | — |
 | `score` | FLOAT | yes | — |
 | `created_at` | DATETIME | yes | — |
+| `shape` | VARCHAR(32) | yes | — |
+| `openness` | FLOAT | yes | — |
+| `spread` | FLOAT | yes | — |
+| `predicted_tier` | VARCHAR(8) | yes | — |
+| `therapist_label` | VARCHAR(9) | yes | — |
+| `labeled_at` | DATETIME | yes | — |
+| `labeled_by` | VARCHAR | yes | — |
 
 `flashcard_attempts`
 
@@ -367,6 +418,15 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `targeted_quests` | JSONB | yes | — |
 | `diagnostic_report` | VARCHAR | yes | — |
 | `created_at` | TIMESTAMP | yes | — |
+
+`breathquest_companion_unlocks`
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | UUID | no | PK |
+| `patient_id` | UUID | no | FK → `breathquest_patients.id`, indexed |
+| `item_id` | VARCHAR(50) | no | — |
+| `unlocked_at` | DATETIME | no | — |
 
 **Therapist-facing tools**
 
@@ -458,6 +518,16 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `assigned_at` | DATETIME | yes | — |
 | `completed_at` | DATETIME | yes | — |
 
+`vaakmirror_round_size_settings`
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | INTEGER | no | PK |
+| `patient_id` | VARCHAR | no | indexed |
+| `game` | VARCHAR(13) | no | — |
+| `round_size` | INTEGER | no | — |
+| `updated_at` | DATETIME | yes | — |
+
 **Billing, assessment, RL retraining**
 
 `breathquest_subscriptions`
@@ -521,6 +591,8 @@ If you're new to this codebase, the `patients` vs. `breathquest_patients` split 
 | `downgrade_reason` | VARCHAR | yes | — |
 | `recommended_action` | VARCHAR | yes | — |
 | `recommendation_message` | VARCHAR | yes | — |
+| `feedback` | VARCHAR | yes | — |
+| `feedback_at` | DATETIME | yes | — |
 
 `breathquest_retrain_checkpoints`
 
@@ -546,7 +618,7 @@ cd backend
 uv venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -r requirements.txt
 
-cp .env.example .env   # set DATABASE_URL and provider keys (email/SMS) as needed
+cp .env.example .env   # set DATABASE_URL at minimum; see Environment variables below for the rest
 
 # Schema: Alembic-managed as of 2026-08-13
 alembic upgrade head
@@ -556,6 +628,32 @@ python add_images_to_db.py
 
 uvicorn app.main:app --reload   # http://localhost:8000
 ```
+
+### Environment variables
+
+`backend/.env.example` only lists a handful of these, so use this table as the reference. Everything except `DATABASE_URL` has a default, and empty SMTP settings mean dev mode: OTP codes are logged to the server output instead of emailed.
+
+**Backend** (`backend/.env`, or the Container App's env vars in production)
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string (sync `postgresql://` or `postgresql+asyncpg://` both work) |
+| `SECRET_KEY` | JWT signing secret — **must be overridden outside local dev** |
+| `CORS_ORIGINS` | Comma-separated allowed origins |
+| `API_BASE_URL` | Public backend URL, used for links inside emails (e.g. unsubscribe) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID; Google sign-in fails with a 500 if unset. Same value as the frontend's `VITE_GOOGLE_CLIENT_ID` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | Email OTP codes + weekly progress emails (Gmail SMTP with an app password works) |
+| `AZURE_COMMUNICATION_CONNECTION_STRING`, `AZURE_COMMUNICATION_FROM_NUMBER` | Only read by `phone_provider.py`, which nothing calls today (phone OTP was removed) — safe to leave unset |
+| `OPENAI_API_KEY` | Optional, for enhanced features |
+| `ASSESSMENT_SERVICE_API_KEY` | `X-API-Key` for the service-to-service assessment routes |
+| `AZURE_STORAGE_CONNECTION_STRING` | Blob storage (`app/blob_storage.py`) |
+| `PIXABAY_API_KEY` | Optional image-lookup fallback |
+| `CHIME_WHISPER_MODEL` | Whisper model size for Chime verification (default `base`) |
+| `TTS_FALLBACK_TO_DUMMY` | Default `true`: if Coqui TTS fails, write a placeholder tone instead of erroring. Set `false` to fail loudly |
+| `KID_SELF_SERVICE_SIGNUP_ENABLED` | Default `false`: only adults create new kid accounts |
+| `PAYMENTS_LIVE` | Default `false`: no real payment provider is wired in yet (see `billing.py`) |
+
+**Frontend** (`frontend/.env.development`, `frontend/.env.production`): `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` (a public identifier, safe to expose client-side).
 
 ### Running tests
 
@@ -586,6 +684,12 @@ CREATE DATABASE vaaksudhi;
 ```
 Then `alembic upgrade head` from `backend/` as above.
 
+## Deployment
+
+Pushing to `staging` triggers two GitHub Actions workflows: `deploy-staging.yml` (builds the backend Docker image, pushes it to Azure Container Registry, updates the `vaaksudhi-backend` Container App) and `deploy-frontend-staging.yml` (builds the frontend and deploys it to the `vaaksudhi-frontend` Static Web App; only runs when `frontend/**` changes).
+
+Both repos (`darayavahoush/agenti_ai` and `lavanya2kowmar/agenti_ai`) carry the same workflows and receive the same `staging` pushes, so each workflow is gated to run the real deploy in **one** canonical repo, currently **`darayavahoush/agenti_ai`** (moved back on 2026-09-21 because the other repo's Actions billing was blocked). The other repo's run shows "Skipped" by design. Actions secrets don't carry over between repos, so every secret the workflow references (Azure IDs, `SMTP_*`, `GOOGLE_CLIENT_ID`) must exist in the canonical repo. If the canonical repo ever changes, update the `if: github.repository == ...` line in both workflows. (The explanatory comments above that line in both workflow files still describe the earlier 2026-09-18 switch to `lavanya2kowmar` and are out of date.)
+
 ## Troubleshooting
 
 - **`passlib`/`bcrypt` error on registration** (`password cannot be longer than 72 bytes`): a known incompatibility between `passlib` and `bcrypt>=4.1`. Pin with `pip install "bcrypt==4.0.1" --force-reinstall`.
@@ -609,10 +713,24 @@ Then `alembic upgrade head` from `backend/` as above.
 - Added a cross-game Phoneme Command Center (`services/phoneme_summary.py`) that pools Flashcards + VaakMirror + Chime attempts into one accuracy number per phoneme, with a per-game at-a-glance totals strip; wired into the therapist dashboard, the PDF report, and (parent-scoped, reframed without clinical jargon) the parent dashboard's new Sounds tab
 - Redesigned the ICF-style PDF report (cover band, KPI cards, color-coded severity badges, paginated footers) and gave it an actual brand identity — a wordmark/logo mark on the cover and the product name + site URL in the footer of every page, not just a generic export
 - Restructured the parent dashboard from one long scroll into four tabs (Overview / Sounds / Games / Messages), pulling messaging onto its own tab with an unread badge instead of burying it below goals/assignments
-- Switched the canonical staging-deploy repo from `darayavahoush/agenti_ai` to `lavanya2kowmar/agenti_ai` (both backend and frontend GitHub Actions workflows); the non-canonical repo's copy of the same workflow now shows "Skipped" by design, not as a failure
+- Corrected the staging-deploy note: after briefly switching to `lavanya2kowmar/agenti_ai` (2026-09-18), the canonical deploy repo moved back to `darayavahoush/agenti_ai` on 2026-09-21 because the other repo's Actions billing was blocked; the non-canonical repo's workflow run shows "Skipped" by design (see Deployment)
+- Added editable, unique `@username`s for kids, parents and therapists; the dashboard shows a kid's username instead of the player code once set, and therapists can link an existing patient by player code or `@username`
+- Added Google sign-in for therapists and parents
+- Removed phone OTP as a second consent factor (2026-08-29): parental consent is now email-only, and the phone-verification table and SMS provider are dormant
+- Multi-child parent accounts (`breathquest_parent_children`, `POST /auth/parent/switch-child`), plus a weekly progress email with a one-click unsubscribe link
+- Closed an account-takeover hole in kid PIN setup, removed the "New child, no therapist" parent signup option, and turned off kid self-registration by default (adults now create every new kid account)
+- Blocked the same email from being registered as both a parent and a therapist, normalized email case across auth, added a confirm-password field, and validate therapist registration before the OTP is sent
+- Removed the "My Therapist Set Me Up" name-picker from the kid login screen (2026-09-24)
+- Added an assessment game-prediction agent ("Your game plan" card) and an Alphabet Sound Check LangGraph agent with VaakMirror parameters
+- Flashcards: expanded to a 25-category / 776-word vocabulary with real pictures in the word-select tiles, full-portrait character cards, and a redesign of the theme/word select screens; fixed Flashcards history entries showing up labeled as Chime
+- Chime: 3-2-1-Go countdown before scoring, Xylophone redrawn and renamed, and fixes for games freezing at full progress when the browser can't record, Rocket sound spelling, Village Builder word-match scoring, and Lion's Roar replay/win confirmation
+- VaakMirror: brighter low-light camera frames for detection, personalized openness calibration, and a per-patient round-size setting
+- Fixed `/parent/progress` returning a 500 for parents whose child had two or more Chime plays on the same sound; fixed stale-session 401s and login bounces in the SPA (session-generation counter, auto-reload after a deploy)
 
 ## Technologies
 
-**Backend:** FastAPI, SQLAlchemy, Alembic, PostgreSQL, LangGraph, PyTorch, Whisper, Vosk, Librosa, Coqui TTS
+**Backend:** FastAPI, SQLAlchemy, Alembic, PostgreSQL, LangGraph, PyTorch (PPO training for the RL agent), Whisper, Vosk, Librosa, Coqui TTS, Google OAuth
 
 **Frontend:** React, Vite, TailwindCSS, Recharts
+
+**Hosting / CI:** Azure Container Apps + Container Registry (backend), Azure Static Web Apps (frontend), GitHub Actions
