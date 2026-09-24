@@ -783,7 +783,15 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
     if not parent or not verify_password(data.password, parent.hashed_password):
         await record_failure(data.email, db)
         await db.commit()
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        # Deliberately unconditional -- see the matching comment in
+        # therapist_auth.py's login_therapist for why this can't vary by
+        # whether the account is Google-only without becoming an
+        # enumeration oracle.
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password. If you signed up with Google, use \"Continue with "
+                   "Google\" instead — or reset your password below to set one.",
+        )
     if not parent.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
