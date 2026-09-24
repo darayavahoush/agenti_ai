@@ -59,7 +59,19 @@ _CHIME_DIFFICULTY_LABELS = {"raise": "harder", "lower": "easier", "hold": "same"
 
 
 def _chime_ts(ev):
-    ts = datetime.fromisoformat(ev["timestamp"])
+    # ev["timestamp"] comes from data_store.get_events(), which builds each
+    # event dict via `getattr(row, col.name)` directly off the SQLAlchemy
+    # ORM row (see app/retraining/data_store.py) -- that's already a real
+    # datetime object, not a serialized ISO string. Calling
+    # datetime.fromisoformat() on it unconditionally raised
+    # "TypeError: fromisoformat: argument must be str" for any child with
+    # 2+ Chime events for the same sound (the only case _trend_from_dated
+    # actually needs to sort by this), which is why /parent/progress 500'd
+    # for some parents and not others depending on how much Chime their
+    # kid had played. Only parse if we're ever actually handed a string.
+    ts = ev["timestamp"]
+    if isinstance(ts, str):
+        ts = datetime.fromisoformat(ts)
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     return ts
