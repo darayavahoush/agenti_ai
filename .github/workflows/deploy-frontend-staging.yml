@@ -26,12 +26,15 @@ jobs:
     # backend's SMTP env vars were, but still two redundant builds racing
     # to deploy the same commit -- restrict to one canonical repo.
     #
-    # Canonical repo switched from darayavahoush/agenti_ai to
-    # lavanya2kowmar/agenti_ai on 2026-09-18, matching deploy-staging.yml.
-    # lavanya2kowmar/agenti_ai needs its own AZURE_STATIC_WEB_APPS_API_TOKEN
-    # secret before this takes effect -- Actions secrets don't carry over
-    # between repos, so without it this job will run but fail at the
-    # deploy step rather than silently no-op.
+    # Canonical repo history matches deploy-staging.yml: switched to
+    # lavanya2kowmar/agenti_ai on 2026-09-18, then back to
+    # darayavahoush/agenti_ai on 2026-09-21 (lavanya2kowmar's Actions
+    # billing was blocked). The canonical repo (currently
+    # darayavahoush/agenti_ai, matching the `if:` below) needs its own
+    # AZURE_STATIC_WEB_APPS_API_TOKEN secret -- Actions secrets don't carry
+    # over between repos, so in a repo without it this job would run but
+    # fail at the deploy step rather than silently no-op. Keep this `if:`
+    # in sync with deploy-staging.yml.
     if: github.repository == 'darayavahoush/agenti_ai'
 
     steps:

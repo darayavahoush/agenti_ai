@@ -31,14 +31,18 @@ jobs:
     # fires on the other, it just no-ops -- means secrets only ever need to
     # be set in one place, and removes this race for every future deploy.
     #
-    # Canonical repo switched from darayavahoush/agenti_ai to
-    # lavanya2kowmar/agenti_ai on 2026-09-18. Before this takes effect,
-    # lavanya2kowmar/agenti_ai needs its OWN copies of every secret this
-    # workflow references (AZURE_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID as repo
-    # variables, SMTP_HOST/USER/PASSWORD as repo secrets) -- Actions secrets
-    # don't carry over between repos. Skipping that step reintroduces
-    # exactly the stale/blank-secret bug this comment describes, just with
-    # the two repos' roles reversed.
+    # Canonical repo history: darayavahoush/agenti_ai -> lavanya2kowmar/agenti_ai
+    # on 2026-09-18, then back to darayavahoush/agenti_ai on 2026-09-21
+    # because lavanya2kowmar/agenti_ai's Actions billing was blocked. The
+    # canonical repo (currently darayavahoush/agenti_ai, matching the `if:`
+    # below) needs its OWN copies of every secret this workflow references
+    # (AZURE_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID as repo variables,
+    # SMTP_HOST/USER/PASSWORD and GOOGLE_CLIENT_ID as repo secrets) --
+    # Actions secrets don't carry over between repos. If the canonical repo
+    # changes again, update the `if:` line here AND in
+    # deploy-frontend-staging.yml, and set the secrets in the new repo
+    # first; skipping that reintroduces the stale/blank-secret bug this
+    # comment describes, just with the two repos' roles reversed.
     if: github.repository == 'darayavahoush/agenti_ai'
 
     steps:
