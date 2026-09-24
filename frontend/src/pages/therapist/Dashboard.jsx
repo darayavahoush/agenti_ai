@@ -140,14 +140,14 @@ export default function TherapistDashboard() {
 
       <div className="relative flex-1 min-w-0 max-w-6xl mx-auto px-6 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between flex-wrap gap-y-3 mb-8">
           <div>
             <p className="text-white/35 text-xs font-medium uppercase tracking-wide mb-1">{today}</p>
             <h1 className="font-display text-3xl font-bold text-white">
               Welcome back, {firstName(therapist?.full_name)}
             </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="ghost" onClick={() => setShowLink(true)} title="Add a patient who already has a player code (self-registered or signed up by a parent)">
               <Link2 size={16} className="mr-1.5 inline -mt-0.5" /> Link Existing Patient
             </Button>
