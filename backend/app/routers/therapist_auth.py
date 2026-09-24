@@ -112,7 +112,19 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
     if not therapist or not verify_password(data.password, therapist.hashed_password):
         await record_failure(data.email, db)
         await db.commit()
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        # This message is deliberately identical whether the email doesn't
+        # exist, the password is wrong, or the account is Google-only
+        # (hashed_password is None, so verify_password always returns
+        # False) -- varying it by which of those is true would let this
+        # endpoint enumerate registered emails and how they authenticate,
+        # the same anti-enumeration reasoning reset_therapist_password
+        # documents. The Google hint below is safe specifically because
+        # it's shown unconditionally, not only to Google accounts.
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password. If you signed up with Google, use \"Continue with "
+                   "Google\" instead — or reset your password below to set one.",
+        )
     if not therapist.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
