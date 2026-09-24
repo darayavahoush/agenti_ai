@@ -33,9 +33,9 @@ class BreathQuestSettings(BaseSettings):
     # screen (POST /auth/kid-register), gated only on a parent's email
     # being verified first. Product decision: a NEW account should only
     # ever be created by an adult (a parent, via parent-kid-register/
-    # add-child, or a therapist, via POST /breathquest/patients) -- a kid
-    # can still finish PIN setup for an account an adult already started
-    # (kid-pin-setup) and log back in, just not originate one alone.
+    # add-child, or a therapist, via POST /breathquest/patients), who sets
+    # the PIN at creation; the kid then just logs in. (The kid-side "find
+    # your name and set a PIN" flow, kid-pin-setup, was retired 2026-09-24.)
     # Kept as a flag rather than deleting kid-register outright so it can
     # be flipped back on without a redeploy if that product decision
     # changes.

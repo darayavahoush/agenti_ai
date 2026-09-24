@@ -1,4 +1,3 @@
-import { SparkLoader } from '../../components/ui'
 import { useEffect, useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { KeyRound, PartyPopper, ArrowRight, ArrowLeft, Volume2, Stethoscope, Mail, Heart } from 'lucide-react'
@@ -181,8 +180,7 @@ function KidPlayForm({ onSwitchRole }) {
   const [showCodeLookup, setShowCodeLookup] = useState(false)
   const [lookupEmail, setLookupEmail]       = useState('')
   const [lookupSent, setLookupSent]         = useState(false)
-  // Forgot-PIN recovery for self-registered kids (no Patient row to reset
-  // via kid-pin-setup -- see auth.py's POST /auth/forgot-pin docstring).
+  // Forgot-PIN recovery (see auth.py's POST /auth/forgot-pin docstring).
   // Reuses the same email-OTP proof as registration itself: request sends
   // a code to the parent email on file, verify confirms it and submits
   // the new PIN in the same round trip as the reset call.
@@ -193,31 +191,13 @@ function KidPlayForm({ onSwitchRole }) {
   const [newPin, setNewPin]                       = useState('')
   const [mounted, setMounted]   = useState(false)
   const [activeGame, setActiveGame] = useState(null)  // key of the badge tapped for a quick info popover, or null
-  const [candidates, setCandidates]               = useState([])
-  const [candidatesLoading, setCandidatesLoading] = useState(false)
-  const [candidatesError, setCandidatesError]     = useState('')
-  const [selectedPatientId, setSelectedPatientId] = useState('')
-  const { loginKid, registerKid, setupKidPin } = useAuth()
+  const { loginKid, registerKid } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 30)
     return () => clearTimeout(t)
   }, [])
-
-  const fetchCandidates = () => {
-    setCandidatesLoading(true)
-    setCandidatesError('')
-    authAPI.kidCandidates()
-      .then(({ data }) => setCandidates(data.patients || []))
-      .catch(e => setCandidatesError(getErrorMessage(e)))
-      .finally(() => setCandidatesLoading(false))
-  }
-
-  useEffect(() => {
-    if (mode !== 'assessment' || candidates.length > 0 || candidatesLoading) return
-    fetchCandidates()
-  }, [mode])
 
   // Verbal instructions on this screen are manual, tap-to-hear only — no
   // auto-play. Auto-speaking every time a kid lands on a nav/login screen
@@ -228,14 +208,12 @@ function KidPlayForm({ onSwitchRole }) {
   const CHOOSE_TXT     = 'Ready to play? Tap I have a code to log back in.'
   const REGISTER_TXT   = 'Create your account. Type your name, pick your character, and choose a 4 digit PIN.'
   const LOGIN_TXT      = 'Welcome back! Enter your username or player code, and your PIN.'
-  const ASSESSMENT_TXT = 'Find your name in the list, pick your character, and choose a 4 digit PIN.'
   const registeredText = registered
     ? `You're in, ${AVATAR_NAMES[avatar]}! Write down your player code and your PIN so you can log back in.`
     : null
   const replayChoose     = () => speak(CHOOSE_TXT)
   const replayRegister   = () => speak(REGISTER_TXT)
   const replayLogin      = () => speak(LOGIN_TXT)
-  const replayAssessment = () => speak(ASSESSMENT_TXT)
   const replayRegistered = () => { if (registeredText) speak(registeredText) }
 
   const handlePin = (digit) => { if (pin.length < 4) setPin(p => p + digit) }
@@ -400,19 +378,6 @@ function KidPlayForm({ onSwitchRole }) {
       setForgotPinStep('done')
     } catch (e) {
       setError(getErrorMessage(e, "Couldn't reset the PIN — try again"))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAssessmentSetup = async () => {
-    if (pin.length < 4) { setError('Choose a 4-digit PIN'); return }
-    setError(''); setLoading(true)
-    try {
-      await setupKidPin(selectedPatientId, avatar, pin)
-      navigate('/play/levels')
-    } catch (e) {
-      setError(getErrorMessage(e))
     } finally {
       setLoading(false)
     }
@@ -877,77 +842,6 @@ function KidPlayForm({ onSwitchRole }) {
               </p>
               <Button className="w-full gap-2" size="lg" onClick={() => { resetForgotPinFlow(); setMode('login'); setPin(''); setPlayerCode('') }}>
                 Back to Login <ArrowRight className="w-4 h-4" />
-              </Button>
-            </>
-          )}
-        </GlassPanel>
-      )}
-
-      {/* Assessment-linked setup */}
-      {mode === 'assessment' && (
-        <GlassPanel accent="brand-green" className="w-full max-w-sm relative z-10">
-          <button onClick={() => { setMode('choose'); setPin(''); setError(''); setSelectedPatientId('') }}
-                  className="text-white/30 hover:text-white/60 text-sm mb-6 transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back
-          </button>
-          <h1 className="font-vm-display text-3xl font-bold text-white mb-6 text-center flex items-center justify-center gap-2">
-            Find Your Name <SpeakButton onClick={replayAssessment} className="text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-1.5 active:scale-90" />
-          </h1>
-
-          {candidatesLoading && (<div className="flex justify-center mb-4"><SparkLoader size="sm" /></div>)}
-          {!candidatesLoading && candidatesError && (
-            <div className="text-center mb-4">
-              <p className="text-brand-coral text-sm mb-2">{candidatesError}</p>
-              <button onClick={fetchCandidates}
-                      className="text-white/50 hover:text-white text-xs underline underline-offset-2 transition-colors
-                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded">
-                Try again
-              </button>
-            </div>
-          )}
-          {!candidatesLoading && !candidatesError && candidates.length === 0 && (
-            <p className="text-white/40 text-center text-sm mb-4">No names found yet. Ask your therapist!</p>
-          )}
-
-          {!candidatesLoading && candidates.length > 0 && !selectedPatientId && (
-            <div className="flex flex-col gap-2 mb-2">
-              {candidates.map(c => (
-                <button key={c.id} onClick={() => setSelectedPatientId(c.id)}
-                  className="w-full text-left rounded-2xl p-4 bg-white/5 hover:bg-white/10 border border-white/10
-                             hover:border-brand-green/40 transition-all">
-                  <p className="font-vm-display text-lg font-bold text-white">{c.name}</p>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {selectedPatientId && (
-            <>
-              <label className="text-sm text-white/50 block mb-3">Pick your character</label>
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                {AVATARS.map(av => (
-                  <button key={av} onClick={() => setAvatar(av)} aria-pressed={avatar === av}
-                          className="flex flex-col items-center gap-1.5 group rounded-2xl
-                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-                    <div className={`rounded-full p-1 transition-all
-                      ${avatar === av ? 'ring-2 ring-brand-green scale-110 shadow-lg shadow-brand-green/30' : 'ring-2 ring-transparent group-hover:ring-white/20'}`}>
-                      <Avatar avatar={av} size="lg" />
-                    </div>
-                    <span className={`text-xs font-semibold transition-colors
-                      ${avatar === av ? 'text-brand-green' : 'text-white/35 group-hover:text-white/60'}`}>
-                      {AVATAR_NAMES[av]}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <label className="text-sm text-white/50 block mb-2">Choose a 4-digit PIN</label>
-              <PinDots length={pin.length} />
-              <PinPad onDigit={handlePin} onDelete={deletePin} />
-
-              {error && <p className="text-brand-coral text-sm text-center mb-3">{error}</p>}
-              <Button className="w-full gap-2" size="lg" onClick={handleAssessmentSetup} disabled={loading}>
-                {loading ? 'Setting up…' : <>Let's Play! <ArrowRight className="w-4 h-4" /></>}
               </Button>
             </>
           )}

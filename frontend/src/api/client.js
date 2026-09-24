@@ -261,8 +261,6 @@ export const authAPI = {
   linkTherapist: (therapistCode) => api.post('/auth/parent/link-therapist', { therapist_code: therapistCode }),
 
   therapistCandidates: () => api.get('/auth/therapist-candidates'),
-  kidCandidates:       () => api.get('/auth/kid-candidates'),
-  kidPinSetup: (data) => api.post('/auth/kid-pin-setup', data),
 
   deleteParentAccount: (data)    => api.delete('/auth/parent-account', { data }),
   deleteKidAccount:    (data)    => api.delete('/auth/kid-account', { data }),
