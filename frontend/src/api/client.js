@@ -260,7 +260,6 @@ export const authAPI = {
   // link_therapist -- the reverse direction of patientsAPI.link below.
   linkTherapist: (therapistCode) => api.post('/auth/parent/link-therapist', { therapist_code: therapistCode }),
 
-  therapistCandidates: () => api.get('/auth/therapist-candidates'),
 
   deleteParentAccount: (data)    => api.delete('/auth/parent-account', { data }),
   deleteKidAccount:    (data)    => api.delete('/auth/kid-account', { data }),

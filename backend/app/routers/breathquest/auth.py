@@ -25,7 +25,6 @@ from app.models.breathquest_models import (
     TherapistNote, Assignment, Goal, Message, HomePracticeLog,
     GameSession,
 )
-from app.models.patient import Patient
 from app.models.therapist import Therapist
 from app.models.vaakmirror_models import VaakMirrorSession, Attempt
 from app.models.voicehurdlerace_models import VoiceHurdleRaceSession
@@ -110,19 +109,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # ------------------------------------------------------------------ #
-#  Therapist candidate lookup (Assessment cross-reference)              #
+#  Retired: therapist candidate lookup                                  #
 # ------------------------------------------------------------------ #
 
-@router.get("/therapist-candidates")
-async def therapist_candidates(db: AsyncSession = Depends(get_db)):
-    """Return unique therapist names already recorded during Assessment."""
-    result = await db.execute(
-        select(Patient.therapist_name)
-        .where(Patient.therapist_name.isnot(None), func.trim(Patient.therapist_name) != "")
-        .distinct()
-        .order_by(Patient.therapist_name)
-    )
-    return list(result.scalars().all())
+@router.get("/therapist-candidates", status_code=410)
+async def therapist_candidates():
+    """Retired 2026-09-24. This used to return every distinct therapist name
+    recorded during Assessment intake to anyone, with no login, to feed a
+    therapist-selection dropdown at registration. No frontend code calls it
+    any more, and it exposed therapist names for no reason. The
+    service-key-protected GET /assessment/therapists is unaffected. Kept as
+    a 410 so a stale client gets a clear answer rather than a 404."""
+    raise HTTPException(status_code=410, detail="This is no longer available.")
 
 
 # ------------------------------------------------------------------ #
