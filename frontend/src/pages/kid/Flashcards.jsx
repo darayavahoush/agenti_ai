@@ -5,7 +5,7 @@ import { KID_SIDEBAR_ITEMS } from "../../lib/kidSidebarItems";
 import { CHARACTERS } from "../../flashcards/characters";
 import CharacterBackdrop from "../../flashcards/CharacterBackdrop";
 import { ThemeSelect, WordSelect } from "../../flashcards/SelectionFlow";
-import { PlayCard, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, SELECTION_BG } from "../../flashcards/SelectionUI";
+import { CharacterCard, StepDots, SectionHeader, PlayfulBackdrop, GlobalSelectionStyles, useCyclingEmoji, SELECTION_BG, DockMagnifyGrid } from "../../flashcards/SelectionUI";
 import { useAudio } from "../../flashcards/hooks/useAudio";
 import { evaluateAttempt, speakWord, getRandomWord, getThemes, getPhonemeCard } from "../../flashcards/lib/api";
 import { getErrorMessage } from "../../api/client";
@@ -21,23 +21,23 @@ function CharacterSelect({ onPick }) {
     <div className="flex-1 flex items-center justify-center" style={{ background: SELECTION_BG, position: "relative", overflow: "hidden" }}>
       <PlayfulBackdrop tint="#C084FC" />
       <GlobalSelectionStyles />
-      <div className="fc-clear-menu" style={{ maxWidth: "480px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
+      <div className="fc-clear-menu" style={{ maxWidth: "560px", width: "100%", padding: "24px", position: "relative", zIndex: 1 }}>
         <StepDots current={3} total={3} />
         <SectionHeader title="Who's helping you today? 🚀" subtitle="Pick a friend to practice words with" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
+        <DockMagnifyGrid columns={2} gap="16px" radius={190} maxScale={1.12}>
           {Object.values(CHARACTERS).map((c, i) => (
-            <PlayCard
+            <CharacterCard
               key={c.id}
               image={c.image}
               imageAlt={c.name}
-              title={c.name}
-              subtitle={c.tagline}
+              name={c.name}
+              tagline={c.tagline}
               color={c.color}
               index={i}
               onClick={() => onPick(c.id)}
             />
           ))}
-        </div>
+        </DockMagnifyGrid>
       </div>
     </div>
   );

@@ -4,17 +4,29 @@ Read this before touching anything patient-related. The #1 source of
 "Patient not found" bugs in this codebase is passing the wrong ID to
 the wrong table.
 
-## Two patient tables, two databases
+## Two patient tables, one database
 
-| Table | DB | Primary key means | Owns |
-|---|---|---|---|
-| `Patient` (`patients` table) | `vaaksudhi` (agenti_ai) | The "real" patient — created via assessment/onboarding flow | Assessment data, `EmailVerification` records |
-| `BreathQuestPatient` (`breathquest_patients` table) | `breathquest` (quest-games) | A kid's login/play identity — created via kid-register / parent flow | Game sessions, PIN auth, agent training state |
+**Updated 2026-09-23: this used to describe two separate Postgres
+databases connected only over HTTP. That's no longer true as of the
+2026-08-11/08-12 agenti_ai <-> quest-games merge** — `Patient` and
+`BreathQuestPatient` are two tables in the *same* database now, both
+declared on the same SQLAlchemy `Base` in `app/database.py`, which has
+exactly one `DATABASE_URL` / one `engine` / one `async_engine`.
+`assessment_client.py` (the old HTTP client) no longer exists; the
+lookup it used to do over HTTP is now `services/assessment_lookup.py`'s
+in-process query. If you're reading this because something referenced
+"two databases" or `assessment_client`, that's stale — don't go
+looking for a second Postgres instance or a network hop, there isn't
+one.
 
-These are **separate Postgres databases**, connected only via HTTP
-through `assessment_client.py` — there is no cross-DB foreign key at
-the SQL level. The link is application-level only:
-BreathQuestPatient.assessment_patient_id --> Patient.id (nullable!)
+| Table | Primary key means | Owns |
+|---|---|---|
+| `Patient` (`patients` table) | The "real" patient — created via assessment/onboarding flow | Assessment data, `EmailVerification` records |
+| `BreathQuestPatient` (`breathquest_patients` table) | A kid's login/play identity — created via kid-register / parent flow | Game sessions, PIN auth, agent training state |
+
+These are linked by a **real SQL foreign key** (migration
+`a9f3c7d2e1b4`), not an application-level convention:
+`BreathQuestPatient.assessment_patient_id --> Patient.id` (nullable!)
 
 If `assessment_patient_id` is `NULL`, that BreathQuestPatient has never
 been linked to an assessment record, and anything that requires the
@@ -60,8 +72,13 @@ A number of `BreathQuestPatient` rows predate one or both of
 `assessment_patient_id` and `therapist_id` being populated at write
 time (pre-dates the FK migration / quest-games merge). These rows
 will 404 on agent-status routes even though the patient "exists" and
-plays fine in-game. No backfill has been run yet — do that before
-assuming a specific patient's 404 is a new bug rather than legacy data.
+plays fine in-game. `scripts/backfill_assessment_links.py` (2026-09-23)
+backfills `assessment_patient_id` in bulk for every row that has a
+`therapist_id` set — run it (dry-run by default, `--confirm` to apply)
+before assuming a specific patient's 404 is a new bug rather than legacy
+data. Rows missing `therapist_id` entirely can't be auto-fixed (nothing
+in the schema says which therapist should own them) and the script only
+reports those for manual resolution via `POST /patients/link`.
 
 ## Other things worth knowing
 

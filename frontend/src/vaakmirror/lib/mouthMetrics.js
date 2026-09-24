@@ -23,6 +23,13 @@ function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
+// Fallback denominator for openness, used until a player has a calibrated
+// max-open baseline (or calibration was skipped) — roughly a wide-open
+// mouth in these face-scale-normalized units. Personalized scoring
+// replaces this with each player's own measured max, the same
+// personalize-if-available pattern SPREAD_FALLBACK below uses for spread.
+const OPENNESS_FALLBACK_MAX = 0.18
+
 export function computeMouthMetrics(landmarks) {
   if (!landmarks || landmarks.length < 468) return null
 
@@ -30,21 +37,35 @@ export function computeMouthMetrics(landmarks) {
   const faceHeight = dist(landmarks[TOP_FACE], landmarks[BOTTOM_FACE])
   const scale = (faceWidth + faceHeight) / 2 || 1
 
-  const mouthOpen = dist(landmarks[UPPER_LIP], landmarks[LOWER_LIP]) / scale
-  const mouthWidth = dist(landmarks[LEFT_MOUTH_CORNER], landmarks[RIGHT_MOUTH_CORNER]) / scale
-
-  // Openness: vertical lip gap normalized to face scale. 0.18 is roughly a
-  // wide-open mouth in these units — tune here if matches feel too strict
-  // or too loose across the board.
-  const openness = Math.max(0, Math.min(1, mouthOpen / 0.18))
+  // mouthOpenRaw: vertical lip gap, normalized to face scale only — not yet
+  // divided by any "how wide is wide" reference. Games that personalize
+  // openness divide this by the player's own calibrated max via
+  // resolveOpenness(); `openness` below is the same value pre-divided by
+  // the shared fallback constant, for callers that only need a rough,
+  // non-personalized reading (e.g. TongueTamer's "is the mouth open enough
+  // to see the tongue" gate, which isn't scoring a shape match).
+  const mouthOpenRaw = dist(landmarks[UPPER_LIP], landmarks[LOWER_LIP]) / scale
+  const openness = Math.max(0, Math.min(1, mouthOpenRaw / OPENNESS_FALLBACK_MAX))
 
   // Spread: horizontal mouth width normalized to face scale, independent of
   // opening. A pursed/rounded mouth ('oo', 'sh') narrows this; a smile or
   // neutral rest widens it. Unlike the old roundness metric, this never
   // divides by the (possibly near-zero) opening value.
-  const spread = mouthWidth / scale
+  //
+  // FIX: this previously divided by `scale` a second time here, after
+  // mouthWidth had already been scale-normalized above — e.g.
+  // `mouthWidth = dist(...) / scale` then `spread = mouthWidth / scale`.
+  // That shrank spread more for players sitting closer to the camera
+  // (bigger scale), the opposite of what face-scale normalization is for.
+  // It was self-consistent within one session (the same bug applied when
+  // sampling baselineSpread during calibration and when scoring live
+  // frames), so playing at a fixed distance from the camera mostly
+  // canceled it out — but it broke the fallback ranges below for anyone
+  // who skipped calibration, and broke scoring for anyone who moved closer
+  // or farther between calibrating and playing. Fixed to divide once.
+  const spread = dist(landmarks[LEFT_MOUTH_CORNER], landmarks[RIGHT_MOUTH_CORNER]) / scale
 
-  return { openness, spread }
+  return { openness, mouthOpenRaw, spread }
 }
 
 function inRangeDist(value, [lo, hi]) {
@@ -70,11 +91,25 @@ export function resolveSpreadRange(tag, baselineSpread) {
   return [0, 1]
 }
 
-export function scoreAgainstTarget(metrics, target, baselineSpread) {
+// Resolves a raw mouth-open distance into the same [0, 1] "how open" scale
+// SHAPE_TARGETS' openness ranges are written in (0 = closed, 1 = wide
+// open). Divides by the player's own calibrated max-open sample when one
+// exists, falling back to the shared constant otherwise — the same
+// personalize-if-available pattern resolveSpreadRange uses for spread, so
+// a kid with a naturally smaller or larger opening range is judged against
+// their own max rather than one generic number.
+export function resolveOpenness(mouthOpenRaw, baselineOpenMax) {
+  if (mouthOpenRaw == null) return 0
+  const max = baselineOpenMax || OPENNESS_FALLBACK_MAX
+  return Math.max(0, Math.min(1, mouthOpenRaw / max))
+}
+
+export function scoreAgainstTarget(metrics, target, baselineSpread, baselineOpenMax) {
   if (!metrics || !target) return { score: 0, tier: 'red' }
 
   const spreadRange = resolveSpreadRange(target.spread, baselineSpread)
-  const opennessDist = inRangeDist(metrics.openness, target.openness)
+  const opennessValue = resolveOpenness(metrics.mouthOpenRaw, baselineOpenMax)
+  const opennessDist = inRangeDist(opennessValue, target.openness)
   const spreadDist = inRangeDist(metrics.spread, spreadRange)
 
   const distance = opennessDist + spreadDist

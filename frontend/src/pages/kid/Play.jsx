@@ -225,7 +225,7 @@ function KidPlayForm({ onSwitchRole }) {
   // here (and Landing.jsx / GamePicker.jsx) — the actual games still
   // auto-speak once per level/attempt via useSpokenInstruction, since
   // that's instructional, not just narration of a menu.
-  const CHOOSE_TXT     = 'Ready to play? Tap I have a code to log back in, or My Therapist Set Me Up to find your name.'
+  const CHOOSE_TXT     = 'Ready to play? Tap I have a code to log back in.'
   const REGISTER_TXT   = 'Create your account. Type your name, pick your character, and choose a 4 digit PIN.'
   const LOGIN_TXT      = 'Welcome back! Enter your username or player code, and your PIN.'
   const ASSESSMENT_TXT = 'Find your name in the list, pick your character, and choose a 4 digit PIN.'
@@ -564,26 +564,6 @@ function KidPlayForm({ onSwitchRole }) {
                 <div>
                   <p className="font-vm-display text-xl font-bold text-white">I have a code</p>
                   <p className="text-white/40 text-sm">Log back in</p>
-                </div>
-              </div>
-            </button>
-            <button onClick={() => setMode('assessment')}
-              className={`group relative overflow-hidden rounded-[2rem] p-6 text-left
-                         bg-gradient-to-br from-brand-coral/20 to-dusk-mid/50 backdrop-blur-sm border-2 border-brand-coral/40
-                         hover:border-brand-coral hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-coral/20
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-coral focus-visible:ring-offset-2 focus-visible:ring-offset-[#12142E]
-                         transition-all duration-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
-              style={{ transitionDelay: mounted ? '180ms' : '0ms' }}>
-              <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-brand-coral/10 blur-2xl
-                              group-hover:bg-brand-coral/20 transition-colors duration-300" />
-              <div className="relative flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-brand-coral/15 border border-brand-coral/25 flex items-center
-                                justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                  <Stethoscope className="w-6 h-6 text-brand-coral" />
-                </div>
-                <div>
-                  <p className="font-vm-display text-xl font-bold text-white">My Therapist Set Me Up</p>
-                  <p className="text-white/40 text-sm">Find your name</p>
                 </div>
               </div>
             </button>
