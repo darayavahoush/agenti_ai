@@ -35,7 +35,7 @@ from app.services.email import send_kid_registered_welcome_email
 logger = logging.getLogger("uvicorn.error")
 from app.models.flashcards_models import PhonemeMastery, FlashcardAttempt
 from app.schemas.breathquest_schemas import (
-    KidLoginRequest, KidTokenResponse, KidRegisterRequest, KidPinSetupRequest,
+    KidLoginRequest, KidTokenResponse, KidRegisterRequest,
     ParentRegisterRequest, ParentLoginRequest, ParentTokenResponse,
     ParentKidRegisterRequest, ParentGoogleLoginRequest, ParentGoogleRegisterRequest,
     ForgotEmailRequest,
@@ -129,32 +129,21 @@ async def therapist_candidates(db: AsyncSession = Depends(get_db)):
 #  Kid self-registration                                               #
 # ------------------------------------------------------------------ #
 
-@router.get("/kid-candidates")
-async def kid_candidates(db: AsyncSession = Depends(get_db)):
-    """Return children created through Assessment who still need PIN setup.
-
-    Fixed 2026-09-21 (account-takeover bug): this used to return EVERY
-    active Patient in the whole database, with no check for whether they
-    already had a linked, PIN-set BreathQuestPatient -- so a kid who was
-    already fully set up (whether by a therapist via AddPatientModal, which
-    sets their PIN immediately, or by having done this flow before) still
-    showed up here forever. Combined with kid_pin_setup below silently
-    overwriting an existing linked patient's PIN, anyone could open "My
-    Therapist Set Me Up," pick any child's name, and take over their
-    account with no authentication. Now excludes anyone who already has a
-    linked BreathQuestPatient row -- see kid_pin_setup's matching fix,
-    which refuses to touch one even if a stale client still sends its id.
-    """
-    already_linked = select(BreathQuestPatient.assessment_patient_id).where(
-        BreathQuestPatient.assessment_patient_id.isnot(None)
+@router.get("/kid-candidates", status_code=410)
+async def kid_candidates():
+    """Retired 2026-09-24. This used to list every active, not-yet-linked
+    child's name to anyone, with no login, to power the kid landing screen's
+    "My Therapist Set Me Up" name picker. That picker is gone (adults now
+    create every new kid account -- see KID_SELF_SERVICE_SIGNUP_ENABLED),
+    and an unauthenticated list of children's names is exactly what it
+    shouldn't be. It was also already broken end to end: this returned a
+    bare list while the frontend read `data.patients`, so the picker only
+    ever showed "No names found yet." Kept as a 410 (not deleted) so a stale
+    browser tab gets a clear answer instead of a confusing 404."""
+    raise HTTPException(
+        status_code=410,
+        detail="This is no longer available. Ask a parent or therapist to set up your account, then log in with your player code and PIN.",
     )
-    result = await db.execute(
-        select(Patient)
-        .where(Patient.is_active.is_(True), Patient.id.not_in(already_linked))
-        .order_by(Patient.name)
-    )
-    patients = result.scalars().all()
-    return [{"id": str(patient.id), "name": patient.name} for patient in patients]
 
 @router.post("/kid-register", response_model=KidTokenResponse, status_code=201)
 async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -164,8 +153,8 @@ async def kid_register(request: Request, data: KidRegisterRequest, db: AsyncSess
     registerKid() (used by pages/kid/Play.jsx's signup form) actually
     calls; it only ever sends {first_name, avatar, pin}. The old
     patient_id-required version of this endpoint made every one of those
-    calls 422. That link-an-existing-Assessment-patient flow now lives at
-    POST /auth/kid-pin-setup instead.
+    calls 422. The link-an-existing-Assessment-patient flow that briefly
+    lived at POST /auth/kid-pin-setup was retired on 2026-09-24.
 
     Gated off by default as of 2026-09-21 (see
     KID_SELF_SERVICE_SIGNUP_ENABLED's comment in breathquest_core/config.py):
@@ -386,62 +375,20 @@ async def delete_kid_account(
     await db.commit()
 
 
-@router.post("/kid-pin-setup", response_model=KidTokenResponse, status_code=201)
-async def kid_pin_setup(data: KidPinSetupRequest, db: AsyncSession = Depends(get_db)):
-    """Set or reset a BreathQuest PIN for a child already created in
-    Assessment (via POST /patients/). This is the endpoint
-    AuthContext.jsx's setupKidPin() calls -- it used to point at a route
-    that didn't exist at all (404 on every call), since this logic
-    previously lived under /auth/kid-register instead."""
-    main_patient = await db.get(Patient, data.patient_id)
-
-    if not main_patient or not main_patient.is_active:
-        raise HTTPException(status_code=404, detail="Registered child not found")
-
-    player_code = f"P{str(main_patient.id).replace('-', '')[:9].upper()}"
-    # Fixed 2026-09-21 (account-takeover bug): this used to overwrite an
-    # already-linked patient's pin_hash/avatar unconditionally and hand
-    # back a valid token -- no auth, no PIN check, nothing. Since this
-    # route is unauthenticated by design (that's the point: it's how a
-    # kid gets credentials for the very first time), touching an existing
-    # account here would let anyone who can see the child's name (or
-    # guess/replay a stale patient_id) take it over. kid_candidates above
-    # no longer lists already-linked patients, so this should only be
-    # reachable for genuine first-time setup; treat an existing link as a
-    # sign of a stale client/replay and refuse rather than "fix it up" the
-    # way the pre-2026-09-19 dedup code did.
-    result = await db.execute(
-        select(BreathQuestPatient).where(BreathQuestPatient.assessment_patient_id == main_patient.id)
-    )
-    existing = result.scalars().first()
-    if existing is not None:
-        raise HTTPException(
-            status_code=409,
-            detail="This child already has an account. Use their player code to log in, or Forgot PIN if it's been lost.",
-        )
-
-    patient = BreathQuestPatient(
-        therapist_id=None,
-        first_name=main_patient.name,
-        avatar=data.avatar,
-        pin_hash=hash_pin(data.pin),
-        player_code=player_code,
-        assessment_patient_id=main_patient.id,
-        assessment_completed=True,  # they already have an Assessment record
-    )
-    db.add(patient)
-
-    await db.commit()
-    await db.refresh(patient)
-    token = create_kid_token(patient.id)
-    return KidTokenResponse(
-        access_token=token,
-        patient_id=str(patient.id),
-        first_name=patient.first_name,
-        avatar=patient.avatar,
-        player_code=patient.player_code,
-        assessment_completed=patient.assessment_completed,
-        username=patient.username,
+@router.post("/kid-pin-setup", status_code=410)
+async def kid_pin_setup():
+    """Retired 2026-09-24, together with GET /auth/kid-candidates and the kid
+    landing screen's name picker that was its only caller. This route was
+    unauthenticated by design (the picker let a kid claim a bare Patient row
+    and mint their first credentials), which is why it needed the
+    2026-09-21 account-takeover fix in the first place. Nothing in the
+    frontend, the tests or the therapist flows calls it any more: therapists
+    create kids through POST /breathquest/patients (PIN set on creation),
+    parents through parent-kid-register / add-child. Kept as a 410 so a
+    stale client gets a clear answer rather than a 404."""
+    raise HTTPException(
+        status_code=410,
+        detail="This is no longer available. Ask a parent or therapist to set up your account, then log in with your player code and PIN.",
     )
 
 @router.post("/forgot-email", status_code=202)
@@ -492,7 +439,7 @@ async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db
 async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession = Depends(get_db)):
     """PIN recovery for self-registered kids (POST /auth/kid-register).
 
-    /auth/kid-pin-setup can reset a PIN, but only by looking up a
+    /auth/kid-pin-setup (retired 2026-09-24) could reset a PIN, but only by looking up a
     Patient row via patient_id -- and kid_register above never creates
     one (only a BreathQuestPatient), so that path can never reach a
     self-registered kid. Before this endpoint, forgetting a PIN here

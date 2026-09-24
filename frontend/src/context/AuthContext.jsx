@@ -151,13 +151,6 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  const setupKidPin = async (assessmentPatientId, avatar, pin) => {
-    const { data } = await authAPI.kidPinSetup({ patient_id: assessmentPatientId, avatar, pin })
-    _persistSession('patient', data)
-    setPatient(data); setTherapist(null); setParent(null)
-    return data
-  }
-
   const loginKid = async (playerCode, pin) => {
     const { data } = await authAPI.kidLogin({ player_code: playerCode, pin })
     _persistSession('patient', data)
@@ -586,7 +579,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       therapist, patient, parent, loading,
       loginTherapist, registerTherapist, loginTherapistGoogle,
-      loginKid, registerKid, setupKidPin,
+      loginKid, registerKid,
       markAssessmentComplete,
       startSupervisedSession, endSupervisedSession,
       loginParent, registerParent, loginParentGoogle, registerParentGoogle, logout,

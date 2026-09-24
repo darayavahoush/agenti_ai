@@ -6,9 +6,11 @@ comments). POST sets registered_therapist_id from the authenticated
 therapist directly. Deliberately does NOT touch GET /assessment/patients
 (service-key protected, for service-to-service calls, not browser JS).
 
-This patient_id is meant to be the one true origin, flowing into
-BreathQuest via the existing kid-pin-setup linking flow rather than
-AddPatientModal.jsx creating a second, disconnected patient there.
+Note (2026-09-24): the kid-pin-setup linking flow this used to feed was
+retired, and nothing in the frontend calls POST here -- the dashboard's
+AddPatientModal.jsx creates the Patient and BreathQuestPatient together via
+POST /breathquest/patients. A Patient created only through this route has
+no way to get kid credentials until it is linked from a therapist account.
 
 dashboard_summary/list_my_sessions added 2026-08-13: main.py's
 /patients/dashboard/summary and /patients/sessions/all were retired
@@ -99,8 +101,8 @@ async def create_patient(
     """The one real patient-creation entry point (see the 2026-08-10 branch
     note): sets registered_therapist_id from the authenticated therapist
     directly, rather than relying on the free-text therapist_name field or
-    a downstream fix. This patient_id is meant to flow into BreathQuest via
-    the existing kid-pin-setup linking flow, not get duplicated there."""
+    a downstream fix. See the module docstring: the kid-pin-setup flow this
+    was meant to feed no longer exists, and the dashboard doesn't call this."""
     patient = Patient(
         name=data.name, age=data.age, date_of_birth=data.date_of_birth,
         language=data.language, gender=data.gender, diagnosis=data.diagnosis,
