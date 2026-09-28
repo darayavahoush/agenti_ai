@@ -435,7 +435,9 @@ async def forgot_player_code(request: Request, data: ForgotPlayerCodeRequest, db
 
 @router.post("/forgot-pin", status_code=200)
 async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession = Depends(get_db)):
-    """PIN recovery for self-registered kids (POST /auth/kid-register).
+    """PIN recovery for kids with an adult email on file: the self-registered
+    kid's parent_email (POST /auth/kid-register) or the login email of any
+    Parent account linked to the child (Parent.patient_id / ParentChild).
 
     /auth/kid-pin-setup (retired 2026-09-24) could reset a PIN, but only by looking up a
     Patient row via patient_id -- and kid_register above never creates
@@ -469,7 +471,29 @@ async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession 
     patient = result.scalar_one_or_none()
 
     not_verified_detail = "A parent needs to verify their email before resetting this PIN"
-    if not patient or not patient.parent_email or patient.parent_email.strip().lower() != email:
+    if not patient:
+        raise HTTPException(status_code=403, detail=not_verified_detail)
+
+    # Who counts as "the parent on file" for this child. patient.parent_email
+    # is only ever populated by kid-register and parent-kid-register; kids
+    # added from an existing parent account (parent/children, link-existing,
+    # Google parent signup) or created by a therapist have it NULL, so
+    # matching on it alone made PIN reset impossible for all of them (the
+    # emailed code arrived and verified fine, then this 403'd). A parent
+    # account linked to the child -- as the primary Parent.patient_id or via
+    # ParentChild -- is equally the right adult; the OTP-verified-email check
+    # below still has to pass for that same address.
+    allowed_emails = set()
+    if patient.parent_email:
+        allowed_emails.add(patient.parent_email.strip().lower())
+    linked_emails = (await db.execute(
+        select(Parent.email)
+        .outerjoin(ParentChild, ParentChild.parent_id == Parent.id)
+        .where((Parent.patient_id == patient.id) | (ParentChild.patient_id == patient.id))
+    )).scalars().all()
+    allowed_emails.update(e.strip().lower() for e in linked_emails if e)
+
+    if email not in allowed_emails:
         raise HTTPException(status_code=403, detail=not_verified_detail)
 
     consent = await check_email_consent(email, db)
