@@ -1,5 +1,5 @@
 {
-  "name": "breathquest-frontend",
+  "name": "vaaksudhi-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -30,5 +30,20 @@
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "vite": "^8.1.0"
-  }
+  },
+  "description": "Frontend for Vaaksudhi speech therapy platform with adaptive games, therapist dashboard, and parent portal",
+  "homepage": "https://github.com/darayavahoush/agenti_ai",
+  "author": "Ananya Sridhar",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/darayavahoush/agenti_ai.git"
+  },
+  "keywords": [
+    "speech-therapy",
+    "react",
+    "vite",
+    "dashboard",
+    "gamification",
+    "autism-support"
+  ]
 }
