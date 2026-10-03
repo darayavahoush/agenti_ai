@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 // One calm moving element: a lantern that swells and warms while the voice is on.
 // Everything is drawn from requestAnimationFrame reading a ref; React never re-renders per frame.
 // No flashing: nothing changes brightness faster than ~4 Hz, and ripples are slow and soft.
-const PAL = { glass: [143, 214, 196], lamp: [246, 200, 115] }
+const PAL = { glass: [143, 224, 212], lamp: [255, 155, 84] } // mint-light -> ember (tailwind.config.js)
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t))
 const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`
 
@@ -77,7 +77,7 @@ export default function VoiceStage({ read, active, goalMs, glide, gain = 1, redu
       // progress ring for "keep it going" levels
       if (goalMs) {
         ctx.lineWidth = 6; ctx.lineCap = 'round'
-        ctx.strokeStyle = 'rgba(241,233,218,0.14)'
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)'
         ctx.beginPath(); ctx.arc(cx, cy, base * 2.05, 0, 7); ctx.stroke()
         ctx.strokeStyle = rgba(PAL.lamp, 0.9); ctx.beginPath()
         ctx.arc(cx, cy, base * 2.05, -Math.PI / 2, -Math.PI / 2 + Math.min(1, S.run / goalMs) * Math.PI * 2); ctx.stroke()
