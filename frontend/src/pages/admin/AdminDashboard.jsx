@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import './admin.css'
+import { Users, Clock, TrendingUp, ShieldCheck, Calendar, Activity, CreditCard, Flame, Target } from 'lucide-react'
 
 const BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '')
 const API = BASE + '/admin'
@@ -89,6 +90,22 @@ function HBars({ items, color = C.blue }) {
   ))
 }
 
+function Highlights({ items }) {
+  return (
+    <section className="adm-hl">
+      {items.map((it) => {
+        const Ic = it.icon
+        return (
+          <div key={it.label} className={'adm-chip ' + it.tone}>
+            <span className="adm-ci"><Ic size={17} /></span>
+            <div><small>{it.label}</small><b>{it.value}</b><em>{it.hint}</em></div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
 function Login({ onToken, theme, onTheme, tint, onTint }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -107,8 +124,8 @@ function Login({ onToken, theme, onTheme, tint, onTint }) {
   return (
     <div className="adm" data-theme={theme} data-tint={tint}><div className="adm-corner adm-tools"><Tints tint={tint} onTint={onTint} /><button className="adm-ghost" onClick={onTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button></div><div className="adm-center">
       <form className="adm-login" onSubmit={submit}>
-        <h1>Sign in</h1>
-        <p className="adm-sub">Vaaksudhi admin</p>
+        <div className="adm-logo">V</div><h1>Welcome back</h1>
+        <p className="adm-sub">Sign in to the Vaaksudhi admin dashboard</p>
         {err && <div className="adm-err" style={{ marginBottom: 14 }}>{err}</div>}
         <label className="adm-field"><span>Email</span>
           <div className="adm-input"><input type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
@@ -187,6 +204,28 @@ function Dashboard({ token, onLogout, theme, onTheme, tint, onTint }) {
   const hasDau = dau.some((r) => r.kid + r.parent + r.therapist > 0)
   const loading = !m || !o
 
+  const insights = loading ? [] : (() => {
+    const out = []
+    const tot3 = (r) => r.kids + r.parents + r.therapists
+    const busiest = attempts.reduce((a, b) => (b.success + b.failed > (a ? a.success + a.failed : -1) ? b : a), null)
+    if (busiest && busiest.success + busiest.failed > 0) out.push({ icon: Calendar, tone: 'blue', label: 'Busiest day', value: busiest.label, hint: `${busiest.success + busiest.failed} sign-in attempts` })
+    const avgDau = dau.reduce((a, r) => a + r.kid + r.parent + r.therapist, 0) / (dau.length || 1)
+    if (avgDau > 0) out.push({ icon: Users, tone: 'green', label: 'Avg daily active', value: avgDau.toFixed(1), hint: 'users per day' })
+    if (peak && peak.n > 0) out.push({ icon: Clock, tone: 'amber', label: 'Peak hour (IST)', value: `${peak.h}:00`, hint: `${peak.n} attempts` })
+    const topRole = ROLES.map((r) => ({ r, n: lg[r.key]?.success || 0 })).sort((a, b) => b.n - a.n)[0]
+    if (topRole && topRole.n > 0) out.push({ icon: TrendingUp, tone: 'purple', label: 'Most active role', value: topRole.r.label, hint: `${topRole.n} successful logins` })
+    const sessTotal = sess.reduce((a, r) => a + r.count, 0)
+    if (sessTotal > 0) out.push({ icon: Activity, tone: 'pink', label: 'Practice sessions', value: num(sessTotal), hint: `${(sessTotal / (sess.length || 1)).toFixed(1)} per day` })
+    const topFeat = [...(o.sessions.tables || [])].sort((a, b) => (b.in_window || 0) - (a.in_window || 0))[0]
+    if (topFeat && topFeat.in_window > 0) out.push({ icon: Flame, tone: 'amber', label: 'Top feature', value: nice(topFeat.name), hint: `${num(topFeat.in_window)} sessions` })
+    const bestSignup = signups.reduce((a, b) => (tot3(b) > (a ? tot3(a) : -1) ? b : a), null)
+    if (bestSignup && tot3(bestSignup) > 0) out.push({ icon: Target, tone: 'blue', label: 'Best signup day', value: bestSignup.label, hint: `${tot3(bestSignup)} new accounts` })
+    const sus = (o.auth.top_failing_ips || []).filter((i) => i.failed >= 5).length
+    out.push({ icon: ShieldCheck, tone: sus ? 'red' : 'green', label: 'Security', value: sus ? `${sus} suspicious IP${sus > 1 ? 's' : ''}` : 'All clear', hint: sus ? 'repeated failed logins' : 'no repeated failures' })
+    if (m.revenue_inr > 0) out.push({ icon: CreditCard, tone: 'green', label: 'Revenue', value: inr(m.revenue_inr), hint: `${pay.completed?.count || 0} payments` })
+    return out
+  })()
+
   return (
     <div className="adm" data-theme={theme} data-tint={tint}>
       <header className="adm-top"><div className="adm-wrap">
@@ -217,6 +256,8 @@ function Dashboard({ token, onLogout, theme, onTheme, tint, onTint }) {
             <Kpi label="Active subscriptions" value={num(activeSubs)} sub={`${pay.failed?.count || 0} failed payments`} />
           </section>
         )}
+
+        {!loading && insights.length > 0 && (<><h3 className="adm-sec">At a glance</h3><Highlights items={insights} /></>)}
 
         <h3 className="adm-sec">Audience</h3>
         <section className="adm-g a">
@@ -386,7 +427,7 @@ function Dashboard({ token, onLogout, theme, onTheme, tint, onTint }) {
         </Card>
 
         <h3 className="adm-sec">Summary</h3>
-        <Card title="AI summary" right={<button className="adm-btn sm" onClick={generate} disabled={busy}>{busy ? 'Generating…' : `Generate for ${days} days`}</button>}>
+        <Card title="AI summary" right={<button className="adm-btn sm ai" onClick={generate} disabled={busy}>{busy ? 'Generating…' : `Generate for ${days} days`}</button>}>
           {sums.length === 0 ? <Empty t="No summaries yet" s="Generate one for a plain-language recap." />
             : sums.map((s, i) => (
               <div key={s.id} className="adm-sum">
