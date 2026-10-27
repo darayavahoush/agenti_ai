@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import './admin.css'
 
 const BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '')
 const API = BASE + '/admin'
 const TK = 'admin_token'
+const C = { kid: '#5b8def', parent: '#4fb286', therapist: '#d9a441', ok: '#4fb286', bad: '#e5675f', warn: '#d9a441', blue: '#5b8def', muted: '#8a8a93', grid: '#242428' }
 const ROLES = [
-  { key: 'kid', label: 'Kids', color: '#7c83ff' },
-  { key: 'parent', label: 'Parents', color: '#34d399' },
-  { key: 'therapist', label: 'Therapists', color: '#fbbf24' },
+  { key: 'kid', acc: 'kids', label: 'Kids', color: C.kid },
+  { key: 'parent', acc: 'parents', label: 'Parents', color: C.parent },
+  { key: 'therapist', acc: 'therapists', label: 'Therapists', color: C.therapist },
 ]
+const ROLE = Object.fromEntries(ROLES.map((r) => [r.key, r]))
+const STATE = { completed: C.ok, failed: C.bad, pending: C.warn, created: C.muted, active: C.ok, trialing: C.blue, past_due: C.warn, canceled: C.bad }
+const TT = { contentStyle: { background: '#151517', border: '1px solid #2a2a2f', borderRadius: 8, color: '#ededee', fontSize: 13 }, itemStyle: { color: '#ededee' }, cursor: { fill: 'rgba(255,255,255,.04)', stroke: 'rgba(255,255,255,.12)' } }
+const AX = { tick: { fill: C.muted, fontSize: 12 }, axisLine: false, tickLine: false }
+const MG = { top: 6, right: 6, left: -24, bottom: 0 }
 
 async function call(path, token, opts = {}) {
   const res = await fetch(API + path, {
@@ -21,24 +27,33 @@ async function call(path, token, opts = {}) {
   return body
 }
 
-const P = {
-  shield: <><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /><path d="M9 12l2 2 4-4" /></>,
-  eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
-  eyeOff: <><path d="M3 3l18 18" /><path d="M10.6 6.1A9.8 9.8 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.7A16.6 16.6 0 002 12s3.5 6 10 6c1.7 0 3.2-.4 4.5-1" /><path d="M9.9 9.9a3 3 0 004.2 4.2" /></>,
-  login: <><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" /><path d="M10 17l5-5-5-5M15 12H3" /></>,
-  alert: <><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.01" /></>,
-  rupee: <><path d="M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-2 5-8 5l7 6" /></>,
-  card: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18" /></>,
-  refresh: <><path d="M20 11a8 8 0 00-14.9-3M4 5v4h4M4 13a8 8 0 0014.9 3M20 19v-4h-4" /></>,
-  out: <><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><path d="M16 17l5-5-5-5M21 12H9" /></>,
-  spark: <><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" /></>,
-}
-const Icon = ({ n, style }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={style}>{P[n]}</svg>
-)
-
 const when = (iso) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const inr = (v) => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+const num = (v) => Number(v || 0).toLocaleString('en-IN')
+const istDay = (back) => new Date(Date.now() + 19800000 - back * 864e5).toISOString().slice(0, 10)
+const nice = (s) => s.replace(/([a-z])([A-Z])/g, '$1 $2')
+
+const Dot = ({ c }) => <span className="adm-dot" style={{ background: c }} />
+const Status = ({ c, children }) => <span style={{ whiteSpace: 'nowrap' }}><Dot c={c} />{children}</span>
+const Card = ({ title, right, children }) => (
+  <div className="adm-card"><div className="adm-h"><h2>{title}</h2>{right}</div>{children}</div>
+)
+const Empty = ({ t, s }) => <div className="adm-empty"><b>{t}</b>{s}</div>
+const Sk = ({ h = 220 }) => <div className="adm-sk" style={{ height: h }} />
+const Legend = ({ items }) => <div className="adm-legend">{items.map((r) => <span key={r.label}><Dot c={r.color} />{r.label}</span>)}</div>
+const Kpi = ({ label, value, sub, color }) => (
+  <div className="adm-kpi"><div className="adm-kl">{label}</div><div className="adm-kv" style={{ color }}>{value}</div><div className="adm-ks">{sub}</div></div>
+)
+
+function HBars({ items, color = C.blue }) {
+  const max = Math.max(1, ...items.map((i) => i.value))
+  return items.map((i) => (
+    <div className="adm-hb" key={i.label}>
+      <div className="adm-hb-h"><span>{i.label}</span><span>{i.right ?? num(i.value)}</span></div>
+      <div className="adm-bar"><div style={{ width: `${(i.value / max) * 100}%`, background: i.color || color }} /></div>
+    </div>
+  ))
+}
 
 function Login({ onToken }) {
   const [email, setEmail] = useState('')
@@ -58,41 +73,28 @@ function Login({ onToken }) {
   return (
     <div className="adm"><div className="adm-center">
       <form className="adm-login" onSubmit={submit}>
-        <div className="adm-mark"><Icon n="shield" /></div>
-        <h1>Admin sign in</h1>
-        <p className="adm-sub">Vaaksudhi control room. Authorised access only.</p>
-        {err && <div className="adm-err"><Icon n="alert" style={{ width: 16, height: 16, flex: 'none' }} />{err}</div>}
+        <h1>Sign in</h1>
+        <p className="adm-sub">Vaaksudhi admin</p>
+        {err && <div className="adm-err" style={{ marginBottom: 14 }}>{err}</div>}
         <label className="adm-field"><span>Email</span>
-          <div className="adm-input"><input type="email" autoComplete="username" autoFocus placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+          <div className="adm-input"><input type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
         </label>
         <label className="adm-field"><span>Password</span>
           <div className="adm-input">
-            <input type={show ? 'text' : 'password'} autoComplete="current-password" placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ paddingRight: 44 }} />
-            <button type="button" className="adm-eye" onClick={() => setShow(!show)} aria-label="Toggle password"><Icon n={show ? 'eyeOff' : 'eye'} /></button>
+            <input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ paddingRight: 56 }} />
+            <button type="button" className="adm-eye" onClick={() => setShow(!show)}>{show ? 'Hide' : 'Show'}</button>
           </div>
         </label>
-        <button className="adm-btn" disabled={busy}>{busy ? <><span className="adm-spin" />Signing in</> : 'Sign in'}</button>
+        <button className="adm-btn" style={{ width: '100%', marginTop: 6 }} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
     </div></div>
   )
 }
 
-function Kpi({ label, value, sub, icon, color }) {
-  return (
-    <div className="adm-card adm-kpi">
-      <div className="adm-kpi-h"><span>{label}</span>
-        <span className="adm-ic" style={{ background: color + '22', color }}><Icon n={icon} /></span></div>
-      <div className="adm-kpi-v">{value}</div>
-      <div className="adm-kpi-s">{sub}</div>
-    </div>
-  )
-}
-
-const STATE_COLOR = { completed: '#34d399', failed: '#fb7185', pending: '#fbbf24', created: '#8f99b8' }
-
 function Dashboard({ token, onLogout }) {
   const [days, setDays] = useState(7)
   const [m, setM] = useState(null)
+  const [o, setO] = useState(null)
   const [sums, setSums] = useState([])
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -101,8 +103,9 @@ function Dashboard({ token, onLogout }) {
   const guard = useCallback((ex) => { if (ex.status === 401) onLogout(); else setErr(ex.message) }, [onLogout])
 
   useEffect(() => {
-    setErr(''); setM(null)
+    setErr(''); setM(null); setO(null)
     call(`/metrics?days=${days}`, token).then(setM).catch(guard)
+    call(`/overview?days=${days}`, token).then(setO).catch(guard)
   }, [days, token, guard, tick])
   useEffect(() => { call('/summaries', token).then(setSums).catch(guard) }, [token, guard])
 
@@ -112,122 +115,250 @@ function Dashboard({ token, onLogout }) {
     catch (ex) { guard(ex) } finally { setBusy(false) }
   }
 
-  const chart = useMemo(() => {
-    const rows = {}
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10)
-      rows[d] = { date: d, label: d.slice(5), kid: 0, parent: 0, therapist: 0 }
-    }
+  const dayList = useMemo(() => Array.from({ length: days }, (_, i) => istDay(days - 1 - i)), [days])
+  const lab = (d) => d.slice(5)
+
+  const dau = useMemo(() => {
+    const rows = Object.fromEntries(dayList.map((d) => [d, { label: lab(d), kid: 0, parent: 0, therapist: 0 }]))
     ;(m?.daily_active_users || []).forEach((r) => { if (rows[r.date]) rows[r.date][r.user_type] = r.active_users })
     return Object.values(rows)
-  }, [m, days])
+  }, [m, dayList])
+  const attempts = useMemo(() => {
+    const by = Object.fromEntries((o?.auth.by_day || []).map((r) => [r.date, r]))
+    return dayList.map((d) => ({ label: lab(d), success: by[d]?.success || 0, failed: by[d]?.failed || 0 }))
+  }, [o, dayList])
+  const signups = useMemo(() => {
+    const by = Object.fromEntries((o?.accounts.daily || []).map((r) => [r.date, r]))
+    return dayList.map((d) => ({ label: lab(d), kids: by[d]?.kids || 0, parents: by[d]?.parents || 0, therapists: by[d]?.therapists || 0 }))
+  }, [o, dayList])
+  const sess = useMemo(() => {
+    const by = Object.fromEntries((o?.sessions.daily || []).map((r) => [r.date, r.count]))
+    return dayList.map((d) => ({ label: lab(d), count: by[d] || 0 }))
+  }, [o, dayList])
 
   const lg = m?.logins || {}
   const ok = Object.values(lg).reduce((a, v) => a + (v.success || 0), 0)
   const bad = Object.values(lg).reduce((a, v) => a + (v.failed || 0), 0)
-  const failRate = ok + bad ? Math.round((bad / (ok + bad)) * 100) : 0
+  const rate = ok + bad ? Math.round((ok / (ok + bad)) * 100) : null
   const pay = m?.payments_by_state || {}
-  const hasActivity = chart.some((r) => r.kid + r.parent + r.therapist > 0)
+  const tot = o?.accounts.totals || {}
+  const totalAcc = ROLES.reduce((a, r) => a + (tot[r.acc]?.total || 0), 0)
+  const newAcc = ROLES.reduce((a, r) => a + (tot[r.acc]?.new || 0), 0)
+  const subs = o?.subscriptions || []
+  const activeSubs = subs.filter((s) => s.status === 'active').reduce((a, s) => a + s.count, 0)
+  const hours = (o?.auth.by_hour || []).map((n, h) => ({ h: String(h).padStart(2, '0'), n }))
+  const peak = hours.reduce((a, b) => (b.n > (a?.n ?? -1) ? b : a), null)
+  const devTotal = (o?.auth.devices || []).reduce((a, d) => a + d.count, 0)
+  const donut = ROLES.map((r) => ({ name: r.label, value: tot[r.acc]?.total || 0, color: r.color }))
+  const hasDau = dau.some((r) => r.kid + r.parent + r.therapist > 0)
+  const loading = !m || !o
 
   return (
     <div className="adm">
-      <header className="adm-top">
-        <div className="adm-brand"><div className="adm-mark"><Icon n="shield" /></div>
-          <div><b>Vaaksudhi Admin</b><small>Usage and revenue overview</small></div></div>
+      <header className="adm-top"><div className="adm-wrap">
+        <div className="adm-brand"><b>Vaaksudhi</b><span>Admin</span></div>
         <div className="adm-tools">
-          <div className="adm-seg">{[7, 30, 90].map((d) => <button key={d} className={d === days ? 'on' : ''} onClick={() => setDays(d)}>{d}d</button>)}</div>
-          <button className="adm-ghost" onClick={() => setTick((t) => t + 1)}><Icon n="refresh" />Refresh</button>
-          <button className="adm-ghost" onClick={onLogout}><Icon n="out" />Sign out</button>
+          <button className="adm-ghost" onClick={() => setTick((t) => t + 1)}>Refresh</button>
+          <button className="adm-ghost" onClick={onLogout}>Sign out</button>
         </div>
-      </header>
+      </div></header>
 
-      <main className="adm-main">
-        {err && <div className="adm-err"><Icon n="alert" style={{ width: 16, height: 16 }} />{err}</div>}
+      <div className="adm-wrap adm-main">
+        <div className="adm-title">
+          <div><h1>Overview</h1><p>Usage, accounts and revenue · last {days} days</p></div>
+          <div className="adm-seg">{[7, 30, 90].map((d) => <button key={d} className={d === days ? 'on' : ''} onClick={() => setDays(d)}>{d} days</button>)}</div>
+        </div>
 
-        <section className="adm-kpis">
-          {!m ? [0, 1, 2, 3].map((i) => <div key={i} className="adm-sk" style={{ height: 124 }} />) : <>
-            <Kpi label="Successful logins" value={ok.toLocaleString('en-IN')} sub={`last ${days} days`} icon="login" color="#7c83ff" />
-            <Kpi label="Failed logins" value={bad.toLocaleString('en-IN')} sub={`${failRate}% of all attempts`} icon="alert" color="#fb7185" />
-            <Kpi label="Revenue" value={inr(m.revenue_inr)} sub={`${pay.completed?.count || 0} completed payments`} icon="rupee" color="#34d399" />
-            <Kpi label="Failed payments" value={pay.failed?.count || 0} sub={`${pay.pending?.count || 0} pending`} icon="card" color="#fbbf24" />
-          </>}
-        </section>
+        {err && <div className="adm-err">{err}</div>}
 
-        <section className="adm-grid2">
-          <div className="adm-card">
-            <div className="adm-h"><h2>Daily active users</h2>
-              <div className="adm-legend">{ROLES.map((r) => <span key={r.key}><i style={{ background: r.color }} />{r.label}</span>)}</div></div>
-            {!m ? <div className="adm-sk" style={{ height: 260 }} /> : (
-              <div style={{ height: 260, position: 'relative' }}>
+        {loading ? <Sk h={92} /> : (
+          <section className="adm-kpis">
+            <Kpi label="Registered accounts" value={num(totalAcc)} sub="all roles" />
+            <Kpi label="New signups" value={num(newAcc)} sub={`last ${days} days`} />
+            <Kpi label="Successful logins" value={num(ok)} sub={`${num(o.auth.unique_ips)} unique IPs`} />
+            <Kpi label="Login success rate" value={rate === null ? '–' : rate + '%'} sub={`${num(bad)} failed`} color={rate !== null && rate < 70 ? C.bad : undefined} />
+            <Kpi label="Revenue" value={inr(m.revenue_inr)} sub={`${pay.completed?.count || 0} payments`} />
+            <Kpi label="Active subscriptions" value={num(activeSubs)} sub={`${pay.failed?.count || 0} failed payments`} />
+          </section>
+        )}
+
+        <h3 className="adm-sec">Audience</h3>
+        <section className="adm-g a">
+          <Card title="Daily active users" right={<Legend items={ROLES} />}>
+            {loading ? <Sk /> : (
+              <div style={{ height: 250, position: 'relative' }}>
                 <ResponsiveContainer>
-                  <AreaChart data={chart} margin={{ top: 6, right: 6, left: -22, bottom: 0 }}>
-                    <defs>{ROLES.map((r) => (
-                      <linearGradient key={r.key} id={'g' + r.key} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={r.color} stopOpacity={0.55} /><stop offset="100%" stopColor={r.color} stopOpacity={0.02} />
-                      </linearGradient>))}</defs>
-                    <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fill: '#8f99b8', fontSize: 12 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
-                    <YAxis allowDecimals={false} tick={{ fill: '#8f99b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ stroke: 'rgba(255,255,255,.15)' }} contentStyle={{ background: '#151b34', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, color: '#e9edf9', fontSize: 13 }} />
-                    {ROLES.map((r) => <Area key={r.key} type="monotone" dataKey={r.key} name={r.label} stackId="1" stroke={r.color} strokeWidth={2} fill={`url(#g${r.key})`} />)}
+                  <AreaChart data={dau} margin={MG}>
+                    <CartesianGrid stroke={C.grid} vertical={false} />
+                    <XAxis dataKey="label" {...AX} interval="preserveStartEnd" minTickGap={24} />
+                    <YAxis allowDecimals={false} {...AX} />
+                    <Tooltip {...TT} />
+                    {ROLES.map((r) => <Area key={r.key} type="monotone" dataKey={r.key} name={r.label} stackId="1" stroke={r.color} strokeWidth={1.5} fill={r.color} fillOpacity={0.18} />)}
                   </AreaChart>
                 </ResponsiveContainer>
-                {!hasActivity && <div className="adm-empty" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}><b>No activity yet</b>Sign-ins will appear here.</div>}
+                {!hasDau && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}><Empty t="No successful logins yet" s="Sign in as a kid, parent or therapist and it shows here." /></div>}
               </div>
             )}
-          </div>
-
-          <div className="adm-card">
-            <div className="adm-h"><h2>Logins by role</h2></div>
-            {!m ? <div className="adm-sk" style={{ height: 200 }} /> : ROLES.map((r) => {
+          </Card>
+          <Card title="Logins by role">
+            {loading ? <Sk /> : ROLES.map((r) => {
               const v = lg[r.key] || { success: 0, failed: 0 }
               const t = v.success + v.failed
               return (
-                <div className="adm-role" key={r.key}>
-                  <div className="adm-role-h"><span><i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: r.color, marginRight: 8 }} />{r.label}</span>
-                    <span>{v.success} ok · {v.failed} failed</span></div>
-                  <div className="adm-bar" style={t ? undefined : { background: 'rgba(255,255,255,.08)' }}><div style={{ width: t ? `${(v.success / t) * 100}%` : 0 }} /></div>
+                <div className="adm-hb" key={r.key}>
+                  <div className="adm-hb-h"><span><Dot c={r.color} />{r.label}</span><span>{v.success} ok · {v.failed} failed</span></div>
+                  <div className="adm-bar">{t > 0 && <><div style={{ width: `${(v.success / t) * 100}%`, background: C.ok }} /><div style={{ width: `${(v.failed / t) * 100}%`, background: C.bad }} /></>}</div>
                 </div>
               )
             })}
-          </div>
+          </Card>
         </section>
 
-        <section className="adm-grid2">
-          <div className="adm-card">
-            <div className="adm-h"><h2>Failed payments</h2></div>
-            {!m ? <div className="adm-sk" style={{ height: 120 }} /> : m.failed_payments.length ? (
-              <div className="adm-scroll"><table className="adm-table">
-                <thead><tr><th>When</th><th>Who</th><th>Plan</th><th>Amount</th><th>Reason</th></tr></thead>
-                <tbody>{m.failed_payments.map((p) => (
-                  <tr key={p.merchant_order_id}><td>{when(p.created_at)}</td><td style={{ textTransform: 'capitalize' }}>{p.owner_kind}</td><td>{p.plan_type}</td>
-                    <td>{inr(p.amount_paise / 100)}</td><td style={{ color: '#fda4af' }}>{p.failure_reason || '-'}</td></tr>))}</tbody>
-              </table></div>
-            ) : <div className="adm-empty"><b>No failed payments</b>Nothing needs your attention.</div>}
-          </div>
-
-          <div className="adm-card">
-            <div className="adm-h"><h2>Payments by status</h2></div>
-            {!m ? <div className="adm-sk" style={{ height: 120 }} /> : Object.keys(pay).length ? Object.entries(pay).map(([s, v]) => (
-              <div className="adm-pay" key={s}>
-                <span className="adm-pill" style={{ background: (STATE_COLOR[s] || '#8f99b8') + '22', color: STATE_COLOR[s] || '#8f99b8' }}>{s}</span>
-                <span>{v.count} · {inr(v.amount_paise / 100)}</span>
-              </div>
-            )) : <div className="adm-empty"><b>No payments yet</b>They'll show once billing is live.</div>}
-          </div>
+        <section className="adm-g b">
+          <Card title="Accounts">
+            {loading ? <Sk /> : (
+              <>
+                <div className="adm-donut">
+                  <div style={{ height: 160, position: 'relative' }}>
+                    {totalAcc > 0 ? (
+                      <ResponsiveContainer><PieChart>
+                        <Pie data={donut} dataKey="value" innerRadius={50} outerRadius={72} paddingAngle={2} stroke="none">{donut.map((d) => <Cell key={d.name} fill={d.color} />)}</Pie>
+                        <Tooltip {...TT} />
+                      </PieChart></ResponsiveContainer>
+                    ) : <Empty t="No accounts" s="" />}
+                    {totalAcc > 0 && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', textAlign: 'center' }}><div><b style={{ fontSize: 22 }}>{num(totalAcc)}</b><div className="adm-note">total</div></div></div>}
+                  </div>
+                  <div>{ROLES.map((r) => (
+                    <div className="adm-row" key={r.key}>
+                      <span><Dot c={r.color} />{r.label}</span>
+                      <span>{num(tot[r.acc]?.total)}{tot[r.acc]?.new ? <span className="m" style={{ color: C.ok }}> +{tot[r.acc].new}</span> : null}</span>
+                    </div>))}</div>
+                </div>
+                <div className="adm-mini">{ROLES.map((r) => <div key={r.key}><b>{tot[r.acc]?.active ?? '–'}</b><small>{r.label} signed in</small></div>)}</div>
+                <p className="adm-note" style={{ marginTop: 10 }}>Signed in = last login falls inside the selected window.</p>
+              </>
+            )}
+          </Card>
+          <Card title="New signups per day" right={<Legend items={ROLES} />}>
+            {loading ? <Sk /> : (
+              <div style={{ height: 250 }}><ResponsiveContainer>
+                <BarChart data={signups} margin={MG}>
+                  <CartesianGrid stroke={C.grid} vertical={false} />
+                  <XAxis dataKey="label" {...AX} interval="preserveStartEnd" minTickGap={24} /><YAxis allowDecimals={false} {...AX} /><Tooltip {...TT} />
+                  <Bar dataKey="kids" name="Kids" stackId="a" fill={C.kid} /><Bar dataKey="parents" name="Parents" stackId="a" fill={C.parent} /><Bar dataKey="therapists" name="Therapists" stackId="a" fill={C.therapist} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer></div>
+            )}
+          </Card>
         </section>
 
-        <section className="adm-card">
-          <div className="adm-h"><h2>AI summary</h2>
-            <button className="adm-btn sm" onClick={generate} disabled={busy}>{busy ? <><span className="adm-spin" />Generating</> : <><Icon n="spark" style={{ width: 15, height: 15 }} />Generate for {days}d</>}</button></div>
-          {sums.length === 0 ? <div className="adm-empty"><b>No summaries yet</b>Generate one to get a plain-language recap.</div>
+        <h3 className="adm-sec">Engagement</h3>
+        <section className="adm-g b">
+          <Card title="Login attempts per day" right={<Legend items={[{ label: 'Success', color: C.ok }, { label: 'Failed', color: C.bad }]} />}>
+            {loading ? <Sk /> : (
+              <div style={{ height: 250 }}><ResponsiveContainer>
+                <BarChart data={attempts} margin={MG}>
+                  <CartesianGrid stroke={C.grid} vertical={false} />
+                  <XAxis dataKey="label" {...AX} interval="preserveStartEnd" minTickGap={24} /><YAxis allowDecimals={false} {...AX} /><Tooltip {...TT} />
+                  <Bar dataKey="success" name="Success" stackId="a" fill={C.ok} /><Bar dataKey="failed" name="Failed" stackId="a" fill={C.bad} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer></div>
+            )}
+          </Card>
+          <Card title="Busiest hours (IST)" right={peak && peak.n > 0 ? <span className="m">Peak {peak.h}:00</span> : null}>
+            {loading ? <Sk /> : (
+              <div style={{ height: 250 }}><ResponsiveContainer>
+                <BarChart data={hours} margin={MG}>
+                  <CartesianGrid stroke={C.grid} vertical={false} />
+                  <XAxis dataKey="h" {...AX} interval={2} /><YAxis allowDecimals={false} {...AX} /><Tooltip {...TT} labelFormatter={(h) => `${h}:00`} />
+                  <Bar dataKey="n" name="Attempts" fill={C.blue} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer></div>
+            )}
+          </Card>
+        </section>
+
+        <section className="adm-g b">
+          <Card title="Practice sessions per day" right={o?.sessions.best ? <span className="m">{nice(o.sessions.best)}</span> : null}>
+            {loading ? <Sk h={230} /> : o.sessions.best ? (
+              <div style={{ height: 230 }}><ResponsiveContainer>
+                <AreaChart data={sess} margin={MG}>
+                  <CartesianGrid stroke={C.grid} vertical={false} />
+                  <XAxis dataKey="label" {...AX} interval="preserveStartEnd" minTickGap={24} /><YAxis allowDecimals={false} {...AX} /><Tooltip {...TT} />
+                  <Area type="monotone" dataKey="count" name="Sessions" stroke={C.blue} strokeWidth={1.5} fill={C.blue} fillOpacity={0.18} />
+                </AreaChart>
+              </ResponsiveContainer></div>
+            ) : <Empty t="No sessions in this window" s="Game and exercise sessions chart here." />}
+          </Card>
+          <Card title="Activity by feature">
+            {loading ? <Sk h={230} /> : o.sessions.tables.length ? (
+              <HBars items={o.sessions.tables.map((t) => ({ label: nice(t.name), value: t.in_window ?? t.total, right: `${num(t.in_window ?? 0)} in window · ${num(t.total)} total` }))} />
+            ) : <Empty t="No session tables found" s="" />}
+          </Card>
+        </section>
+
+        <h3 className="adm-sec">Security and devices</h3>
+        <section className="adm-g b">
+          <Card title="Devices (successful logins)">
+            {loading ? <Sk h={150} /> : devTotal ? (
+              <HBars items={o.auth.devices.map((d) => ({ label: d.name, value: d.count, right: `${d.count} · ${Math.round((d.count / devTotal) * 100)}%` }))} />
+            ) : <Empty t="No device data yet" s="" />}
+          </Card>
+          <Card title="Top failing IPs">
+            {loading ? <Sk h={150} /> : o.auth.top_failing_ips.length ? (
+              <HBars items={o.auth.top_failing_ips.map((i) => ({ label: i.ip, value: i.failed, right: i.failed >= 5 ? `${i.failed} failed · suspicious` : `${i.failed} failed`, color: i.failed >= 5 ? C.bad : C.warn }))} />
+            ) : <Empty t="No failed attempts" s="" />}
+          </Card>
+        </section>
+
+        <h3 className="adm-sec">Revenue</h3>
+        <section className="adm-g b">
+          <Card title="Subscriptions">
+            {loading ? <Sk h={110} /> : subs.length ? subs.map((s) => (
+              <div className="adm-row" key={s.status}><Status c={STATE[s.status] || C.muted}>{s.status}</Status><span>{num(s.count)}</span></div>
+            )) : <Empty t="No subscriptions" s="" />}
+          </Card>
+          <Card title="Payments by status">
+            {loading ? <Sk h={110} /> : Object.keys(pay).length ? Object.entries(pay).map(([s, v]) => (
+              <div className="adm-row" key={s}><Status c={STATE[s] || C.muted}>{s}</Status><span>{v.count} · {inr(v.amount_paise / 100)}</span></div>
+            )) : <Empty t="No payments yet" s="They'll show once billing is live." />}
+          </Card>
+        </section>
+        <Card title="Failed payments">
+          {loading ? <Sk h={90} /> : m.failed_payments.length ? (
+            <div className="adm-scroll"><table className="adm-table">
+              <thead><tr><th>When</th><th>Who</th><th>Plan</th><th>Amount</th><th>Mode</th><th>Reason</th></tr></thead>
+              <tbody>{m.failed_payments.map((p) => (
+                <tr key={p.merchant_order_id}><td>{when(p.created_at)}</td><td style={{ textTransform: 'capitalize' }}>{p.owner_kind}</td><td>{p.plan_type}</td>
+                  <td>{inr(p.amount_paise / 100)}</td><td>{p.payment_mode || '–'}</td><td style={{ color: C.bad }}>{p.failure_reason || '–'}</td></tr>))}</tbody>
+            </table></div>
+          ) : <Empty t="No failed payments" s="Nothing needs attention." />}
+        </Card>
+
+        <h3 className="adm-sec">Activity</h3>
+        <Card title="Recent sign-ins">
+          {loading ? <Sk h={160} /> : o.auth.recent.length ? (
+            <div className="adm-scroll"><table className="adm-table">
+              <thead><tr><th>When</th><th>Role</th><th>Result</th><th>Device</th><th>IP</th></tr></thead>
+              <tbody>{o.auth.recent.map((r) => (
+                <tr key={r.id}><td>{when(r.created_at)}</td>
+                  <td style={{ textTransform: 'capitalize' }}><Status c={ROLE[r.user_type]?.color || C.muted}>{r.user_type}</Status></td>
+                  <td><Status c={r.success ? C.ok : C.bad}>{r.success ? 'Success' : 'Failed'}</Status></td>
+                  <td>{r.device}</td><td style={{ color: C.muted }}>{r.ip || '–'}</td></tr>))}</tbody>
+            </table></div>
+          ) : <Empty t="No activity yet" s="" />}
+        </Card>
+
+        <h3 className="adm-sec">Summary</h3>
+        <Card title="AI summary" right={<button className="adm-btn sm" onClick={generate} disabled={busy}>{busy ? 'Generating…' : `Generate for ${days} days`}</button>}>
+          {sums.length === 0 ? <Empty t="No summaries yet" s="Generate one for a plain-language recap." />
             : sums.map((s, i) => (
-              <div key={s.id} className={'adm-sum' + (i === 0 ? ' latest' : '')}>
+              <div key={s.id} className="adm-sum">
                 <small>{i === 0 ? 'Latest · ' : ''}{when(s.created_at)}</small>
                 <p>{s.text}</p>
               </div>))}
-        </section>
-      </main>
+        </Card>
+      </div>
     </div>
   )
 }
