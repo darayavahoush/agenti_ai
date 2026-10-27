@@ -1,5 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { meAPI } from './api/client'
@@ -194,6 +195,7 @@ function AppRoutes() {
         <Route path="/play-select" element={<AuthPage initialRole="kid" />} />
         <Route path="/verify" element={<Verify />} />
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
 

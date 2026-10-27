@@ -261,6 +261,7 @@ async def google_login_or_register_therapist(
         # therapist with no warning. Clients that don't send an intent keep
         # the old login-or-register behaviour.
         if data.intent == "login":
+            await log_auth_event("therapist", None, False, request)
             raise HTTPException(
                 status_code=404,
                 detail="No teacher account found for this Google account. Switch to Register to create one.",
@@ -286,6 +287,7 @@ async def google_login_or_register_therapist(
     if not therapist.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
+    await log_auth_event("therapist", therapist.id, True, request)
     therapist.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
     token = create_access_token(str(therapist.id))
     refresh_token = await create_refresh_token(db, "therapist", str(therapist.id))

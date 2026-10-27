@@ -813,10 +813,11 @@ async def _find_parent_by_google(db: AsyncSession, google_user):
 
 
 @router.post("/parent-google-login", response_model=ParentTokenResponse)
-async def login_parent_google(data: ParentGoogleLoginRequest, db: AsyncSession = Depends(get_db)):
+async def login_parent_google(request: Request, data: ParentGoogleLoginRequest, db: AsyncSession = Depends(get_db)):
     google_user = verify_google_id_token(data.id_token)
     parent = await _find_parent_by_google(db, google_user)
     if parent is None:
+        await log_auth_event("parent", None, False, request)
         raise HTTPException(
             status_code=404,
             detail="No parent account is linked to this Google email yet -- register with your child's player code first",
@@ -827,6 +828,7 @@ async def login_parent_google(data: ParentGoogleLoginRequest, db: AsyncSession =
     child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     child = child_result.scalar_one_or_none()
 
+    await log_auth_event("parent", parent.id, True, request)
     parent.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     return await _make_parent_token_response(db, parent, child.first_name if child else "")
