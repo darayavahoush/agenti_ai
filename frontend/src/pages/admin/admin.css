@@ -116,3 +116,43 @@ font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans
 .adm[data-theme=dark][data-tint=blue]{--bg:#141c33;--panel:#1b2543;--panel2:#243053;--border:#31416b;--text:#dfe5f5;--muted:#93a0c4;--accent:#6b8ff0}
 .adm[data-theme=dark][data-tint=purple]{--bg:#1e1636;--panel:#281e47;--panel2:#332759;--border:#46387a;--text:#e6e0f7;--muted:#a597cc;--accent:#a08cf5}
 .adm[data-theme=dark][data-tint=pink]{--bg:#2f1624;--panel:#3b1c2e;--panel2:#4a2439;--border:#623049;--text:#f7e0eb;--muted:#c99aae;--accent:#ee7fad}
+
+/* ---- readability: stronger muted + text contrast ---- */
+.adm[data-theme=dark][data-tint=blue]{--muted:#aab5d6;--text:#eaeefa}
+.adm[data-theme=dark][data-tint=purple]{--muted:#b9aedb;--text:#f0ebfb}
+.adm[data-theme=dark][data-tint=pink]{--muted:#dbb0c2;--text:#fbebf2}
+.adm[data-theme=light][data-tint=blue]{--muted:#4f566b;--text:#1d2230}
+.adm[data-theme=light][data-tint=purple]{--muted:#5a5470;--text:#231f31}
+.adm[data-theme=light][data-tint=pink]{--muted:#6a4f5d;--text:#2f1e28}
+
+/* ---- compact layout ---- */
+.adm{font-size:13.5px;line-height:1.45}
+.adm-wrap{padding:0 20px}
+.adm-top .adm-wrap{height:48px}
+.adm-main{gap:12px;padding-bottom:40px}
+.adm-title{padding-top:16px}
+.adm-title h1{font-size:20px}
+.adm-title p,.adm-note{font-size:13px}
+.adm-kpi{padding:11px 14px}
+.adm-kl{font-size:13px}
+.adm-kv{font-size:22px;margin:2px 0 0;line-height:1.25}
+.adm-ks{font-size:12.5px}
+.adm-sec{margin:12px 0 -2px}
+.adm-g{gap:12px}
+.adm-card{padding:14px 16px}
+.adm-h{margin-bottom:10px;min-height:20px}
+.adm-h .m,.adm-legend{font-size:13px}
+.adm-row{padding:6px 0}
+.adm-hb{margin-bottom:10px}
+.adm-hb-h{font-size:13.5px;margin-bottom:4px}
+.adm-mini{margin-top:12px}
+.adm-mini>div{padding:8px 10px}
+.adm-mini b{font-size:17px}
+.adm-mini small{font-size:12.5px}
+.adm-table{font-size:13.5px}
+.adm-table th{font-size:12.5px;padding:5px 10px 5px 0}
+.adm-table td{padding:7px 10px 7px 0}
+.adm-sum{padding:10px 0}
+.adm-sum small{font-size:12.5px}
+.adm-seg button{padding:4px 12px;font-size:13px}
+.adm-ghost{height:30px;font-size:13px}
