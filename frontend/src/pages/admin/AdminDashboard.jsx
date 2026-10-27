@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
-const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '') + '/api/v1/admin'
+const BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '')
+const API = BASE + '/admin'
 const TK = 'admin_token'
 const COLORS = { kid: '#6366f1', parent: '#10b981', therapist: '#f59e0b' }
 
