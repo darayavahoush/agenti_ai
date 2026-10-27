@@ -14,3 +14,4 @@ from . import session  # noqa: F401
 from . import therapist  # noqa: F401
 from . import vaakmirror_models  # noqa: F401
 from . import voicehurdlerace_models  # noqa: F401
+from .admin_payments import AuthEvent, Payment, AdminUser, AiSummary  # noqa

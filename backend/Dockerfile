@@ -37,6 +37,7 @@ COPY audio_features ./audio_features
 COPY assets ./assets
 COPY data ./data
 COPY schemas ./schemas
+COPY scripts/create_admin.py ./scripts/create_admin.py
 COPY vosk_models ./vosk_models
 COPY retraining ./retraining
 COPY simulator ./simulator

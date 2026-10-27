@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
+from app.auth_events import log_auth_event
 from app.database import get_db
 from app.models.therapist import Therapist
 from app.models.breathquest_models import BreathQuestPatient, Parent, Subscription, TherapistNote
@@ -93,7 +94,7 @@ async def register_therapist(request: Request, data: TherapistRegister, db: Asyn
 
 
 @router.post("/login", response_model=TherapistTokenResponse)
-async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_db)):
+async def login_therapist(request: Request, data: TherapistLogin, db: AsyncSession = Depends(get_db)):
     # Throttle check happens before touching hashed_password at all -- a
     # locked-out email gets 429 regardless of whether the password sent is
     # even close, matching kid-login's same reasoning: a locked-out
@@ -111,6 +112,7 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
 
     if not therapist or not verify_password(data.password, therapist.hashed_password):
         await record_failure(data.email, db)
+        await log_auth_event("therapist", None, False, request)
         await db.commit()
         # This message is deliberately identical whether the email doesn't
         # exist, the password is wrong, or the account is Google-only
@@ -129,6 +131,8 @@ async def login_therapist(data: TherapistLogin, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=403, detail="Account deactivated")
 
     await record_success(data.email, db)
+
+    await log_auth_event("therapist", therapist.id, True, request)
     token = create_access_token(str(therapist.id))
     refresh_token = await create_refresh_token(db, "therapist", str(therapist.id))
     await db.commit()

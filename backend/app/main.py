@@ -23,6 +23,7 @@ from app.routes.assessment import router as assessment_router
 from app.routers.breathquest import auth as breathquest_auth_router
 from app.routers.breathquest import assessment as breathquest_assessment_router
 from app.routers.breathquest import billing as breathquest_billing_router
+from app.routers import admin_dashboard as admin_dashboard_router
 from app.routers.breathquest import access as breathquest_access_router
 from app.routers.breathquest import patients as breathquest_patients_router
 from app.routers.breathquest import sessions as breathquest_sessions_router
@@ -148,6 +149,7 @@ app.include_router(breathquest_assessment_router.router, prefix="/api/v1")
 # billing_provider stub (see breathquest_core/billing_provider.py) so this
 # can mount for the first time.
 app.include_router(breathquest_billing_router.router, prefix="/api/v1")
+app.include_router(admin_dashboard_router.router, prefix="/api/v1")
 app.include_router(breathquest_access_router.router, prefix="/api/v1")
 # Re-enabled 2026-08-11: rewritten against BreathQuestPatient/GameSession
 # (the 2026-08-06 disable reason -- wrong model imports -- is fixed).

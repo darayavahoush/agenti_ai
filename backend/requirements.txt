@@ -97,7 +97,7 @@ imageio-ffmpeg==0.6.0
 aiofiles==25.1.0
 
 # Web Scraping
-requests==2.34.2
+requests==2.31.0
 ddgs==9.15.0
 
 # Translation
@@ -125,3 +125,12 @@ gtts
 # go stale. See app/services/greetings.py.
 holidays==0.104
 reportlab
+<<<<<<< HEAD
+=======
+
+av==18.1.0
+anthropic==2.3.0
+phonepe-pg-sdk-python==3.0.1
+PyJWT==2.15.1
+openai==3.39.0
+>>>>>>> 40b2536 (Admin dashboard: auth events, admin login, metrics, Azure OpenAI summary)

@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from datetime import datetime, timezone
 import logging
 
+from app.auth_events import log_auth_event
 from app.database import get_db
 from app.models.breathquest_models import (
     BreathQuestPatient, Parent, ParentChild, Subscription,
@@ -511,7 +512,7 @@ async def forgot_pin(request: Request, data: ForgotPinRequest, db: AsyncSession 
 
 
 @router.post("/kid-login", response_model=KidTokenResponse)
-async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
+async def kid_login(request: Request, data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     # Player codes remain supported for children who already have one. Names
     # are matched without regard to case so children can use their registered
     # name together with their PIN. first_name has no uniqueness constraint
@@ -551,6 +552,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     matching_patients = [patient for patient in patients if verify_pin(data.pin, patient.pin_hash)]
     if not matching_patients:
         await record_failure(identifier, db)
+        await log_auth_event("kid", None, False, request)
         await db.commit()
         raise HTTPException(status_code=401, detail="Incorrect name, email, username, player code, or PIN")
     if len(matching_patients) > 1:
@@ -564,6 +566,7 @@ async def kid_login(data: KidLoginRequest, db: AsyncSession = Depends(get_db)):
     token = create_kid_token(patient.id)
     refresh_token = await create_refresh_token(db, "patient", str(patient.id))
     await record_success(identifier, db)
+    await log_auth_event("kid", patient.id, True, request)
     await db.commit()
 
     # Best-effort weekly digest/nudge -- see weekly_update.py's module
@@ -738,7 +741,7 @@ async def reset_parent_password(request: Request, data: ParentResetPasswordReque
 
 
 @router.post("/parent-login", response_model=ParentTokenResponse)
-async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_db)):
+async def login_parent(request: Request, data: ParentLoginRequest, db: AsyncSession = Depends(get_db)):
     throttle = await check_throttle(data.email, db)
     if throttle.locked:
         raise HTTPException(
@@ -751,6 +754,7 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
     parent = result.scalar_one_or_none()
     if not parent or not verify_password(data.password, parent.hashed_password):
         await record_failure(data.email, db)
+        await log_auth_event("parent", None, False, request)
         await db.commit()
         # Deliberately unconditional -- see the matching comment in
         # therapist_auth.py's login_therapist for why this can't vary by
@@ -765,6 +769,8 @@ async def login_parent(data: ParentLoginRequest, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=403, detail="Account deactivated")
 
     await record_success(data.email, db)
+
+    await log_auth_event("parent", parent.id, True, request)
 
     child_result = await db.execute(select(BreathQuestPatient).where(BreathQuestPatient.id == parent.patient_id))
     child = child_result.scalar_one_or_none()
