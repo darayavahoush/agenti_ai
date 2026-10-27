@@ -5,7 +5,7 @@ import './admin.css'
 const BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '')
 const API = BASE + '/admin'
 const TK = 'admin_token'
-const C = { kid: '#5b8def', parent: '#4fb286', therapist: '#d9a441', ok: '#4fb286', bad: '#e5675f', warn: '#d9a441', blue: '#5b8def', muted: '#8a8a93', grid: '#242428' }
+const C = { kid: 'var(--kid)', parent: 'var(--ok)', therapist: 'var(--warn)', ok: 'var(--ok)', bad: 'var(--bad)', warn: 'var(--warn)', blue: 'var(--blue)', muted: 'var(--muted)', grid: 'var(--border)' }
 const ROLES = [
   { key: 'kid', acc: 'kids', label: 'Kids', color: C.kid },
   { key: 'parent', acc: 'parents', label: 'Parents', color: C.parent },
@@ -13,7 +13,21 @@ const ROLES = [
 ]
 const ROLE = Object.fromEntries(ROLES.map((r) => [r.key, r]))
 const STATE = { completed: C.ok, failed: C.bad, pending: C.warn, created: C.muted, active: C.ok, trialing: C.blue, past_due: C.warn, canceled: C.bad }
-const TT = { contentStyle: { background: '#151517', border: '1px solid #2a2a2f', borderRadius: 8, color: '#ededee', fontSize: 13 }, itemStyle: { color: '#ededee' }, cursor: { fill: 'rgba(255,255,255,.04)', stroke: 'rgba(255,255,255,.12)' } }
+const TT = { contentStyle: { background: 'var(--panel2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13 }, itemStyle: { color: 'var(--text)' }, labelStyle: { color: 'var(--muted)' }, cursor: { fill: 'rgba(128,128,128,.12)', stroke: 'rgba(128,128,128,.3)' } }
+
+const THEME_KEY = 'admin_theme'
+function useTheme() {
+  const [theme, setTheme] = useState(() => {
+    try { const s = localStorage.getItem(THEME_KEY); if (s === 'light' || s === 'dark') return s } catch {}
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  })
+  const toggle = useCallback(() => setTheme((t) => {
+    const n = t === 'dark' ? 'light' : 'dark'
+    try { localStorage.setItem(THEME_KEY, n) } catch {}
+    return n
+  }), [])
+  return [theme, toggle]
+}
 const AX = { tick: { fill: C.muted, fontSize: 12 }, axisLine: false, tickLine: false }
 const MG = { top: 6, right: 6, left: -24, bottom: 0 }
 
@@ -55,7 +69,7 @@ function HBars({ items, color = C.blue }) {
   ))
 }
 
-function Login({ onToken }) {
+function Login({ onToken, theme, onTheme }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
@@ -71,7 +85,7 @@ function Login({ onToken }) {
     } catch (ex) { setErr(ex.message) } finally { setBusy(false) }
   }
   return (
-    <div className="adm"><div className="adm-center">
+    <div className="adm" data-theme={theme}><button className="adm-ghost adm-corner" onClick={onTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button><div className="adm-center">
       <form className="adm-login" onSubmit={submit}>
         <h1>Sign in</h1>
         <p className="adm-sub">Vaaksudhi admin</p>
@@ -91,7 +105,7 @@ function Login({ onToken }) {
   )
 }
 
-function Dashboard({ token, onLogout }) {
+function Dashboard({ token, onLogout, theme, onTheme }) {
   const [days, setDays] = useState(7)
   const [m, setM] = useState(null)
   const [o, setO] = useState(null)
@@ -154,10 +168,11 @@ function Dashboard({ token, onLogout }) {
   const loading = !m || !o
 
   return (
-    <div className="adm">
+    <div className="adm" data-theme={theme}>
       <header className="adm-top"><div className="adm-wrap">
         <div className="adm-brand"><b>Vaaksudhi</b><span>Admin</span></div>
         <div className="adm-tools">
+          <button className="adm-ghost" onClick={onTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
           <button className="adm-ghost" onClick={() => setTick((t) => t + 1)}>Refresh</button>
           <button className="adm-ghost" onClick={onLogout}>Sign out</button>
         </div>
@@ -366,5 +381,6 @@ function Dashboard({ token, onLogout }) {
 export default function AdminDashboard() {
   const [token, setToken] = useState(() => sessionStorage.getItem(TK))
   const logout = useCallback(() => { sessionStorage.removeItem(TK); setToken(null) }, [])
-  return token ? <Dashboard token={token} onLogout={logout} /> : <Login onToken={setToken} />
+  const [theme, toggleTheme] = useTheme()
+  return token ? <Dashboard token={token} onLogout={logout} theme={theme} onTheme={toggleTheme} /> : <Login onToken={setToken} theme={theme} onTheme={toggleTheme} />
 }
