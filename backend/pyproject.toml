@@ -1,5 +1,4 @@
 [project]
-name = "backend"
 version = "0.1.0"
 name = "vaaksudhi-backend"
 description = "FastAPI and LangGraph backend for Vaaksudhi speech therapy platform"
