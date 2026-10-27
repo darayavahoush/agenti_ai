@@ -28,6 +28,26 @@ function useTheme() {
   }), [])
   return [theme, toggle]
 }
+
+const TINT_KEY = 'admin_tint'
+const TINTS = [['blue', '#6b8ff0'], ['purple', '#9b86f0'], ['pink', '#e57aa5']]
+function useTint() {
+  const [tint, setTint] = useState(() => {
+    try { const s = localStorage.getItem(TINT_KEY); if (TINTS.some(([k]) => k === s)) return s } catch {}
+    return 'blue'
+  })
+  const pick = useCallback((k) => { setTint(k); try { localStorage.setItem(TINT_KEY, k) } catch {} }, [])
+  return [tint, pick]
+}
+function Tints({ tint, onTint }) {
+  return (
+    <div className="adm-tints">
+      {TINTS.map(([k, c]) => (
+        <button key={k} type="button" title={k} aria-label={k + ' tint'} className={tint === k ? 'on' : ''} style={{ background: c }} onClick={() => onTint(k)} />
+      ))}
+    </div>
+  )
+}
 const AX = { tick: { fill: C.muted, fontSize: 12 }, axisLine: false, tickLine: false }
 const MG = { top: 6, right: 6, left: -24, bottom: 0 }
 
@@ -69,7 +89,7 @@ function HBars({ items, color = C.blue }) {
   ))
 }
 
-function Login({ onToken, theme, onTheme }) {
+function Login({ onToken, theme, onTheme, tint, onTint }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
@@ -85,7 +105,7 @@ function Login({ onToken, theme, onTheme }) {
     } catch (ex) { setErr(ex.message) } finally { setBusy(false) }
   }
   return (
-    <div className="adm" data-theme={theme}><button className="adm-ghost adm-corner" onClick={onTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button><div className="adm-center">
+    <div className="adm" data-theme={theme} data-tint={tint}><div className="adm-corner adm-tools"><Tints tint={tint} onTint={onTint} /><button className="adm-ghost" onClick={onTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button></div><div className="adm-center">
       <form className="adm-login" onSubmit={submit}>
         <h1>Sign in</h1>
         <p className="adm-sub">Vaaksudhi admin</p>
@@ -105,7 +125,7 @@ function Login({ onToken, theme, onTheme }) {
   )
 }
 
-function Dashboard({ token, onLogout, theme, onTheme }) {
+function Dashboard({ token, onLogout, theme, onTheme, tint, onTint }) {
   const [days, setDays] = useState(7)
   const [m, setM] = useState(null)
   const [o, setO] = useState(null)
@@ -168,10 +188,11 @@ function Dashboard({ token, onLogout, theme, onTheme }) {
   const loading = !m || !o
 
   return (
-    <div className="adm" data-theme={theme}>
+    <div className="adm" data-theme={theme} data-tint={tint}>
       <header className="adm-top"><div className="adm-wrap">
         <div className="adm-brand"><b>Vaaksudhi</b><span>Admin</span></div>
         <div className="adm-tools">
+          <Tints tint={tint} onTint={onTint} />
           <button className="adm-ghost" onClick={onTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
           <button className="adm-ghost" onClick={() => setTick((t) => t + 1)}>Refresh</button>
           <button className="adm-ghost" onClick={onLogout}>Sign out</button>
@@ -382,5 +403,8 @@ export default function AdminDashboard() {
   const [token, setToken] = useState(() => sessionStorage.getItem(TK))
   const logout = useCallback(() => { sessionStorage.removeItem(TK); setToken(null) }, [])
   const [theme, toggleTheme] = useTheme()
-  return token ? <Dashboard token={token} onLogout={logout} theme={theme} onTheme={toggleTheme} /> : <Login onToken={setToken} theme={theme} onTheme={toggleTheme} />
+  const [tint, setTint] = useTint()
+  return token
+    ? <Dashboard token={token} onLogout={logout} theme={theme} onTheme={toggleTheme} tint={tint} onTint={setTint} />
+    : <Login onToken={setToken} theme={theme} onTheme={toggleTheme} tint={tint} onTint={setTint} />
 }
