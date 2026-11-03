@@ -1,0 +1,10 @@
+# Vaaksudhi
+
+> Vaaksudhi offers clinical speech-therapy games and tools for kids, built with therapists in mind.
+
+## Links
+- [Home](https://vaaksudhi.manaslearning.com/): what Vaaksudhi is and how to start
+- [Privacy](https://vaaksudhi.manaslearning.com/privacy.html)
+- [Terms](https://vaaksudhi.manaslearning.com/terms.html)
+
+Built by Manas Learning (https://manaslearning.com).
